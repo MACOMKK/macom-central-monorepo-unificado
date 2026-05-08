@@ -26,12 +26,21 @@ function DonutChart({ data }) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const radius = 80;
   const circumferenceGap = 4;
+  const strokeWidth = 40;
   let currentAngle = 0;
 
   return (
     <div className="flex h-[250px] flex-col items-center justify-center">
       {total ? (
         <svg viewBox="0 0 240 240" className="h-[220px] w-[220px]">
+          <circle
+            cx="120"
+            cy="120"
+            r={radius + strokeWidth / 2}
+            fill="none"
+            stroke="rgba(255,255,255,0.9)"
+            strokeWidth="2"
+          />
           <circle cx="120" cy="120" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="40" />
           {data.map((item) => {
             const sweep = (item.value / total) * 360;
@@ -47,12 +56,13 @@ function DonutChart({ data }) {
                 d={describeArc(120, 120, radius, startAngle, endAngle)}
                 fill="none"
                 stroke={item.color}
-                strokeWidth="40"
+                strokeWidth={strokeWidth}
                 strokeLinecap="butt"
               />
             );
           })}
-          <circle cx="120" cy="120" r="60" fill="white" />
+          <circle cx="120" cy="120" r="60" fill="hsl(var(--card))" />
+          <circle cx="120" cy="120" r="60" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
         </svg>
       ) : (
         <div className="py-16 text-center text-sm text-muted-foreground">Nenhum dado para exibir</div>
