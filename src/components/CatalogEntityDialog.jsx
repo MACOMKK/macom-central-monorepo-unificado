@@ -22,6 +22,11 @@ import {
 
 const EMPTY_SELECT_VALUE = '__empty__';
 
+function resolveFieldProp(field, propName, formState, record) {
+  const propValue = field[propName];
+  return typeof propValue === 'function' ? propValue(formState, record) : propValue;
+}
+
 function keepOnlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -75,9 +80,9 @@ function isMissingRequiredValue(value) {
   return value === null || value === undefined || String(value).trim() === '';
 }
 
-function getFieldValidationMessage(field, value) {
+function getFieldValidationMessage(field, value, formState, record) {
   if (!field.validate) return '';
-  return field.validate(value) || '';
+  return field.validate(value, formState, record) || '';
 }
 
 export default function CatalogEntityDialog({
@@ -132,14 +137,14 @@ export default function CatalogEntityDialog({
     const missingField = fields.find((field) => field.required && isMissingRequiredValue(payload[field.key]));
 
     if (missingField) {
-      setValidationMessage(`Preencha o campo obrigatorio: ${missingField.label}.`);
+      setValidationMessage(`Preencha o campo obrigatorio: ${resolveFieldProp(missingField, 'label', formState, record)}.`);
       return;
     }
 
-    const invalidField = fields.find((field) => getFieldValidationMessage(field, payload[field.key]));
+    const invalidField = fields.find((field) => getFieldValidationMessage(field, payload[field.key], payload, record));
 
     if (invalidField) {
-      setValidationMessage(getFieldValidationMessage(invalidField, payload[invalidField.key]));
+      setValidationMessage(getFieldValidationMessage(invalidField, payload[invalidField.key], payload, record));
       return;
     }
 
@@ -162,13 +167,13 @@ export default function CatalogEntityDialog({
           {fields.map((field) => (
             <div key={field.key} className={field.fullWidth ? 'sm:col-span-2' : field.halfWidth ? 'sm:col-span-1' : ''}>
               <Label htmlFor={field.key}>
-                {field.label}
+                {resolveFieldProp(field, 'label', formState, record)}
                 {field.required ? ' *' : ''}
               </Label>
               {field.type === 'select' ? (
                 <Select value={formState[field.key]} onValueChange={(value) => handleChange(field.key, value)}>
                   <SelectTrigger id={field.key} className={`mt-2 ${field.inputClassName || ''}`.trim()}>
-                    <SelectValue placeholder={field.placeholder || 'Selecione'} />
+                    <SelectValue placeholder={resolveFieldProp(field, 'placeholder', formState, record) || 'Selecione'} />
                   </SelectTrigger>
                   <SelectContent>
                     {(field.allowEmpty ? [{ value: EMPTY_SELECT_VALUE, label: field.emptyLabel || 'Nenhum' }] : []).concat(field.options || []).map((option) => (
@@ -178,6 +183,17 @@ export default function CatalogEntityDialog({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : field.type === 'textarea' ? (
+                <textarea
+                  id={field.key}
+                  value={formState[field.key]}
+                  onChange={(event) => handleChange(field.key, event.target.value)}
+                  className={`mt-2 min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${field.inputClassName || ''}`.trim()}
+                  placeholder={resolveFieldProp(field, 'placeholder', formState, record)}
+                  required={field.required}
+                  disabled={field.disabled}
+                  maxLength={field.maxLength}
+                />
               ) : (
                 <Input
                   id={field.key}
@@ -185,7 +201,7 @@ export default function CatalogEntityDialog({
                   value={formState[field.key]}
                   onChange={(event) => handleChange(field.key, event.target.value)}
                   className={`mt-2 ${field.inputClassName || ''}`.trim()}
-                  placeholder={field.placeholder}
+                  placeholder={resolveFieldProp(field, 'placeholder', formState, record)}
                   required={field.required}
                   disabled={field.disabled}
                   inputMode={field.inputMode}

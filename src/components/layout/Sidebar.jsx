@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Building2, ChevronLeft, ChevronRight, Home, Laptop, LogOut, Moon, Sun, Users, X } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, FileText, Home, Laptop, LogOut, Moon, Network, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -10,6 +10,10 @@ const navItems = [
   { path: '/departamentos', label: 'Departamentos', icon: Building2 },
   { path: '/unidades', label: 'Unidades', icon: Building2 },
   { path: '/colaboradores', label: 'Colaboradores', icon: Users },
+  { path: '/contatos', label: 'Contatos', icon: Phone },
+  { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone },
+  { path: '/infraestrutura', label: 'Infraestrutura', icon: Network },
+  { path: '/termos-posse', label: 'Termos de Posse', icon: FileText },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, theme, toggleTheme }) {

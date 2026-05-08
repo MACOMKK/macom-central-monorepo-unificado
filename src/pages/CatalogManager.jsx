@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Copy, Download, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Copy, Download, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,11 +32,35 @@ const entityMeta = {
     subtitle: '',
     icon: UserRound,
   },
+  contatos: {
+    title: 'Contatos',
+    singular: 'Contato',
+    subtitle: 'Base de fornecedores e contatos externos do sistema.',
+    icon: Phone,
+  },
+  linhas_corporativas: {
+    title: 'Linhas Corporativas',
+    singular: 'Linha',
+    subtitle: 'Chips, linhas moveis, fixos e ramais da empresa.',
+    icon: Phone,
+  },
   ativos: {
     title: 'Ativos',
     singular: 'Ativo',
     subtitle: '',
     icon: Laptop,
+  },
+  infra_estrutura: {
+    title: 'Infraestrutura',
+    singular: 'Registro de Infra',
+    subtitle: 'IPs e links de sistemas centralizados por unidade.',
+    icon: Network,
+  },
+  termos_posse: {
+    title: 'Termos de Posse',
+    singular: 'Termo',
+    subtitle: 'Geracao e acompanhamento dos termos de compromisso dos equipamentos.',
+    icon: FileText,
   },
 };
 
@@ -46,6 +71,18 @@ const statusTone = {
   em_uso: 'bg-blue-100 text-blue-800 border-blue-200',
   manutencao: 'bg-amber-100 text-amber-800 border-amber-200',
   descartado: 'bg-red-100 text-red-800 border-red-200',
+  gerado: 'bg-slate-100 text-slate-700 border-slate-200',
+  assinado: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  cancelado: 'bg-red-100 text-red-800 border-red-200',
+  devolvido: 'bg-amber-100 text-amber-800 border-amber-200',
+};
+
+const contactTypeTone = {
+  fornecedor: 'border-sky-200 bg-sky-100 text-sky-800',
+  suporte: 'border-emerald-200 bg-emerald-100 text-emerald-800',
+  parceiro: 'border-violet-200 bg-violet-100 text-violet-800',
+  comercial: 'border-amber-200 bg-amber-100 text-amber-800',
+  outro: 'border-slate-200 bg-slate-100 text-slate-800',
 };
 
 function formatDate(dateString) {
@@ -205,11 +242,15 @@ export default function CatalogManager({ lockedEntityKey }) {
   const importInputRef = useRef(null);
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
+  const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importAssetsPreview, setImportAssetsPreview] = useState([]);
+  const [importInfrastructureOpen, setImportInfrastructureOpen] = useState(false);
+  const [importInfrastructureFile, setImportInfrastructureFile] = useState(null);
+  const [importInfrastructurePreview, setImportInfrastructurePreview] = useState([]);
   const [importCollaboratorsOpen, setImportCollaboratorsOpen] = useState(false);
   const [importCollaboratorsFile, setImportCollaboratorsFile] = useState(null);
   const [importCollaboratorsPreview, setImportCollaboratorsPreview] = useState([]);
@@ -225,12 +266,20 @@ export default function CatalogManager({ lockedEntityKey }) {
   const departmentsQuery = useQuery({ queryKey: ['departamentos'], queryFn: catalogApi.departamentos.list });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
   const collaboratorsQuery = useQuery({ queryKey: ['colaboradores'], queryFn: catalogApi.colaboradores.list });
+  const contactsQuery = useQuery({ queryKey: ['contatos'], queryFn: catalogApi.contatos.list });
+  const corporateLinesQuery = useQuery({ queryKey: ['linhas_corporativas'], queryFn: catalogApi.linhas_corporativas.list });
   const assetsQuery = useQuery({ queryKey: ['ativos'], queryFn: catalogApi.ativos.list });
+  const infraQuery = useQuery({ queryKey: ['infra_estrutura'], queryFn: catalogApi.infra_estrutura.list });
+  const termsQuery = useQuery({ queryKey: ['termos_posse'], queryFn: catalogApi.termos_posse.list });
 
   const departments = departmentsQuery.data || [];
   const units = unitsQuery.data || [];
   const collaborators = collaboratorsQuery.data || [];
+  const contacts = contactsQuery.data || [];
+  const corporateLines = corporateLinesQuery.data || [];
   const assets = assetsQuery.data || [];
+  const infraRows = infraQuery.data || [];
+  const terms = termsQuery.data || [];
 
   const config = useMemo(() => {
     const departmentOptions = departments.map((item) => ({ value: item.id, label: item.nome }));
@@ -239,9 +288,19 @@ export default function CatalogManager({ lockedEntityKey }) {
       value: item.id,
       label: item.nome || item.email || item.id,
     }));
+    const assetOptions = assets.map((item) => ({
+      value: item.id,
+      label: `${item.nome || 'Ativo'}${item.patrimonio ? ` - ${item.patrimonio}` : ''}${item.numero_serie ? ` - ${item.numero_serie}` : ''}`,
+    }));
     const assetsByProfileId = assets.reduce((acc, asset) => {
       if (asset.usuario_id) {
         acc[asset.usuario_id] = (acc[asset.usuario_id] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    const linesByProfileId = corporateLines.reduce((acc, line) => {
+      if (line.colaborador_id) {
+        acc[line.colaborador_id] = (acc[line.colaborador_id] || 0) + 1;
       }
       return acc;
     }, {});
@@ -369,8 +428,25 @@ export default function CatalogManager({ lockedEntityKey }) {
               value && !hasExactDigits(value, 11) ? 'CPF deve conter exatamente 11 digitos.' : '',
           },
           {
+            key: 'descricao',
+            label: 'Descricao / Servico prestado',
+            type: 'textarea',
+            fullWidth: true,
+            inputClassName: 'min-h-[60px] rounded-md border-input px-3 py-2 text-sm shadow-sm',
+            placeholder: 'Informacoes adicionais...',
+          },
+          {
+            key: 'nome_contato',
+            label: 'Nome do Contato',
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: Joao Silva',
+          },
+          {
             key: 'telefone',
             label: 'Telefone',
+            halfWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
             placeholder: 'Ex.: 85999999999',
             inputMode: 'numeric',
             digitsOnly: true,
@@ -425,7 +501,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             render: (_, row) => (
               <div className="flex items-center gap-1.5 text-[14px]">
                 <Monitor className="h-4 w-4 text-muted-foreground" />
-                <span className="font-semibold">{assetsByProfileId[row.id] || 0}</span>
+                <span className="font-semibold">{(assetsByProfileId[row.id] || 0) + (linesByProfileId[row.id] || 0)}</span>
               </div>
             ),
           },
@@ -468,6 +544,234 @@ export default function CatalogManager({ lockedEntityKey }) {
         ],
         searchPlaceholder: 'Buscar por nome, email ou CPF...',
         queryKey: 'colaboradores',
+      },
+      contatos: {
+        rows: contacts,
+        fields: [
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            type: 'select',
+            required: true,
+            defaultValue: 'fornecedor',
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Selecione o tipo',
+            options: [
+              { value: 'fornecedor', label: 'Fornecedor' },
+              { value: 'suporte', label: 'Suporte' },
+              { value: 'parceiro', label: 'Parceiro' },
+              { value: 'comercial', label: 'Comercial' },
+              { value: 'outro', label: 'Outro' },
+            ],
+          },
+          {
+            key: 'nome',
+            label: 'Nome do Fornecedor',
+            required: true,
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: João Silva',
+          },
+          {
+            key: 'identificador',
+            label: 'CNPJ / Identificador',
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: 12.345.678/0001-90',
+          },
+          {
+            key: 'descricao',
+            label: 'Descricao / Servico prestado',
+            type: 'textarea',
+            fullWidth: true,
+            inputClassName: 'min-h-[60px] rounded-md border-input px-3 py-2 text-sm shadow-sm',
+            placeholder: 'Informacoes adicionais...',
+          },
+          {
+            key: 'nome_contato',
+            label: 'Nome do Contato',
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: Joao Silva',
+          },
+          {
+            key: 'telefone',
+            label: 'Telefone',
+            halfWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: 85999999999',
+            inputMode: 'numeric',
+            digitsOnly: true,
+            maxLength: 11,
+            validate: (value) =>
+              value && ![10, 11].includes(String(value || '').replace(/\D/g, '').length)
+                ? 'Telefone do contato deve conter 10 ou 11 digitos.'
+                : '',
+          },
+          {
+            key: 'email',
+            label: 'E-mail',
+            halfWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Ex.: contato@empresa.com.br',
+          },
+          {
+            key: 'unidade_id',
+            label: 'Unidade / Filial',
+            type: 'select',
+            allowEmpty: true,
+            emptyLabel: 'Sem unidade',
+            fullWidth: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            options: unitOptions,
+          },
+        ],
+        columns: [
+          {
+            key: 'nome',
+            label: 'Fornecedor',
+            render: (value, row) => (
+              <div>
+                <p className="font-medium text-foreground">{value || '-'}</p>
+                <p className="text-xs text-muted-foreground">{row.nome_contato || row.email || '-'}</p>
+              </div>
+            ),
+          },
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            render: (value) => (
+              <Badge variant="outline" className={contactTypeTone[value] || contactTypeTone.outro}>
+                {value || '-'}
+              </Badge>
+            ),
+          },
+          { key: 'identificador', label: 'CNPJ / Identificador', render: (value) => value || '-' },
+          { key: 'telefone', label: 'Telefone', render: (value) => formatPhone(value) },
+          { key: 'email', label: 'Email', render: (value) => value || '-' },
+          {
+            key: 'unidade_id',
+            label: 'Unidade',
+            render: (value) => units.find((item) => item.id === value)?.nome || '-',
+          },
+        ],
+        searchPlaceholder: 'Buscar por fornecedor, contato, telefone ou email...',
+        queryKey: 'contatos',
+      },
+      linhas_corporativas: {
+        rows: corporateLines,
+        fields: [
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            type: 'select',
+            required: true,
+            defaultValue: 'chip',
+            options: [
+              { value: 'chip', label: 'Chip' },
+              { value: 'linha_movel', label: 'Linha Movel' },
+              { value: 'telefone_fixo', label: 'Telefone Fixo' },
+              { value: 'ramal', label: 'Ramal' },
+              { value: 'outro', label: 'Outro' },
+            ],
+          },
+          {
+            key: 'nome',
+            label: 'Nome / Identificacao',
+            required: true,
+            placeholder: 'Ex.: Linha Comercial 01',
+          },
+          {
+            key: 'numero',
+            label: 'Numero',
+            required: true,
+            placeholder: 'Ex.: 85999999999',
+          },
+          {
+            key: 'operadora',
+            label: 'Operadora',
+            placeholder: 'Ex.: Vivo',
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            type: 'select',
+            defaultValue: 'disponivel',
+            options: [
+              { value: 'disponivel', label: 'Disponivel' },
+              { value: 'em_uso', label: 'Em Uso' },
+              { value: 'inativo', label: 'Inativo' },
+              { value: 'cancelado', label: 'Cancelado' },
+            ],
+          },
+          {
+            key: 'colaborador_id',
+            label: 'Colaborador Vinculado',
+            type: 'select',
+            allowEmpty: true,
+            emptyLabel: 'Sem colaborador',
+            options: collaboratorOptions,
+          },
+          {
+            key: 'unidade_id',
+            label: 'Unidade / Filial',
+            type: 'select',
+            allowEmpty: true,
+            emptyLabel: 'Sem unidade',
+            options: unitOptions,
+          },
+          {
+            key: 'observacao',
+            label: 'Observacao',
+            type: 'textarea',
+            fullWidth: true,
+            placeholder: 'Informacoes adicionais sobre a linha',
+          },
+        ],
+        columns: [
+          {
+            key: 'nome',
+            label: 'Linha',
+            render: (value, row) => (
+              <div>
+                <p className="font-medium text-foreground">{value || '-'}</p>
+                <p className="text-xs text-muted-foreground">{row.numero || '-'}</p>
+              </div>
+            ),
+          },
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            render: (value) => (
+              <Badge variant="outline" className="border-slate-200 bg-slate-100 text-slate-800">
+                {value === 'linha_movel' ? 'Linha Movel' : value === 'telefone_fixo' ? 'Telefone Fixo' : value || '-'}
+              </Badge>
+            ),
+          },
+          { key: 'operadora', label: 'Operadora', render: (value) => value || '-' },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (value) => (
+              <Badge variant="outline" className={statusTone[value] || statusTone.inativo}>
+                {value === 'em_uso' ? 'Em Uso' : value || '-'}
+              </Badge>
+            ),
+          },
+          {
+            key: 'colaborador_id',
+            label: 'Colaborador',
+            render: (value) => collaborators.find((item) => item.id === value)?.nome || '-',
+          },
+          {
+            key: 'unidade_id',
+            label: 'Unidade',
+            render: (value) => units.find((item) => item.id === value)?.nome || '-',
+          },
+        ],
+        searchPlaceholder: 'Buscar por nome, numero, operadora ou colaborador...',
+        queryKey: 'linhas_corporativas',
       },
       ativos: {
         rows: assets,
@@ -558,8 +862,213 @@ export default function CatalogManager({ lockedEntityKey }) {
         searchPlaceholder: 'Buscar por nome, codigo, serie ou responsavel...',
         queryKey: 'ativos',
       },
+      infra_estrutura: {
+        rows: infraRows,
+        fields: [
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            type: 'select',
+            required: true,
+            defaultValue: 'ip',
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Selecione o tipo',
+            options: [
+              { value: 'ip', label: 'IP' },
+              { value: 'link', label: 'LINK' },
+            ],
+          },
+          {
+            key: 'nome',
+            label: 'Titulo / Nome',
+            required: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'ex: Servidor Principal, Fornecedor Dell...',
+          },
+          {
+            key: 'valor_identificador',
+            label: (formState) => (formState?.tipo === 'link' ? 'URL do Sistema' : 'Endereco IP'),
+            required: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: (formState) =>
+              formState?.tipo === 'link' ? 'https://sistema.empresa.com.br' : 'Valor',
+            validate: (value, formState) => {
+              const rawValue = String(value || '').trim();
+              const tipo = String(formState?.tipo || 'ip').trim().toLowerCase();
+
+              if (!rawValue) return '';
+
+              if (tipo === 'ip') {
+                const octets = rawValue.split('.');
+                const validIp =
+                  octets.length === 4 &&
+                  octets.every((part) => /^\d{1,3}$/.test(part) && Number(part) >= 0 && Number(part) <= 255);
+                return validIp ? '' : 'Informe um endereco IP valido.';
+              }
+
+              try {
+                const url = new URL(rawValue);
+                return ['http:', 'https:'].includes(url.protocol)
+                  ? ''
+                  : 'A URL deve iniciar com http:// ou https://.';
+              } catch {
+                return 'Informe uma URL valida do sistema.';
+              }
+            },
+          },
+          {
+            key: 'descricao',
+            label: 'Descricao / Observacao',
+            type: 'textarea',
+            inputClassName: 'min-h-[60px] rounded-md border-input px-3 py-2 text-sm shadow-sm',
+            placeholder: 'Informacoes adicionais...',
+          },
+          {
+            key: 'unidade_id',
+            label: 'Unidade / Filial',
+            type: 'select',
+            required: true,
+            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
+            placeholder: 'Selecione a unidade',
+            options: unitOptions,
+          },
+        ],
+        columns: [
+          {
+            key: 'tipo',
+            label: 'Tipo',
+            render: (value) => (
+              <Badge variant="outline" className={value === 'link' ? 'border-blue-200 bg-blue-100 text-blue-800' : 'border-emerald-200 bg-emerald-100 text-emerald-800'}>
+                {value === 'link' ? 'LINK' : 'IP'}
+              </Badge>
+            ),
+          },
+          { key: 'nome', label: 'Nome', render: (value) => <span className="font-medium text-foreground">{value || '-'}</span> },
+          {
+            key: 'valor_identificador',
+            label: 'Identificador',
+            render: (value, row) => (
+              <div className="flex items-center gap-2">
+                {row.tipo === 'link' ? <Globe className="h-4 w-4 text-muted-foreground" /> : <Network className="h-4 w-4 text-muted-foreground" />}
+                <span className="break-all">{value || '-'}</span>
+              </div>
+            ),
+          },
+          {
+            key: 'unidade_id',
+            label: 'Unidade',
+            render: (value) => units.find((item) => item.id === value)?.nome || '-',
+          },
+          { key: 'descricao', label: 'Descricao', render: (value) => value || '-' },
+          { key: 'atualizado_em', label: 'Atualizado em', render: (value) => formatDateTime(value) },
+        ],
+        searchPlaceholder: 'Buscar por nome, IP, URL, descricao ou unidade...',
+        queryKey: 'infra_estrutura',
+      },
+      termos_posse: {
+        rows: terms,
+        fields: [
+          ...(editingRecord?.id
+            ? []
+            : [
+                {
+                  key: 'ativo_id',
+                  label: 'Ativo',
+                  type: 'select',
+                  required: true,
+                  options: assetOptions,
+                  placeholder: 'Selecione o equipamento',
+                },
+                {
+                  key: 'colaborador_id',
+                  label: 'Colaborador',
+                  type: 'select',
+                  required: true,
+                  options: collaboratorOptions,
+                  placeholder: 'Selecione o colaborador',
+                },
+              ]),
+          {
+            key: 'status',
+            label: 'Status',
+            type: 'select',
+            defaultValue: 'gerado',
+            options: [
+              { value: 'gerado', label: 'Gerado' },
+              { value: 'assinado', label: 'Assinado' },
+              { value: 'cancelado', label: 'Cancelado' },
+              { value: 'devolvido', label: 'Devolvido' },
+            ],
+          },
+          {
+            key: 'arquivo_url',
+            label: 'URL do arquivo',
+            placeholder: 'Ex.: https://...',
+          },
+          {
+            key: 'observacoes',
+            label: 'Observacoes',
+            type: 'textarea',
+            fullWidth: true,
+            placeholder: 'Informacoes adicionais do termo',
+          },
+          {
+            key: 'conteudo',
+            label: 'Conteudo do termo',
+            type: 'textarea',
+            fullWidth: true,
+            placeholder: 'Se vazio, o sistema gera um texto base automaticamente.',
+          },
+          {
+            key: 'assinado_em',
+            label: 'Data de assinatura',
+            type: 'date',
+          },
+          {
+            key: 'devolvido_em',
+            label: 'Data de devolucao',
+            type: 'date',
+          },
+        ],
+        columns: [
+          { key: 'codigo', label: 'Codigo', render: (value) => <span className="font-semibold">{value || '-'}</span> },
+          {
+            key: 'ativo_nome',
+            label: 'Equipamento',
+            render: (value, row) => (
+              <div>
+                <p className="font-medium text-foreground">{value || '-'}</p>
+                <p className="text-xs text-muted-foreground">{row.ativo_patrimonio || row.ativo_numero_serie || '-'}</p>
+              </div>
+            ),
+          },
+          {
+            key: 'colaborador_nome',
+            label: 'Colaborador',
+            render: (value, row) => (
+              <div>
+                <p className="font-medium text-foreground">{value || '-'}</p>
+                <p className="text-xs text-muted-foreground">{row.colaborador_email || '-'}</p>
+              </div>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (value) => (
+              <Badge variant="outline" className={statusTone[value] || statusTone.inativo}>
+                {value || '-'}
+              </Badge>
+            ),
+          },
+          { key: 'gerado_em', label: 'Gerado em', render: (value) => formatDateTime(value) },
+          { key: 'assinado_em', label: 'Assinado em', render: (value) => formatDateTime(value) },
+        ],
+        searchPlaceholder: 'Buscar por codigo, equipamento, colaborador ou patrimonio...',
+        queryKey: 'termos_posse',
+      },
     };
-  }, [assets, collaborators, departments, editingRecord?.id, units]);
+  }, [assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, terms, units]);
 
   const current = config[lockedEntityKey];
   const rows = current.rows.filter((row) => {
@@ -628,6 +1137,18 @@ export default function CatalogManager({ lockedEntityKey }) {
     },
     onError: (error) => {
       setFeedback({ type: 'error', message: error.message || 'Falha ao vincular usuario.' });
+    },
+  });
+
+  const assignCorporateLineMutation = useMutation({
+    mutationFn: async ({ id, payload }) => catalogApi.linhas_corporativas.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
+      setFeedback({ type: 'success', message: 'Responsavel vinculado com sucesso.' });
+      setAssigningCorporateLine(null);
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error.message || 'Falha ao vincular responsavel.' });
     },
   });
 
@@ -816,6 +1337,77 @@ export default function CatalogManager({ lockedEntityKey }) {
     },
   });
 
+  const importInfrastructureMutation = useMutation({
+    mutationFn: async (rowsToImport) => {
+      const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
+      const created = [];
+      const errors = [];
+
+      for (let index = 0; index < rowsToImport.length; index += 1) {
+        const row = rowsToImport[index];
+
+        try {
+          const unidadeNome = normalizeText(row.unidade || row.unidade_filial || row.unidade_nome);
+          const unidadeId = unidadeNome ? resolveIdByName(unidadeNome, unitOptions) : null;
+
+          if (unidadeNome && !unidadeId) {
+            throw new Error(`Unidade nao encontrada: ${row.unidade || row.unidade_filial || row.unidade_nome}`);
+          }
+
+          const payload = {
+            tipo: row.tipo || null,
+            nome: row.nome || row.titulo_nome || row.titulo || null,
+            valor_identificador: row.valor_identificador || row.valor || row.endereco_ip || row.url_do_sistema || null,
+            descricao: row.descricao || row.observacao || null,
+            unidade_id: unidadeId || null,
+          };
+
+          if (!payload.tipo) throw new Error('Tipo obrigatorio.');
+          if (!payload.nome) throw new Error('Titulo / Nome obrigatorio.');
+          if (!payload.valor_identificador) throw new Error('Valor / Identificador obrigatorio.');
+          if (!payload.unidade_id) throw new Error('Unidade obrigatoria.');
+
+          const createdRow = await catalogApi.infra_estrutura.create(payload);
+          created.push(createdRow);
+        } catch (error) {
+          errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
+        }
+      }
+
+      return { created, errors };
+    },
+    onSuccess: ({ created, errors }) => {
+      queryClient.invalidateQueries({ queryKey: ['infra_estrutura'] });
+      setImportInfrastructureOpen(false);
+      setImportInfrastructureFile(null);
+      setImportInfrastructurePreview([]);
+
+      if (created.length && errors.length) {
+        setFeedback({
+          type: 'success',
+          message: `${created.length} registro(s) importado(s). ${errors.length} linha(s) com erro: ${errors.slice(0, 3).join(' | ')}`,
+        });
+        return;
+      }
+
+      if (created.length) {
+        setFeedback({
+          type: 'success',
+          message: `${created.length} registro(s) de infraestrutura importado(s) com sucesso.`,
+        });
+        return;
+      }
+
+      setFeedback({
+        type: 'error',
+        message: errors[0] || 'Nenhum registro de infraestrutura foi importado.',
+      });
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error.message || 'Falha ao importar infraestrutura.' });
+    },
+  });
+
   const unlinkAssetsMutation = useMutation({
     mutationFn: async (id) => catalogApi.colaboradores.unlinkAssets(id),
     onSuccess: (count) => {
@@ -999,6 +1591,49 @@ export default function CatalogManager({ lockedEntityKey }) {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadInfrastructureTemplate = () => {
+    const csv = [
+      'tipo,nome,valor_identificador,descricao,unidade',
+      'ip,Servidor Principal,192.168.0.10,Servidor interno da matriz,Macom Belem',
+      'link,Portal Comercial,https://portal.empresa.com.br,Sistema usado pela equipe comercial,Macom Belem',
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modelo-importacao-infraestrutura.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadInfrastructureJsonTemplate = () => {
+    const jsonModel = [
+      {
+        tipo: 'ip',
+        nome: 'Servidor Principal',
+        valor_identificador: '192.168.0.10',
+        descricao: 'Servidor interno da matriz',
+        unidade: 'Macom Belem',
+      },
+      {
+        tipo: 'link',
+        nome: 'Portal Comercial',
+        valor_identificador: 'https://portal.empresa.com.br',
+        descricao: 'Sistema usado pela equipe comercial',
+        unidade: 'Macom Belem',
+      },
+    ];
+
+    const blob = new Blob([JSON.stringify(jsonModel, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modelo-importacao-infraestrutura.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleImportAssetsClick = () => {
     importInputRef.current?.click();
   };
@@ -1079,6 +1714,15 @@ export default function CatalogManager({ lockedEntityKey }) {
     importCollaboratorsMutation.mutate(importCollaboratorsPreview);
   };
 
+  const handleConfirmImportInfrastructure = async () => {
+    if (!importInfrastructureFile || !importInfrastructurePreview.length) {
+      setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
+      return;
+    }
+
+    importInfrastructureMutation.mutate(importInfrastructurePreview);
+  };
+
   const handleImportCollaboratorsFile = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1094,6 +1738,26 @@ export default function CatalogManager({ lockedEntityKey }) {
 
       setImportCollaboratorsFile(file);
       setImportCollaboratorsPreview(rowsToImport);
+    } catch (error) {
+      setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
+    }
+  };
+
+  const handleImportInfrastructureFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const rowsToImport = parseImportFile(text, file.name);
+
+      if (!rowsToImport.length) {
+        setFeedback({ type: 'error', message: 'Arquivo vazio ou invalido.' });
+        return;
+      }
+
+      setImportInfrastructureFile(file);
+      setImportInfrastructurePreview(rowsToImport);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
     }
@@ -1150,7 +1814,15 @@ export default function CatalogManager({ lockedEntityKey }) {
         ? unitsQuery.isLoading
         : lockedEntityKey === 'colaboradores'
           ? collaboratorsQuery.isLoading
-          : assetsQuery.isLoading;
+          : lockedEntityKey === 'contatos'
+            ? contactsQuery.isLoading
+            : lockedEntityKey === 'linhas_corporativas'
+              ? corporateLinesQuery.isLoading
+          : lockedEntityKey === 'infra_estrutura'
+            ? infraQuery.isLoading
+          : lockedEntityKey === 'termos_posse'
+            ? termsQuery.isLoading
+            : assetsQuery.isLoading;
 
   const renderDepartmentCards = () => (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1461,30 +2133,35 @@ export default function CatalogManager({ lockedEntityKey }) {
               </Button>
             </>
           ) : null}
+          {lockedEntityKey === 'infra_estrutura' ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+                onClick={() => {
+                  setImportInfrastructureOpen(true);
+                  setImportInfrastructureFile(null);
+                  setImportInfrastructurePreview([]);
+                }}
+                disabled={importInfrastructureMutation.isPending}
+              >
+                <Upload className="h-4 w-4" /> Importar
+              </Button>
+            </>
+          ) : null}
           <Button
             onClick={() => setEditingRecord({})}
             className={`h-10 gap-2 rounded-xl px-4 ${
-              lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' || lockedEntityKey === 'ativos'
+              lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' || lockedEntityKey === 'ativos' || lockedEntityKey === 'termos_posse' || lockedEntityKey === 'infra_estrutura'
                 ? 'bg-[#d1131f] hover:bg-[#b50f1a]'
                 : ''
             }`}
           >
-            <Plus className="h-4 w-4" /> Novo {entityMeta[lockedEntityKey].singular}
+            <Plus className="h-4 w-4" /> {lockedEntityKey === 'termos_posse' ? 'Gerar Termo' : lockedEntityKey === 'infra_estrutura' ? 'Novo' : `Novo ${entityMeta[lockedEntityKey].singular}`}
           </Button>
         </div>
       </div>
-
-      {feedback ? (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            feedback.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
 
       {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' ? null : lockedEntityKey === 'ativos' ? (
         renderAssetsToolbar()
@@ -1573,6 +2250,10 @@ export default function CatalogManager({ lockedEntityKey }) {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningAsset(row)}>
                             <UserPlus className="h-4 w-4" />
                           </Button>
+                        ) : lockedEntityKey === 'linhas_corporativas' ? (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningCorporateLine(row)}>
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
                         ) : lockedEntityKey === 'colaboradores' ? (
                           <>
                             {row.status === 'inativo' && assets.some((asset) => asset.usuario_id === row.id) ? (
@@ -1611,6 +2292,18 @@ export default function CatalogManager({ lockedEntityKey }) {
                                 );
                                 if (!confirmed) return;
                               }
+                              if (lockedEntityKey === 'contatos') {
+                                const confirmed = window.confirm(
+                                  `Deseja realmente excluir ${row.nome || 'este contato'}?`
+                                );
+                                if (!confirmed) return;
+                              }
+                              if (lockedEntityKey === 'infra_estrutura') {
+                                const confirmed = window.confirm(
+                                  `Deseja realmente excluir ${row.nome || 'este registro de infraestrutura'}?`
+                                );
+                                if (!confirmed) return;
+                              }
                               deleteMutation.mutate(row.id);
                             }}
                           >
@@ -1633,48 +2326,102 @@ export default function CatalogManager({ lockedEntityKey }) {
           onOpenChange={(open) => {
             if (!open) setEditingRecord(null);
           }}
-          title={lockedEntityKey === 'unidades' ? `${editingRecord?.id ? 'Editar' : 'Nova'} Unidade` : `${editingRecord?.id ? 'Editar' : 'Novo'} ${entityMeta[lockedEntityKey].singular}`}
+          title={
+            lockedEntityKey === 'unidades'
+              ? `${editingRecord?.id ? 'Editar' : 'Nova'} Unidade`
+              : lockedEntityKey === 'contatos'
+                ? editingRecord?.id
+                  ? 'Editar Fornecedor'
+                  : 'Novo Fornecedor'
+              : lockedEntityKey === 'infra_estrutura'
+                ? editingRecord?.id
+                  ? 'Editar Registro'
+                  : 'Novo Registro'
+              : lockedEntityKey === 'termos_posse'
+                ? editingRecord?.id
+                  ? 'Editar Termo de Posse'
+                  : 'Gerar Termo de Posse'
+                : `${editingRecord?.id ? 'Editar' : 'Novo'} ${entityMeta[lockedEntityKey].singular}`
+          }
           description={
             lockedEntityKey === 'colaboradores'
               ? ''
               : lockedEntityKey === 'ativos'
                 ? ''
+                : lockedEntityKey === 'contatos'
+                  ? ''
+                  : lockedEntityKey === 'linhas_corporativas'
+                    ? ''
+                : lockedEntityKey === 'infra_estrutura'
+                  ? ''
+                : lockedEntityKey === 'termos_posse'
+                  ? ''
                 : 'Edite apenas os campos que existem hoje no banco.'
           }
           record={editingRecord?.id ? editingRecord : null}
           fields={current.fields}
           loading={saveMutation.isPending}
-          hideDescription={lockedEntityKey === 'unidades'}
+          hideDescription={lockedEntityKey === 'unidades' || lockedEntityKey === 'termos_posse' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' || lockedEntityKey === 'linhas_corporativas'}
           dialogClassName={
             lockedEntityKey === 'unidades'
               ? 'max-w-[520px] rounded-[16px] border-0 bg-[#fdfdfd] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.18)]'
-              : lockedEntityKey === 'ativos'
-                ? 'max-w-[460px] rounded-[12px] p-3.5'
-              : undefined
+              : lockedEntityKey === 'contatos'
+                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
+              : lockedEntityKey === 'linhas_corporativas'
+                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
+              : lockedEntityKey === 'infra_estrutura'
+                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
+                : lockedEntityKey === 'ativos'
+                  ? 'max-w-[460px] rounded-[12px] p-3.5'
+                : lockedEntityKey === 'termos_posse'
+                  ? 'max-w-[760px] rounded-[14px] p-4'
+                : undefined
           }
           formClassName={
             lockedEntityKey === 'unidades'
               ? 'grid gap-5 sm:grid-cols-2'
+              : lockedEntityKey === 'contatos'
+                ? 'mt-2 grid gap-4 sm:grid-cols-2'
+              : lockedEntityKey === 'linhas_corporativas'
+                ? 'mt-2 grid gap-4 sm:grid-cols-2'
+              : lockedEntityKey === 'infra_estrutura'
+                ? 'mt-2 space-y-4'
               : lockedEntityKey === 'ativos'
                 ? 'grid gap-2.5 sm:grid-cols-2'
-              : undefined
+                : lockedEntityKey === 'termos_posse'
+                  ? 'grid gap-3 sm:grid-cols-2'
+                : undefined
           }
-          footerClassName={lockedEntityKey === 'unidades' ? 'mt-1 justify-end gap-2 sm:space-x-0' : undefined}
-          cancelLabel={lockedEntityKey === 'unidades' ? 'Cancelar' : undefined}
+          footerClassName={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'justify-end gap-3 pt-2 sm:space-x-0' : undefined}
+          cancelLabel={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'Cancelar' : undefined}
           submitLabel={
             lockedEntityKey === 'unidades'
               ? editingRecord?.id
                 ? 'Salvar'
                 : 'Cadastrar'
+              : lockedEntityKey === 'contatos'
+                ? editingRecord?.id
+                  ? 'Salvar'
+                  : 'Cadastrar'
+              : lockedEntityKey === 'infra_estrutura'
+                ? editingRecord?.id
+                  ? 'Salvar'
+                  : 'Cadastrar'
               : undefined
           }
-          cancelButtonClassName={lockedEntityKey === 'unidades' ? 'h-10 rounded-lg px-6 text-[15px]' : undefined}
+          cancelButtonClassName={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'h-9 rounded-md px-4 py-2 text-sm font-medium' : undefined}
           submitButtonClassName={
             lockedEntityKey === 'unidades'
               ? 'h-10 rounded-lg bg-[#d1131f] px-6 text-[15px] text-white hover:bg-[#b50f1a]'
+              : lockedEntityKey === 'contatos'
+                ? 'h-9 gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90'
+              : lockedEntityKey === 'infra_estrutura'
+                ? 'h-9 gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90'
               : lockedEntityKey === 'ativos'
                 ? 'h-8 rounded-lg px-4 text-[13px]'
-              : undefined
+                : lockedEntityKey === 'termos_posse'
+                  ? 'h-9 rounded-lg px-4 text-[13px]'
+                : undefined
           }
           onSubmit={(payload) => saveMutation.mutateAsync({ record: editingRecord?.id ? editingRecord : null, payload })}
         />
@@ -1713,6 +2460,50 @@ export default function CatalogManager({ lockedEntityKey }) {
           submitButtonClassName="h-8 rounded-lg px-4 text-[13px]"
           submitLabel="Salvar"
           onSubmit={(payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload })}
+        />
+      ) : null}
+
+      {assigningCorporateLine !== null ? (
+        <CatalogEntityDialog
+          open={assigningCorporateLine !== null}
+          onOpenChange={(open) => {
+            if (!open) setAssigningCorporateLine(null);
+          }}
+          title="Vincular Responsavel"
+          description=""
+          hideDescription
+          record={assigningCorporateLine}
+          fields={[
+            {
+              key: 'colaborador_id',
+              label: 'Colaborador',
+              type: 'select',
+              allowEmpty: true,
+              emptyLabel: 'Sem colaborador',
+              placeholder: 'Selecione um colaborador',
+              inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
+              options: collaborators.map((item) => ({
+                value: item.id,
+                label: item.nome || item.email || item.id,
+              })),
+            },
+          ]}
+          loading={assignCorporateLineMutation.isPending}
+          dialogClassName="max-w-[380px] rounded-[12px] p-4"
+          formClassName="grid gap-3"
+          footerClassName="justify-end gap-2 sm:space-x-0"
+          cancelButtonClassName="h-8 rounded-lg px-4 text-[13px]"
+          submitButtonClassName="h-8 rounded-lg px-4 text-[13px]"
+          submitLabel="Salvar"
+          onSubmit={(payload) =>
+            assignCorporateLineMutation.mutateAsync({
+              id: assigningCorporateLine.id,
+              payload: {
+                ...payload,
+                status: payload.colaborador_id ? 'em_uso' : 'disponivel',
+              },
+            })
+          }
         />
       ) : null}
 
@@ -1869,6 +2660,85 @@ export default function CatalogManager({ lockedEntityKey }) {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={importInfrastructureOpen}
+        onOpenChange={(open) => {
+          setImportInfrastructureOpen(open);
+          if (!open) {
+            setImportInfrastructureFile(null);
+            setImportInfrastructurePreview([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-extrabold">Importar Infraestrutura</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 text-sm">
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 font-semibold">Formatos aceitos</p>
+              <p className="flex items-center gap-2 text-muted-foreground">CSV com cabecalho</p>
+              <p className="flex items-center gap-2 text-muted-foreground">JSON (array de objetos)</p>
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 font-semibold">Campos esperados (exemplo)</p>
+              <p className="break-all font-mono text-xs text-muted-foreground">
+                tipo,nome,valor_identificador,descricao,unidade
+              </p>
+              <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadInfrastructureTemplate}>
+                  Baixar modelo CSV
+                </button>
+                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadInfrastructureJsonTemplate}>
+                  Baixar modelo JSON
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <input
+                type="file"
+                accept=".csv,text/csv,.json,application/json"
+                className="w-full text-sm"
+                onChange={handleImportInfrastructureFile}
+              />
+              {importInfrastructureFile ? <p className="text-xs text-muted-foreground">{importInfrastructureFile.name}</p> : null}
+            </div>
+
+            {renderImportPreview(importInfrastructurePreview, [
+              { key: 'tipo', label: 'Tipo' },
+              { key: 'nome', label: 'Nome' },
+              { key: 'valor_identificador', label: 'Valor' },
+              { key: 'unidade', label: 'Unidade' },
+            ])}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setImportInfrastructureOpen(false);
+                  setImportInfrastructureFile(null);
+                  setImportInfrastructurePreview([]);
+                }}
+              >
+                Fechar
+              </Button>
+              <Button
+                type="button"
+                className="gap-2"
+                onClick={handleConfirmImportInfrastructure}
+                disabled={importInfrastructureMutation.isPending}
+              >
+                <Upload className="h-4 w-4" /> {importInfrastructureMutation.isPending ? 'Importando' : 'Importar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {passwordRecord !== null ? (
         <Dialog
           open={passwordRecord !== null}
@@ -1953,6 +2823,8 @@ export default function CatalogManager({ lockedEntityKey }) {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
   );
 }

@@ -136,6 +136,24 @@ export const catalogApi = {
       return true;
     },
   },
+  contatos: {
+    async list() {
+      const result = await invokeCatalog('list', 'contatos');
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'contatos', { payload });
+      return result.row;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'contatos', { id, payload });
+      return result.row;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'contatos', { id });
+      return true;
+    },
+  },
   ativos: {
     async list() {
       const result = await invokeCatalog('list', 'ativos');
@@ -152,6 +170,75 @@ export const catalogApi = {
     async remove(id) {
       await invokeCatalog('delete', 'ativos', { id });
       return true;
+    },
+  },
+  infra_estrutura: {
+    async list() {
+      const result = await invokeCatalog('list', 'infra_estrutura');
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'infra_estrutura', { payload });
+      return result.row;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'infra_estrutura', { id, payload });
+      return result.row;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'infra_estrutura', { id });
+      return true;
+    },
+  },
+  linhas_corporativas: {
+    async list() {
+      const result = await invokeCatalog('list', 'linhas_corporativas');
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'linhas_corporativas', { payload });
+      return result.row;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'linhas_corporativas', { id, payload });
+      return result.row;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'linhas_corporativas', { id });
+      return true;
+    },
+  },
+  termos_posse: {
+    async list() {
+      const result = await invokeCatalog('list', 'termos_posse');
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('generate', 'termos_posse', { payload });
+      return result.row;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'termos_posse', { id, payload });
+      return result.row;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'termos_posse', { id });
+      return true;
+    },
+  },
+  fila_emails: {
+    async create(payload) {
+      const result = await invokeCatalog('create', 'fila_emails', { payload });
+      return result.row;
+    },
+    async list() {
+      const result = await invokeCatalog('list', 'fila_emails');
+      return result.rows || [];
+    },
+  },
+  email: {
+    async sendTermoGmail(payload) {
+      return invokeSupabaseFunction('enviar-termo-gmail', payload);
     },
   },
 };

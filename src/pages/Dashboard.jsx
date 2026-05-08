@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, HardDrive, Laptop, MonitorCog, UsersRound, Wrench } from 'lucide-react';
+import { CheckCircle2, HardDrive, MonitorCog, UsersRound, Wrench } from 'lucide-react';
 
 import StatsCard from '@/components/dashboard/StatsCard';
 import { Badge } from '@/components/ui/badge';
