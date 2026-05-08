@@ -1,0 +1,2 @@
+-- Placeholder local migration to match remote history.
+-- The corresponding changes already exist in the linked Supabase project.

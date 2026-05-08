@@ -1,122 +1,116 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+import { Loader2, LogIn } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-export default function Login() {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
-  const bgUrl =
-    'https://res.cloudinary.com/drevbr5eq/image/upload/f_auto,q_auto,c_fill,w_2560,h_1440,fl_progressive/v1777911817/img-mitmotorts_jvikox.webp';
-
-  const [email, setEmail] = useState('');
+export default function Login({ onSubmit, loading, defaultEmail = '' }) {
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resetMessage, setResetMessage] = useState('');
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
-    setLoading(true);
-    try {
-      await login(email.trim(), password);
-      navigate('/', { replace: true });
-    } catch (err) {
-      const message = err?.message || '';
-      if (message.toLowerCase().includes('inativo')) {
-        setError('Seu acesso esta desativado. Entre em contato com RH/TI para reativacao.');
-      } else {
-        setError(message || 'Falha ao autenticar. Verifique email e senha.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const onForgotPassword = async () => {
-    setError('');
-    setResetMessage('');
-    if (!email.trim()) {
-      setError('Informe seu email para receber o link de redefinicao.');
-      return;
-    }
-    setResetLoading(true);
     try {
-      await base44.auth.requestPasswordReset(email.trim());
-      setResetMessage('Enviamos um link para redefinir sua senha no email informado.');
-    } catch (err) {
-      setError(err?.message || 'Falha ao enviar link de redefinicao.');
-    } finally {
-      setResetLoading(false);
+      await onSubmit(email.trim(), password);
+    } catch (submitError) {
+      setError(submitError.message || 'Falha ao entrar.');
     }
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center px-4 py-8 overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${bgUrl})` }}
-      />
-      <div className="absolute inset-0 bg-black/72" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(193,18,31,0.25),transparent_45%)]" />
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(136,19,55,0.16),_transparent_32%),linear-gradient(180deg,#faf6f2_0%,#f4f4f5_100%)] px-4 py-10">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
+        <div className="grid w-full gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="hidden rounded-[32px] bg-slate-950 p-10 text-white shadow-[0_30px_80px_rgba(15,23,42,0.18)] lg:flex lg:flex-col lg:justify-between">
+            <div className="space-y-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/50">MACOM</p>
+              <h1 className="max-w-lg text-5xl font-black leading-tight">
+                Catalogo operacional conectado ao novo Supabase.
+              </h1>
+              <p className="max-w-md text-sm leading-6 text-white/70">
+                Acesso enxuto para departamentos, unidades, colaboradores e ativos.
+              </p>
+            </div>
 
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/30 bg-white/16 backdrop-blur-md shadow-2xl p-7 sm:p-8">
-        <div className="mb-7 pb-5 border-b border-white/30 text-center">
-          <img src={logoUrl} alt="Logo" className="w-14 h-14 object-contain mx-auto" />
-          <p className="mt-4 text-sm text-white/90">Acesso administrativo do sistema.</p>
+            <div className="grid gap-4 rounded-[28px] border border-white/10 bg-white/5 p-5">
+              <div>
+                <p className="text-sm text-white/60">Escopo liberado agora</p>
+                <p className="mt-2 text-2xl font-bold">Departamentos, Unidades e Colaboradores</p>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-lg font-bold">1</p>
+                  <p className="text-xs text-white/60">Login</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-lg font-bold">3</p>
+                  <p className="text-xs text-white/60">Tabelas</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-lg font-bold">0</p>
+                  <p className="text-xs text-white/60">Ativos</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <Card className="border-white/70 bg-white/90 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+            <CardHeader className="space-y-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#881337] text-white">
+                <LogIn className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-3xl font-black tracking-tight">Entrar</CardTitle>
+                <CardDescription className="mt-2 text-sm leading-6">
+                  Use seu usuario do Supabase Auth para acessar o sistema.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="voce@empresa.com"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="Sua senha"
+                    required
+                  />
+                </div>
+
+                {error ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                ) : null}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Acessar sistema'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </div>
-
-        <form onSubmit={onSubmit} className="space-y-4 max-w-sm mx-auto w-full">
-          <div>
-            <label className="block text-xs font-semibold tracking-wide text-white/90 mb-2">EMAIL</label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu.email@empresa.com.br"
-              required
-              className="h-11 border-white/40 bg-white/85 text-zinc-900 placeholder:text-zinc-500 focus-visible:ring-[#c1121f]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold tracking-wide text-white/90 mb-2">SENHA</label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="h-11 border-white/40 bg-white/85 text-zinc-900 placeholder:text-zinc-500 focus-visible:ring-[#c1121f]"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-200 pt-1">{error}</p>}
-          {resetMessage && <p className="text-sm text-emerald-200 pt-1">{resetMessage}</p>}
-
-          <button
-            type="button"
-            onClick={onForgotPassword}
-            disabled={resetLoading}
-            className="text-xs text-white/90 underline underline-offset-2 hover:text-white"
-          >
-            {resetLoading ? 'Enviando link...' : 'Esqueci minha senha (admins)'}
-          </button>
-
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full h-11 mt-1 bg-[#c1121f] hover:bg-[#a50f19] text-white font-semibold"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar'}
-          </Button>
-        </form>
       </div>
-    </div>
+    </main>
   );
 }

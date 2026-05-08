@@ -1,3 +1,0 @@
-type,title,value,description,contact_name,contact_email,contact_phone,unit_name,unit_id,assigned_to,assigned_to_id,assigned_to_department
-ip,Gateway Matriz,192.168.0.1,IP do gateway principal,,,,Matriz,,,,
-sistema,ERP,https://erp.empresa.com,Sistema interno,,,,Matriz,,,,

@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
+
+import Sidebar from '@/components/layout/Sidebar';
+import { Button } from '@/components/ui/button';
 import { applyTheme, getInitialTheme } from '@/lib/theme';
 
 export default function AppLayout() {
@@ -36,16 +37,15 @@ export default function AppLayout() {
       />
 
       <div className={`transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-64'}`}>
-        {/* Top bar mobile */}
-        <header className="h-14 flex items-center px-4 border-b border-border bg-card lg:hidden sticky top-0 z-30">
+        <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border bg-card px-4 lg:hidden">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
-            <Menu className="w-5 h-5" />
+            <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2 ml-3">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-primary-foreground font-black text-xs">M</span>
+          <div className="ml-3 flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
+              <span className="text-xs font-black text-primary-foreground">M</span>
             </div>
-            <span className="font-bold text-sm">MACOM</span>
+            <span className="text-sm font-bold">MACOM</span>
           </div>
         </header>
 

@@ -1,167 +1,112 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const AuthContext = createContext();
+import { catalogApi } from '@/lib/catalogApi';
+import { assertSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
-  const [authError, setAuthError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function validateAdminSession(nextSession) {
+    if (!nextSession?.user) {
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const collaborator = await catalogApi.auth.me(nextSession.access_token);
+
+      if (collaborator?.funcao !== 'admin' || collaborator?.status === 'inativo') {
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+        throw new Error('Acesso restrito a administradores.');
+      }
+
+      setSession(nextSession);
+      setProfile(collaborator);
+      setLoading(false);
+    } catch (error) {
+      await supabase.auth.signOut().catch(() => null);
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
+      throw error;
+    }
+  }
 
   useEffect(() => {
-    checkAppState();
+    assertSupabaseConfigured();
+
+    let mounted = true;
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!mounted) return;
+      try {
+        await validateAdminSession(data.session || null);
+      } catch {
+        return;
+      }
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_OUT' || !nextSession) {
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        try {
+          await validateAdminSession(nextSession);
+        } catch {
+          return;
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
-  const checkAppState = async () => {
-    try {
-      setIsLoadingPublicSettings(true);
-      setAuthError(null);
-      setAppPublicSettings({ mode: 'supabase', auth_required: true });
-      await checkUserAuth();
-      setIsLoadingPublicSettings(false);
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
-    }
-  };
-
-  const checkUserAuth = async () => {
-    try {
-      setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me();
-
-      if (currentUser?.status === 'inativo') {
-        await base44.auth.logout();
-        setUser(null);
-        setIsAuthenticated(false);
-        setAuthError({
-          type: 'inactive_user',
-          message: 'Acesso bloqueado. Seu usuario esta inativo.'
-        });
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      if (currentUser?.role !== 'admin') {
-        await base44.auth.logout();
-        setUser(null);
-        setIsAuthenticated(false);
-        setAuthError({
-          type: 'forbidden',
-          message: 'Acesso negado. Apenas administradores podem acessar o painel.'
-        });
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
-        return;
-      }
-
-      setUser(currentUser);
-      setIsAuthenticated(true);
-      setAuthError(null);
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-    } catch (error) {
-      setUser(null);
-      setIsLoadingAuth(false);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setAuthError({
-        type: 'auth_required',
-        message: 'Authentication required'
-      });
-    }
-  };
-
-  const login = async (email, password) => {
-    setIsLoadingAuth(true);
-    await base44.auth.login(email, password);
-    const currentUser = await base44.auth.me();
-
-    if (currentUser?.status === 'inativo') {
-      await base44.auth.logout();
-      setUser(null);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setIsLoadingAuth(false);
-      setAuthError({
-        type: 'inactive_user',
-        message: 'Acesso bloqueado. Seu usuario esta inativo.'
-      });
-      throw new Error('Acesso bloqueado. Seu usuario esta inativo.');
-    }
-
-    if (currentUser?.role !== 'admin') {
-      await base44.auth.logout();
-      setUser(null);
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-      setIsLoadingAuth(false);
-      setAuthError({
-        type: 'forbidden',
-        message: 'Acesso negado. Apenas administradores podem acessar o painel.'
-      });
-      throw new Error('Acesso negado. Apenas administradores podem acessar o painel.');
-    }
-
-    setUser(currentUser);
-    setIsAuthenticated(true);
-    setAuthError(null);
-    setIsLoadingAuth(false);
-    setAuthChecked(true);
-  };
-
-  const logout = (shouldRedirect = true) => {
-    setUser(null);
-    setIsAuthenticated(false);
-    
-    if (shouldRedirect) {
-      // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
-    } else {
-      // Just remove the token without redirect
-      base44.auth.logout();
-    }
-  };
-
-  const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin(window.location.href);
-  };
-
-  return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      authChecked,
-      login,
-      logout,
-      navigateToLogin,
-      checkUserAuth,
-      checkAppState
-    }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      session,
+      profile,
+      user: session?.user || null,
+      isAuthenticated: Boolean(session?.user && profile?.funcao === 'admin'),
+      loading,
+      async login(email, password) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        await validateAdminSession(data.session || null);
+      },
+      async logout() {
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+      },
+    }),
+    [loading, profile, session]
   );
-};
 
-export const useAuth = () => {
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}
