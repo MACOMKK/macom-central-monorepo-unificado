@@ -42,7 +42,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />
               <div>
                 <h1 className="text-base font-extrabold leading-none tracking-tight text-foreground">MACOM</h1>
-                <p className="text-[10px] font-medium tracking-wider text-muted-foreground">GESTAO DE ATIVOS</p>
+                <p className="text-[10px] font-medium tracking-wider text-muted-foreground">CENTRAL MACOM</p>
               </div>
             </div>
           ) : (
