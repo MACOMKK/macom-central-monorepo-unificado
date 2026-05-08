@@ -72,6 +72,10 @@ function formatPhone(phone) {
   return phone;
 }
 
+function hasExactDigits(value, length) {
+  return String(value || '').replace(/\D/g, '').length === length;
+}
+
 function generatePassword(length = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
   return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
@@ -294,8 +298,8 @@ export default function CatalogManager({ lockedEntityKey }) {
       unidades: {
         rows: units,
         fields: [
-          { key: 'nome', label: 'Nome da Unidade *', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-red-400 px-3 text-[15px] focus-visible:ring-red-200' },
-          { key: 'cidade', label: 'Cidade *', required: true, fullWidth: true, placeholder: 'ex: Belem', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
+          { key: 'nome', label: 'Nome da Unidade', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-red-400 px-3 text-[15px] focus-visible:ring-red-200' },
+          { key: 'cidade', label: 'Cidade', required: true, fullWidth: true, placeholder: 'ex: Belem', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
           { key: 'endereco', label: 'Endereco', fullWidth: true, placeholder: 'Rua, numero, bairro', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
           { key: 'telefone', label: 'Telefone', halfWidth: true, placeholder: '(91) 3000-0000', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
           {
@@ -348,13 +352,32 @@ export default function CatalogManager({ lockedEntityKey }) {
             key: 'funcao',
             label: 'Funcao',
             type: 'select',
+            defaultValue: 'usuario',
             options: [
               { value: 'usuario', label: 'Usuario' },
               { value: 'admin', label: 'Admin' },
             ],
           },
-          { key: 'cpf', label: 'CPF', placeholder: 'Ex.: 000.000.000-00' },
-          { key: 'telefone', label: 'Telefone', placeholder: 'Ex.: (85) 99999-9999' },
+          {
+            key: 'cpf',
+            label: 'CPF',
+            placeholder: 'Ex.: 12345678901',
+            inputMode: 'numeric',
+            digitsOnly: true,
+            maxLength: 11,
+            validate: (value) =>
+              value && !hasExactDigits(value, 11) ? 'CPF deve conter exatamente 11 digitos.' : '',
+          },
+          {
+            key: 'telefone',
+            label: 'Telefone',
+            placeholder: 'Ex.: 85999999999',
+            inputMode: 'numeric',
+            digitsOnly: true,
+            maxLength: 11,
+            validate: (value) =>
+              value && !hasExactDigits(value, 11) ? 'Telefone deve conter exatamente 11 digitos.' : '',
+          },
           {
             key: 'departamento_id',
             label: 'Departamento',
@@ -369,6 +392,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             key: 'status',
             label: 'Status',
             type: 'select',
+            defaultValue: 'ativo',
             options: [
               { value: 'ativo', label: 'Ativo' },
               { value: 'inativo', label: 'Inativo' },
@@ -394,7 +418,7 @@ export default function CatalogManager({ lockedEntityKey }) {
               </div>
             ),
           },
-          { key: 'telefone', label: 'Telefone', render: (value) => <span className="text-[14px]">{value || '-'}</span> },
+          { key: 'telefone', label: 'Telefone', render: (value) => <span className="text-[14px]">{formatPhone(value)}</span> },
           {
             key: 'equipamentos_vinculados',
             label: 'Equipamentos',
@@ -453,6 +477,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             key: 'categoria',
             label: 'Categoria',
             type: 'select',
+            required: true,
             inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
             options: [
               { value: 'notebook', label: 'Notebook' },
@@ -469,14 +494,13 @@ export default function CatalogManager({ lockedEntityKey }) {
           },
           { key: 'marca', label: 'Marca', placeholder: 'Ex.: Dell', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
           { key: 'modelo', label: 'Modelo', placeholder: 'Ex.: Latitude 5440', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
-          { key: 'numero_serie', label: 'Numero de serie', placeholder: 'Ex.: SN123456789', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
+          { key: 'numero_serie', label: 'Numero de serie', required: true, placeholder: 'Ex.: SN123456789', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
           { key: 'patrimonio', label: 'Patrimonio', placeholder: 'Ex.: MAC-AT-00125', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
           {
             key: 'unidade_id',
             label: 'Unidade',
             type: 'select',
-            allowEmpty: true,
-            emptyLabel: 'Sem unidade',
+            required: true,
             inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
             options: unitOptions,
           },
@@ -669,9 +693,10 @@ export default function CatalogManager({ lockedEntityKey }) {
             usuario_id: usuarioId || null,
           };
 
-          if (!payload.nome) {
-            throw new Error('Nome do ativo obrigatorio.');
-          }
+          if (!payload.nome) throw new Error('Nome do ativo obrigatorio.');
+          if (!payload.categoria) throw new Error('Categoria do ativo obrigatoria.');
+          if (!payload.numero_serie) throw new Error('Numero de serie do ativo obrigatorio.');
+          if (!payload.unidade_id) throw new Error('Unidade do ativo obrigatoria.');
 
           const createdRow = await catalogApi.ativos.create(payload);
           created.push(createdRow);
@@ -1651,7 +1676,7 @@ export default function CatalogManager({ lockedEntityKey }) {
                 ? 'h-8 rounded-lg px-4 text-[13px]'
               : undefined
           }
-          onSubmit={(payload) => saveMutation.mutate({ record: editingRecord?.id ? editingRecord : null, payload })}
+          onSubmit={(payload) => saveMutation.mutateAsync({ record: editingRecord?.id ? editingRecord : null, payload })}
         />
       ) : null}
 
@@ -1687,7 +1712,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           cancelButtonClassName="h-8 rounded-lg px-4 text-[13px]"
           submitButtonClassName="h-8 rounded-lg px-4 text-[13px]"
           submitLabel="Salvar"
-          onSubmit={(payload) => assignUserMutation.mutate({ id: assigningAsset.id, payload })}
+          onSubmit={(payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload })}
         />
       ) : null}
 

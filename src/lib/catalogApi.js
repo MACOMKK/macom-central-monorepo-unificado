@@ -1,5 +1,32 @@
 import { assertSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 
+function mapApiErrorMessage(message) {
+  const text = String(message || '');
+
+  if (
+    text.includes('A user with this email address has already been registered') ||
+    text.includes('User already registered') ||
+    text.includes('already been registered') ||
+    text.includes('colaboradores_email_unique_idx') ||
+    text.includes('colaboradores_email_key')
+  ) {
+    return 'Ja existe um colaborador com este email.';
+  }
+
+  if (text.includes('colaboradores_cpf_key')) {
+    return 'Ja existe um colaborador com este CPF.';
+  }
+
+  if (
+    text.includes('colaboradores_telefone_unique_idx') ||
+    text.includes('colaboradores_telefone_key')
+  ) {
+    return 'Ja existe um colaborador com este telefone.';
+  }
+
+  return text || 'Falha ao consultar o catalogo.';
+}
+
 async function invokeCatalog(action, entity, payload = {}) {
   return invokeSupabaseFunction('catalog-api', {
     action,
@@ -30,7 +57,7 @@ async function invokeSupabaseFunction(functionName, payload = {}, accessTokenOve
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(result?.error || 'Falha ao consultar o catalogo.');
+    throw new Error(mapApiErrorMessage(result?.error));
   }
 
   return result;

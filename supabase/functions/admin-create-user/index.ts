@@ -32,12 +32,122 @@ function json(data: unknown, status = 200) {
 
 function normalizePayload(payload: Record<string, unknown> = {}) {
   const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo', 'data_admissao', 'status', 'unidade_id'];
-  return fields.reduce<Record<string, unknown>>((acc, field) => {
+  const normalized = fields.reduce<Record<string, unknown>>((acc, field) => {
     if (field in payload) {
       acc[field] = payload[field];
     }
     return acc;
   }, {});
+
+  if (typeof normalized.email === 'string') {
+    normalized.email = normalized.email.trim().toLowerCase() || null;
+  }
+
+  if (typeof normalized.telefone === 'string') {
+    normalized.telefone = normalizeDigits(normalized.telefone.trim()) || null;
+  }
+
+  if (typeof normalized.cpf === 'string') {
+    normalized.cpf = normalizeDigits(normalized.cpf.trim()) || null;
+  }
+
+  return normalized;
+}
+
+function normalizeDigits(value: string | null) {
+  return value ? value.replace(/\D/g, '') : null;
+}
+
+async function validateUniqueCollaboratorFields(payload: Record<string, unknown>) {
+  if (!sql) return;
+
+  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : null;
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone.trim() : null;
+  const cpf = normalizeDigits(typeof payload.cpf === 'string' ? payload.cpf.trim() : null);
+
+  if (email) {
+    const emailRows = await sql.unsafe(
+      'select id from public.colaboradores where lower(trim(email)) = lower(trim($1)) limit 1;',
+      [email],
+    );
+
+    if (emailRows[0]) {
+      throw new Error('Ja existe um colaborador com este email.');
+    }
+  }
+
+  if (cpf) {
+    const cpfRows = await sql.unsafe(
+      "select id from public.colaboradores where regexp_replace(coalesce(cpf, ''), '\\D', '', 'g') = $1 limit 1;",
+      [cpf],
+    );
+
+    if (cpfRows[0]) {
+      throw new Error('Ja existe um colaborador com este CPF.');
+    }
+  }
+
+  if (telefone) {
+    const phoneRows = await sql.unsafe(
+      'select id from public.colaboradores where telefone = $1 limit 1;',
+      [telefone],
+    );
+
+    if (phoneRows[0]) {
+      throw new Error('Ja existe um colaborador com este telefone.');
+    }
+  }
+}
+
+function validateCollaboratorDocumentFields(payload: Record<string, unknown>) {
+  const cpf = typeof payload.cpf === 'string' ? payload.cpf : null;
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone : null;
+
+  if (cpf && cpf.length !== 11) {
+    throw new Error('CPF deve conter exatamente 11 digitos.');
+  }
+
+  if (telefone && telefone.length !== 11) {
+    throw new Error('Telefone deve conter exatamente 11 digitos.');
+  }
+}
+
+function mapDatabaseError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (message.includes('already been registered') || message.includes('User already registered')) {
+    return 'Ja existe um colaborador com este email.';
+  }
+
+  if (message.includes('colaboradores_cpf_key')) {
+    return 'Ja existe um colaborador com este CPF.';
+  }
+
+  if (message.includes('colaboradores_email_unique_idx')) {
+    return 'Ja existe um colaborador com este email.';
+  }
+
+  if (message.includes('colaboradores_telefone_unique_idx')) {
+    return 'Ja existe um colaborador com este telefone.';
+  }
+
+  return message || 'Erro interno.';
+}
+
+function getErrorStatus(error: unknown) {
+  const message = mapDatabaseError(error);
+
+  if (
+    message === 'Ja existe um colaborador com este CPF.' ||
+    message === 'Ja existe um colaborador com este email.' ||
+    message === 'Ja existe um colaborador com este telefone.' ||
+    message === 'CPF deve conter exatamente 11 digitos.' ||
+    message === 'Telefone deve conter exatamente 11 digitos.'
+  ) {
+    return 400;
+  }
+
+  return 500;
 }
 
 Deno.serve(async (request) => {
@@ -172,6 +282,9 @@ Deno.serve(async (request) => {
       return json({ error: 'Senha obrigatoria com pelo menos 6 caracteres.' }, 400);
     }
 
+    validateCollaboratorDocumentFields(payload);
+    await validateUniqueCollaboratorFields({ email, telefone: payload.telefone, cpf: payload.cpf });
+
     const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
@@ -183,7 +296,7 @@ Deno.serve(async (request) => {
     });
 
     if (createError || !createdUser.user) {
-      return json({ error: createError?.message || 'Falha ao criar usuario no Auth.' }, 400);
+      return json({ error: mapDatabaseError(createError?.message || 'Falha ao criar usuario no Auth.') }, 400);
     }
 
     try {
@@ -252,6 +365,6 @@ Deno.serve(async (request) => {
       throw dbError;
     }
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Erro interno.' }, 500);
+    return json({ error: mapDatabaseError(error) }, getErrorStatus(error));
   }
 });

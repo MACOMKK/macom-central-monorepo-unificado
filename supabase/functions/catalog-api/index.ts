@@ -94,10 +94,157 @@ function sanitizePayload(entity: keyof typeof ENTITY_CONFIG, payload: Record<str
   return sanitized;
 }
 
+function normalizeCollaboradoresPayload(payload: Record<string, unknown>) {
+  const normalized = { ...payload };
+
+  if (typeof normalized.email === 'string') {
+    normalized.email = normalized.email.trim().toLowerCase() || null;
+  }
+
+  if (typeof normalized.telefone === 'string') {
+    normalized.telefone = normalizeDigits(normalized.telefone.trim()) || null;
+  }
+
+  if (typeof normalized.cpf === 'string') {
+    normalized.cpf = normalizeDigits(normalized.cpf.trim()) || null;
+  }
+
+  return normalized;
+}
+
+function normalizeDigits(value: string | null) {
+  return value ? value.replace(/\D/g, '') : null;
+}
+
 function normalizeAtivosPayload(payload: Record<string, unknown>) {
   const normalized = { ...payload };
   normalized.status = normalized.usuario_id ? 'em_uso' : 'disponivel';
   return normalized;
+}
+
+function isMissingRequiredValue(value: unknown) {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
+function validateAtivosPayload(payload: Record<string, unknown>, requireAllFields = false) {
+  const requiredFields = [
+    ['nome', 'Nome'],
+    ['categoria', 'Categoria'],
+    ['numero_serie', 'Numero de serie'],
+    ['unidade_id', 'Unidade'],
+  ] as const;
+
+  for (const [field, label] of requiredFields) {
+    if ((requireAllFields || field in payload) && isMissingRequiredValue(payload[field])) {
+      throw new Error(`${label} do ativo obrigatorio.`);
+    }
+  }
+}
+
+async function validateColaboradoresUniqueFields(
+  payload: Record<string, unknown>,
+  excludeId?: string,
+) {
+  if (!sql) return;
+
+  const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : null;
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone.trim() : null;
+  const cpf = normalizeDigits(typeof payload.cpf === 'string' ? payload.cpf.trim() : null);
+
+  if (email) {
+    const rows = excludeId
+      ? await sql.unsafe(
+          'select id from public.colaboradores where lower(trim(email)) = lower(trim($1)) and id <> $2 limit 1;',
+          [email, excludeId],
+        )
+      : await sql.unsafe(
+          'select id from public.colaboradores where lower(trim(email)) = lower(trim($1)) limit 1;',
+          [email],
+        );
+
+    if (rows[0]) {
+      throw new Error('Ja existe um colaborador com este email.');
+    }
+  }
+
+  if (cpf) {
+    const rows = excludeId
+      ? await sql.unsafe(
+          "select id from public.colaboradores where regexp_replace(coalesce(cpf, ''), '\\D', '', 'g') = $1 and id <> $2 limit 1;",
+          [cpf, excludeId],
+        )
+      : await sql.unsafe(
+          "select id from public.colaboradores where regexp_replace(coalesce(cpf, ''), '\\D', '', 'g') = $1 limit 1;",
+          [cpf],
+        );
+
+    if (rows[0]) {
+      throw new Error('Ja existe um colaborador com este CPF.');
+    }
+  }
+
+  if (telefone) {
+    const rows = excludeId
+      ? await sql.unsafe(
+          'select id from public.colaboradores where telefone = $1 and id <> $2 limit 1;',
+          [telefone, excludeId],
+        )
+      : await sql.unsafe(
+          'select id from public.colaboradores where telefone = $1 limit 1;',
+          [telefone],
+        );
+
+    if (rows[0]) {
+      throw new Error('Ja existe um colaborador com este telefone.');
+    }
+  }
+}
+
+function validateColaboradoresDocumentFields(payload: Record<string, unknown>) {
+  const cpf = typeof payload.cpf === 'string' ? payload.cpf : null;
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone : null;
+
+  if (cpf && cpf.length !== 11) {
+    throw new Error('CPF deve conter exatamente 11 digitos.');
+  }
+
+  if (telefone && telefone.length !== 11) {
+    throw new Error('Telefone deve conter exatamente 11 digitos.');
+  }
+}
+
+function mapDatabaseError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (message.includes('colaboradores_cpf_key')) {
+    return 'Ja existe um colaborador com este CPF.';
+  }
+
+  if (message.includes('colaboradores_email_unique_idx')) {
+    return 'Ja existe um colaborador com este email.';
+  }
+
+  if (message.includes('colaboradores_telefone_unique_idx')) {
+    return 'Ja existe um colaborador com este telefone.';
+  }
+
+  return message || 'Erro interno.';
+}
+
+function getErrorStatus(error: unknown) {
+  const message = mapDatabaseError(error);
+
+  if (
+    message === 'Ja existe um colaborador com este CPF.' ||
+    message === 'Ja existe um colaborador com este email.' ||
+    message === 'Ja existe um colaborador com este telefone.' ||
+    message === 'CPF deve conter exatamente 11 digitos.' ||
+    message === 'Telefone deve conter exatamente 11 digitos.'
+  ) {
+    return 400;
+  }
+
+  return 500;
 }
 
 function buildInsertQuery(schema: string, table: string, payload: Record<string, unknown>) {
@@ -184,9 +331,21 @@ Deno.serve(async (request) => {
 
     if (action === 'create') {
       const sanitized = sanitizePayload(entity, payload);
-      const normalized = entity === 'ativos' ? normalizeAtivosPayload(sanitized) : sanitized;
+      const normalized =
+        entity === 'ativos'
+          ? normalizeAtivosPayload(sanitized)
+          : entity === 'colaboradores'
+            ? normalizeCollaboradoresPayload(sanitized)
+            : sanitized;
       if (!Object.keys(normalized).length) {
         return json({ error: 'Payload vazio.' }, 400);
+      }
+      if (entity === 'ativos') {
+        validateAtivosPayload(normalized, true);
+      }
+      if (entity === 'colaboradores') {
+        validateColaboradoresDocumentFields(normalized);
+        await validateColaboradoresUniqueFields(normalized);
       }
       const query = buildInsertQuery(schema, table, normalized);
       const rows = await sql.unsafe(query.text, query.values);
@@ -199,9 +358,21 @@ Deno.serve(async (request) => {
       if (entity === 'colaboradores') {
         delete sanitized.id;
       }
-      const normalized = entity === 'ativos' ? normalizeAtivosPayload(sanitized) : sanitized;
+      const normalized =
+        entity === 'ativos'
+          ? normalizeAtivosPayload(sanitized)
+          : entity === 'colaboradores'
+            ? normalizeCollaboradoresPayload(sanitized)
+            : sanitized;
       if (!Object.keys(normalized).length) {
         return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      }
+      if (entity === 'ativos') {
+        validateAtivosPayload(normalized);
+      }
+      if (entity === 'colaboradores') {
+        validateColaboradoresDocumentFields(normalized);
+        await validateColaboradoresUniqueFields(normalized, id);
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
       const rows = await sql.unsafe(query.text, query.values);
@@ -216,6 +387,6 @@ Deno.serve(async (request) => {
 
     return json({ error: 'Acao invalida.' }, 400);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Erro interno.' }, 500);
+    return json({ error: mapDatabaseError(error) }, getErrorStatus(error));
   }
 });
