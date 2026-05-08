@@ -15,11 +15,20 @@ function polarToCartesian(cx, cy, radius, angleDeg) {
   };
 }
 
-function describeArc(cx, cy, radius, startAngle, endAngle) {
-  const start = polarToCartesian(cx, cy, radius, endAngle);
-  const end = polarToCartesian(cx, cy, radius, startAngle);
+function describeDonutSegment(cx, cy, outerRadius, innerRadius, startAngle, endAngle) {
+  const outerStart = polarToCartesian(cx, cy, outerRadius, endAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerRadius, startAngle);
+  const innerStart = polarToCartesian(cx, cy, innerRadius, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerRadius, endAngle);
   const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-  return ['M', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y].join(' ');
+
+  return [
+    'M', outerStart.x, outerStart.y,
+    'A', outerRadius, outerRadius, 0, largeArcFlag, 0, outerEnd.x, outerEnd.y,
+    'L', innerStart.x, innerStart.y,
+    'A', innerRadius, innerRadius, 0, largeArcFlag, 1, innerEnd.x, innerEnd.y,
+    'Z',
+  ].join(' ');
 }
 
 function DonutChart({ data }) {
@@ -27,20 +36,14 @@ function DonutChart({ data }) {
   const radius = 80;
   const circumferenceGap = 4;
   const strokeWidth = 40;
+  const innerRadius = radius - strokeWidth / 2;
+  const outerRadius = radius + strokeWidth / 2;
   let currentAngle = 0;
 
   return (
     <div className="flex h-[250px] flex-col items-center justify-center">
       {total ? (
         <svg viewBox="0 0 240 240" className="h-[220px] w-[220px]">
-          <circle
-            cx="120"
-            cy="120"
-            r={radius + strokeWidth / 2}
-            fill="none"
-            stroke="rgba(255,255,255,0.9)"
-            strokeWidth="2"
-          />
           <circle cx="120" cy="120" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="40" />
           {data.map((item) => {
             const sweep = (item.value / total) * 360;
@@ -50,19 +53,20 @@ function DonutChart({ data }) {
 
             if (item.value === 0) return null;
 
+            const segmentD = describeDonutSegment(120, 120, outerRadius, innerRadius, startAngle, endAngle);
+
             return (
               <path
                 key={item.label}
-                d={describeArc(120, 120, radius, startAngle, endAngle)}
-                fill="none"
-                stroke={item.color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="butt"
+                d={segmentD}
+                fill={item.color}
+                stroke="rgba(255,255,255,0.95)"
+                strokeWidth="1"
+                strokeLinejoin="round"
               />
             );
           })}
-          <circle cx="120" cy="120" r="60" fill="hsl(var(--card))" />
-          <circle cx="120" cy="120" r="60" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
+          <circle cx="120" cy="120" r={innerRadius} fill="hsl(var(--card))" />
         </svg>
       ) : (
         <div className="py-16 text-center text-sm text-muted-foreground">Nenhum dado para exibir</div>
