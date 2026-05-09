@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Copy, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, MoreHorizontal, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Copy, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,10 @@ import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
+import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
+import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
+import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
+import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import {
@@ -2118,9 +2122,7 @@ export default function CatalogManager({ lockedEntityKey }) {
                         }
                       >
                         {lockedEntityKey === 'ativos' ? (
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          <MenuTriggerButton
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
@@ -2138,13 +2140,9 @@ export default function CatalogManager({ lockedEntityKey }) {
                                     }
                               );
                             }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          />
                         ) : lockedEntityKey === 'contatos' ? (
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          <MenuTriggerButton
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
@@ -2162,13 +2160,9 @@ export default function CatalogManager({ lockedEntityKey }) {
                                     }
                               );
                             }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          />
                         ) : lockedEntityKey === 'linhas_corporativas' ? (
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          <MenuTriggerButton
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
@@ -2186,13 +2180,9 @@ export default function CatalogManager({ lockedEntityKey }) {
                                     }
                               );
                             }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          />
                         ) : lockedEntityKey === 'infra_estrutura' ? (
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          <MenuTriggerButton
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
@@ -2210,13 +2200,9 @@ export default function CatalogManager({ lockedEntityKey }) {
                                     }
                               );
                             }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          />
                         ) : lockedEntityKey === 'colaboradores' ? (
-                          <button
-                            type="button"
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          <MenuTriggerButton
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
@@ -2234,9 +2220,7 @@ export default function CatalogManager({ lockedEntityKey }) {
                                     }
                               );
                             }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          />
                         ) : null}
                         {lockedEntityKey !== 'colaboradores' &&
                         lockedEntityKey !== 'ativos' &&
@@ -2720,151 +2704,78 @@ export default function CatalogManager({ lockedEntityKey }) {
           )
         : null}
 
-      {openContactMenu
-        ? createPortal(
-            <div
-              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-              style={{ top: openContactMenu.top, right: openContactMenu.right }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setEditingRecord(openContactMenu.row);
-                  setOpenContactMenu(null);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-                onClick={() => {
-                  const confirmed = window.confirm(
-                    `Deseja realmente excluir ${openContactMenu.row.nome || 'este contato'}?`
-                  );
-                  if (!confirmed) {
-                    setOpenContactMenu(null);
-                    return;
-                  }
+      <ContactActionsMenu
+        menu={openContactMenu}
+        onDelete={() => {
+          const confirmed = window.confirm(
+            `Deseja realmente excluir ${openContactMenu?.row?.nome || 'este contato'}?`
+          );
+          if (!confirmed) {
+            setOpenContactMenu(null);
+            return;
+          }
 
-                  deleteMutation.mutate(openContactMenu.row.id);
-                  setOpenContactMenu(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+          deleteMutation.mutate(openContactMenu.row.id);
+          setOpenContactMenu(null);
+        }}
+        onEdit={() => {
+          setEditingRecord(openContactMenu.row);
+          setOpenContactMenu(null);
+        }}
+      />
 
-      {openCorporateLineMenu
-        ? createPortal(
-            <div
-              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-              style={{ top: openCorporateLineMenu.top, right: openCorporateLineMenu.right }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setAssigningCorporateLine(openCorporateLineMenu.row);
-                  setOpenCorporateLineMenu(null);
-                }}
-              >
-                <UserPlus className="h-4 w-4" />
-                Vincular colaborador
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setEditingRecord(openCorporateLineMenu.row);
-                  setOpenCorporateLineMenu(null);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-                onClick={() => {
-                  if (openCorporateLineMenu.row.colaborador_id) {
-                    setFeedback({
-                      type: 'error',
-                      message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
-                    });
-                    setOpenCorporateLineMenu(null);
-                    return;
-                  }
+      <CorporateLineActionsMenu
+        menu={openCorporateLineMenu}
+        onAssign={() => {
+          setAssigningCorporateLine(openCorporateLineMenu.row);
+          setOpenCorporateLineMenu(null);
+        }}
+        onDelete={() => {
+          if (openCorporateLineMenu?.row?.colaborador_id) {
+            setFeedback({
+              type: 'error',
+              message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
+            });
+            setOpenCorporateLineMenu(null);
+            return;
+          }
 
-                  const confirmed = window.confirm(
-                    `Deseja realmente excluir ${openCorporateLineMenu.row.nome || openCorporateLineMenu.row.numero || 'esta linha corporativa'}?`
-                  );
-                  if (!confirmed) {
-                    setOpenCorporateLineMenu(null);
-                    return;
-                  }
+          const confirmed = window.confirm(
+            `Deseja realmente excluir ${openCorporateLineMenu?.row?.nome || openCorporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
+          );
+          if (!confirmed) {
+            setOpenCorporateLineMenu(null);
+            return;
+          }
 
-                  deleteMutation.mutate(openCorporateLineMenu.row.id);
-                  setOpenCorporateLineMenu(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+          deleteMutation.mutate(openCorporateLineMenu.row.id);
+          setOpenCorporateLineMenu(null);
+        }}
+        onEdit={() => {
+          setEditingRecord(openCorporateLineMenu.row);
+          setOpenCorporateLineMenu(null);
+        }}
+      />
 
-      {openInfrastructureMenu
-        ? createPortal(
-            <div
-              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-              style={{ top: openInfrastructureMenu.top, right: openInfrastructureMenu.right }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setEditingRecord(openInfrastructureMenu.row);
-                  setOpenInfrastructureMenu(null);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-                onClick={() => {
-                  const confirmed = window.confirm(
-                    `Deseja realmente excluir ${openInfrastructureMenu.row.nome || 'este registro de infraestrutura'}?`
-                  );
-                  if (!confirmed) {
-                    setOpenInfrastructureMenu(null);
-                    return;
-                  }
+      <InfrastructureActionsMenu
+        menu={openInfrastructureMenu}
+        onDelete={() => {
+          const confirmed = window.confirm(
+            `Deseja realmente excluir ${openInfrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
+          );
+          if (!confirmed) {
+            setOpenInfrastructureMenu(null);
+            return;
+          }
 
-                  deleteMutation.mutate(openInfrastructureMenu.row.id);
-                  setOpenInfrastructureMenu(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+          deleteMutation.mutate(openInfrastructureMenu.row.id);
+          setOpenInfrastructureMenu(null);
+        }}
+        onEdit={() => {
+          setEditingRecord(openInfrastructureMenu.row);
+          setOpenInfrastructureMenu(null);
+        }}
+      />
 
       {openCollaboratorMenu
         ? createPortal(
