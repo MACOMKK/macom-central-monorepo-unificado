@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Copy, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import ContactActionsMenu from '@/pages/catalog-manager/components/ContactAction
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
 import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
 import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
+import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import {
@@ -3034,90 +3035,20 @@ export default function CatalogManager({ lockedEntityKey }) {
         </DialogContent>
       </Dialog>
 
-      {passwordRecord !== null ? (
-        <Dialog
-          open={passwordRecord !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPasswordRecord(null);
-              setPasswordForm({ password: '', confirmPassword: '' });
-            }
-          }}
-        >
-          <DialogContent className="max-w-[420px] rounded-[12px] p-4">
-            <DialogHeader>
-              <DialogTitle>Definir nova senha</DialogTitle>
-            </DialogHeader>
-
-            <div className="grid gap-3">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium" htmlFor="new-password">
-                  Nova senha
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={passwordForm.password}
-                    onChange={(event) => setPasswordForm((current) => ({ ...current, password: event.target.value }))}
-                    placeholder="Minimo de 6 caracteres"
-                    className="h-9 rounded-lg px-3 text-[14px]"
-                  />
-                  <Button type="button" variant="outline" className="h-9 rounded-lg px-3" onClick={handleGeneratePassword}>
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-lg px-3"
-                    onClick={handleCopyPassword}
-                    disabled={!passwordForm.password}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-2">
-                <label className="text-sm font-medium" htmlFor="confirm-password">
-                  Confirmar senha
-                </label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-                  placeholder="Repita a nova senha"
-                  className="h-9 rounded-lg px-3 text-[14px]"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="justify-end gap-2 sm:space-x-0">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 rounded-lg px-4 text-[13px]"
-                onClick={() => {
-                  setPasswordRecord(null);
-                  setPasswordForm({ password: '', confirmPassword: '' });
-                }}
-                disabled={passwordMutation.isPending}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                className="h-8 rounded-lg px-4 text-[13px]"
-                onClick={handleSubmitPassword}
-                disabled={passwordMutation.isPending}
-              >
-                Salvar senha
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+      <PasswordResetDialog
+        form={passwordForm}
+        isPending={passwordMutation.isPending}
+        onClose={() => {
+          setPasswordRecord(null);
+          setPasswordForm({ password: '', confirmPassword: '' });
+        }}
+        onConfirmPasswordChange={(value) => setPasswordForm((current) => ({ ...current, confirmPassword: value }))}
+        onCopyPassword={handleCopyPassword}
+        onGeneratePassword={handleGeneratePassword}
+        onPasswordChange={(value) => setPasswordForm((current) => ({ ...current, password: value }))}
+        onSubmit={handleSubmitPassword}
+        open={passwordRecord !== null}
+      />
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
