@@ -75,3 +75,16 @@ export function parseImportFile(text, fileName = '') {
 
   return parseCsv(text);
 }
+
+export async function readImportFileRows(file) {
+  if (!file) return [];
+
+  const text = await file.text();
+  const rows = parseImportFile(text, file.name);
+
+  if (!rows.length) {
+    throw new Error('Arquivo vazio ou invalido.');
+  }
+
+  return rows;
+}

@@ -54,7 +54,7 @@ import {
   exportCollaboratorsCsv,
   getImportTemplateExamples,
 } from '@/pages/catalog-manager/utils/importExportHelpers';
-import { parseImportFile } from '@/pages/catalog-manager/utils/importParsers';
+import { readImportFileRows } from '@/pages/catalog-manager/utils/importParsers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { catalogApi } from '@/lib/catalogApi';
@@ -1455,27 +1455,25 @@ export default function CatalogManager({ lockedEntityKey }) {
     importInputRef.current?.click();
   };
 
-  const handleImportAssetsFile = async (event) => {
+  const handleImportFileSelection = async (event, onSuccess) => {
     const file = event.target.files?.[0];
-    event.target.value = '';
-
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const rowsToImport = parseImportFile(text, file.name);
-
-      if (!rowsToImport.length) {
-        setFeedback({ type: 'error', message: 'Arquivo vazio ou invalido.' });
-        return;
-      }
-
-      setImportFile(file);
-      setImportAssetsPreview(rowsToImport);
+      const rowsToImport = await readImportFileRows(file);
+      onSuccess(file, rowsToImport);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
+    } finally {
+      event.target.value = '';
     }
   };
+
+  const handleImportAssetsFile = async (event) =>
+    handleImportFileSelection(event, (file, rowsToImport) => {
+      setImportFile(file);
+      setImportAssetsPreview(rowsToImport);
+    });
 
   const handleConfirmImportAssets = async () => {
     if (!importFile || !importAssetsPreview.length) {
@@ -1508,45 +1506,17 @@ export default function CatalogManager({ lockedEntityKey }) {
     importInfrastructureMutation.mutate(importInfrastructurePreview);
   };
 
-  const handleImportCollaboratorsFile = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const rowsToImport = parseImportFile(text, file.name);
-
-      if (!rowsToImport.length) {
-        setFeedback({ type: 'error', message: 'Arquivo vazio ou invalido.' });
-        return;
-      }
-
+  const handleImportCollaboratorsFile = async (event) =>
+    handleImportFileSelection(event, (file, rowsToImport) => {
       setImportCollaboratorsFile(file);
       setImportCollaboratorsPreview(rowsToImport);
-    } catch (error) {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
-    }
-  };
+    });
 
-  const handleImportInfrastructureFile = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const rowsToImport = parseImportFile(text, file.name);
-
-      if (!rowsToImport.length) {
-        setFeedback({ type: 'error', message: 'Arquivo vazio ou invalido.' });
-        return;
-      }
-
+  const handleImportInfrastructureFile = async (event) =>
+    handleImportFileSelection(event, (file, rowsToImport) => {
       setImportInfrastructureFile(file);
       setImportInfrastructurePreview(rowsToImport);
-    } catch (error) {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
-    }
-  };
+    });
 
   const isLoading =
     lockedEntityKey === 'departamentos'
