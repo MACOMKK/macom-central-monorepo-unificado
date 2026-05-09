@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMenu';
+import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
@@ -18,6 +19,7 @@ import CollaboratorActionsMenu from '@/pages/catalog-manager/components/Collabor
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
+import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
 import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
 import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
@@ -2422,85 +2424,35 @@ export default function CatalogManager({ lockedEntityKey }) {
         />
       ) : null}
 
-      {assigningAsset !== null ? (
-        <CatalogEntityDialog
-          open={assigningAsset !== null}
-          onOpenChange={(open) => {
-            if (!open) setAssigningAsset(null);
-          }}
-          title="Vincular Usuario"
-          description=""
-          hideDescription
-          record={assigningAsset}
-          fields={[
-            {
-              key: 'usuario_id',
-              label: 'Usuario',
-              type: 'select',
-              allowEmpty: true,
-              emptyLabel: 'Sem usuario',
-              placeholder: 'Selecione um usuario',
-              inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
-              options: collaborators.map((item) => ({
-                value: item.id,
-                label: item.nome || item.email || item.id,
-              })),
-            },
-          ]}
-          loading={assignUserMutation.isPending}
-          dialogClassName="max-w-[380px] rounded-[12px] p-4"
-          formClassName="grid gap-3"
-          footerClassName="justify-end gap-2 sm:space-x-0"
-          cancelButtonClassName="h-8 rounded-lg px-4 text-[13px]"
-          submitButtonClassName="h-8 rounded-lg px-4 text-[13px]"
-          submitLabel="Salvar"
-          onSubmit={(payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload })}
-        />
-      ) : null}
+      <AssetAssignmentDialog
+        collaborators={collaborators}
+        loading={assignUserMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open) setAssigningAsset(null);
+        }}
+        onSubmit={(payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload })}
+        open={assigningAsset !== null}
+        record={assigningAsset}
+      />
 
-      {assigningCorporateLine !== null ? (
-        <CatalogEntityDialog
-          open={assigningCorporateLine !== null}
-          onOpenChange={(open) => {
-            if (!open) setAssigningCorporateLine(null);
-          }}
-          title="Vincular Responsavel"
-          description=""
-          hideDescription
-          record={assigningCorporateLine}
-          fields={[
-            {
-              key: 'colaborador_id',
-              label: 'Colaborador',
-              type: 'select',
-              allowEmpty: true,
-              emptyLabel: 'Sem colaborador',
-              placeholder: 'Selecione um colaborador',
-              inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
-              options: collaborators.map((item) => ({
-                value: item.id,
-                label: item.nome || item.email || item.id,
-              })),
+      <CorporateLineAssignmentDialog
+        collaborators={collaborators}
+        loading={assignCorporateLineMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open) setAssigningCorporateLine(null);
+        }}
+        onSubmit={(payload) =>
+          assignCorporateLineMutation.mutateAsync({
+            id: assigningCorporateLine.id,
+            payload: {
+              ...payload,
+              status: payload.colaborador_id ? 'em_uso' : 'disponivel',
             },
-          ]}
-          loading={assignCorporateLineMutation.isPending}
-          dialogClassName="max-w-[380px] rounded-[12px] p-4"
-          formClassName="grid gap-3"
-          footerClassName="justify-end gap-2 sm:space-x-0"
-          cancelButtonClassName="h-8 rounded-lg px-4 text-[13px]"
-          submitButtonClassName="h-8 rounded-lg px-4 text-[13px]"
-          submitLabel="Salvar"
-          onSubmit={(payload) =>
-            assignCorporateLineMutation.mutateAsync({
-              id: assigningCorporateLine.id,
-              payload: {
-                ...payload,
-                status: payload.colaborador_id ? 'em_uso' : 'disponivel',
-              },
-            })
-          }
-        />
-      ) : null}
+          })
+        }
+        open={assigningCorporateLine !== null}
+        record={assigningCorporateLine}
+      />
 
       {viewingCollaboratorLinks !== null ? (
         <Dialog
