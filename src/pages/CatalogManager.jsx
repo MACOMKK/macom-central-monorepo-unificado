@@ -245,6 +245,10 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
+  const [openAssetMenu, setOpenAssetMenu] = useState(null);
+  const [openContactMenu, setOpenContactMenu] = useState(null);
+  const [openCorporateLineMenu, setOpenCorporateLineMenu] = useState(null);
+  const [openInfrastructureMenu, setOpenInfrastructureMenu] = useState(null);
   const [openCollaboratorMenu, setOpenCollaboratorMenu] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
@@ -267,12 +271,22 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
-    if (!openCollaboratorMenu) return undefined;
+    if (!openCollaboratorMenu && !openAssetMenu && !openContactMenu && !openCorporateLineMenu && !openInfrastructureMenu) return undefined;
 
-    const handleClickOutside = () => setOpenCollaboratorMenu(null);
+    const handleClickOutside = () => {
+      setOpenCollaboratorMenu(null);
+      setOpenAssetMenu(null);
+      setOpenContactMenu(null);
+      setOpenCorporateLineMenu(null);
+      setOpenInfrastructureMenu(null);
+    };
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
         setOpenCollaboratorMenu(null);
+        setOpenAssetMenu(null);
+        setOpenContactMenu(null);
+        setOpenCorporateLineMenu(null);
+        setOpenInfrastructureMenu(null);
       }
     };
 
@@ -283,7 +297,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [openCollaboratorMenu]);
+  }, [openAssetMenu, openCollaboratorMenu, openContactMenu, openCorporateLineMenu, openInfrastructureMenu]);
 
   const departmentsQuery = useQuery({ queryKey: ['departamentos'], queryFn: catalogApi.departamentos.list });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
@@ -2280,7 +2294,19 @@ export default function CatalogManager({ lockedEntityKey }) {
                       {column.label}
                     </TableHead>
                   ))}
-                  <TableHead className={lockedEntityKey === 'colaboradores' ? 'text-center text-[13px] font-semibold' : 'text-right font-bold'}>Acoes</TableHead>
+                  <TableHead
+                    className={
+                      lockedEntityKey === 'colaboradores' ||
+                      lockedEntityKey === 'ativos' ||
+                      lockedEntityKey === 'contatos' ||
+                      lockedEntityKey === 'linhas_corporativas' ||
+                      lockedEntityKey === 'infra_estrutura'
+                        ? 'text-center text-[13px] font-semibold'
+                        : 'text-right font-bold'
+                    }
+                  >
+                    Acoes
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2315,18 +2341,132 @@ export default function CatalogManager({ lockedEntityKey }) {
                         </TableCell>
                       ))}
                       <TableCell
-                        className={lockedEntityKey === 'colaboradores' ? 'text-center' : 'text-right'}
-                        onClick={lockedEntityKey === 'colaboradores' ? (event) => event.stopPropagation() : undefined}
+                        className={
+                          lockedEntityKey === 'colaboradores' ||
+                          lockedEntityKey === 'ativos' ||
+                          lockedEntityKey === 'contatos' ||
+                          lockedEntityKey === 'linhas_corporativas' ||
+                          lockedEntityKey === 'infra_estrutura'
+                            ? 'text-center'
+                            : 'text-right'
+                        }
+                        onClick={
+                          lockedEntityKey === 'colaboradores' ||
+                          lockedEntityKey === 'ativos' ||
+                          lockedEntityKey === 'contatos' ||
+                          lockedEntityKey === 'linhas_corporativas' ||
+                          lockedEntityKey === 'infra_estrutura'
+                            ? (event) => event.stopPropagation()
+                            : undefined
+                        }
                       >
-                      <div className={lockedEntityKey === 'colaboradores' ? 'flex justify-center gap-1' : 'flex justify-end gap-1'}>
+                      <div
+                        className={
+                          lockedEntityKey === 'colaboradores' ||
+                          lockedEntityKey === 'ativos' ||
+                          lockedEntityKey === 'contatos' ||
+                          lockedEntityKey === 'linhas_corporativas' ||
+                          lockedEntityKey === 'infra_estrutura'
+                            ? 'flex justify-center gap-1'
+                            : 'flex justify-end gap-1'
+                        }
+                      >
                         {lockedEntityKey === 'ativos' ? (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningAsset(row)}>
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenCollaboratorMenu(null);
+                              setOpenContactMenu(null);
+                              setOpenCorporateLineMenu(null);
+                              setOpenInfrastructureMenu(null);
+                              setOpenAssetMenu((currentMenu) =>
+                                currentMenu?.row?.id === row.id
+                                  ? null
+                                  : {
+                                      row,
+                                      top: rect.bottom + 6,
+                                      right: window.innerWidth - rect.right,
+                                    }
+                              );
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        ) : lockedEntityKey === 'contatos' ? (
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenAssetMenu(null);
+                              setOpenCollaboratorMenu(null);
+                              setOpenCorporateLineMenu(null);
+                              setOpenInfrastructureMenu(null);
+                              setOpenContactMenu((currentMenu) =>
+                                currentMenu?.row?.id === row.id
+                                  ? null
+                                  : {
+                                      row,
+                                      top: rect.bottom + 6,
+                                      right: window.innerWidth - rect.right,
+                                    }
+                              );
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
                         ) : lockedEntityKey === 'linhas_corporativas' ? (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningCorporateLine(row)}>
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenAssetMenu(null);
+                              setOpenContactMenu(null);
+                              setOpenCollaboratorMenu(null);
+                              setOpenInfrastructureMenu(null);
+                              setOpenCorporateLineMenu((currentMenu) =>
+                                currentMenu?.row?.id === row.id
+                                  ? null
+                                  : {
+                                      row,
+                                      top: rect.bottom + 6,
+                                      right: window.innerWidth - rect.right,
+                                    }
+                              );
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        ) : lockedEntityKey === 'infra_estrutura' ? (
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenAssetMenu(null);
+                              setOpenContactMenu(null);
+                              setOpenCorporateLineMenu(null);
+                              setOpenCollaboratorMenu(null);
+                              setOpenInfrastructureMenu((currentMenu) =>
+                                currentMenu?.row?.id === row.id
+                                  ? null
+                                  : {
+                                      row,
+                                      top: rect.bottom + 6,
+                                      right: window.innerWidth - rect.right,
+                                    }
+                              );
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
                         ) : lockedEntityKey === 'colaboradores' ? (
                           <button
                             type="button"
@@ -2334,6 +2474,10 @@ export default function CatalogManager({ lockedEntityKey }) {
                             onClick={(event) => {
                               event.stopPropagation();
                               const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenAssetMenu(null);
+                              setOpenContactMenu(null);
+                              setOpenCorporateLineMenu(null);
+                              setOpenInfrastructureMenu(null);
                               setOpenCollaboratorMenu((currentMenu) =>
                                 currentMenu?.row?.id === row.id
                                   ? null
@@ -2348,12 +2492,20 @@ export default function CatalogManager({ lockedEntityKey }) {
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         ) : null}
-                        {lockedEntityKey !== 'colaboradores' ? (
+                        {lockedEntityKey !== 'colaboradores' &&
+                        lockedEntityKey !== 'ativos' &&
+                        lockedEntityKey !== 'contatos' &&
+                        lockedEntityKey !== 'linhas_corporativas' &&
+                        lockedEntityKey !== 'infra_estrutura' ? (
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingRecord(row)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         ) : null}
-                          {lockedEntityKey !== 'colaboradores' ? (
+                          {lockedEntityKey !== 'colaboradores' &&
+                          lockedEntityKey !== 'ativos' &&
+                          lockedEntityKey !== 'contatos' &&
+                          lockedEntityKey !== 'linhas_corporativas' &&
+                          lockedEntityKey !== 'infra_estrutura' ? (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -2762,6 +2914,214 @@ export default function CatalogManager({ lockedEntityKey }) {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      {openAssetMenu
+        ? createPortal(
+            <div
+              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+              style={{ top: openAssetMenu.top, right: openAssetMenu.right }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setAssigningAsset(openAssetMenu.row);
+                  setOpenAssetMenu(null);
+                }}
+              >
+                <UserPlus className="h-4 w-4" />
+                Vincular colaborador
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setEditingRecord(openAssetMenu.row);
+                  setOpenAssetMenu(null);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+                onClick={() => {
+                  if (openAssetMenu.row.usuario_id) {
+                    setFeedback({
+                      type: 'error',
+                      message: 'Nao e permitido excluir um ativo com usuario vinculado.',
+                    });
+                    setOpenAssetMenu(null);
+                    return;
+                  }
+
+                  const confirmed = window.confirm(
+                    `Deseja realmente excluir ${openAssetMenu.row.nome || openAssetMenu.row.patrimonio || 'este ativo'}?`
+                  );
+                  if (!confirmed) {
+                    setOpenAssetMenu(null);
+                    return;
+                  }
+
+                  deleteMutation.mutate(openAssetMenu.row.id);
+                  setOpenAssetMenu(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {openContactMenu
+        ? createPortal(
+            <div
+              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+              style={{ top: openContactMenu.top, right: openContactMenu.right }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setEditingRecord(openContactMenu.row);
+                  setOpenContactMenu(null);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    `Deseja realmente excluir ${openContactMenu.row.nome || 'este contato'}?`
+                  );
+                  if (!confirmed) {
+                    setOpenContactMenu(null);
+                    return;
+                  }
+
+                  deleteMutation.mutate(openContactMenu.row.id);
+                  setOpenContactMenu(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {openCorporateLineMenu
+        ? createPortal(
+            <div
+              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+              style={{ top: openCorporateLineMenu.top, right: openCorporateLineMenu.right }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setAssigningCorporateLine(openCorporateLineMenu.row);
+                  setOpenCorporateLineMenu(null);
+                }}
+              >
+                <UserPlus className="h-4 w-4" />
+                Vincular colaborador
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setEditingRecord(openCorporateLineMenu.row);
+                  setOpenCorporateLineMenu(null);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+                onClick={() => {
+                  if (openCorporateLineMenu.row.colaborador_id) {
+                    setFeedback({
+                      type: 'error',
+                      message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
+                    });
+                    setOpenCorporateLineMenu(null);
+                    return;
+                  }
+
+                  const confirmed = window.confirm(
+                    `Deseja realmente excluir ${openCorporateLineMenu.row.nome || openCorporateLineMenu.row.numero || 'esta linha corporativa'}?`
+                  );
+                  if (!confirmed) {
+                    setOpenCorporateLineMenu(null);
+                    return;
+                  }
+
+                  deleteMutation.mutate(openCorporateLineMenu.row.id);
+                  setOpenCorporateLineMenu(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {openInfrastructureMenu
+        ? createPortal(
+            <div
+              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+              style={{ top: openInfrastructureMenu.top, right: openInfrastructureMenu.right }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setEditingRecord(openInfrastructureMenu.row);
+                  setOpenInfrastructureMenu(null);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    `Deseja realmente excluir ${openInfrastructureMenu.row.nome || 'este registro de infraestrutura'}?`
+                  );
+                  if (!confirmed) {
+                    setOpenInfrastructureMenu(null);
+                    return;
+                  }
+
+                  deleteMutation.mutate(openInfrastructureMenu.row.id);
+                  setOpenInfrastructureMenu(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
 
       {openCollaboratorMenu
         ? createPortal(
