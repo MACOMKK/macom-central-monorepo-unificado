@@ -8,15 +8,22 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const isBusy = loading || submitting;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isBusy) return;
+
     setError('');
+    setSubmitting(true);
 
     try {
       await onSubmit(email.trim(), password);
     } catch (submitError) {
       setError(submitError.message || 'Falha ao entrar.');
+      setSubmitting(false);
     }
   };
 
@@ -47,6 +54,7 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="voce@empresa.com"
               required
+              disabled={isBusy}
               className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
           </div>
@@ -62,6 +70,7 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Sua senha"
               required
+              disabled={isBusy}
               className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
             />
           </div>
@@ -78,10 +87,10 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isBusy}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#c1121f] text-sm font-semibold text-white transition hover:bg-[#a30f19] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
+            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
           </button>
         </form>
       </div>
