@@ -14,6 +14,7 @@ import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMen
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
+import CollaboratorActionsMenu from '@/pages/catalog-manager/components/CollaboratorActionsMenu';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
@@ -2749,91 +2750,57 @@ export default function CatalogManager({ lockedEntityKey }) {
         }}
       />
 
-      {openCollaboratorMenu
-        ? createPortal(
-            <div
-              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-              style={{ top: openCollaboratorMenu.top, right: openCollaboratorMenu.right }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setEditingRecord(openCollaboratorMenu.row);
-                  setOpenCollaboratorMenu(null);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setPasswordRecord(openCollaboratorMenu.row);
-                  setOpenCollaboratorMenu(null);
-                }}
-              >
-                <KeyRound className="h-4 w-4" />
-                Redefinir senha
-              </button>
-              {openCollaboratorMenu.row.status === 'inativo' &&
-              (assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id) ||
-                corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id)) ? (
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                  onClick={() => {
-                    const confirmed = window.confirm(
-                      `Deseja realmente desvincular todos os ativos e linhas corporativas de ${openCollaboratorMenu.row.nome || 'este colaborador'}?`
-                    );
-                    if (confirmed) {
-                      unlinkAssignmentsMutation.mutate(openCollaboratorMenu.row.id);
-                    }
-                    setOpenCollaboratorMenu(null);
-                  }}
-                  disabled={unlinkAssignmentsMutation.isPending}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Desvincular tudo
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-                onClick={() => {
-                  const hasLinkedAssets = assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id);
-                  const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id);
+      <CollaboratorActionsMenu
+        canUnlinkAll={
+          !!openCollaboratorMenu &&
+          openCollaboratorMenu.row.status === 'inativo' &&
+          (assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id) ||
+            corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id))
+        }
+        isUnlinking={unlinkAssignmentsMutation.isPending}
+        menu={openCollaboratorMenu}
+        onDelete={() => {
+          const hasLinkedAssets = assets.some((asset) => asset.usuario_id === openCollaboratorMenu?.row?.id);
+          const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu?.row?.id);
 
-                  if (hasLinkedAssets || hasLinkedLines) {
-                    setFeedback({
-                      type: 'error',
-                      message: 'Nao e permitido excluir um colaborador com itens vinculados.',
-                    });
-                    setOpenCollaboratorMenu(null);
-                    return;
-                  }
+          if (hasLinkedAssets || hasLinkedLines) {
+            setFeedback({
+              type: 'error',
+              message: 'Nao e permitido excluir um colaborador com itens vinculados.',
+            });
+            setOpenCollaboratorMenu(null);
+            return;
+          }
 
-                  const confirmed = window.confirm(
-                    `Deseja realmente excluir o usuario ${openCollaboratorMenu.row.nome || openCollaboratorMenu.row.email || ''}?`
-                  );
-                  if (!confirmed) {
-                    setOpenCollaboratorMenu(null);
-                    return;
-                  }
+          const confirmed = window.confirm(
+            `Deseja realmente excluir o usuario ${openCollaboratorMenu?.row?.nome || openCollaboratorMenu?.row?.email || ''}?`
+          );
+          if (!confirmed) {
+            setOpenCollaboratorMenu(null);
+            return;
+          }
 
-                  deleteMutation.mutate(openCollaboratorMenu.row.id);
-                  setOpenCollaboratorMenu(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+          deleteMutation.mutate(openCollaboratorMenu.row.id);
+          setOpenCollaboratorMenu(null);
+        }}
+        onEdit={() => {
+          setEditingRecord(openCollaboratorMenu.row);
+          setOpenCollaboratorMenu(null);
+        }}
+        onResetPassword={() => {
+          setPasswordRecord(openCollaboratorMenu.row);
+          setOpenCollaboratorMenu(null);
+        }}
+        onUnlinkAll={() => {
+          const confirmed = window.confirm(
+            `Deseja realmente desvincular todos os ativos e linhas corporativas de ${openCollaboratorMenu?.row?.nome || 'este colaborador'}?`
+          );
+          if (confirmed) {
+            unlinkAssignmentsMutation.mutate(openCollaboratorMenu.row.id);
+          }
+          setOpenCollaboratorMenu(null);
+        }}
+      />
 
       <Dialog
         open={importAssetsOpen}
