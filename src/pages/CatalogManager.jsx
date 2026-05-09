@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
+import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import {
   assetCategoryOptions,
@@ -2169,9 +2170,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       ) : lockedEntityKey === 'colaboradores' ? (
         renderCollaboratorsToolbar()
       ) : (
-        <Card className="p-4">
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={current.searchPlaceholder} />
-        </Card>
+        <SearchToolbar onSearchChange={setSearch} placeholder={current.searchPlaceholder} search={search} />
       )}
 
       {lockedEntityKey === 'departamentos' ? (
