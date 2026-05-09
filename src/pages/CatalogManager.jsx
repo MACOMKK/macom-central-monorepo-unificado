@@ -10,81 +10,23 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
+import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
+import {
+  assetCategoryOptions,
+  assetConditionOptions,
+  collaboratorRoleOptions,
+  collaboratorStatusOptions,
+  contactTypeOptions,
+  corporateLineStatusOptions,
+  corporateLineTypeOptions,
+  infrastructureTypeOptions,
+  termStatusOptions,
+  unitStatusOptions,
+} from '@/pages/catalog-manager/config/staticOptions';
+import { contactTypeTone, statusTone } from '@/pages/catalog-manager/config/uiMaps';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { catalogApi } from '@/lib/catalogApi';
-
-const entityMeta = {
-  departamentos: {
-    title: 'Departamentos',
-    singular: 'Departamento',
-    subtitle: 'Base institucional para colaboradores e organizacao interna.',
-    icon: Building2,
-  },
-  unidades: {
-    title: 'Unidades / Filiais',
-    singular: 'Unidade',
-    subtitle: 'Locais disponiveis para vinculo de colaboradores.',
-    icon: MapPinHouse,
-  },
-  colaboradores: {
-    title: 'Colaboradores',
-    singular: 'Colaborador',
-    subtitle: '',
-    icon: UserRound,
-  },
-  contatos: {
-    title: 'Contatos',
-    singular: 'Contato',
-    subtitle: 'Base de fornecedores e contatos externos do sistema.',
-    icon: Phone,
-  },
-  linhas_corporativas: {
-    title: 'Linhas Corporativas',
-    singular: 'Linha',
-    subtitle: 'Chips, linhas moveis, fixos e ramais da empresa.',
-    icon: Phone,
-  },
-  ativos: {
-    title: 'Ativos',
-    singular: 'Ativo',
-    subtitle: '',
-    icon: Laptop,
-  },
-  infra_estrutura: {
-    title: 'Infraestrutura',
-    singular: 'Registro de Infra',
-    subtitle: 'IPs e links de sistemas centralizados por unidade.',
-    icon: Network,
-  },
-  termos_posse: {
-    title: 'Termos de Posse',
-    singular: 'Termo',
-    subtitle: 'Geracao e acompanhamento dos termos de compromisso dos equipamentos.',
-    icon: FileText,
-  },
-};
-
-const statusTone = {
-  ativo: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  inativo: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-  disponivel: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  em_uso: 'bg-blue-100 text-blue-800 border-blue-200',
-  manutencao: 'bg-amber-100 text-amber-800 border-amber-200',
-  descartado: 'bg-red-100 text-red-800 border-red-200',
-  gerado: 'bg-slate-100 text-slate-700 border-slate-200',
-  assinado: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  cancelado: 'bg-red-100 text-red-800 border-red-200',
-  devolvido: 'bg-amber-100 text-amber-800 border-amber-200',
-};
-
-const contactTypeTone = {
-  fornecedor: 'border-sky-200 bg-sky-100 text-sky-800',
-  suporte: 'border-emerald-200 bg-emerald-100 text-emerald-800',
-  parceiro: 'border-violet-200 bg-violet-100 text-violet-800',
-  comercial: 'border-amber-200 bg-amber-100 text-amber-800',
-  outro: 'border-slate-200 bg-slate-100 text-slate-800',
-};
 
 function formatDate(dateString) {
   if (!dateString) return '-';
@@ -464,10 +406,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             valueType: 'boolean',
             halfWidth: true,
             inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground',
-            options: [
-              { value: 'true', label: 'Ativa' },
-              { value: 'false', label: 'Inativa' },
-            ],
+            options: unitStatusOptions,
           },
           { key: 'responsavel', label: 'Responsavel pela Unidade', fullWidth: true, placeholder: 'Nome do gerente/responsavel', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
         ],
@@ -508,10 +447,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Funcao',
             type: 'select',
             defaultValue: 'usuario',
-            options: [
-              { value: 'usuario', label: 'Usuario' },
-              { value: 'admin', label: 'Admin' },
-            ],
+            options: collaboratorRoleOptions,
           },
           {
             key: 'cpf',
@@ -550,10 +486,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Status',
             type: 'select',
             defaultValue: 'ativo',
-            options: [
-              { value: 'ativo', label: 'Ativo' },
-              { value: 'inativo', label: 'Inativo' },
-            ],
+            options: collaboratorStatusOptions,
           },
           {
             key: 'unidade_id',
@@ -656,13 +589,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             fullWidth: true,
             inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
             placeholder: 'Selecione o tipo',
-            options: [
-              { value: 'fornecedor', label: 'Fornecedor' },
-              { value: 'suporte', label: 'Suporte' },
-              { value: 'parceiro', label: 'Parceiro' },
-              { value: 'comercial', label: 'Comercial' },
-              { value: 'outro', label: 'Outro' },
-            ],
+            options: contactTypeOptions,
           },
           {
             key: 'nome',
@@ -767,13 +694,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             type: 'select',
             required: true,
             defaultValue: 'chip',
-            options: [
-              { value: 'chip', label: 'Chip' },
-              { value: 'linha_movel', label: 'Linha Movel' },
-              { value: 'telefone_fixo', label: 'Telefone Fixo' },
-              { value: 'ramal', label: 'Ramal' },
-              { value: 'outro', label: 'Outro' },
-            ],
+            options: corporateLineTypeOptions,
           },
           {
             key: 'nome',
@@ -801,12 +722,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Status',
             type: 'select',
             defaultValue: 'disponivel',
-            options: [
-              { value: 'disponivel', label: 'Disponivel' },
-              { value: 'em_uso', label: 'Em Uso' },
-              { value: 'inativo', label: 'Inativo' },
-              { value: 'cancelado', label: 'Cancelado' },
-            ],
+            options: corporateLineStatusOptions,
           },
           {
             key: 'colaborador_id',
@@ -886,18 +802,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             type: 'select',
             required: true,
             inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
-            options: [
-              { value: 'notebook', label: 'Notebook' },
-              { value: 'desktop', label: 'Desktop' },
-              { value: 'monitor', label: 'Monitor' },
-              { value: 'impressora', label: 'Impressora' },
-              { value: 'celular', label: 'Celular' },
-              { value: 'tablet', label: 'Tablet' },
-              { value: 'periferico', label: 'Periferico' },
-              { value: 'rede', label: 'Equipamento de rede' },
-              { value: 'servidor', label: 'Servidor' },
-              { value: 'outro', label: 'Outro' },
-            ],
+            options: assetCategoryOptions,
           },
           { key: 'marca', label: 'Marca', placeholder: 'Ex.: Dell', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
           { key: 'modelo', label: 'Modelo', placeholder: 'Ex.: Latitude 5440', inputClassName: 'h-9 rounded-lg px-3 text-[14px]' },
@@ -918,13 +823,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Estado',
             type: 'select',
             inputClassName: 'h-9 rounded-lg px-3 text-[14px]',
-            options: [
-              { value: 'novo', label: 'Novo' },
-              { value: 'bom', label: 'Bom' },
-              { value: 'regular', label: 'Regular' },
-              { value: 'ruim', label: 'Ruim' },
-              { value: 'inservivel', label: 'Inservivel' },
-            ],
+            options: assetConditionOptions,
           },
           {
             key: 'usuario_id',
@@ -976,10 +875,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             defaultValue: 'ip',
             inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
             placeholder: 'Selecione o tipo',
-            options: [
-              { value: 'ip', label: 'IP' },
-              { value: 'link', label: 'LINK' },
-            ],
+            options: infrastructureTypeOptions,
           },
           {
             key: 'nome',
@@ -1096,12 +992,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Status',
             type: 'select',
             defaultValue: 'gerado',
-            options: [
-              { value: 'gerado', label: 'Gerado' },
-              { value: 'assinado', label: 'Assinado' },
-              { value: 'cancelado', label: 'Cancelado' },
-              { value: 'devolvido', label: 'Devolvido' },
-            ],
+            options: termStatusOptions,
           },
           {
             key: 'arquivo_url',
