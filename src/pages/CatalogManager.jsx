@@ -403,23 +403,23 @@ export default function CatalogManager({ lockedEntityKey }) {
       unidades: {
         rows: units,
         fields: [
-          { key: 'nome', label: 'Nome da Unidade', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-red-400 px-3 text-[15px] focus-visible:ring-red-200' },
-          { key: 'cidade', label: 'Cidade', required: true, fullWidth: true, placeholder: 'ex: Belem', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
-          { key: 'endereco', label: 'Endereco', fullWidth: true, placeholder: 'Rua, numero, bairro', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
-          { key: 'telefone', label: 'Telefone', halfWidth: true, placeholder: '(91) 3000-0000', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
+          { key: 'nome', label: 'Nome da Unidade', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground focus-visible:ring-primary/20' },
+          { key: 'cidade', label: 'Cidade', required: true, fullWidth: true, placeholder: 'ex: Belem', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
+          { key: 'endereco', label: 'Endereco', fullWidth: true, placeholder: 'Rua, numero, bairro', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
+          { key: 'telefone', label: 'Telefone', halfWidth: true, placeholder: '(91) 3000-0000', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
           {
             key: 'ativo',
             label: 'Status',
             type: 'select',
             valueType: 'boolean',
             halfWidth: true,
-            inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]',
+            inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground',
             options: [
               { value: 'true', label: 'Ativa' },
               { value: 'false', label: 'Inativa' },
             ],
           },
-          { key: 'responsavel', label: 'Responsavel pela Unidade', fullWidth: true, placeholder: 'Nome do gerente/responsavel', inputClassName: 'h-10 rounded-lg border-zinc-200 px-3 text-[15px]' },
+          { key: 'responsavel', label: 'Responsavel pela Unidade', fullWidth: true, placeholder: 'Nome do gerente/responsavel', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
         ],
         columns: [
           { key: 'nome', label: 'Nome' },
@@ -2477,7 +2477,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           hideDescription={lockedEntityKey === 'unidades' || lockedEntityKey === 'termos_posse' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' || lockedEntityKey === 'linhas_corporativas'}
           dialogClassName={
             lockedEntityKey === 'unidades'
-              ? 'max-w-[520px] rounded-[16px] border-0 bg-[#fdfdfd] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.18)]'
+              ? 'max-w-[520px] rounded-[16px] border bg-background p-6 text-foreground shadow-[0_30px_80px_rgba(0,0,0,0.18)]'
               : lockedEntityKey === 'contatos'
                 ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
               : lockedEntityKey === 'linhas_corporativas'
