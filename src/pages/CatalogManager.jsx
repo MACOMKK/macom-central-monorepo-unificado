@@ -241,6 +241,8 @@ function parseImportFile(text, fileName = '') {
 export default function CatalogManager({ lockedEntityKey }) {
   const queryClient = useQueryClient();
   const importInputRef = useRef(null);
+  const isContactsView = lockedEntityKey === 'contatos';
+  const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
@@ -299,14 +301,42 @@ export default function CatalogManager({ lockedEntityKey }) {
     };
   }, [openAssetMenu, openCollaboratorMenu, openContactMenu, openCorporateLineMenu, openInfrastructureMenu]);
 
-  const departmentsQuery = useQuery({ queryKey: ['departamentos'], queryFn: catalogApi.departamentos.list });
+  const departmentsQuery = useQuery({
+    queryKey: ['departamentos'],
+    queryFn: catalogApi.departamentos.list,
+    enabled: !isContactsView && !isInfrastructureView,
+  });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
-  const collaboratorsQuery = useQuery({ queryKey: ['colaboradores'], queryFn: catalogApi.colaboradores.list });
-  const contactsQuery = useQuery({ queryKey: ['contatos'], queryFn: catalogApi.contatos.list });
-  const corporateLinesQuery = useQuery({ queryKey: ['linhas_corporativas'], queryFn: catalogApi.linhas_corporativas.list });
-  const assetsQuery = useQuery({ queryKey: ['ativos'], queryFn: catalogApi.ativos.list });
-  const infraQuery = useQuery({ queryKey: ['infra_estrutura'], queryFn: catalogApi.infra_estrutura.list });
-  const termsQuery = useQuery({ queryKey: ['termos_posse'], queryFn: catalogApi.termos_posse.list });
+  const collaboratorsQuery = useQuery({
+    queryKey: ['colaboradores'],
+    queryFn: catalogApi.colaboradores.list,
+    enabled: !isContactsView && !isInfrastructureView,
+  });
+  const contactsQuery = useQuery({
+    queryKey: ['contatos'],
+    queryFn: catalogApi.contatos.list,
+    enabled: !isInfrastructureView,
+  });
+  const corporateLinesQuery = useQuery({
+    queryKey: ['linhas_corporativas'],
+    queryFn: catalogApi.linhas_corporativas.list,
+    enabled: !isContactsView && !isInfrastructureView,
+  });
+  const assetsQuery = useQuery({
+    queryKey: ['ativos'],
+    queryFn: catalogApi.ativos.list,
+    enabled: !isContactsView && !isInfrastructureView,
+  });
+  const infraQuery = useQuery({
+    queryKey: ['infra_estrutura'],
+    queryFn: catalogApi.infra_estrutura.list,
+    enabled: !isContactsView,
+  });
+  const termsQuery = useQuery({
+    queryKey: ['termos_posse'],
+    queryFn: catalogApi.termos_posse.list,
+    enabled: !isContactsView && !isInfrastructureView,
+  });
 
   const departments = departmentsQuery.data || [];
   const units = unitsQuery.data || [];
@@ -1889,11 +1919,11 @@ export default function CatalogManager({ lockedEntityKey }) {
         : lockedEntityKey === 'colaboradores'
           ? collaboratorsQuery.isLoading
           : lockedEntityKey === 'contatos'
-            ? contactsQuery.isLoading
+            ? contactsQuery.isLoading || unitsQuery.isLoading
             : lockedEntityKey === 'linhas_corporativas'
               ? corporateLinesQuery.isLoading
           : lockedEntityKey === 'infra_estrutura'
-            ? infraQuery.isLoading
+            ? infraQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'termos_posse'
             ? termsQuery.isLoading
             : assetsQuery.isLoading;
