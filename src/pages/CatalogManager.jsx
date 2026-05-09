@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, FileText, Globe, KeyRound, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
 import CollaboratorActionsMenu from '@/pages/catalog-manager/components/CollaboratorActionsMenu';
+import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
@@ -2454,148 +2455,27 @@ export default function CatalogManager({ lockedEntityKey }) {
         record={assigningCorporateLine}
       />
 
-      {viewingCollaboratorLinks !== null ? (
-        <Dialog
-          open={viewingCollaboratorLinks !== null}
-          onOpenChange={(open) => {
-            if (!open) setViewingCollaboratorLinks(null);
-          }}
-        >
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="sr-only">
-              <DialogTitle>Detalhes do colaborador</DialogTitle>
-            </DialogHeader>
-
-            <div className="mt-3 space-y-5">
-              <section className="rounded-xl border border-border bg-muted/10 p-5">
-                <div className="border-b border-border/70 pb-4">
-                  <h3 className="text-lg font-bold text-foreground">
-                    {viewingCollaboratorLinks.nome || '-'}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {viewingCollaboratorLinks.cargo || 'Sem cargo'} • {departments.find((item) => item.id === viewingCollaboratorLinks.departamento_id)?.nome || 'Sem departamento'}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
-                      {units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'}
-                    </span>
-                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
-                      {viewingCollaboratorLinks.funcao === 'admin' ? 'Admin' : 'User'}
-                    </span>
-                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
-                      {viewingCollaboratorLinks.status || '-'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-x-6 gap-y-4 pt-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Email</p>
-                    <p className="mt-1 text-sm font-medium text-foreground">{viewingCollaboratorLinks.email || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Telefone</p>
-                    <p className="mt-1 text-sm font-medium text-foreground">{formatPhone(viewingCollaboratorLinks.telefone)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">CPF</p>
-                    <p className="mt-1 text-sm font-medium text-foreground">{viewingCollaboratorLinks.cpf || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Admissao</p>
-                    <p className="mt-1 text-sm font-medium text-foreground">{formatDate(viewingCollaboratorLinks.data_admissao)}</p>
-                  </div>
-                </div>
-              </section>
-              <section className="flex min-h-0 flex-col rounded-xl border border-border bg-muted/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                      <Laptop className="h-4 w-4 text-slate-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Ativos em posse ({(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length})
-                      </p>
-                    </div>
-                  </div>
-                  <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground">
-                    {(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length}
-                  </span>
-                </div>
-
-                {(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length ? (
-                  <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
-{(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).map((asset) => (
-                      <div key={asset.id} className="pb-2 last:pb-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2 text-sm">
-                            <p className="truncate text-foreground">{asset.nome || 'Ativo sem nome'}</p>
-                            <span className="shrink-0 text-muted-foreground">•</span>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                              {[asset.patrimonio, asset.numero_serie].filter(Boolean).join(' / ') || 'sem-identificacao'}
-                            </p>
-                          </div>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {asset.categoria || 'Ativo'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
-                    Nenhum ativo em posse.
-                  </div>
-                )}
-              </section>
-
-              <section className="flex min-h-0 flex-col rounded-xl border border-border bg-muted/10 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
-                      <Phone className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Linhas corporativas ({(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length})
-                      </p>
-                    </div>
-                  </div>
-                  <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
-                    {(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length}
-                  </span>
-                </div>
-
-                {(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length ? (
-                  <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
-{(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).map((line) => (
-                      <div key={line.id} className="pb-2 last:pb-0">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2 text-sm">
-                            <p className="truncate text-foreground">{line.numero || 'Linha sem identificacao'}</p>
-                            <span className="shrink-0 text-muted-foreground">•</span>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                              {line.operadora || '-'}
-                            </p>
-                          </div>
-                          <span className="shrink-0 text-[11px] text-blue-700">
-                            {line.tipo || 'Linha'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
-                    Nenhuma linha corporativa vinculada.
-                  </div>
-                )}
-              </section>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+      <CollaboratorLinksDialog
+        assets={viewingCollaboratorLinks ? linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || [] : []}
+        collaborator={viewingCollaboratorLinks}
+        departmentName={
+          viewingCollaboratorLinks
+            ? departments.find((item) => item.id === viewingCollaboratorLinks.departamento_id)?.nome || 'Sem departamento'
+            : 'Sem departamento'
+        }
+        formatDate={formatDate}
+        formatPhone={formatPhone}
+        lines={viewingCollaboratorLinks ? linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || [] : []}
+        onOpenChange={(open) => {
+          if (!open) setViewingCollaboratorLinks(null);
+        }}
+        open={viewingCollaboratorLinks !== null}
+        unitName={
+          viewingCollaboratorLinks
+            ? units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'
+            : 'Sem unidade'
+        }
+      />
 
       <AssetActionsMenu
         menu={openAssetMenu}
@@ -3006,3 +2886,4 @@ export default function CatalogManager({ lockedEntityKey }) {
     </div>
   );
 }
+
