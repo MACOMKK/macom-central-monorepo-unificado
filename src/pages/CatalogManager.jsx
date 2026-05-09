@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Copy, Download, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Copy, Download, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, MoreHorizontal, Network, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -243,6 +244,8 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
+  const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
+  const [openCollaboratorMenu, setOpenCollaboratorMenu] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
@@ -263,6 +266,25 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
   const [feedback, setFeedback] = useState(null);
 
+  useEffect(() => {
+    if (!openCollaboratorMenu) return undefined;
+
+    const handleClickOutside = () => setOpenCollaboratorMenu(null);
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpenCollaboratorMenu(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [openCollaboratorMenu]);
+
   const departmentsQuery = useQuery({ queryKey: ['departamentos'], queryFn: catalogApi.departamentos.list });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
   const collaboratorsQuery = useQuery({ queryKey: ['colaboradores'], queryFn: catalogApi.colaboradores.list });
@@ -280,6 +302,30 @@ export default function CatalogManager({ lockedEntityKey }) {
   const assets = assetsQuery.data || [];
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
+
+  const linkedAssetsByCollaboratorId = useMemo(
+    () =>
+      assets.reduce((acc, asset) => {
+        if (asset.usuario_id) {
+          if (!acc[asset.usuario_id]) acc[asset.usuario_id] = [];
+          acc[asset.usuario_id].push(asset);
+        }
+        return acc;
+      }, {}),
+    [assets]
+  );
+
+  const linkedLinesByCollaboratorId = useMemo(
+    () =>
+      corporateLines.reduce((acc, line) => {
+        if (line.colaborador_id) {
+          if (!acc[line.colaborador_id]) acc[line.colaborador_id] = [];
+          acc[line.colaborador_id].push(line);
+        }
+        return acc;
+      }, {}),
+    [corporateLines]
+  );
 
   const config = useMemo(() => {
     const departmentOptions = departments.map((item) => ({ value: item.id, label: item.nome }));
@@ -428,21 +474,6 @@ export default function CatalogManager({ lockedEntityKey }) {
               value && !hasExactDigits(value, 11) ? 'CPF deve conter exatamente 11 digitos.' : '',
           },
           {
-            key: 'descricao',
-            label: 'Descricao / Servico prestado',
-            type: 'textarea',
-            fullWidth: true,
-            inputClassName: 'min-h-[60px] rounded-md border-input px-3 py-2 text-sm shadow-sm',
-            placeholder: 'Informacoes adicionais...',
-          },
-          {
-            key: 'nome_contato',
-            label: 'Nome do Contato',
-            fullWidth: true,
-            inputClassName: 'h-9 rounded-md border-input px-3 text-sm shadow-sm',
-            placeholder: 'Ex.: Joao Silva',
-          },
-          {
             key: 'telefone',
             label: 'Telefone',
             halfWidth: true,
@@ -498,12 +529,31 @@ export default function CatalogManager({ lockedEntityKey }) {
           {
             key: 'equipamentos_vinculados',
             label: 'Equipamentos',
-            render: (_, row) => (
-              <div className="flex items-center gap-1.5 text-[14px]">
-                <Monitor className="h-4 w-4 text-muted-foreground" />
-                <span className="font-semibold">{(assetsByProfileId[row.id] || 0) + (linesByProfileId[row.id] || 0)}</span>
-              </div>
-            ),
+            render: (_, row) => {
+              const total = (assetsByProfileId[row.id] || 0) + (linesByProfileId[row.id] || 0);
+
+              if (total > 0) {
+                return (
+                  <button
+                    type="button"
+                    className="mx-auto flex items-center justify-center gap-1.5 text-[14px] transition-colors hover:text-foreground"
+                    onClick={() => setViewingCollaboratorLinks(row)}
+                    title="Clique para ver os itens vinculados"
+                    aria-label={`Ver ${total} item(ns) vinculado(s)`}
+                  >
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold">{total}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <div className="mx-auto flex items-center justify-center gap-1.5 text-[14px]">
+                  <Monitor className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold">0</span>
+                </div>
+              );
+            },
           },
           {
             key: 'departamento_id',
@@ -513,7 +563,6 @@ export default function CatalogManager({ lockedEntityKey }) {
               return <span className="rounded-md border border-border px-3 py-1 text-[13px] leading-none">{label}</span>;
             },
           },
-          { key: 'cargo', label: 'Cargo', render: (value) => value || '—' },
           {
             key: 'funcao',
             label: 'Acesso',
@@ -679,7 +728,6 @@ export default function CatalogManager({ lockedEntityKey }) {
           {
             key: 'nome',
             label: 'Nome / Identificacao',
-            required: true,
             placeholder: 'Ex.: Linha Comercial 01',
           },
           {
@@ -687,6 +735,11 @@ export default function CatalogManager({ lockedEntityKey }) {
             label: 'Numero',
             required: true,
             placeholder: 'Ex.: 85999999999',
+            inputMode: 'numeric',
+            digitsOnly: true,
+            maxLength: 11,
+            validate: (value) =>
+              value && !hasExactDigits(value, 11) ? 'Numero deve conter exatamente 11 digitos.' : '',
           },
           {
             key: 'operadora',
@@ -1408,18 +1461,25 @@ export default function CatalogManager({ lockedEntityKey }) {
     },
   });
 
-  const unlinkAssetsMutation = useMutation({
-    mutationFn: async (id) => catalogApi.colaboradores.unlinkAssets(id),
-    onSuccess: (count) => {
+  const unlinkAssignmentsMutation = useMutation({
+    mutationFn: async (id) => catalogApi.colaboradores.unlinkAssignments(id),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['ativos'] });
+      queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
       queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
+      const ativosCount = result?.ativos_count || 0;
+      const linhasCount = result?.linhas_count || 0;
+      const totalCount = result?.total_count || 0;
       setFeedback({
         type: 'success',
-        message: count > 0 ? `${count} ativo(s) desvinculado(s) com sucesso.` : 'Nenhum ativo vinculado para remover.',
+        message:
+          totalCount > 0
+            ? `${ativosCount} ativo(s) e ${linhasCount} linha(s) desvinculado(s) com sucesso.`
+            : 'Nenhum item vinculado para remover.',
       });
     },
     onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao desvincular ativos.' });
+      setFeedback({ type: 'error', message: error.message || 'Falha ao desvincular itens.' });
     },
   });
 
@@ -2210,8 +2270,8 @@ export default function CatalogManager({ lockedEntityKey }) {
           renderUnitsCards()
         )
       ) : (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
+        <Card className="overflow-visible">
+          <div className="overflow-x-auto overflow-y-visible">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
@@ -2238,13 +2298,26 @@ export default function CatalogManager({ lockedEntityKey }) {
                   </TableRow>
                 ) : (
                   rows.map((row) => (
-                    <TableRow key={row.id} className="transition-colors hover:bg-muted/30">
+                    <TableRow
+                      key={row.id}
+                      className={`transition-colors hover:bg-muted/30 ${
+                        lockedEntityKey === 'colaboradores' ? 'cursor-pointer' : ''
+                      }`}
+                      onClick={
+                        lockedEntityKey === 'colaboradores'
+                          ? () => setViewingCollaboratorLinks(row)
+                          : undefined
+                      }
+                    >
                       {current.columns.map((column) => (
                         <TableCell key={`${row.id}-${column.key}`} className={lockedEntityKey === 'colaboradores' ? 'py-3 text-[14px]' : ''}>
                           {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right">
+                      <TableCell
+                        className="text-right"
+                        onClick={lockedEntityKey === 'colaboradores' ? (event) => event.stopPropagation() : undefined}
+                      >
                       <div className="flex justify-end gap-1">
                         {lockedEntityKey === 'ativos' ? (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningAsset(row)}>
@@ -2255,38 +2328,49 @@ export default function CatalogManager({ lockedEntityKey }) {
                             <UserPlus className="h-4 w-4" />
                           </Button>
                         ) : lockedEntityKey === 'colaboradores' ? (
-                          <>
-                            {row.status === 'inativo' && assets.some((asset) => asset.usuario_id === row.id) ? (
-                              <Button
-                                variant="ghost"
-                                className="h-8 px-2 text-[12px] font-medium"
-                                onClick={() => {
-                                  const confirmed = window.confirm(
-                                    `Deseja realmente desvincular todos os ativos de ${row.nome || 'este colaborador'}?`
-                                  );
-                                  if (confirmed) {
-                                    unlinkAssetsMutation.mutate(row.id);
-                                  }
-                                }}
-                                disabled={unlinkAssetsMutation.isPending}
-                              >
-                                Desvinc.
-                              </Button>
-                            ) : null}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPasswordRecord(row)}>
-                              <KeyRound className="h-4 w-4" />
-                            </Button>
-                          </>
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              setOpenCollaboratorMenu((currentMenu) =>
+                                currentMenu?.row?.id === row.id
+                                  ? null
+                                  : {
+                                      row,
+                                      top: rect.bottom + 6,
+                                      right: window.innerWidth - rect.right,
+                                    }
+                              );
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
                         ) : null}
+                        {lockedEntityKey !== 'colaboradores' ? (
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingRecord(row)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        ) : null}
+                          {lockedEntityKey !== 'colaboradores' ? (
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => {
                               if (lockedEntityKey === 'colaboradores') {
+                                const hasLinkedAssets = assets.some((asset) => asset.usuario_id === row.id);
+                                const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === row.id);
+
+                                if (hasLinkedAssets || hasLinkedLines) {
+                                  setFeedback({
+                                    type: 'error',
+                                    message: 'Nao e permitido excluir um colaborador com itens vinculados.',
+                                  });
+                                  return;
+                                }
+
                                 const confirmed = window.confirm(
                                   `Deseja realmente excluir o usuario ${row.nome || row.email || ''}?`
                                 );
@@ -2304,11 +2388,40 @@ export default function CatalogManager({ lockedEntityKey }) {
                                 );
                                 if (!confirmed) return;
                               }
+                              if (lockedEntityKey === 'ativos') {
+                                if (row.usuario_id) {
+                                  setFeedback({
+                                    type: 'error',
+                                    message: 'Nao e permitido excluir um ativo com usuario vinculado.',
+                                  });
+                                  return;
+                                }
+
+                                const confirmed = window.confirm(
+                                  `Deseja realmente excluir ${row.nome || row.patrimonio || 'este ativo'}?`
+                                );
+                                if (!confirmed) return;
+                              }
+                              if (lockedEntityKey === 'linhas_corporativas') {
+                                if (row.colaborador_id) {
+                                  setFeedback({
+                                    type: 'error',
+                                    message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
+                                  });
+                                  return;
+                                }
+
+                                const confirmed = window.confirm(
+                                  `Deseja realmente excluir ${row.nome || row.numero || 'esta linha corporativa'}?`
+                                );
+                                if (!confirmed) return;
+                              }
                               deleteMutation.mutate(row.id);
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -2506,6 +2619,235 @@ export default function CatalogManager({ lockedEntityKey }) {
           }
         />
       ) : null}
+
+      {viewingCollaboratorLinks !== null ? (
+        <Dialog
+          open={viewingCollaboratorLinks !== null}
+          onOpenChange={(open) => {
+            if (!open) setViewingCollaboratorLinks(null);
+          }}
+        >
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Detalhes do colaborador</DialogTitle>
+            </DialogHeader>
+
+            <div className="mt-3 space-y-5">
+              <section className="rounded-xl border border-border bg-muted/10 p-5">
+                <div className="border-b border-border/70 pb-4">
+                  <h3 className="text-lg font-bold text-foreground">
+                    {viewingCollaboratorLinks.nome || '-'}
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {viewingCollaboratorLinks.cargo || 'Sem cargo'} • {departments.find((item) => item.id === viewingCollaboratorLinks.departamento_id)?.nome || 'Sem departamento'}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
+                      {units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'}
+                    </span>
+                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
+                      {viewingCollaboratorLinks.funcao === 'admin' ? 'Admin' : 'User'}
+                    </span>
+                    <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
+                      {viewingCollaboratorLinks.status || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-x-6 gap-y-4 pt-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Email</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{viewingCollaboratorLinks.email || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Telefone</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{formatPhone(viewingCollaboratorLinks.telefone)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">CPF</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{viewingCollaboratorLinks.cpf || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Admissao</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{formatDate(viewingCollaboratorLinks.data_admissao)}</p>
+                  </div>
+                </div>
+              </section>
+              <section className="flex min-h-0 flex-col rounded-xl border border-border bg-muted/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+                      <Laptop className="h-4 w-4 text-slate-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Ativos em posse ({(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length})
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground">
+                    {(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length}
+                  </span>
+                </div>
+
+                {(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).length ? (
+                  <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+{(linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || []).map((asset) => (
+                      <div key={asset.id} className="pb-2 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2 text-sm">
+                            <p className="truncate text-foreground">{asset.nome || 'Ativo sem nome'}</p>
+                            <span className="shrink-0 text-muted-foreground">•</span>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {[asset.patrimonio, asset.numero_serie].filter(Boolean).join(' / ') || 'sem-identificacao'}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {asset.categoria || 'Ativo'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
+                    Nenhum ativo em posse.
+                  </div>
+                )}
+              </section>
+
+              <section className="flex min-h-0 flex-col rounded-xl border border-border bg-muted/10 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                      <Phone className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Linhas corporativas ({(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length})
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+                    {(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length}
+                  </span>
+                </div>
+
+                {(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).length ? (
+                  <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+{(linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || []).map((line) => (
+                      <div key={line.id} className="pb-2 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2 text-sm">
+                            <p className="truncate text-foreground">{line.numero || 'Linha sem identificacao'}</p>
+                            <span className="shrink-0 text-muted-foreground">•</span>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {line.operadora || '-'}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-blue-700">
+                            {line.tipo || 'Linha'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/10 px-3 py-4 text-sm text-muted-foreground">
+                    Nenhuma linha corporativa vinculada.
+                  </div>
+                )}
+              </section>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {openCollaboratorMenu
+        ? createPortal(
+            <div
+              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+              style={{ top: openCollaboratorMenu.top, right: openCollaboratorMenu.right }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setEditingRecord(openCollaboratorMenu.row);
+                  setOpenCollaboratorMenu(null);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                onClick={() => {
+                  setPasswordRecord(openCollaboratorMenu.row);
+                  setOpenCollaboratorMenu(null);
+                }}
+              >
+                <KeyRound className="h-4 w-4" />
+                Redefinir senha
+              </button>
+              {openCollaboratorMenu.row.status === 'inativo' &&
+              (assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id) ||
+                corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id)) ? (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      `Deseja realmente desvincular todos os ativos e linhas corporativas de ${openCollaboratorMenu.row.nome || 'este colaborador'}?`
+                    );
+                    if (confirmed) {
+                      unlinkAssignmentsMutation.mutate(openCollaboratorMenu.row.id);
+                    }
+                    setOpenCollaboratorMenu(null);
+                  }}
+                  disabled={unlinkAssignmentsMutation.isPending}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Desvincular tudo
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+                onClick={() => {
+                  const hasLinkedAssets = assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id);
+                  const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id);
+
+                  if (hasLinkedAssets || hasLinkedLines) {
+                    setFeedback({
+                      type: 'error',
+                      message: 'Nao e permitido excluir um colaborador com itens vinculados.',
+                    });
+                    setOpenCollaboratorMenu(null);
+                    return;
+                  }
+
+                  const confirmed = window.confirm(
+                    `Deseja realmente excluir o usuario ${openCollaboratorMenu.row.nome || openCollaboratorMenu.row.email || ''}?`
+                  );
+                  if (!confirmed) {
+                    setOpenCollaboratorMenu(null);
+                    return;
+                  }
+
+                  deleteMutation.mutate(openCollaboratorMenu.row.id);
+                  setOpenCollaboratorMenu(null);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
 
       <Dialog
         open={importAssetsOpen}

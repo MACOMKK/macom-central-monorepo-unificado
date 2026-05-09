@@ -399,7 +399,6 @@ function validateInfraEstruturaPayload(payload: Record<string, unknown>, require
 function validateLinhasCorporativasPayload(payload: Record<string, unknown>, requireAllFields = false) {
   const requiredFields = [
     ['tipo', 'Tipo'],
-    ['nome', 'Nome'],
     ['numero', 'Numero'],
   ] as const;
 
@@ -420,6 +419,13 @@ function validateLinhasCorporativasPayload(payload: Record<string, unknown>, req
     const status = String(payload.status || '').trim().toLowerCase();
     if (!['disponivel', 'em_uso', 'inativo', 'cancelado'].includes(status)) {
       throw new Error('Status da linha corporativa invalido.');
+    }
+  }
+
+  if ('numero' in payload && !isMissingRequiredValue(payload.numero)) {
+    const digits = String(payload.numero || '').replace(/\D/g, '');
+    if (digits.length !== 11) {
+      throw new Error('Numero da linha corporativa deve conter exatamente 11 digitos.');
     }
   }
 }

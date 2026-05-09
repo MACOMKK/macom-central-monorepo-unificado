@@ -234,7 +234,7 @@ Deno.serve(async (request) => {
       return json({ success: true });
     }
 
-    if (action === 'unlink_assets') {
+    if (action === 'unlink_assignments') {
       if (!collaboratorId) {
         return json({ error: 'ID obrigatorio.' }, 400);
       }
@@ -251,10 +251,10 @@ Deno.serve(async (request) => {
       }
 
       if (collaborator.status !== 'inativo') {
-        return json({ error: 'So e permitido desvincular ativos de colaboradores inativos.' }, 400);
+        return json({ error: 'So e permitido desvincular itens de colaboradores inativos.' }, 400);
       }
 
-      const updatedRows = await sql.unsafe(
+      const updatedAssets = await sql.unsafe(
         `
           update gestao_ativos.ativos
           set
@@ -267,7 +267,25 @@ Deno.serve(async (request) => {
         [collaboratorId],
       );
 
-      return json({ success: true, count: updatedRows.length });
+      const updatedLines = await sql.unsafe(
+        `
+          update gestao_ativos.linhas_corporativas
+          set
+            colaborador_id = null,
+            status = 'disponivel',
+            atualizado_em = now()
+          where colaborador_id = $1
+          returning id;
+        `,
+        [collaboratorId],
+      );
+
+      return json({
+        success: true,
+        ativos_count: updatedAssets.length,
+        linhas_count: updatedLines.length,
+        total_count: updatedAssets.length + updatedLines.length,
+      });
     }
 
     if (action !== 'create') {

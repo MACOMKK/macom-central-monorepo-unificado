@@ -127,9 +127,9 @@ export const catalogApi = {
       await invokeSupabaseFunction('admin-create-user', { action: 'update_password', id, password });
       return true;
     },
-    async unlinkAssets(id) {
-      const result = await invokeSupabaseFunction('admin-create-user', { action: 'unlink_assets', id });
-      return result.count || 0;
+    async unlinkAssignments(id) {
+      const result = await invokeSupabaseFunction('admin-create-user', { action: 'unlink_assignments', id });
+      return result;
     },
     async remove(id) {
       await invokeSupabaseFunction('admin-create-user', { action: 'delete', id });
