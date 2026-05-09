@@ -23,29 +23,29 @@ import { catalogApi } from '@/lib/catalogApi';
 const statusMeta = {
   sem_termo: {
     label: 'Sem termo',
-    className: 'border-[#dbdbdb] bg-white text-[#616161]',
+    className: 'border-border bg-background text-muted-foreground',
     icon: Clock3,
-    cardClassName: 'border-[#dbdbdb] bg-white',
-    asideClassName: 'border-[#dbdbdb] bg-[#efefef]/60',
+    cardClassName: 'border-border bg-card',
+    asideClassName: 'border-border bg-muted/40',
     avatarClassName: 'bg-[#bf1220]/10',
     avatarIconClassName: 'text-[#bf1220]',
   },
   pendente: {
     label: 'Pendente',
-    className: 'border-amber-300 bg-amber-50 text-amber-700',
+    className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300',
     icon: Clock3,
-    cardClassName: 'border-[#dbdbdb] bg-white',
-    asideClassName: 'border-[#dbdbdb] bg-[#efefef]/60',
+    cardClassName: 'border-border bg-card',
+    asideClassName: 'border-border bg-muted/40',
     avatarClassName: 'bg-[#bf1220]/10',
     avatarIconClassName: 'text-[#bf1220]',
   },
   assinado: {
     label: 'Termo Assinado',
-    className: 'border-emerald-300 bg-emerald-100 text-emerald-800',
+    className: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300',
     icon: CheckCircle2,
-    cardClassName: 'border-emerald-300 bg-white',
-    asideClassName: 'border-[#dbdbdb] bg-emerald-50',
-    avatarClassName: 'bg-emerald-100',
+    cardClassName: 'border-emerald-300 bg-card dark:border-emerald-900',
+    asideClassName: 'border-border bg-emerald-50 dark:bg-emerald-950/20',
+    avatarClassName: 'bg-emerald-100 dark:bg-emerald-950/40',
     avatarIconClassName: 'text-emerald-600',
   },
 };
@@ -677,7 +677,7 @@ export default function TermsPossession() {
             return (
               <Card
                 key={collaborator.id}
-                className={`overflow-hidden rounded-xl border text-neutral-900 shadow transition-shadow duration-300 hover:shadow-lg ${statusInfo.cardClassName}`}
+                className={`overflow-hidden rounded-xl border text-card-foreground shadow transition-shadow duration-300 hover:shadow-lg ${statusInfo.cardClassName}`}
               >
                 <div className="flex flex-col md:flex-row">
                   <aside className={`p-4 md:w-72 md:border-r ${statusInfo.asideClassName}`}>
@@ -690,8 +690,8 @@ export default function TermsPossession() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-[#141414]">{collaborator.nome || 'Sem nome'}</p>
-                        <p className="truncate text-xs text-[#616161]">{departmentName}</p>
+                        <p className="truncate text-xs font-bold text-foreground">{collaborator.nome || 'Sem nome'}</p>
+                        <p className="truncate text-xs text-muted-foreground">{departmentName}</p>
                       </div>
                     </div>
 
@@ -700,7 +700,7 @@ export default function TermsPossession() {
                       {statusInfo.label}
                     </div>
 
-                    <div className="space-y-1 text-xs text-[#616161]">
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       <p>CPF: {formatCpf(collaborator.cpf)}</p>
                       <p className="break-all">{collaborator.email || '-'}</p>
                       {termRows.length ? (
@@ -732,7 +732,7 @@ export default function TermsPossession() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-8 w-full rounded-lg border-emerald-200 bg-emerald-50 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                        className="h-8 w-full rounded-lg border-emerald-200 bg-emerald-50 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
                         onClick={() => markSignedMutation.mutate({ collaborator, assets: linkedAssets, latestTermsByAsset })}
                         disabled={isGenerating || isSigning || isSending || !termRows.length || status === 'assinado'}
                       >
@@ -743,7 +743,7 @@ export default function TermsPossession() {
                   </aside>
 
                   <section className="flex-1 p-4">
-                    <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#616161]">
+                    <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       {linkedAssets.length} {linkedAssets.length === 1 ? 'equipamento vinculado' : 'equipamentos vinculados'}
                     </p>
 
@@ -753,18 +753,18 @@ export default function TermsPossession() {
                         return (
                           <div
                             key={asset.id}
-                            className="flex items-center gap-2.5 rounded-lg bg-[#efefef]/40 p-2"
+                            className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2"
                           >
-                            <Monitor className="h-3.5 w-3.5 shrink-0 text-[#616161]" />
+                            <Monitor className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-medium text-[#141414]">{asset.nome || '-'}</p>
-                              <p className="truncate text-xs text-[#616161]">
+                              <p className="truncate text-xs font-medium text-foreground">{asset.nome || '-'}</p>
+                              <p className="truncate text-xs text-muted-foreground">
                                 {asset.patrimonio || '-'} · {asset.numero_serie || '-'}
                               </p>
                             </div>
 
-                            <span className="shrink-0 rounded-md border border-[#dbdbdb] px-2 py-0.5 text-xs text-[#141414]">
+                            <span className="shrink-0 rounded-md border border-border bg-background/60 px-2 py-0.5 text-xs text-foreground">
                               {asset.categoria || 'Equipamento'}
                             </span>
                           </div>

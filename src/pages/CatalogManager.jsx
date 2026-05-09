@@ -2280,7 +2280,7 @@ export default function CatalogManager({ lockedEntityKey }) {
                       {column.label}
                     </TableHead>
                   ))}
-                  <TableHead className={lockedEntityKey === 'colaboradores' ? 'text-right text-[13px] font-semibold' : 'text-right font-bold'}>Acoes</TableHead>
+                  <TableHead className={lockedEntityKey === 'colaboradores' ? 'text-center text-[13px] font-semibold' : 'text-right font-bold'}>Acoes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2315,10 +2315,10 @@ export default function CatalogManager({ lockedEntityKey }) {
                         </TableCell>
                       ))}
                       <TableCell
-                        className="text-right"
+                        className={lockedEntityKey === 'colaboradores' ? 'text-center' : 'text-right'}
                         onClick={lockedEntityKey === 'colaboradores' ? (event) => event.stopPropagation() : undefined}
                       >
-                      <div className="flex justify-end gap-1">
+                      <div className={lockedEntityKey === 'colaboradores' ? 'flex justify-center gap-1' : 'flex justify-end gap-1'}>
                         {lockedEntityKey === 'ativos' ? (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAssigningAsset(row)}>
                             <UserPlus className="h-4 w-4" />
