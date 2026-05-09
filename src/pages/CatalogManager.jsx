@@ -243,6 +243,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const importInputRef = useRef(null);
   const isDepartmentsView = lockedEntityKey === 'departamentos';
   const isUnitsView = lockedEntityKey === 'unidades';
+  const isCollaboratorsView = lockedEntityKey === 'colaboradores';
   const isTermsView = lockedEntityKey === 'termos_posse';
   const isAssetsView = lockedEntityKey === 'ativos';
   const isContactsView = lockedEntityKey === 'contatos';
@@ -320,7 +321,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const contactsQuery = useQuery({
     queryKey: ['contatos'],
     queryFn: catalogApi.contatos.list,
-    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isTermsView,
+    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView && !isTermsView,
   });
   const corporateLinesQuery = useQuery({
     queryKey: ['linhas_corporativas'],
@@ -335,12 +336,12 @@ export default function CatalogManager({ lockedEntityKey }) {
   const infraQuery = useQuery({
     queryKey: ['infra_estrutura'],
     queryFn: catalogApi.infra_estrutura.list,
-    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isTermsView,
+    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView && !isTermsView,
   });
   const termsQuery = useQuery({
     queryKey: ['termos_posse'],
     queryFn: catalogApi.termos_posse.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView,
   });
 
   const departments = departmentsQuery.data || [];
@@ -1922,7 +1923,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       : lockedEntityKey === 'unidades'
         ? unitsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
         : lockedEntityKey === 'colaboradores'
-          ? collaboratorsQuery.isLoading
+          ? collaboratorsQuery.isLoading || assetsQuery.isLoading || corporateLinesQuery.isLoading || departmentsQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'contatos'
             ? contactsQuery.isLoading || unitsQuery.isLoading
             : lockedEntityKey === 'linhas_corporativas'
