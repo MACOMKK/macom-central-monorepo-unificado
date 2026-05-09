@@ -25,6 +25,7 @@ import CorporateLineActionsMenu from '@/pages/catalog-manager/components/Corpora
 import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
 import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
 import InfrastructureImportDialog from '@/pages/catalog-manager/components/InfrastructureImportDialog';
+import ImportPreviewTable from '@/pages/catalog-manager/components/ImportPreviewTable';
 import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
@@ -1815,50 +1816,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     }
   };
 
-  const renderImportPreview = (rowsToImport, columns) => {
-    if (!rowsToImport.length) return null;
-
-    const previewRows = rowsToImport.slice(0, 5);
-
-    return (
-      <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-semibold">Preview antes de importar</p>
-          <span className="text-xs text-muted-foreground">
-            {rowsToImport.length} linha(s) encontrada(s)
-          </span>
-        </div>
-        <div className="overflow-x-auto rounded-md border bg-background">
-          <table className="w-full min-w-[520px] text-left text-xs">
-            <thead className="bg-muted/40">
-              <tr>
-                {columns.map((column) => (
-                  <th key={column.key} className="px-3 py-2 font-semibold">
-                    {column.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {previewRows.map((row, index) => (
-                <tr key={`${index}-${row.email || row.nome || row.patrimonio || 'preview'}`} className="border-t">
-                  {columns.map((column) => (
-                    <td key={column.key} className="px-3 py-2 text-muted-foreground">
-                      {row[column.key] || '-'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rowsToImport.length > 5 ? (
-          <p className="text-xs text-muted-foreground">Mostrando as 5 primeiras linhas para conferencia.</p>
-        ) : null}
-      </div>
-    );
-  };
-
   const isLoading =
     lockedEntityKey === 'departamentos'
       ? departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
@@ -2690,13 +2647,13 @@ export default function CatalogManager({ lockedEntityKey }) {
           }
         }}
         open={importAssetsOpen}
-        preview={renderImportPreview(importAssetsPreview, [
+        preview={<ImportPreviewTable rows={importAssetsPreview} columns={[
           { key: 'nome', label: 'Nome' },
           { key: 'categoria', label: 'Categoria' },
           { key: 'patrimonio', label: 'Patrimonio' },
           { key: 'unidade', label: 'Unidade' },
           { key: 'responsavel_email', label: 'Responsavel' },
-        ])}
+        ]} />}
       />
 
       <CollaboratorsImportDialog
@@ -2718,13 +2675,13 @@ export default function CatalogManager({ lockedEntityKey }) {
           }
         }}
         open={importCollaboratorsOpen}
-        preview={renderImportPreview(importCollaboratorsPreview, [
+        preview={<ImportPreviewTable rows={importCollaboratorsPreview} columns={[
           { key: 'nome', label: 'Nome' },
           { key: 'email', label: 'Email' },
           { key: 'funcao', label: 'Funcao' },
           { key: 'departamento', label: 'Departamento' },
           { key: 'unidade', label: 'Unidade' },
-        ])}
+        ]} />}
       />
 
       <InfrastructureImportDialog
@@ -2747,12 +2704,12 @@ export default function CatalogManager({ lockedEntityKey }) {
           }
         }}
         open={importInfrastructureOpen}
-        preview={renderImportPreview(importInfrastructurePreview, [
+        preview={<ImportPreviewTable rows={importInfrastructurePreview} columns={[
           { key: 'tipo', label: 'Tipo' },
           { key: 'nome', label: 'Nome' },
           { key: 'valor_identificador', label: 'Valor' },
           { key: 'unidade', label: 'Unidade' },
-        ])}
+        ]} />}
       />
 
       <PasswordResetDialog
