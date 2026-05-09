@@ -241,6 +241,7 @@ function parseImportFile(text, fileName = '') {
 export default function CatalogManager({ lockedEntityKey }) {
   const queryClient = useQueryClient();
   const importInputRef = useRef(null);
+  const isAssetsView = lockedEntityKey === 'ativos';
   const isContactsView = lockedEntityKey === 'contatos';
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
   const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
@@ -305,7 +306,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const departmentsQuery = useQuery({
     queryKey: ['departamentos'],
     queryFn: catalogApi.departamentos.list,
-    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView,
   });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
   const collaboratorsQuery = useQuery({
@@ -316,27 +317,27 @@ export default function CatalogManager({ lockedEntityKey }) {
   const contactsQuery = useQuery({
     queryKey: ['contatos'],
     queryFn: catalogApi.contatos.list,
-    enabled: !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView,
   });
   const corporateLinesQuery = useQuery({
     queryKey: ['linhas_corporativas'],
     queryFn: catalogApi.linhas_corporativas.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView,
   });
   const assetsQuery = useQuery({
     queryKey: ['ativos'],
     queryFn: catalogApi.ativos.list,
-    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isContactsView && !isInfrastructureView,
   });
   const infraQuery = useQuery({
     queryKey: ['infra_estrutura'],
     queryFn: catalogApi.infra_estrutura.list,
-    enabled: !isContactsView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView,
   });
   const termsQuery = useQuery({
     queryKey: ['termos_posse'],
     queryFn: catalogApi.termos_posse.list,
-    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView,
   });
 
   const departments = departmentsQuery.data || [];
@@ -1927,7 +1928,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             ? infraQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'termos_posse'
             ? termsQuery.isLoading
-            : assetsQuery.isLoading;
+            : assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading;
 
   const renderDepartmentCards = () => (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
