@@ -18,6 +18,7 @@ import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
 import CollaboratorActionsMenu from '@/pages/catalog-manager/components/CollaboratorActionsMenu';
 import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
+import CollaboratorsImportDialog from '@/pages/catalog-manager/components/CollaboratorsImportDialog';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
@@ -2697,8 +2698,17 @@ export default function CatalogManager({ lockedEntityKey }) {
         ])}
       />
 
-      <Dialog
-        open={importCollaboratorsOpen}
+      <CollaboratorsImportDialog
+        fileName={importCollaboratorsFile?.name}
+        isPending={importCollaboratorsMutation.isPending}
+        onClose={() => {
+          setImportCollaboratorsOpen(false);
+          setImportCollaboratorsFile(null);
+        }}
+        onConfirm={handleConfirmImportCollaborators}
+        onDownloadCsvTemplate={handleDownloadCollaboratorsTemplate}
+        onDownloadJsonTemplate={handleDownloadCollaboratorsJsonTemplate}
+        onFileChange={handleImportCollaboratorsFile}
         onOpenChange={(open) => {
           setImportCollaboratorsOpen(open);
           if (!open) {
@@ -2706,75 +2716,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             setImportCollaboratorsPreview([]);
           }
         }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-extrabold">Importar Colaboradores</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 text-sm">
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Formatos aceitos</p>
-              <p className="flex items-center gap-2 text-muted-foreground">CSV com cabecalho</p>
-              <p className="flex items-center gap-2 text-muted-foreground">JSON (array de objetos)</p>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Campos esperados (exemplo)</p>
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                nome,email,password,funcao,cpf,telefone,departamento,cargo,data_admissao,status,unidade
-              </p>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm">
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadCollaboratorsTemplate}>
-                  Baixar modelo CSV
-                </button>
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadCollaboratorsJsonTemplate}>
-                  Baixar modelo JSON
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <input
-                type="file"
-                accept=".csv,text/csv,.json,application/json"
-                className="w-full text-sm"
-                onChange={handleImportCollaboratorsFile}
-              />
-              {importCollaboratorsFile ? <p className="text-xs text-muted-foreground">{importCollaboratorsFile.name}</p> : null}
-            </div>
-
-            {renderImportPreview(importCollaboratorsPreview, [
-              { key: 'nome', label: 'Nome' },
-              { key: 'email', label: 'Email' },
-              { key: 'funcao', label: 'Funcao' },
-              { key: 'departamento', label: 'Departamento' },
-              { key: 'unidade', label: 'Unidade' },
-            ])}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setImportCollaboratorsOpen(false);
-                  setImportCollaboratorsFile(null);
-                }}
-              >
-                Fechar
-              </Button>
-              <Button
-                type="button"
-                className="gap-2"
-                onClick={handleConfirmImportCollaborators}
-                disabled={importCollaboratorsMutation.isPending}
-              >
-                <Upload className="h-4 w-4" /> {importCollaboratorsMutation.isPending ? 'Importando' : 'Importar'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        open={importCollaboratorsOpen}
+        preview={renderImportPreview(importCollaboratorsPreview, [
+          { key: 'nome', label: 'Nome' },
+          { key: 'email', label: 'Email' },
+          { key: 'funcao', label: 'Funcao' },
+          { key: 'departamento', label: 'Departamento' },
+          { key: 'unidade', label: 'Unidade' },
+        ])}
+      />
 
       <Dialog
         open={importInfrastructureOpen}
