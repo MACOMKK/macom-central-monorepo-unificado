@@ -24,6 +24,17 @@ function mapApiErrorMessage(message) {
     return 'Ja existe um colaborador com este telefone.';
   }
 
+  if (text.includes('ativos_patrimonio_key')) {
+    return 'Ja existe um ativo com este patrimonio.';
+  }
+
+  if (
+    text.includes('ativos_numero_serie_key') ||
+    text.includes('ativos_numero_serie_unique_idx')
+  ) {
+    return 'Ja existe um ativo com este numero de serie.';
+  }
+
   return text || 'Falha ao consultar o catalogo.';
 }
 

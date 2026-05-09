@@ -12,6 +12,7 @@ import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMenu';
 import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
+import AssetsImportDialog from '@/pages/catalog-manager/components/AssetsImportDialog';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
@@ -83,6 +84,18 @@ function normalizeText(value) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeImportHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s/-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 function levenshteinDistance(source, target) {
@@ -170,7 +183,7 @@ function parseCsv(text) {
 
   if (!lines.length) return [];
 
-  const headers = parseCsvLine(lines[0]).map((header) => normalizeText(header));
+  const headers = parseCsvLine(lines[0]).map((header) => normalizeImportHeader(header));
 
   return lines.slice(1).map((line) => {
     const values = parseCsvLine(line);
@@ -1473,10 +1486,26 @@ export default function CatalogManager({ lockedEntityKey }) {
     passwordMutation.mutate({ id: passwordRecord.id, password: passwordForm.password });
   };
 
+  const getImportTemplateExamples = () => {
+    const unitName = units[0]?.nome || 'NOME_EXATO_DA_UNIDADE';
+    const departmentName = departments[0]?.nome || 'NOME_EXATO_DO_DEPARTAMENTO';
+    const collaboratorEmail = collaborators.find((item) => item.email)?.email || '';
+    const suffix = String(Date.now()).slice(-6);
+
+    return {
+      assetPatrimony: `IMPORT-AT-${suffix}`,
+      assetSerial: `SN-IMPORT-${suffix}`,
+      collaboratorEmail,
+      departmentName,
+      unitName,
+    };
+  };
+
   const handleDownloadAssetsTemplate = () => {
+    const { assetPatrimony, assetSerial, collaboratorEmail, unitName } = getImportTemplateExamples();
     const csv = [
       'nome,categoria,marca,modelo,numero_serie,patrimonio,unidade,localizacao_interna,observacao,estado,responsavel_email',
-      'Notebook Dell Latitude 5440,notebook,Dell,Latitude 5440,SN123456789,MAC-AT-001,Macom Belem,Sala TI / Mesa 01,Equipamento principal,bom,kevinkleymacom@gmail.com',
+      `Notebook Dell Latitude 5440,notebook,Dell,Latitude 5440,${assetSerial},${assetPatrimony},${unitName},Sala TI / Mesa 01,Equipamento principal,bom,${collaboratorEmail}`,
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1541,19 +1570,20 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleDownloadAssetsJsonTemplate = () => {
+    const { assetPatrimony, assetSerial, collaboratorEmail, unitName } = getImportTemplateExamples();
     const jsonModel = [
       {
         nome: 'Notebook Dell Latitude 5440',
         categoria: 'notebook',
         marca: 'Dell',
         modelo: 'Latitude 5440',
-        numero_serie: 'SN123456789',
-        patrimonio: 'MAC-AT-001',
-        unidade: 'Macom Belem',
+        numero_serie: assetSerial,
+        patrimonio: assetPatrimony,
+        unidade: unitName,
         localizacao_interna: 'Sala TI / Mesa 01',
         observacao: 'Equipamento principal',
         estado: 'bom',
-        responsavel_email: 'kevinkleymacom@gmail.com',
+        responsavel_email: collaboratorEmail,
       },
     ];
 
@@ -1567,9 +1597,10 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleDownloadCollaboratorsTemplate = () => {
+    const { departmentName, unitName } = getImportTemplateExamples();
     const csv = [
       'nome,email,password,funcao,cpf,telefone,departamento,cargo,data_admissao,status,unidade',
-      'Maria Souza,maria.souza@empresa.com.br,Temp.123456,usuario,11122233344,91999999999,Administrativo,Assistente,2026-05-07,ativo,Macom Ananindeua',
+      `Maria Souza,maria.souza@empresa.com.br,Temp.123456,usuario,11122233344,91999999999,${departmentName},Assistente,2026-05-07,ativo,${unitName}`,
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1582,6 +1613,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleDownloadCollaboratorsJsonTemplate = () => {
+    const { departmentName, unitName } = getImportTemplateExamples();
     const jsonModel = [
       {
         nome: 'Maria Souza',
@@ -1590,11 +1622,11 @@ export default function CatalogManager({ lockedEntityKey }) {
         funcao: 'usuario',
         cpf: '11122233344',
         telefone: '91999999999',
-        departamento: 'Administrativo',
+        departamento: departmentName,
         cargo: 'Assistente',
         data_admissao: '2026-05-07',
         status: 'ativo',
-        unidade: 'Macom Ananindeua',
+        unidade: unitName,
       },
     ];
 
@@ -1608,10 +1640,11 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleDownloadInfrastructureTemplate = () => {
+    const { unitName } = getImportTemplateExamples();
     const csv = [
       'tipo,nome,valor_identificador,descricao,unidade',
-      'ip,Servidor Principal,192.168.0.10,Servidor interno da matriz,Macom Belem',
-      'link,Portal Comercial,https://portal.empresa.com.br,Sistema usado pela equipe comercial,Macom Belem',
+      `ip,Servidor Principal,192.168.0.10,Servidor interno da matriz,${unitName}`,
+      `link,Portal Comercial,https://portal.empresa.com.br,Sistema usado pela equipe comercial,${unitName}`,
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1624,20 +1657,21 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleDownloadInfrastructureJsonTemplate = () => {
+    const { unitName } = getImportTemplateExamples();
     const jsonModel = [
       {
         tipo: 'ip',
         nome: 'Servidor Principal',
         valor_identificador: '192.168.0.10',
         descricao: 'Servidor interno da matriz',
-        unidade: 'Macom Belem',
+        unidade: unitName,
       },
       {
         tipo: 'link',
         nome: 'Portal Comercial',
         valor_identificador: 'https://portal.empresa.com.br',
         descricao: 'Sistema usado pela equipe comercial',
-        unidade: 'Macom Belem',
+        unidade: unitName,
       },
     ];
 
@@ -2635,8 +2669,17 @@ export default function CatalogManager({ lockedEntityKey }) {
         }}
       />
 
-      <Dialog
-        open={importAssetsOpen}
+      <AssetsImportDialog
+        fileName={importFile?.name}
+        isPending={importAssetsMutation.isPending}
+        onClose={() => {
+          setImportAssetsOpen(false);
+          setImportFile(null);
+        }}
+        onConfirm={handleConfirmImportAssets}
+        onDownloadCsvTemplate={handleDownloadAssetsTemplate}
+        onDownloadJsonTemplate={handleDownloadAssetsJsonTemplate}
+        onFileChange={handleImportAssetsFile}
         onOpenChange={(open) => {
           setImportAssetsOpen(open);
           if (!open) {
@@ -2644,70 +2687,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             setImportAssetsPreview([]);
           }
         }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-extrabold">Importar Ativos</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 text-sm">
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Formatos aceitos</p>
-              <p className="flex items-center gap-2 text-muted-foreground">CSV com cabecalho</p>
-              <p className="flex items-center gap-2 text-muted-foreground">JSON (array de objetos)</p>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Campos esperados (exemplo)</p>
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                nome,categoria,marca,modelo,numero_serie,patrimonio,unidade,localizacao_interna,observacao,estado,responsavel_email
-              </p>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm">
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadAssetsTemplate}>
-                  Baixar modelo CSV
-                </button>
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadAssetsJsonTemplate}>
-                  Baixar modelo JSON
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <input
-                type="file"
-                accept=".csv,text/csv,.json,application/json"
-                className="w-full text-sm"
-                onChange={handleImportAssetsFile}
-              />
-              {importFile ? <p className="text-xs text-muted-foreground">{importFile.name}</p> : null}
-            </div>
-
-            {renderImportPreview(importAssetsPreview, [
-              { key: 'nome', label: 'Nome' },
-              { key: 'categoria', label: 'Categoria' },
-              { key: 'patrimonio', label: 'Patrimonio' },
-              { key: 'unidade', label: 'Unidade' },
-              { key: 'responsavel_email', label: 'Responsavel' },
-            ])}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setImportAssetsOpen(false);
-                  setImportFile(null);
-                }}
-              >
-                Fechar
-              </Button>
-              <Button type="button" className="gap-2" onClick={handleConfirmImportAssets} disabled={importAssetsMutation.isPending}>
-                <Upload className="h-4 w-4" /> {importAssetsMutation.isPending ? 'Importando' : 'Importar'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        open={importAssetsOpen}
+        preview={renderImportPreview(importAssetsPreview, [
+          { key: 'nome', label: 'Nome' },
+          { key: 'categoria', label: 'Categoria' },
+          { key: 'patrimonio', label: 'Patrimonio' },
+          { key: 'unidade', label: 'Unidade' },
+          { key: 'responsavel_email', label: 'Responsavel' },
+        ])}
+      />
 
       <Dialog
         open={importCollaboratorsOpen}
