@@ -24,6 +24,7 @@ import ContactActionsMenu from '@/pages/catalog-manager/components/ContactAction
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
 import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
 import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
+import InfrastructureImportDialog from '@/pages/catalog-manager/components/InfrastructureImportDialog';
 import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
@@ -2726,8 +2727,18 @@ export default function CatalogManager({ lockedEntityKey }) {
         ])}
       />
 
-      <Dialog
-        open={importInfrastructureOpen}
+      <InfrastructureImportDialog
+        fileName={importInfrastructureFile?.name}
+        isPending={importInfrastructureMutation.isPending}
+        onClose={() => {
+          setImportInfrastructureOpen(false);
+          setImportInfrastructureFile(null);
+          setImportInfrastructurePreview([]);
+        }}
+        onConfirm={handleConfirmImportInfrastructure}
+        onDownloadCsvTemplate={handleDownloadInfrastructureTemplate}
+        onDownloadJsonTemplate={handleDownloadInfrastructureJsonTemplate}
+        onFileChange={handleImportInfrastructureFile}
         onOpenChange={(open) => {
           setImportInfrastructureOpen(open);
           if (!open) {
@@ -2735,75 +2746,14 @@ export default function CatalogManager({ lockedEntityKey }) {
             setImportInfrastructurePreview([]);
           }
         }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-extrabold">Importar Infraestrutura</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 text-sm">
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Formatos aceitos</p>
-              <p className="flex items-center gap-2 text-muted-foreground">CSV com cabecalho</p>
-              <p className="flex items-center gap-2 text-muted-foreground">JSON (array de objetos)</p>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="mb-1 font-semibold">Campos esperados (exemplo)</p>
-              <p className="break-all font-mono text-xs text-muted-foreground">
-                tipo,nome,valor_identificador,descricao,unidade
-              </p>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm">
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadInfrastructureTemplate}>
-                  Baixar modelo CSV
-                </button>
-                <button type="button" className="text-[#d1131f] hover:underline" onClick={handleDownloadInfrastructureJsonTemplate}>
-                  Baixar modelo JSON
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <input
-                type="file"
-                accept=".csv,text/csv,.json,application/json"
-                className="w-full text-sm"
-                onChange={handleImportInfrastructureFile}
-              />
-              {importInfrastructureFile ? <p className="text-xs text-muted-foreground">{importInfrastructureFile.name}</p> : null}
-            </div>
-
-            {renderImportPreview(importInfrastructurePreview, [
-              { key: 'tipo', label: 'Tipo' },
-              { key: 'nome', label: 'Nome' },
-              { key: 'valor_identificador', label: 'Valor' },
-              { key: 'unidade', label: 'Unidade' },
-            ])}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setImportInfrastructureOpen(false);
-                  setImportInfrastructureFile(null);
-                  setImportInfrastructurePreview([]);
-                }}
-              >
-                Fechar
-              </Button>
-              <Button
-                type="button"
-                className="gap-2"
-                onClick={handleConfirmImportInfrastructure}
-                disabled={importInfrastructureMutation.isPending}
-              >
-                <Upload className="h-4 w-4" /> {importInfrastructureMutation.isPending ? 'Importando' : 'Importar'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        open={importInfrastructureOpen}
+        preview={renderImportPreview(importInfrastructurePreview, [
+          { key: 'tipo', label: 'Tipo' },
+          { key: 'nome', label: 'Nome' },
+          { key: 'valor_identificador', label: 'Valor' },
+          { key: 'unidade', label: 'Unidade' },
+        ])}
+      />
 
       <PasswordResetDialog
         form={passwordForm}
