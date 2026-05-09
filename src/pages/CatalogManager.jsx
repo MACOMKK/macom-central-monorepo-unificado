@@ -242,6 +242,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const queryClient = useQueryClient();
   const importInputRef = useRef(null);
   const isContactsView = lockedEntityKey === 'contatos';
+  const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
   const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
@@ -304,7 +305,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const departmentsQuery = useQuery({
     queryKey: ['departamentos'],
     queryFn: catalogApi.departamentos.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
   });
   const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
   const collaboratorsQuery = useQuery({
@@ -315,7 +316,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const contactsQuery = useQuery({
     queryKey: ['contatos'],
     queryFn: catalogApi.contatos.list,
-    enabled: !isInfrastructureView,
+    enabled: !isInfrastructureView && !isCorporateLinesView,
   });
   const corporateLinesQuery = useQuery({
     queryKey: ['linhas_corporativas'],
@@ -325,17 +326,17 @@ export default function CatalogManager({ lockedEntityKey }) {
   const assetsQuery = useQuery({
     queryKey: ['ativos'],
     queryFn: catalogApi.ativos.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
   });
   const infraQuery = useQuery({
     queryKey: ['infra_estrutura'],
     queryFn: catalogApi.infra_estrutura.list,
-    enabled: !isContactsView,
+    enabled: !isContactsView && !isCorporateLinesView,
   });
   const termsQuery = useQuery({
     queryKey: ['termos_posse'],
     queryFn: catalogApi.termos_posse.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: !isContactsView && !isInfrastructureView && !isCorporateLinesView,
   });
 
   const departments = departmentsQuery.data || [];
@@ -1921,7 +1922,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           : lockedEntityKey === 'contatos'
             ? contactsQuery.isLoading || unitsQuery.isLoading
             : lockedEntityKey === 'linhas_corporativas'
-              ? corporateLinesQuery.isLoading
+              ? corporateLinesQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'infra_estrutura'
             ? infraQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'termos_posse'
