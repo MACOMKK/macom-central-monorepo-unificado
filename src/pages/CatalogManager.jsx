@@ -10,7 +10,10 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
+import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
+import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
+import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import {
@@ -27,7 +30,7 @@ import {
 } from '@/pages/catalog-manager/config/staticOptions';
 import { contactTypeTone, statusTone } from '@/pages/catalog-manager/config/uiMaps';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { catalogApi } from '@/lib/catalogApi';
 
 function formatDate(dateString) {
@@ -1954,130 +1957,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     </div>
   );
 
-  const renderAssetsToolbar = () => {
-    const categoryOptions = [...new Set(assets.map((item) => item.categoria).filter(Boolean))];
-
-    return (
-      <Card className="rounded-2xl p-3 shadow-sm">
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".csv,text/csv,.json,application/json"
-          className="hidden"
-          onChange={handleImportAssetsFile}
-        />
-
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_200px]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={current.searchPlaceholder}
-              className="h-9 rounded-lg pl-10 text-[13px]"
-            />
-          </div>
-
-          <Select value={assetStatusFilter} onValueChange={setAssetStatusFilter}>
-            <SelectTrigger className="h-9 rounded-lg text-[13px]">
-              <SelectValue placeholder="Todos Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              <SelectItem value="disponivel">Disponivel</SelectItem>
-              <SelectItem value="em_uso">Em uso</SelectItem>
-              <SelectItem value="manutencao">Manutencao</SelectItem>
-              <SelectItem value="descartado">Descartado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={assetCategoryFilter} onValueChange={setAssetCategoryFilter}>
-            <SelectTrigger className="h-9 rounded-lg text-[13px]">
-              <SelectValue placeholder="Todas Categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Categorias</SelectItem>
-              {categoryOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={assetUnitFilter} onValueChange={setAssetUnitFilter}>
-            <SelectTrigger className="h-9 rounded-lg text-[13px]">
-              <SelectValue placeholder="Todas Unidades" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Unidades</SelectItem>
-              {units.map((unit) => (
-                <SelectItem key={unit.id} value={unit.id}>
-                  {unit.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-    );
-  };
-
-  const renderCollaboratorsToolbar = () => (
-    <Card className="p-4">
-      <div className="flex flex-col gap-3 md:flex-row">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por nome, telefone ou departamento..."
-            className="h-10 rounded-xl pl-10 text-[14px]"
-          />
-        </div>
-
-        <Select value={collaboratorUnitFilter} onValueChange={setCollaboratorUnitFilter}>
-          <SelectTrigger className="h-10 w-full rounded-xl text-[13px] md:w-[180px]">
-            <SelectValue placeholder="Todas Unidades" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas Unidades</SelectItem>
-            {units.map((unit) => (
-              <SelectItem key={unit.id} value={unit.id}>
-                {unit.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={collaboratorDepartmentFilter} onValueChange={setCollaboratorDepartmentFilter}>
-          <SelectTrigger className="h-10 w-full rounded-xl text-[13px] md:w-[180px]">
-            <SelectValue placeholder="Todos Departamentos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos Departamentos</SelectItem>
-            {departments.map((department) => (
-              <SelectItem key={department.id} value={department.id}>
-                {department.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={collaboratorStatusFilter} onValueChange={setCollaboratorStatusFilter}>
-          <SelectTrigger className="h-10 w-full rounded-xl text-[13px] md:w-[160px]">
-            <SelectValue placeholder="Todos Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos Status</SelectItem>
-            <SelectItem value="ativo">Ativo</SelectItem>
-            <SelectItem value="inativo">Inativo</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </Card>
-  );
-
   return (
     <div className="space-y-6">
       <CatalogHeader
@@ -2107,9 +1986,34 @@ export default function CatalogManager({ lockedEntityKey }) {
       />
 
       {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' ? null : lockedEntityKey === 'ativos' ? (
-        renderAssetsToolbar()
+        <AssetsToolbar
+          assetCategoryFilter={assetCategoryFilter}
+          assetStatusFilter={assetStatusFilter}
+          assetUnitFilter={assetUnitFilter}
+          categoryOptions={[...new Set(assets.map((item) => item.categoria).filter(Boolean))]}
+          importInputRef={importInputRef}
+          onAssetCategoryFilterChange={setAssetCategoryFilter}
+          onAssetStatusFilterChange={setAssetStatusFilter}
+          onAssetUnitFilterChange={setAssetUnitFilter}
+          onImportAssetsFile={handleImportAssetsFile}
+          onSearchChange={setSearch}
+          search={search}
+          searchPlaceholder={current.searchPlaceholder}
+          units={units}
+        />
       ) : lockedEntityKey === 'colaboradores' ? (
-        renderCollaboratorsToolbar()
+        <CollaboratorsToolbar
+          collaboratorDepartmentFilter={collaboratorDepartmentFilter}
+          collaboratorStatusFilter={collaboratorStatusFilter}
+          collaboratorUnitFilter={collaboratorUnitFilter}
+          departments={departments}
+          onCollaboratorDepartmentFilterChange={setCollaboratorDepartmentFilter}
+          onCollaboratorStatusFilterChange={setCollaboratorStatusFilter}
+          onCollaboratorUnitFilterChange={setCollaboratorUnitFilter}
+          onSearchChange={setSearch}
+          search={search}
+          units={units}
+        />
       ) : (
         <SearchToolbar onSearchChange={setSearch} placeholder={current.searchPlaceholder} search={search} />
       )}
@@ -2151,32 +2055,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           renderUnitsCards()
         )
       ) : (
-        <Card className="overflow-visible">
-          <div className="overflow-x-auto overflow-y-visible">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  {current.columns.map((column) => (
-                    <TableHead key={column.key} className={lockedEntityKey === 'colaboradores' ? 'text-[13px] font-semibold' : 'font-bold'}>
-                      {column.label}
-                    </TableHead>
-                  ))}
-                  <TableHead
-                    className={
-                      lockedEntityKey === 'colaboradores' ||
-                      lockedEntityKey === 'ativos' ||
-                      lockedEntityKey === 'contatos' ||
-                      lockedEntityKey === 'linhas_corporativas' ||
-                      lockedEntityKey === 'infra_estrutura'
-                        ? 'text-center text-[13px] font-semibold'
-                        : 'text-right font-bold'
-                    }
-                  >
-                    Acoes
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+        <CatalogTableShell columns={current.columns} entityKey={lockedEntityKey}>
                 {isLoading ? (
                   <TableRow>
                     <TableCell colSpan={current.columns.length + 1} className="py-12 text-center text-muted-foreground">
@@ -2446,10 +2325,7 @@ export default function CatalogManager({ lockedEntityKey }) {
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        </CatalogTableShell>
       )}
 
       {editingRecord !== null ? (
