@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Copy, Download, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, MoreHorizontal, Network, Pencil, Phone, Plus, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { Building2, Copy, FileText, Globe, KeyRound, Laptop, MapPin, MapPinHouse, Monitor, MoreHorizontal, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
+import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import {
@@ -2079,91 +2080,31 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{entityMeta[lockedEntityKey].title}</h1>
-          {lockedEntityKey !== 'unidades' && lockedEntityKey !== 'departamentos' && entityMeta[lockedEntityKey].subtitle ? (
-            <p className="mt-1 text-muted-foreground">{entityMeta[lockedEntityKey].subtitle}</p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {lockedEntityKey === 'ativos' ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-                onClick={handleExportAssetsCsv}
-              >
-                <Download className="h-4 w-4" /> Exportar CSV
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-                onClick={() => {
-                  setImportAssetsOpen(true);
-                  setImportFile(null);
-                }}
-                disabled={importAssetsMutation.isPending}
-              >
-                <Upload className="h-4 w-4" /> Importar
-              </Button>
-            </>
-          ) : null}
-          {lockedEntityKey === 'colaboradores' ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-                onClick={handleExportCollaboratorsCsv}
-              >
-                <Download className="h-4 w-4" /> Exportar CSV
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-                onClick={() => {
-                  setImportCollaboratorsOpen(true);
-                  setImportCollaboratorsFile(null);
-                }}
-                disabled={importCollaboratorsMutation.isPending}
-              >
-                <Upload className="h-4 w-4" /> Importar
-              </Button>
-            </>
-          ) : null}
-          {lockedEntityKey === 'infra_estrutura' ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-                onClick={() => {
-                  setImportInfrastructureOpen(true);
-                  setImportInfrastructureFile(null);
-                  setImportInfrastructurePreview([]);
-                }}
-                disabled={importInfrastructureMutation.isPending}
-              >
-                <Upload className="h-4 w-4" /> Importar
-              </Button>
-            </>
-          ) : null}
-          <Button
-            onClick={() => setEditingRecord({})}
-            className={`h-10 gap-2 rounded-xl px-4 ${
-              lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' || lockedEntityKey === 'ativos' || lockedEntityKey === 'termos_posse' || lockedEntityKey === 'infra_estrutura'
-                ? 'bg-[#d1131f] hover:bg-[#b50f1a]'
-                : ''
-            }`}
-          >
-            <Plus className="h-4 w-4" /> {lockedEntityKey === 'termos_posse' ? 'Gerar Termo' : lockedEntityKey === 'infra_estrutura' ? 'Novo' : `Novo ${entityMeta[lockedEntityKey].singular}`}
-          </Button>
-        </div>
-      </div>
+      <CatalogHeader
+        importAssetsPending={importAssetsMutation.isPending}
+        importCollaboratorsPending={importCollaboratorsMutation.isPending}
+        importInfrastructurePending={importInfrastructureMutation.isPending}
+        lockedEntityKey={lockedEntityKey}
+        onExportAssetsCsv={handleExportAssetsCsv}
+        onExportCollaboratorsCsv={handleExportCollaboratorsCsv}
+        onImportAssets={() => {
+          setImportAssetsOpen(true);
+          setImportFile(null);
+        }}
+        onImportCollaborators={() => {
+          setImportCollaboratorsOpen(true);
+          setImportCollaboratorsFile(null);
+        }}
+        onImportInfrastructure={() => {
+          setImportInfrastructureOpen(true);
+          setImportInfrastructureFile(null);
+          setImportInfrastructurePreview([]);
+        }}
+        onNewRecord={() => setEditingRecord({})}
+        singularLabel={entityMeta[lockedEntityKey].singular}
+        subtitle={entityMeta[lockedEntityKey].subtitle}
+        title={entityMeta[lockedEntityKey].title}
+      />
 
       {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' ? null : lockedEntityKey === 'ativos' ? (
         renderAssetsToolbar()
