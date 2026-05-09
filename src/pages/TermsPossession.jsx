@@ -583,8 +583,8 @@ export default function TermsPossession() {
 
   const markSignedMutation = useMutation({
     mutationFn: async ({ collaborator, assets: linkedAssets, latestTermsByAsset }) => {
-      const pendingTerms = linkedAssets
-        .map((asset) => latestTermsByAsset[asset.id] || null)
+      const ensuredTerms = await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
+      const pendingTerms = ensuredTerms
         .filter((term) => term && term.status !== 'assinado');
 
       if (!pendingTerms.length) {

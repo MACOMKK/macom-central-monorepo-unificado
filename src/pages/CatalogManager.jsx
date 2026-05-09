@@ -241,6 +241,9 @@ function parseImportFile(text, fileName = '') {
 export default function CatalogManager({ lockedEntityKey }) {
   const queryClient = useQueryClient();
   const importInputRef = useRef(null);
+  const isDepartmentsView = lockedEntityKey === 'departamentos';
+  const isUnitsView = lockedEntityKey === 'unidades';
+  const isTermsView = lockedEntityKey === 'termos_posse';
   const isAssetsView = lockedEntityKey === 'ativos';
   const isContactsView = lockedEntityKey === 'contatos';
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
@@ -317,12 +320,12 @@ export default function CatalogManager({ lockedEntityKey }) {
   const contactsQuery = useQuery({
     queryKey: ['contatos'],
     queryFn: catalogApi.contatos.list,
-    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isTermsView,
   });
   const corporateLinesQuery = useQuery({
     queryKey: ['linhas_corporativas'],
     queryFn: catalogApi.linhas_corporativas.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isDepartmentsView && !isUnitsView && !isTermsView,
   });
   const assetsQuery = useQuery({
     queryKey: ['ativos'],
@@ -332,12 +335,12 @@ export default function CatalogManager({ lockedEntityKey }) {
   const infraQuery = useQuery({
     queryKey: ['infra_estrutura'],
     queryFn: catalogApi.infra_estrutura.list,
-    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isTermsView,
   });
   const termsQuery = useQuery({
     queryKey: ['termos_posse'],
     queryFn: catalogApi.termos_posse.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView,
   });
 
   const departments = departmentsQuery.data || [];
@@ -1915,9 +1918,9 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   const isLoading =
     lockedEntityKey === 'departamentos'
-      ? departmentsQuery.isLoading
+      ? departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
       : lockedEntityKey === 'unidades'
-        ? unitsQuery.isLoading
+        ? unitsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
         : lockedEntityKey === 'colaboradores'
           ? collaboratorsQuery.isLoading
           : lockedEntityKey === 'contatos'
@@ -1927,7 +1930,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           : lockedEntityKey === 'infra_estrutura'
             ? infraQuery.isLoading || unitsQuery.isLoading
           : lockedEntityKey === 'termos_posse'
-            ? termsQuery.isLoading
+            ? termsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
             : assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading;
 
   const renderDepartmentCards = () => (
