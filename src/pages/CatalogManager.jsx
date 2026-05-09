@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
+import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMenu';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
@@ -2642,67 +2643,38 @@ export default function CatalogManager({ lockedEntityKey }) {
         </Dialog>
       ) : null}
 
-      {openAssetMenu
-        ? createPortal(
-            <div
-              className="fixed z-50 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-              style={{ top: openAssetMenu.top, right: openAssetMenu.right }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setAssigningAsset(openAssetMenu.row);
-                  setOpenAssetMenu(null);
-                }}
-              >
-                <UserPlus className="h-4 w-4" />
-                Vincular colaborador
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-                onClick={() => {
-                  setEditingRecord(openAssetMenu.row);
-                  setOpenAssetMenu(null);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-                onClick={() => {
-                  if (openAssetMenu.row.usuario_id) {
-                    setFeedback({
-                      type: 'error',
-                      message: 'Nao e permitido excluir um ativo com usuario vinculado.',
-                    });
-                    setOpenAssetMenu(null);
-                    return;
-                  }
+      <AssetActionsMenu
+        menu={openAssetMenu}
+        onAssign={() => {
+          setAssigningAsset(openAssetMenu.row);
+          setOpenAssetMenu(null);
+        }}
+        onDelete={() => {
+          if (openAssetMenu?.row?.usuario_id) {
+            setFeedback({
+              type: 'error',
+              message: 'Nao e permitido excluir um ativo com usuario vinculado.',
+            });
+            setOpenAssetMenu(null);
+            return;
+          }
 
-                  const confirmed = window.confirm(
-                    `Deseja realmente excluir ${openAssetMenu.row.nome || openAssetMenu.row.patrimonio || 'este ativo'}?`
-                  );
-                  if (!confirmed) {
-                    setOpenAssetMenu(null);
-                    return;
-                  }
+          const confirmed = window.confirm(
+            `Deseja realmente excluir ${openAssetMenu?.row?.nome || openAssetMenu?.row?.patrimonio || 'este ativo'}?`
+          );
+          if (!confirmed) {
+            setOpenAssetMenu(null);
+            return;
+          }
 
-                  deleteMutation.mutate(openAssetMenu.row.id);
-                  setOpenAssetMenu(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </button>
-            </div>,
-            document.body
-          )
-        : null}
+          deleteMutation.mutate(openAssetMenu.row.id);
+          setOpenAssetMenu(null);
+        }}
+        onEdit={() => {
+          setEditingRecord(openAssetMenu.row);
+          setOpenAssetMenu(null);
+        }}
+      />
 
       <ContactActionsMenu
         menu={openContactMenu}
