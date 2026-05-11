@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, FileText, Globe, KeyRound, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Building2, FileText, Globe, KeyRound, MapPinHouse, Monitor, Network, RefreshCw, Search, Trash2, Upload, UserPlus } from 'lucide-react';
 
 import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
@@ -12,23 +12,21 @@ import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMenu';
 import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
-import AssetsImportDialog from '@/pages/catalog-manager/components/AssetsImportDialog';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
-import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
+import CatalogImportDialogs from '@/pages/catalog-manager/components/CatalogImportDialogs';
+import CatalogEntityTable from '@/pages/catalog-manager/components/CatalogEntityTable';
 import CollaboratorActionsMenu from '@/pages/catalog-manager/components/CollaboratorActionsMenu';
 import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
-import CollaboratorsImportDialog from '@/pages/catalog-manager/components/CollaboratorsImportDialog';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
 import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
 import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
+import DepartmentCardsGrid from '@/pages/catalog-manager/components/DepartmentCardsGrid';
 import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
-import InfrastructureImportDialog from '@/pages/catalog-manager/components/InfrastructureImportDialog';
-import ImportPreviewTable from '@/pages/catalog-manager/components/ImportPreviewTable';
-import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
+import UnitCardsGrid from '@/pages/catalog-manager/components/UnitCardsGrid';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
 import { buildAssetsConfig, buildCollaboratorsConfig, buildContactsConfig, buildCorporateLinesConfig, buildDepartmentsConfig, buildInfrastructureConfig, buildTermsConfig, buildUnitsConfig } from '@/pages/catalog-manager/config/simpleEntityConfigs.jsx';
 import {
@@ -44,18 +42,9 @@ import {
   unitStatusOptions,
 } from '@/pages/catalog-manager/config/staticOptions';
 import { contactTypeTone, statusTone } from '@/pages/catalog-manager/config/uiMaps';
-import {
-  downloadAssetsJsonTemplate,
-  downloadAssetsTemplate,
-  downloadCollaboratorsJsonTemplate,
-  downloadCollaboratorsTemplate,
-  downloadInfrastructureJsonTemplate,
-  downloadInfrastructureTemplate,
-  exportAssetsCsv,
-  exportCollaboratorsCsv,
-  getImportTemplateExamples,
-} from '@/pages/catalog-manager/utils/importExportHelpers';
 import { useActionMenu } from '@/pages/catalog-manager/hooks/useActionMenu';
+import { useCatalogImportActions } from '@/pages/catalog-manager/hooks/useCatalogImportActions';
+import { useCatalogMutations } from '@/pages/catalog-manager/hooks/useCatalogMutations';
 import {
   countAssetsByDepartmentId,
   countAssetsByUnitId,
@@ -65,10 +54,7 @@ import {
   createSelectOptions,
   indexById,
 } from '@/pages/catalog-manager/utils/buildConfigLookups';
-import { importInfrastructureRows } from '@/pages/catalog-manager/utils/importInfrastructureRows';
-import { readImportFileRows } from '@/pages/catalog-manager/utils/importParsers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TableCell, TableRow } from '@/components/ui/table';
 import { catalogApi } from '@/lib/catalogApi';
 
 function formatDate(dateString) {
@@ -158,7 +144,6 @@ function resolveIdByName(rawValue, options) {
 }
 
 export default function CatalogManager({ lockedEntityKey }) {
-  const queryClient = useQueryClient();
   const importInputRef = useRef(null);
   const isDepartmentsView = lockedEntityKey === 'departamentos';
   const isUnitsView = lockedEntityKey === 'unidades';
@@ -520,305 +505,99 @@ export default function CatalogManager({ lockedEntityKey }) {
     return matchesSearch && matchesStatus && matchesCategory && matchesUnit;
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async ({ record, payload }) => {
-      if (record?.id) {
-        return catalogApi[lockedEntityKey].update(record.id, payload);
-      }
-      return catalogApi[lockedEntityKey].create(payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [current.queryKey] });
-      setFeedback({ type: 'success', message: 'Registro salvo com sucesso.' });
-      setEditingRecord(null);
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao salvar registro.' });
-    },
-  });
+  const resetImportAssetsDialog = () => {
+    setImportAssetsOpen(false);
+    setImportFile(null);
+    setImportAssetsPreview([]);
+  };
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => catalogApi[lockedEntityKey].remove(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [current.queryKey] });
-      setFeedback({ type: 'success', message: 'Registro removido com sucesso.' });
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao remover registro.' });
-    },
-  });
+  const resetImportCollaboratorsDialog = () => {
+    setImportCollaboratorsOpen(false);
+    setImportCollaboratorsFile(null);
+    setImportCollaboratorsPreview([]);
+  };
 
-  const assignUserMutation = useMutation({
-    mutationFn: async ({ id, payload }) => catalogApi.ativos.update(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ativos'] });
-      setFeedback({ type: 'success', message: 'Usuario vinculado com sucesso.' });
-      setAssigningAsset(null);
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao vincular usuario.' });
-    },
-  });
+  const resetImportInfrastructureDialog = () => {
+    setImportInfrastructureOpen(false);
+    setImportInfrastructureFile(null);
+    setImportInfrastructurePreview([]);
+  };
 
-  const assignCorporateLineMutation = useMutation({
-    mutationFn: async ({ id, payload }) => catalogApi.linhas_corporativas.update(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
-      setFeedback({ type: 'success', message: 'Responsavel vinculado com sucesso.' });
-      setAssigningCorporateLine(null);
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao vincular responsavel.' });
-    },
-  });
-
-  const passwordMutation = useMutation({
-    mutationFn: async ({ id, password }) => catalogApi.colaboradores.updatePassword(id, password),
-    onSuccess: () => {
-      setFeedback({ type: 'success', message: 'Senha atualizada com sucesso.' });
+  const {
+    assignCorporateLineMutation,
+    assignUserMutation,
+    deleteMutation,
+    importAssetsMutation,
+    importCollaboratorsMutation,
+    importInfrastructureMutation,
+    passwordMutation,
+    saveMutation,
+    unlinkAssignmentsMutation,
+  } = useCatalogMutations({
+    collaborators,
+    currentQueryKey: current.queryKey,
+    departments,
+    lockedEntityKey,
+    normalizeText,
+    onAssignAssetSuccess: () => setAssigningAsset(null),
+    onAssignCorporateLineSuccess: () => setAssigningCorporateLine(null),
+    onPasswordSuccess: () => {
       setPasswordRecord(null);
       setPasswordForm({ password: '', confirmPassword: '' });
     },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao atualizar senha.' });
-    },
+    onResetAssetsImport: resetImportAssetsDialog,
+    onResetCollaboratorsImport: resetImportCollaboratorsDialog,
+    onResetInfrastructureImport: resetImportInfrastructureDialog,
+    onSaveSuccess: () => setEditingRecord(null),
+    resolveIdByName,
+    setFeedback,
+    units,
   });
 
-  const importAssetsMutation = useMutation({
-    mutationFn: async (rowsToImport) => {
-      const unitOptions = units.map((unit) => ({ id: unit.id, normalized: normalizeText(unit.nome) }));
-      const collaboratorEmailOptions = collaborators
-        .filter((item) => item.email)
-        .map((item) => ({ id: item.id, normalized: normalizeText(item.email) }));
-      const collaboratorNameOptions = collaborators
-        .filter((item) => item.nome)
-        .map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
-
-      const created = [];
-      const errors = [];
-
-      for (let index = 0; index < rowsToImport.length; index += 1) {
-        const row = rowsToImport[index];
-
-        try {
-          const unitName = normalizeText(row.unidade || row.unidade_nome);
-          const collaboratorEmail = normalizeText(row.responsavel_email);
-          const collaboratorName = normalizeText(row.responsavel_nome || row.responsavel);
-
-          const unidadeId = unitName ? resolveIdByName(unitName, unitOptions) : null;
-          const usuarioId = collaboratorEmail
-            ? resolveIdByName(collaboratorEmail, collaboratorEmailOptions)
-            : collaboratorName
-              ? resolveIdByName(collaboratorName, collaboratorNameOptions)
-              : null;
-
-          if (unitName && !unidadeId) {
-            throw new Error(`Unidade nao encontrada: ${row.unidade || row.unidade_nome}`);
-          }
-
-          if ((collaboratorEmail || collaboratorName) && !usuarioId) {
-            throw new Error(`Responsavel nao encontrado: ${row.responsavel_email || row.responsavel_nome || row.responsavel}`);
-          }
-
-          const payload = {
-            nome: row.nome || null,
-            categoria: row.categoria || null,
-            marca: row.marca || null,
-            modelo: row.modelo || null,
-            numero_serie: row.numero_serie || null,
-            patrimonio: row.patrimonio || null,
-            unidade_id: unidadeId || null,
-            localizacao_interna: row.localizacao_interna || null,
-            observacao: row.observacao || null,
-            estado: row.estado || null,
-            usuario_id: usuarioId || null,
-          };
-
-          if (!payload.nome) throw new Error('Nome do ativo obrigatorio.');
-          if (!payload.categoria) throw new Error('Categoria do ativo obrigatoria.');
-          if (!payload.numero_serie) throw new Error('Numero de serie do ativo obrigatorio.');
-          if (!payload.unidade_id) throw new Error('Unidade do ativo obrigatoria.');
-
-          const createdRow = await catalogApi.ativos.create(payload);
-          created.push(createdRow);
-        } catch (error) {
-          errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
-        }
-      }
-
-      return { created, errors };
-    },
-    onSuccess: ({ created, errors }) => {
-      queryClient.invalidateQueries({ queryKey: ['ativos'] });
-      setImportAssetsOpen(false);
-      setImportFile(null);
-      setImportAssetsPreview([]);
-
-      if (created.length && errors.length) {
-        setFeedback({
-          type: 'success',
-          message: `${created.length} ativo(s) importado(s). ${errors.length} linha(s) com erro: ${errors.slice(0, 3).join(' | ')}`,
-        });
-        return;
-      }
-
-      if (created.length) {
-        setFeedback({
-          type: 'success',
-          message: `${created.length} ativo(s) importado(s) com sucesso.`,
-        });
-        return;
-      }
-
-      setFeedback({
-        type: 'error',
-        message: errors[0] || 'Nenhum ativo foi importado.',
-      });
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao importar ativos.' });
-    },
-  });
-
-  const importCollaboratorsMutation = useMutation({
-    mutationFn: async (rowsToImport) => {
-      const departmentOptions = departments.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
-      const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
-      const created = [];
-      const errors = [];
-
-      for (let index = 0; index < rowsToImport.length; index += 1) {
-        const row = rowsToImport[index];
-
-        try {
-          const departamentoNome = normalizeText(row.departamento || row.departamento_nome);
-          const unidadeNome = normalizeText(row.unidade || row.unidade_nome);
-          const departamentoId = departamentoNome ? resolveIdByName(departamentoNome, departmentOptions) : null;
-          const unidadeId = unidadeNome ? resolveIdByName(unidadeNome, unitOptions) : null;
-
-          if (departamentoNome && !departamentoId) {
-            throw new Error(`Departamento nao encontrado: ${row.departamento || row.departamento_nome}`);
-          }
-
-          if (unidadeNome && !unidadeId) {
-            throw new Error(`Unidade nao encontrada: ${row.unidade || row.unidade_nome}`);
-          }
-
-          const payload = {
-            nome: row.nome || null,
-            email: row.email || null,
-            password: row.password || null,
-            funcao: row.funcao || 'usuario',
-            cpf: row.cpf || null,
-            telefone: row.telefone || null,
-            departamento_id: departamentoId || null,
-            cargo: row.cargo || null,
-            data_admissao: row.data_admissao || null,
-            status: row.status || 'ativo',
-            unidade_id: unidadeId || null,
-          };
-
-          if (!payload.nome) throw new Error('Nome obrigatorio.');
-          if (!payload.email) throw new Error('Email obrigatorio.');
-          if (!payload.password) throw new Error('Password obrigatoria.');
-
-          const createdRow = await catalogApi.colaboradores.create(payload);
-          created.push(createdRow);
-        } catch (error) {
-          errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
-        }
-      }
-
-      return { created, errors };
-    },
-    onSuccess: ({ created, errors }) => {
-      queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
-      setImportCollaboratorsOpen(false);
-      setImportCollaboratorsFile(null);
-      setImportCollaboratorsPreview([]);
-
-      if (created.length && errors.length) {
-        setFeedback({
-          type: 'success',
-          message: `${created.length} colaborador(es) importado(s). ${errors.length} linha(s) com erro: ${errors.slice(0, 3).join(' | ')}`,
-        });
-        return;
-      }
-
-      if (created.length) {
-        setFeedback({ type: 'success', message: `${created.length} colaborador(es) importado(s) com sucesso.` });
-        return;
-      }
-
-      setFeedback({ type: 'error', message: errors[0] || 'Nenhum colaborador foi importado.' });
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao importar colaboradores.' });
-    },
-  });
-
-  const importInfrastructureMutation = useMutation({
-    mutationFn: async (rowsToImport) => {
-      const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
-      return importInfrastructureRows({
-        rowsToImport,
-        unitOptions,
-        normalizeText,
-        resolveIdByName,
-      });
-    },
-    onSuccess: ({ created, errors }) => {
-      queryClient.invalidateQueries({ queryKey: ['infra_estrutura'] });
-      setImportInfrastructureOpen(false);
-      setImportInfrastructureFile(null);
-      setImportInfrastructurePreview([]);
-
-      if (created.length && errors.length) {
-        setFeedback({
-          type: 'success',
-          message: `${created.length} registro(s) importado(s). ${errors.length} linha(s) com erro: ${errors.slice(0, 3).join(' | ')}`,
-        });
-        return;
-      }
-
-      if (created.length) {
-        setFeedback({
-          type: 'success',
-          message: `${created.length} registro(s) de infraestrutura importado(s) com sucesso.`,
-        });
-        return;
-      }
-
-      setFeedback({
-        type: 'error',
-        message: errors[0] || 'Nenhum registro de infraestrutura foi importado.',
-      });
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao importar infraestrutura.' });
-    },
-  });
-
-  const unlinkAssignmentsMutation = useMutation({
-    mutationFn: async (id) => catalogApi.colaboradores.unlinkAssignments(id),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['ativos'] });
-      queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
-      queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
-      const ativosCount = result?.ativos_count || 0;
-      const linhasCount = result?.linhas_count || 0;
-      const totalCount = result?.total_count || 0;
-      setFeedback({
-        type: 'success',
-        message:
-          totalCount > 0
-            ? `${ativosCount} ativo(s) e ${linhasCount} linha(s) desvinculado(s) com sucesso.`
-            : 'Nenhum item vinculado para remover.',
-      });
-    },
-    onError: (error) => {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao desvincular itens.' });
-    },
+  const {
+    handleConfirmImportAssets,
+    handleConfirmImportCollaborators,
+    handleConfirmImportInfrastructure,
+    handleDownloadAssetsJsonTemplate,
+    handleDownloadAssetsTemplate,
+    handleDownloadCollaboratorsJsonTemplate,
+    handleDownloadCollaboratorsTemplate,
+    handleDownloadInfrastructureJsonTemplate,
+    handleDownloadInfrastructureTemplate,
+    handleExportAssetsCsv,
+    handleExportCollaboratorsCsv,
+    handleImportAssetsClick,
+    handleImportAssetsFile,
+    handleImportCollaboratorsFile,
+    handleImportInfrastructureFile,
+    openAssetsImportDialog,
+    openCollaboratorsImportDialog,
+    openInfrastructureImportDialog,
+  } = useCatalogImportActions({
+    assets,
+    collaborators,
+    departments,
+    importAssetsMutation,
+    importAssetsPreview,
+    importCollaboratorsFile,
+    importCollaboratorsMutation,
+    importCollaboratorsPreview,
+    importFile,
+    importInfrastructureFile,
+    importInfrastructureMutation,
+    importInfrastructurePreview,
+    importInputRef,
+    setFeedback,
+    setImportAssetsOpen,
+    setImportAssetsPreview,
+    setImportCollaboratorsFile,
+    setImportCollaboratorsOpen,
+    setImportCollaboratorsPreview,
+    setImportFile,
+    setImportInfrastructureFile,
+    setImportInfrastructureOpen,
+    setImportInfrastructurePreview,
+    units,
   });
 
   const handleGeneratePassword = async () => {
@@ -855,101 +634,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     passwordMutation.mutate({ id: passwordRecord.id, password: passwordForm.password });
   };
 
-  const handleDownloadAssetsTemplate = () => {
-    downloadAssetsTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleExportAssetsCsv = () => {
-    exportAssetsCsv({ assets, collaborators, units });
-  };
-
-  const handleDownloadAssetsJsonTemplate = () => {
-    downloadAssetsJsonTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleDownloadCollaboratorsTemplate = () => {
-    downloadCollaboratorsTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleDownloadCollaboratorsJsonTemplate = () => {
-    downloadCollaboratorsJsonTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleDownloadInfrastructureTemplate = () => {
-    downloadInfrastructureTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleDownloadInfrastructureJsonTemplate = () => {
-    downloadInfrastructureJsonTemplate(getImportTemplateExamples({ collaborators, departments, units }));
-  };
-
-  const handleImportAssetsClick = () => {
-    importInputRef.current?.click();
-  };
-
-  const handleImportFileSelection = async (event, onSuccess) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const rowsToImport = await readImportFileRows(file);
-      onSuccess(file, rowsToImport);
-    } catch (error) {
-      setFeedback({ type: 'error', message: error.message || 'Falha ao ler arquivo de importacao.' });
-    } finally {
-      event.target.value = '';
-    }
-  };
-
-  const handleImportAssetsFile = async (event) =>
-    handleImportFileSelection(event, (file, rowsToImport) => {
-      setImportFile(file);
-      setImportAssetsPreview(rowsToImport);
-    });
-
-  const handleConfirmImportAssets = async () => {
-    if (!importFile || !importAssetsPreview.length) {
-      setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
-      return;
-    }
-
-    importAssetsMutation.mutate(importAssetsPreview);
-  };
-
-  const handleExportCollaboratorsCsv = () => {
-    exportCollaboratorsCsv({ collaborators, departments, units });
-  };
-
-  const handleConfirmImportCollaborators = async () => {
-    if (!importCollaboratorsFile || !importCollaboratorsPreview.length) {
-      setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
-      return;
-    }
-
-    importCollaboratorsMutation.mutate(importCollaboratorsPreview);
-  };
-
-  const handleConfirmImportInfrastructure = async () => {
-    if (!importInfrastructureFile || !importInfrastructurePreview.length) {
-      setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
-      return;
-    }
-
-    importInfrastructureMutation.mutate(importInfrastructurePreview);
-  };
-
-  const handleImportCollaboratorsFile = async (event) =>
-    handleImportFileSelection(event, (file, rowsToImport) => {
-      setImportCollaboratorsFile(file);
-      setImportCollaboratorsPreview(rowsToImport);
-    });
-
-  const handleImportInfrastructureFile = async (event) =>
-    handleImportFileSelection(event, (file, rowsToImport) => {
-      setImportInfrastructureFile(file);
-      setImportInfrastructurePreview(rowsToImport);
-    });
-
   const isLoading =
     lockedEntityKey === 'departamentos'
       ? departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
@@ -967,133 +651,6 @@ export default function CatalogManager({ lockedEntityKey }) {
             ? termsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
             : assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading;
 
-  const renderDepartmentCards = () => (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {rows.map((department) => {
-        const assetsCount = current.cardStats?.assetsByDepartmentId?.[department.id] || 0;
-        const collaboratorsCount = current.cardStats?.collaboratorsByDepartmentId?.[department.id] || 0;
-
-        return (
-          <Card key={department.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
-            <div className="h-1.5 bg-[#d1131f]" />
-            <div className="p-5">
-              <div className="mb-3 flex items-start gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f8e8eb] text-[#d1131f]">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-[17px] font-bold leading-tight text-foreground">{department.nome}</h3>
-                  <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">
-                    {department.descricao || 'Descricao nao informada'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-muted/40 p-2.5 text-center">
-                  <p className="text-[22px] font-black leading-none text-[#d1131f]">{assetsCount}</p>
-                  <p className="mt-2 text-[13px] text-muted-foreground">Ativos</p>
-                </div>
-                <div className="rounded-xl bg-muted/40 p-2.5 text-center">
-                  <p className="text-[22px] font-black leading-none text-foreground">{collaboratorsCount}</p>
-                  <p className="mt-2 text-[13px] text-muted-foreground">Colaboradores</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-2">
-                <Button variant="outline" className="h-10 flex-1 gap-2 rounded-xl" onClick={() => setEditingRecord(department)}>
-                  <Pencil className="h-4 w-4" /> Editar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-[#ff4b4b] hover:bg-red-50 hover:text-[#ff4b4b]"
-                  onClick={() => deleteMutation.mutate(department.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
-    </div>
-  );
-
-  const renderUnitsCards = () => (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {rows.map((unit) => {
-        const assetsCount = current.cardStats?.assetsByUnitId?.[unit.id] || 0;
-        const collaboratorsCount = current.cardStats?.collaboratorsByUnitId?.[unit.id] || 0;
-
-        return (
-          <Card key={unit.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
-            <div className="h-1.5 bg-[#d1131f]" />
-            <div className="p-5">
-              <div className="mb-3 flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f8e8eb] text-[#d1131f]">
-                    <Building2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-[17px] font-bold leading-tight text-foreground">{unit.nome}</h3>
-                    <p className="text-[13px] text-muted-foreground">{unit.cidade || 'Cidade nao informada'}</p>
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={unit.ativo ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-zinc-200 bg-zinc-100 text-zinc-700'}
-                >
-                  {unit.ativo ? 'Ativa' : 'Inativa'}
-                </Badge>
-              </div>
-
-              <div className="space-y-2 text-[14px] text-muted-foreground">
-                <div className="flex items-start gap-3">
-                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span>{unit.endereco || 'Endereco nao informado'}</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span>{formatPhone(unit.telefone)}</span>
-                </div>
-                <div className="flex items-start gap-3">
-                  <UserRound className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <span>{unit.responsavel || 'Responsavel nao informado'}</span>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-muted/40 p-2.5 text-center">
-                  <p className="text-[22px] font-black leading-none text-[#d1131f]">{assetsCount}</p>
-                  <p className="mt-2 text-[13px] text-muted-foreground">Ativos</p>
-                </div>
-                <div className="rounded-xl bg-muted/40 p-2.5 text-center">
-                  <p className="text-[22px] font-black leading-none text-foreground">{collaboratorsCount}</p>
-                  <p className="mt-2 text-[13px] text-muted-foreground">Colaboradores</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center gap-2">
-                <Button variant="outline" className="h-10 flex-1 gap-2 rounded-xl" onClick={() => setEditingRecord(unit)}>
-                  <Pencil className="h-4 w-4" /> Editar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-[#ff4b4b] hover:bg-red-50 hover:text-[#ff4b4b]"
-                  onClick={() => deleteMutation.mutate(unit.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <CatalogHeader
@@ -1103,19 +660,9 @@ export default function CatalogManager({ lockedEntityKey }) {
         lockedEntityKey={lockedEntityKey}
         onExportAssetsCsv={handleExportAssetsCsv}
         onExportCollaboratorsCsv={handleExportCollaboratorsCsv}
-        onImportAssets={() => {
-          setImportAssetsOpen(true);
-          setImportFile(null);
-        }}
-        onImportCollaborators={() => {
-          setImportCollaboratorsOpen(true);
-          setImportCollaboratorsFile(null);
-        }}
-        onImportInfrastructure={() => {
-          setImportInfrastructureOpen(true);
-          setImportInfrastructureFile(null);
-          setImportInfrastructurePreview([]);
-        }}
+        onImportAssets={openAssetsImportDialog}
+        onImportCollaborators={openCollaboratorsImportDialog}
+        onImportInfrastructure={openInfrastructureImportDialog}
         onNewRecord={() => setEditingRecord({})}
         singularLabel={entityMeta[lockedEntityKey].singular}
         subtitle={entityMeta[lockedEntityKey].subtitle}
@@ -1171,7 +718,13 @@ export default function CatalogManager({ lockedEntityKey }) {
             </div>
           </Card>
         ) : (
-          renderDepartmentCards()
+          <DepartmentCardsGrid
+            assetsByDepartmentId={current.cardStats?.assetsByDepartmentId}
+            collaboratorsByDepartmentId={current.cardStats?.collaboratorsByDepartmentId}
+            departments={rows}
+            onDelete={(departmentId) => deleteMutation.mutate(departmentId)}
+            onEdit={setEditingRecord}
+          />
         )
       ) : lockedEntityKey === 'unidades' ? (
         isLoading ? (
@@ -1189,180 +742,26 @@ export default function CatalogManager({ lockedEntityKey }) {
             </div>
           </Card>
         ) : (
-          renderUnitsCards()
+          <UnitCardsGrid
+            assetsByUnitId={current.cardStats?.assetsByUnitId}
+            collaboratorsByUnitId={current.cardStats?.collaboratorsByUnitId}
+            formatPhone={formatPhone}
+            onDelete={(unitId) => deleteMutation.mutate(unitId)}
+            onEdit={setEditingRecord}
+            units={rows}
+          />
         )
       ) : (
-        <CatalogTableShell columns={current.columns} entityKey={lockedEntityKey}>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={current.columns.length + 1} className="py-12 text-center text-muted-foreground">
-                      Carregando...
-                    </TableCell>
-                  </TableRow>
-                ) : rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={current.columns.length + 1} className="py-12 text-center text-muted-foreground">
-                      Nenhum registro encontrado
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className={`transition-colors hover:bg-muted/30 ${
-                        lockedEntityKey === 'colaboradores' ? 'cursor-pointer' : ''
-                      }`}
-                      onClick={
-                        lockedEntityKey === 'colaboradores'
-                          ? () => setViewingCollaboratorLinks(row)
-                          : undefined
-                      }
-                    >
-                      {current.columns.map((column) => (
-                        <TableCell key={`${row.id}-${column.key}`} className={lockedEntityKey === 'colaboradores' ? 'py-3 text-[14px]' : ''}>
-                          {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
-                        </TableCell>
-                      ))}
-                      <TableCell
-                        className={
-                          lockedEntityKey === 'colaboradores' ||
-                          lockedEntityKey === 'ativos' ||
-                          lockedEntityKey === 'contatos' ||
-                          lockedEntityKey === 'linhas_corporativas' ||
-                          lockedEntityKey === 'infra_estrutura'
-                            ? 'text-center'
-                            : 'text-right'
-                        }
-                        onClick={
-                          lockedEntityKey === 'colaboradores' ||
-                          lockedEntityKey === 'ativos' ||
-                          lockedEntityKey === 'contatos' ||
-                          lockedEntityKey === 'linhas_corporativas' ||
-                          lockedEntityKey === 'infra_estrutura'
-                            ? (event) => event.stopPropagation()
-                            : undefined
-                        }
-                      >
-                      <div
-                        className={
-                          lockedEntityKey === 'colaboradores' ||
-                          lockedEntityKey === 'ativos' ||
-                          lockedEntityKey === 'contatos' ||
-                          lockedEntityKey === 'linhas_corporativas' ||
-                          lockedEntityKey === 'infra_estrutura'
-                            ? 'flex justify-center gap-1'
-                            : 'flex justify-end gap-1'
-                        }
-                      >
-                        {lockedEntityKey === 'ativos' ? (
-                          <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, 'asset')}
-                          />
-                        ) : lockedEntityKey === 'contatos' ? (
-                          <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, 'contact')}
-                          />
-                        ) : lockedEntityKey === 'linhas_corporativas' ? (
-                          <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, 'corporateLine')}
-                          />
-                        ) : lockedEntityKey === 'infra_estrutura' ? (
-                          <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, 'infrastructure')}
-                          />
-                        ) : lockedEntityKey === 'colaboradores' ? (
-                          <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, 'collaborator')}
-                          />
-                        ) : null}
-                        {lockedEntityKey !== 'colaboradores' &&
-                        lockedEntityKey !== 'ativos' &&
-                        lockedEntityKey !== 'contatos' &&
-                        lockedEntityKey !== 'linhas_corporativas' &&
-                        lockedEntityKey !== 'infra_estrutura' ? (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingRecord(row)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        ) : null}
-                          {lockedEntityKey !== 'colaboradores' &&
-                          lockedEntityKey !== 'ativos' &&
-                          lockedEntityKey !== 'contatos' &&
-                          lockedEntityKey !== 'linhas_corporativas' &&
-                          lockedEntityKey !== 'infra_estrutura' ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => {
-                              if (lockedEntityKey === 'colaboradores') {
-                                const hasLinkedAssets = assets.some((asset) => asset.usuario_id === row.id);
-                                const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === row.id);
-
-                                if (hasLinkedAssets || hasLinkedLines) {
-                                  setFeedback({
-                                    type: 'error',
-                                    message: 'Nao e permitido excluir um colaborador com itens vinculados.',
-                                  });
-                                  return;
-                                }
-
-                                const confirmed = window.confirm(
-                                  `Deseja realmente excluir o usuario ${row.nome || row.email || ''}?`
-                                );
-                                if (!confirmed) return;
-                              }
-                              if (lockedEntityKey === 'contatos') {
-                                const confirmed = window.confirm(
-                                  `Deseja realmente excluir ${row.nome || 'este contato'}?`
-                                );
-                                if (!confirmed) return;
-                              }
-                              if (lockedEntityKey === 'infra_estrutura') {
-                                const confirmed = window.confirm(
-                                  `Deseja realmente excluir ${row.nome || 'este registro de infraestrutura'}?`
-                                );
-                                if (!confirmed) return;
-                              }
-                              if (lockedEntityKey === 'ativos') {
-                                if (row.usuario_id) {
-                                  setFeedback({
-                                    type: 'error',
-                                    message: 'Nao e permitido excluir um ativo com usuario vinculado.',
-                                  });
-                                  return;
-                                }
-
-                                const confirmed = window.confirm(
-                                  `Deseja realmente excluir ${row.nome || row.patrimonio || 'este ativo'}?`
-                                );
-                                if (!confirmed) return;
-                              }
-                              if (lockedEntityKey === 'linhas_corporativas') {
-                                if (row.colaborador_id) {
-                                  setFeedback({
-                                    type: 'error',
-                                    message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
-                                  });
-                                  return;
-                                }
-
-                                const confirmed = window.confirm(
-                                  `Deseja realmente excluir ${row.nome || row.numero || 'esta linha corporativa'}?`
-                                );
-                                if (!confirmed) return;
-                              }
-                              deleteMutation.mutate(row.id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-        </CatalogTableShell>
+        <CatalogEntityTable
+          columns={current.columns}
+          entityKey={lockedEntityKey}
+          isLoading={isLoading}
+          onDelete={(rowId) => deleteMutation.mutate(rowId)}
+          onEdit={setEditingRecord}
+          onRowClick={setViewingCollaboratorLinks}
+          rows={rows}
+          toggleRowMenu={toggleRowMenu}
+        />
       )}
 
       {editingRecord !== null ? (
@@ -1560,88 +959,58 @@ export default function CatalogManager({ lockedEntityKey }) {
         onUnlinkAll={collaboratorMenuHandlers.onUnlinkAll}
       />
 
-      <AssetsImportDialog
-        fileName={importFile?.name}
-        isPending={importAssetsMutation.isPending}
-        onClose={() => {
-          setImportAssetsOpen(false);
-          setImportFile(null);
+      <CatalogImportDialogs
+        assetsImport={{
+          fileName: importFile?.name,
+          isPending: importAssetsMutation.isPending,
+          onClose: resetImportAssetsDialog,
+          onConfirm: handleConfirmImportAssets,
+          onDownloadCsvTemplate: handleDownloadAssetsTemplate,
+          onDownloadJsonTemplate: handleDownloadAssetsJsonTemplate,
+          onFileChange: handleImportAssetsFile,
+          onOpenChange: (open) => {
+            setImportAssetsOpen(open);
+            if (!open) {
+              resetImportAssetsDialog();
+            }
+          },
+          open: importAssetsOpen,
+          previewRows: importAssetsPreview,
         }}
-        onConfirm={handleConfirmImportAssets}
-        onDownloadCsvTemplate={handleDownloadAssetsTemplate}
-        onDownloadJsonTemplate={handleDownloadAssetsJsonTemplate}
-        onFileChange={handleImportAssetsFile}
-        onOpenChange={(open) => {
-          setImportAssetsOpen(open);
-          if (!open) {
-            setImportFile(null);
-            setImportAssetsPreview([]);
-          }
+        collaboratorsImport={{
+          fileName: importCollaboratorsFile?.name,
+          isPending: importCollaboratorsMutation.isPending,
+          onClose: resetImportCollaboratorsDialog,
+          onConfirm: handleConfirmImportCollaborators,
+          onDownloadCsvTemplate: handleDownloadCollaboratorsTemplate,
+          onDownloadJsonTemplate: handleDownloadCollaboratorsJsonTemplate,
+          onFileChange: handleImportCollaboratorsFile,
+          onOpenChange: (open) => {
+            setImportCollaboratorsOpen(open);
+            if (!open) {
+              resetImportCollaboratorsDialog();
+            }
+          },
+          open: importCollaboratorsOpen,
+          previewRows: importCollaboratorsPreview,
         }}
-        open={importAssetsOpen}
-        preview={<ImportPreviewTable rows={importAssetsPreview} columns={[
-          { key: 'nome', label: 'Nome' },
-          { key: 'categoria', label: 'Categoria' },
-          { key: 'patrimonio', label: 'Patrimonio' },
-          { key: 'unidade', label: 'Unidade' },
-          { key: 'responsavel_email', label: 'Responsavel' },
-        ]} />}
-      />
-
-      <CollaboratorsImportDialog
-        fileName={importCollaboratorsFile?.name}
-        isPending={importCollaboratorsMutation.isPending}
-        onClose={() => {
-          setImportCollaboratorsOpen(false);
-          setImportCollaboratorsFile(null);
+        infrastructureImport={{
+          fileName: importInfrastructureFile?.name,
+          isPending: importInfrastructureMutation.isPending,
+          onClose: resetImportInfrastructureDialog,
+          onConfirm: handleConfirmImportInfrastructure,
+          onDownloadCsvTemplate: handleDownloadInfrastructureTemplate,
+          onDownloadJsonTemplate: handleDownloadInfrastructureJsonTemplate,
+          onFileChange: handleImportInfrastructureFile,
+          onOpenChange: (open) => {
+            setImportInfrastructureOpen(open);
+            if (!open) {
+              resetImportInfrastructureDialog();
+            }
+          },
+          open: importInfrastructureOpen,
+          previewRows: importInfrastructurePreview,
         }}
-        onConfirm={handleConfirmImportCollaborators}
-        onDownloadCsvTemplate={handleDownloadCollaboratorsTemplate}
-        onDownloadJsonTemplate={handleDownloadCollaboratorsJsonTemplate}
-        onFileChange={handleImportCollaboratorsFile}
-        onOpenChange={(open) => {
-          setImportCollaboratorsOpen(open);
-          if (!open) {
-            setImportCollaboratorsFile(null);
-            setImportCollaboratorsPreview([]);
-          }
-        }}
-        open={importCollaboratorsOpen}
-        preview={<ImportPreviewTable rows={importCollaboratorsPreview} columns={[
-          { key: 'nome', label: 'Nome' },
-          { key: 'email', label: 'Email' },
-          { key: 'funcao', label: 'Funcao' },
-          { key: 'departamento', label: 'Departamento' },
-          { key: 'unidade', label: 'Unidade' },
-        ]} />}
-      />
-
-      <InfrastructureImportDialog
-        fileName={importInfrastructureFile?.name}
-        isPending={importInfrastructureMutation.isPending}
-        onClose={() => {
-          setImportInfrastructureOpen(false);
-          setImportInfrastructureFile(null);
-          setImportInfrastructurePreview([]);
-        }}
-        onConfirm={handleConfirmImportInfrastructure}
-        onDownloadCsvTemplate={handleDownloadInfrastructureTemplate}
-        onDownloadJsonTemplate={handleDownloadInfrastructureJsonTemplate}
-        onFileChange={handleImportInfrastructureFile}
-        onOpenChange={(open) => {
-          setImportInfrastructureOpen(open);
-          if (!open) {
-            setImportInfrastructureFile(null);
-            setImportInfrastructurePreview([]);
-          }
-        }}
-        open={importInfrastructureOpen}
-        preview={<ImportPreviewTable rows={importInfrastructurePreview} columns={[
-          { key: 'tipo', label: 'Tipo' },
-          { key: 'nome', label: 'Nome' },
-          { key: 'valor_identificador', label: 'Valor' },
-          { key: 'unidade', label: 'Unidade' },
-        ]} />}
       />
 
       <PasswordResetDialog
