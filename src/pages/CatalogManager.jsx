@@ -210,6 +210,15 @@ export default function CatalogManager({ lockedEntityKey }) {
     );
   }
 
+  function closeMenu(setMenu) {
+    setMenu(null);
+  }
+
+  function runWithClosedMenu(setMenu, callback) {
+    callback();
+    closeMenu(setMenu);
+  }
+
   useEffect(() => {
     if (!openCollaboratorMenu && !openAssetMenu && !openContactMenu && !openCorporateLineMenu && !openInfrastructureMenu) return undefined;
 
@@ -2082,7 +2091,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         menu={openAssetMenu}
         onAssign={() => {
           setAssigningAsset(openAssetMenu.row);
-          setOpenAssetMenu(null);
+          closeMenu(setOpenAssetMenu);
         }}
         onDelete={() => {
           if (openAssetMenu?.row?.usuario_id) {
@@ -2090,7 +2099,7 @@ export default function CatalogManager({ lockedEntityKey }) {
               type: 'error',
               message: 'Nao e permitido excluir um ativo com usuario vinculado.',
             });
-            setOpenAssetMenu(null);
+            closeMenu(setOpenAssetMenu);
             return;
           }
 
@@ -2098,16 +2107,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             `Deseja realmente excluir ${openAssetMenu?.row?.nome || openAssetMenu?.row?.patrimonio || 'este ativo'}?`
           );
           if (!confirmed) {
-            setOpenAssetMenu(null);
+            closeMenu(setOpenAssetMenu);
             return;
           }
 
-          deleteMutation.mutate(openAssetMenu.row.id);
-          setOpenAssetMenu(null);
+          runWithClosedMenu(setOpenAssetMenu, () => deleteMutation.mutate(openAssetMenu.row.id));
         }}
         onEdit={() => {
           setEditingRecord(openAssetMenu.row);
-          setOpenAssetMenu(null);
+          closeMenu(setOpenAssetMenu);
         }}
       />
 
@@ -2118,16 +2126,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             `Deseja realmente excluir ${openContactMenu?.row?.nome || 'este contato'}?`
           );
           if (!confirmed) {
-            setOpenContactMenu(null);
+            closeMenu(setOpenContactMenu);
             return;
           }
 
-          deleteMutation.mutate(openContactMenu.row.id);
-          setOpenContactMenu(null);
+          runWithClosedMenu(setOpenContactMenu, () => deleteMutation.mutate(openContactMenu.row.id));
         }}
         onEdit={() => {
           setEditingRecord(openContactMenu.row);
-          setOpenContactMenu(null);
+          closeMenu(setOpenContactMenu);
         }}
       />
 
@@ -2135,7 +2142,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         menu={openCorporateLineMenu}
         onAssign={() => {
           setAssigningCorporateLine(openCorporateLineMenu.row);
-          setOpenCorporateLineMenu(null);
+          closeMenu(setOpenCorporateLineMenu);
         }}
         onDelete={() => {
           if (openCorporateLineMenu?.row?.colaborador_id) {
@@ -2143,7 +2150,7 @@ export default function CatalogManager({ lockedEntityKey }) {
               type: 'error',
               message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
             });
-            setOpenCorporateLineMenu(null);
+            closeMenu(setOpenCorporateLineMenu);
             return;
           }
 
@@ -2151,16 +2158,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             `Deseja realmente excluir ${openCorporateLineMenu?.row?.nome || openCorporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
           );
           if (!confirmed) {
-            setOpenCorporateLineMenu(null);
+            closeMenu(setOpenCorporateLineMenu);
             return;
           }
 
-          deleteMutation.mutate(openCorporateLineMenu.row.id);
-          setOpenCorporateLineMenu(null);
+          runWithClosedMenu(setOpenCorporateLineMenu, () => deleteMutation.mutate(openCorporateLineMenu.row.id));
         }}
         onEdit={() => {
           setEditingRecord(openCorporateLineMenu.row);
-          setOpenCorporateLineMenu(null);
+          closeMenu(setOpenCorporateLineMenu);
         }}
       />
 
@@ -2171,16 +2177,15 @@ export default function CatalogManager({ lockedEntityKey }) {
             `Deseja realmente excluir ${openInfrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
           );
           if (!confirmed) {
-            setOpenInfrastructureMenu(null);
+            closeMenu(setOpenInfrastructureMenu);
             return;
           }
 
-          deleteMutation.mutate(openInfrastructureMenu.row.id);
-          setOpenInfrastructureMenu(null);
+          runWithClosedMenu(setOpenInfrastructureMenu, () => deleteMutation.mutate(openInfrastructureMenu.row.id));
         }}
         onEdit={() => {
           setEditingRecord(openInfrastructureMenu.row);
-          setOpenInfrastructureMenu(null);
+          closeMenu(setOpenInfrastructureMenu);
         }}
       />
 
@@ -2202,7 +2207,7 @@ export default function CatalogManager({ lockedEntityKey }) {
               type: 'error',
               message: 'Nao e permitido excluir um colaborador com itens vinculados.',
             });
-            setOpenCollaboratorMenu(null);
+            closeMenu(setOpenCollaboratorMenu);
             return;
           }
 
@@ -2210,20 +2215,19 @@ export default function CatalogManager({ lockedEntityKey }) {
             `Deseja realmente excluir o usuario ${openCollaboratorMenu?.row?.nome || openCollaboratorMenu?.row?.email || ''}?`
           );
           if (!confirmed) {
-            setOpenCollaboratorMenu(null);
+            closeMenu(setOpenCollaboratorMenu);
             return;
           }
 
-          deleteMutation.mutate(openCollaboratorMenu.row.id);
-          setOpenCollaboratorMenu(null);
+          runWithClosedMenu(setOpenCollaboratorMenu, () => deleteMutation.mutate(openCollaboratorMenu.row.id));
         }}
         onEdit={() => {
           setEditingRecord(openCollaboratorMenu.row);
-          setOpenCollaboratorMenu(null);
+          closeMenu(setOpenCollaboratorMenu);
         }}
         onResetPassword={() => {
           setPasswordRecord(openCollaboratorMenu.row);
-          setOpenCollaboratorMenu(null);
+          closeMenu(setOpenCollaboratorMenu);
         }}
         onUnlinkAll={() => {
           const confirmed = window.confirm(
@@ -2232,7 +2236,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           if (confirmed) {
             unlinkAssignmentsMutation.mutate(openCollaboratorMenu.row.id);
           }
-          setOpenCollaboratorMenu(null);
+          closeMenu(setOpenCollaboratorMenu);
         }}
       />
 
