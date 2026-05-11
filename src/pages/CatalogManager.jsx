@@ -186,23 +186,37 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
   const [feedback, setFeedback] = useState(null);
 
+  function closeAllMenus() {
+    setOpenAssetMenu(null);
+    setOpenContactMenu(null);
+    setOpenCorporateLineMenu(null);
+    setOpenInfrastructureMenu(null);
+    setOpenCollaboratorMenu(null);
+  }
+
+  function toggleRowMenu(event, row, setMenu) {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    closeAllMenus();
+    setMenu((currentMenu) =>
+      currentMenu?.row?.id === row.id
+        ? null
+        : {
+            row,
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+          }
+    );
+  }
+
   useEffect(() => {
     if (!openCollaboratorMenu && !openAssetMenu && !openContactMenu && !openCorporateLineMenu && !openInfrastructureMenu) return undefined;
 
-    const handleClickOutside = () => {
-      setOpenCollaboratorMenu(null);
-      setOpenAssetMenu(null);
-      setOpenContactMenu(null);
-      setOpenCorporateLineMenu(null);
-      setOpenInfrastructureMenu(null);
-    };
+    const handleClickOutside = () => closeAllMenus();
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
-        setOpenCollaboratorMenu(null);
-        setOpenAssetMenu(null);
-        setOpenContactMenu(null);
-        setOpenCorporateLineMenu(null);
-        setOpenInfrastructureMenu(null);
+        closeAllMenus();
       }
     };
 
@@ -1796,103 +1810,23 @@ export default function CatalogManager({ lockedEntityKey }) {
                       >
                         {lockedEntityKey === 'ativos' ? (
                           <MenuTriggerButton
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              setOpenCollaboratorMenu(null);
-                              setOpenContactMenu(null);
-                              setOpenCorporateLineMenu(null);
-                              setOpenInfrastructureMenu(null);
-                              setOpenAssetMenu((currentMenu) =>
-                                currentMenu?.row?.id === row.id
-                                  ? null
-                                  : {
-                                      row,
-                                      top: rect.bottom + 6,
-                                      right: window.innerWidth - rect.right,
-                                    }
-                              );
-                            }}
+                            onClick={(event) => toggleRowMenu(event, row, setOpenAssetMenu)}
                           />
                         ) : lockedEntityKey === 'contatos' ? (
                           <MenuTriggerButton
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              setOpenAssetMenu(null);
-                              setOpenCollaboratorMenu(null);
-                              setOpenCorporateLineMenu(null);
-                              setOpenInfrastructureMenu(null);
-                              setOpenContactMenu((currentMenu) =>
-                                currentMenu?.row?.id === row.id
-                                  ? null
-                                  : {
-                                      row,
-                                      top: rect.bottom + 6,
-                                      right: window.innerWidth - rect.right,
-                                    }
-                              );
-                            }}
+                            onClick={(event) => toggleRowMenu(event, row, setOpenContactMenu)}
                           />
                         ) : lockedEntityKey === 'linhas_corporativas' ? (
                           <MenuTriggerButton
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              setOpenAssetMenu(null);
-                              setOpenContactMenu(null);
-                              setOpenCollaboratorMenu(null);
-                              setOpenInfrastructureMenu(null);
-                              setOpenCorporateLineMenu((currentMenu) =>
-                                currentMenu?.row?.id === row.id
-                                  ? null
-                                  : {
-                                      row,
-                                      top: rect.bottom + 6,
-                                      right: window.innerWidth - rect.right,
-                                    }
-                              );
-                            }}
+                            onClick={(event) => toggleRowMenu(event, row, setOpenCorporateLineMenu)}
                           />
                         ) : lockedEntityKey === 'infra_estrutura' ? (
                           <MenuTriggerButton
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              setOpenAssetMenu(null);
-                              setOpenContactMenu(null);
-                              setOpenCorporateLineMenu(null);
-                              setOpenCollaboratorMenu(null);
-                              setOpenInfrastructureMenu((currentMenu) =>
-                                currentMenu?.row?.id === row.id
-                                  ? null
-                                  : {
-                                      row,
-                                      top: rect.bottom + 6,
-                                      right: window.innerWidth - rect.right,
-                                    }
-                              );
-                            }}
+                            onClick={(event) => toggleRowMenu(event, row, setOpenInfrastructureMenu)}
                           />
                         ) : lockedEntityKey === 'colaboradores' ? (
                           <MenuTriggerButton
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              setOpenAssetMenu(null);
-                              setOpenContactMenu(null);
-                              setOpenCorporateLineMenu(null);
-                              setOpenInfrastructureMenu(null);
-                              setOpenCollaboratorMenu((currentMenu) =>
-                                currentMenu?.row?.id === row.id
-                                  ? null
-                                  : {
-                                      row,
-                                      top: rect.bottom + 6,
-                                      right: window.innerWidth - rect.right,
-                                    }
-                              );
-                            }}
+                            onClick={(event) => toggleRowMenu(event, row, setOpenCollaboratorMenu)}
                           />
                         ) : null}
                         {lockedEntityKey !== 'colaboradores' &&
