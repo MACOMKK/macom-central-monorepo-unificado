@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, FileText, Globe, KeyRound, MapPin, MapPinHouse, Monitor, Network, Pencil, Phone, RefreshCw, Search, Trash2, Upload, UserPlus, UserRound } from 'lucide-react';
@@ -54,6 +54,16 @@ import {
   exportCollaboratorsCsv,
   getImportTemplateExamples,
 } from '@/pages/catalog-manager/utils/importExportHelpers';
+import { useActionMenu } from '@/pages/catalog-manager/hooks/useActionMenu';
+import {
+  countAssetsByDepartmentId,
+  countAssetsByUnitId,
+  countByKey,
+  createAssetOptions,
+  createCollaboratorOptions,
+  createSelectOptions,
+  indexById,
+} from '@/pages/catalog-manager/utils/buildConfigLookups';
 import { importInfrastructureRows } from '@/pages/catalog-manager/utils/importInfrastructureRows';
 import { readImportFileRows } from '@/pages/catalog-manager/utils/importParsers';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -161,11 +171,6 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
-  const [openAssetMenu, setOpenAssetMenu] = useState(null);
-  const [openContactMenu, setOpenContactMenu] = useState(null);
-  const [openCorporateLineMenu, setOpenCorporateLineMenu] = useState(null);
-  const [openInfrastructureMenu, setOpenInfrastructureMenu] = useState(null);
-  const [openCollaboratorMenu, setOpenCollaboratorMenu] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
@@ -186,57 +191,32 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
   const [feedback, setFeedback] = useState(null);
 
-  function closeAllMenus() {
-    setOpenAssetMenu(null);
-    setOpenContactMenu(null);
-    setOpenCorporateLineMenu(null);
-    setOpenInfrastructureMenu(null);
-    setOpenCollaboratorMenu(null);
+  const { closeMenu, getMenu, runWithClosedMenu, toggleRowMenu } = useActionMenu();
+  const assetMenu = getMenu('asset');
+  const contactMenu = getMenu('contact');
+  const corporateLineMenu = getMenu('corporateLine');
+  const infrastructureMenu = getMenu('infrastructure');
+  const collaboratorMenu = getMenu('collaborator');
+
+  function showMenuError(message) {
+    setFeedback({ type: 'error', message });
+    closeMenu();
   }
 
-  function toggleRowMenu(event, row, setMenu) {
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    closeAllMenus();
-    setMenu((currentMenu) =>
-      currentMenu?.row?.id === row.id
-        ? null
-        : {
-            row,
-            top: rect.bottom + 6,
-            right: window.innerWidth - rect.right,
-          }
-    );
+  function openRecordEditor(menu) {
+    setEditingRecord(menu.row);
+    closeMenu();
   }
 
-  function closeMenu(setMenu) {
-    setMenu(null);
+  function confirmMenuDeletion(rowId, message) {
+    const confirmed = window.confirm(message);
+    if (!confirmed) {
+      closeMenu();
+      return;
+    }
+
+    runWithClosedMenu(() => deleteMutation.mutate(rowId));
   }
-
-  function runWithClosedMenu(setMenu, callback) {
-    callback();
-    closeMenu(setMenu);
-  }
-
-  useEffect(() => {
-    if (!openCollaboratorMenu && !openAssetMenu && !openContactMenu && !openCorporateLineMenu && !openInfrastructureMenu) return undefined;
-
-    const handleClickOutside = () => closeAllMenus();
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        closeAllMenus();
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [openAssetMenu, openCollaboratorMenu, openContactMenu, openCorporateLineMenu, openInfrastructureMenu]);
 
   const departmentsQuery = useQuery({
     queryKey: ['departamentos'],
@@ -284,6 +264,104 @@ export default function CatalogManager({ lockedEntityKey }) {
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
 
+  function openMenuAssignment(setter, menu) {
+    setter(menu.row);
+    closeMenu();
+  }
+
+  function hasLinkedCollaboratorItems(collaboratorId) {
+    return (
+      assets.some((asset) => asset.usuario_id === collaboratorId) ||
+      corporateLines.some((line) => line.colaborador_id === collaboratorId)
+    );
+  }
+
+  const collaboratorCanUnlinkAll = Boolean(
+    collaboratorMenu &&
+      collaboratorMenu.row.status === 'inativo' &&
+      hasLinkedCollaboratorItems(collaboratorMenu.row.id)
+  );
+
+  const assetMenuHandlers = {
+    onAssign: () => openMenuAssignment(setAssigningAsset, assetMenu),
+    onDelete: () => {
+      if (assetMenu?.row?.usuario_id) {
+        showMenuError('Nao e permitido excluir um ativo com usuario vinculado.');
+        return;
+      }
+
+      confirmMenuDeletion(
+        assetMenu.row.id,
+        `Deseja realmente excluir ${assetMenu?.row?.nome || assetMenu?.row?.patrimonio || 'este ativo'}?`
+      );
+    },
+    onEdit: () => openRecordEditor(assetMenu),
+  };
+
+  const contactMenuHandlers = {
+    onDelete: () => {
+      confirmMenuDeletion(
+        contactMenu.row.id,
+        `Deseja realmente excluir ${contactMenu?.row?.nome || 'este contato'}?`
+      );
+    },
+    onEdit: () => openRecordEditor(contactMenu),
+  };
+
+  const corporateLineMenuHandlers = {
+    onAssign: () => openMenuAssignment(setAssigningCorporateLine, corporateLineMenu),
+    onDelete: () => {
+      if (corporateLineMenu?.row?.colaborador_id) {
+        showMenuError('Nao e permitido excluir uma linha corporativa com colaborador vinculado.');
+        return;
+      }
+
+      confirmMenuDeletion(
+        corporateLineMenu.row.id,
+        `Deseja realmente excluir ${corporateLineMenu?.row?.nome || corporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
+      );
+    },
+    onEdit: () => openRecordEditor(corporateLineMenu),
+  };
+
+  const infrastructureMenuHandlers = {
+    onDelete: () => {
+      confirmMenuDeletion(
+        infrastructureMenu.row.id,
+        `Deseja realmente excluir ${infrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
+      );
+    },
+    onEdit: () => openRecordEditor(infrastructureMenu),
+  };
+
+  const collaboratorMenuHandlers = {
+    onDelete: () => {
+      if (hasLinkedCollaboratorItems(collaboratorMenu?.row?.id)) {
+        showMenuError('Nao e permitido excluir um colaborador com itens vinculados.');
+        return;
+      }
+
+      confirmMenuDeletion(
+        collaboratorMenu.row.id,
+        `Deseja realmente excluir o usuario ${collaboratorMenu?.row?.nome || collaboratorMenu?.row?.email || ''}?`
+      );
+    },
+    onEdit: () => openRecordEditor(collaboratorMenu),
+    onResetPassword: () => {
+      setPasswordRecord(collaboratorMenu.row);
+      closeMenu();
+    },
+    onUnlinkAll: () => {
+      const confirmed = window.confirm(
+        `Deseja realmente desvincular todos os ativos e linhas corporativas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`
+      );
+      if (confirmed) {
+        unlinkAssignmentsMutation.mutate(collaboratorMenu.row.id);
+      }
+      closeMenu();
+    },
+  };
+
   const linkedAssetsByCollaboratorId = useMemo(
     () =>
       assets.reduce((acc, asset) => {
@@ -309,58 +387,17 @@ export default function CatalogManager({ lockedEntityKey }) {
   );
 
   const config = useMemo(() => {
-    const departmentOptions = departments.map((item) => ({ value: item.id, label: item.nome }));
-    const unitOptions = units.map((item) => ({ value: item.id, label: item.nome }));
-    const collaboratorOptions = collaborators.map((item) => ({
-      value: item.id,
-      label: item.nome || item.email || item.id,
-    }));
-    const assetOptions = assets.map((item) => ({
-      value: item.id,
-      label: `${item.nome || 'Ativo'}${item.patrimonio ? ` - ${item.patrimonio}` : ''}${item.numero_serie ? ` - ${item.numero_serie}` : ''}`,
-    }));
-    const assetsByProfileId = assets.reduce((acc, asset) => {
-      if (asset.usuario_id) {
-        acc[asset.usuario_id] = (acc[asset.usuario_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const linesByProfileId = corporateLines.reduce((acc, line) => {
-      if (line.colaborador_id) {
-        acc[line.colaborador_id] = (acc[line.colaborador_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const collaboratorsByDepartmentId = collaborators.reduce((acc, collaborator) => {
-      if (collaborator.departamento_id) {
-        acc[collaborator.departamento_id] = (acc[collaborator.departamento_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const collaboratorsById = collaborators.reduce((acc, collaborator) => {
-      acc[collaborator.id] = collaborator;
-      return acc;
-    }, {});
-    const assetsByDepartmentId = assets.reduce((acc, asset) => {
-      const departmentId = asset.usuario_id ? collaboratorsById[asset.usuario_id]?.departamento_id : null;
-      if (departmentId) {
-        acc[departmentId] = (acc[departmentId] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const collaboratorsByUnitId = collaborators.reduce((acc, collaborator) => {
-      if (collaborator.unidade_id) {
-        acc[collaborator.unidade_id] = (acc[collaborator.unidade_id] || 0) + 1;
-      }
-      return acc;
-    }, {});
-    const assetsByUnitId = assets.reduce((acc, asset) => {
-      const unitId = asset.unidade_id || null;
-      if (unitId) {
-        acc[unitId] = (acc[unitId] || 0) + 1;
-      }
-      return acc;
-    }, {});
+    const departmentOptions = createSelectOptions(departments);
+    const unitOptions = createSelectOptions(units);
+    const collaboratorOptions = createCollaboratorOptions(collaborators);
+    const assetOptions = createAssetOptions(assets);
+    const assetsByProfileId = countByKey(assets, 'usuario_id');
+    const linesByProfileId = countByKey(corporateLines, 'colaborador_id');
+    const collaboratorsByDepartmentId = countByKey(collaborators, 'departamento_id');
+    const collaboratorsById = indexById(collaborators);
+    const assetsByDepartmentId = countAssetsByDepartmentId(assets, collaboratorsById);
+    const collaboratorsByUnitId = countByKey(collaborators, 'unidade_id');
+    const assetsByUnitId = countAssetsByUnitId(assets);
 
     return {
       departamentos: {
@@ -1819,23 +1856,23 @@ export default function CatalogManager({ lockedEntityKey }) {
                       >
                         {lockedEntityKey === 'ativos' ? (
                           <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, setOpenAssetMenu)}
+                            onClick={(event) => toggleRowMenu(event, row, 'asset')}
                           />
                         ) : lockedEntityKey === 'contatos' ? (
                           <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, setOpenContactMenu)}
+                            onClick={(event) => toggleRowMenu(event, row, 'contact')}
                           />
                         ) : lockedEntityKey === 'linhas_corporativas' ? (
                           <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, setOpenCorporateLineMenu)}
+                            onClick={(event) => toggleRowMenu(event, row, 'corporateLine')}
                           />
                         ) : lockedEntityKey === 'infra_estrutura' ? (
                           <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, setOpenInfrastructureMenu)}
+                            onClick={(event) => toggleRowMenu(event, row, 'infrastructure')}
                           />
                         ) : lockedEntityKey === 'colaboradores' ? (
                           <MenuTriggerButton
-                            onClick={(event) => toggleRowMenu(event, row, setOpenCollaboratorMenu)}
+                            onClick={(event) => toggleRowMenu(event, row, 'collaborator')}
                           />
                         ) : null}
                         {lockedEntityKey !== 'colaboradores' &&
@@ -2088,156 +2125,39 @@ export default function CatalogManager({ lockedEntityKey }) {
       />
 
       <AssetActionsMenu
-        menu={openAssetMenu}
-        onAssign={() => {
-          setAssigningAsset(openAssetMenu.row);
-          closeMenu(setOpenAssetMenu);
-        }}
-        onDelete={() => {
-          if (openAssetMenu?.row?.usuario_id) {
-            setFeedback({
-              type: 'error',
-              message: 'Nao e permitido excluir um ativo com usuario vinculado.',
-            });
-            closeMenu(setOpenAssetMenu);
-            return;
-          }
-
-          const confirmed = window.confirm(
-            `Deseja realmente excluir ${openAssetMenu?.row?.nome || openAssetMenu?.row?.patrimonio || 'este ativo'}?`
-          );
-          if (!confirmed) {
-            closeMenu(setOpenAssetMenu);
-            return;
-          }
-
-          runWithClosedMenu(setOpenAssetMenu, () => deleteMutation.mutate(openAssetMenu.row.id));
-        }}
-        onEdit={() => {
-          setEditingRecord(openAssetMenu.row);
-          closeMenu(setOpenAssetMenu);
-        }}
+        menu={assetMenu}
+        onAssign={assetMenuHandlers.onAssign}
+        onDelete={assetMenuHandlers.onDelete}
+        onEdit={assetMenuHandlers.onEdit}
       />
 
       <ContactActionsMenu
-        menu={openContactMenu}
-        onDelete={() => {
-          const confirmed = window.confirm(
-            `Deseja realmente excluir ${openContactMenu?.row?.nome || 'este contato'}?`
-          );
-          if (!confirmed) {
-            closeMenu(setOpenContactMenu);
-            return;
-          }
-
-          runWithClosedMenu(setOpenContactMenu, () => deleteMutation.mutate(openContactMenu.row.id));
-        }}
-        onEdit={() => {
-          setEditingRecord(openContactMenu.row);
-          closeMenu(setOpenContactMenu);
-        }}
+        menu={contactMenu}
+        onDelete={contactMenuHandlers.onDelete}
+        onEdit={contactMenuHandlers.onEdit}
       />
 
       <CorporateLineActionsMenu
-        menu={openCorporateLineMenu}
-        onAssign={() => {
-          setAssigningCorporateLine(openCorporateLineMenu.row);
-          closeMenu(setOpenCorporateLineMenu);
-        }}
-        onDelete={() => {
-          if (openCorporateLineMenu?.row?.colaborador_id) {
-            setFeedback({
-              type: 'error',
-              message: 'Nao e permitido excluir uma linha corporativa com colaborador vinculado.',
-            });
-            closeMenu(setOpenCorporateLineMenu);
-            return;
-          }
-
-          const confirmed = window.confirm(
-            `Deseja realmente excluir ${openCorporateLineMenu?.row?.nome || openCorporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
-          );
-          if (!confirmed) {
-            closeMenu(setOpenCorporateLineMenu);
-            return;
-          }
-
-          runWithClosedMenu(setOpenCorporateLineMenu, () => deleteMutation.mutate(openCorporateLineMenu.row.id));
-        }}
-        onEdit={() => {
-          setEditingRecord(openCorporateLineMenu.row);
-          closeMenu(setOpenCorporateLineMenu);
-        }}
+        menu={corporateLineMenu}
+        onAssign={corporateLineMenuHandlers.onAssign}
+        onDelete={corporateLineMenuHandlers.onDelete}
+        onEdit={corporateLineMenuHandlers.onEdit}
       />
 
       <InfrastructureActionsMenu
-        menu={openInfrastructureMenu}
-        onDelete={() => {
-          const confirmed = window.confirm(
-            `Deseja realmente excluir ${openInfrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
-          );
-          if (!confirmed) {
-            closeMenu(setOpenInfrastructureMenu);
-            return;
-          }
-
-          runWithClosedMenu(setOpenInfrastructureMenu, () => deleteMutation.mutate(openInfrastructureMenu.row.id));
-        }}
-        onEdit={() => {
-          setEditingRecord(openInfrastructureMenu.row);
-          closeMenu(setOpenInfrastructureMenu);
-        }}
+        menu={infrastructureMenu}
+        onDelete={infrastructureMenuHandlers.onDelete}
+        onEdit={infrastructureMenuHandlers.onEdit}
       />
 
       <CollaboratorActionsMenu
-        canUnlinkAll={
-          !!openCollaboratorMenu &&
-          openCollaboratorMenu.row.status === 'inativo' &&
-          (assets.some((asset) => asset.usuario_id === openCollaboratorMenu.row.id) ||
-            corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu.row.id))
-        }
+        canUnlinkAll={collaboratorCanUnlinkAll}
         isUnlinking={unlinkAssignmentsMutation.isPending}
-        menu={openCollaboratorMenu}
-        onDelete={() => {
-          const hasLinkedAssets = assets.some((asset) => asset.usuario_id === openCollaboratorMenu?.row?.id);
-          const hasLinkedLines = corporateLines.some((line) => line.colaborador_id === openCollaboratorMenu?.row?.id);
-
-          if (hasLinkedAssets || hasLinkedLines) {
-            setFeedback({
-              type: 'error',
-              message: 'Nao e permitido excluir um colaborador com itens vinculados.',
-            });
-            closeMenu(setOpenCollaboratorMenu);
-            return;
-          }
-
-          const confirmed = window.confirm(
-            `Deseja realmente excluir o usuario ${openCollaboratorMenu?.row?.nome || openCollaboratorMenu?.row?.email || ''}?`
-          );
-          if (!confirmed) {
-            closeMenu(setOpenCollaboratorMenu);
-            return;
-          }
-
-          runWithClosedMenu(setOpenCollaboratorMenu, () => deleteMutation.mutate(openCollaboratorMenu.row.id));
-        }}
-        onEdit={() => {
-          setEditingRecord(openCollaboratorMenu.row);
-          closeMenu(setOpenCollaboratorMenu);
-        }}
-        onResetPassword={() => {
-          setPasswordRecord(openCollaboratorMenu.row);
-          closeMenu(setOpenCollaboratorMenu);
-        }}
-        onUnlinkAll={() => {
-          const confirmed = window.confirm(
-            `Deseja realmente desvincular todos os ativos e linhas corporativas de ${openCollaboratorMenu?.row?.nome || 'este colaborador'}?`
-          );
-          if (confirmed) {
-            unlinkAssignmentsMutation.mutate(openCollaboratorMenu.row.id);
-          }
-          closeMenu(setOpenCollaboratorMenu);
-        }}
+        menu={collaboratorMenu}
+        onDelete={collaboratorMenuHandlers.onDelete}
+        onEdit={collaboratorMenuHandlers.onEdit}
+        onResetPassword={collaboratorMenuHandlers.onResetPassword}
+        onUnlinkAll={collaboratorMenuHandlers.onUnlinkAll}
       />
 
       <AssetsImportDialog
