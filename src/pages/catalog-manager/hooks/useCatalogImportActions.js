@@ -22,7 +22,6 @@ export function useCatalogImportActions({
   importFile,
   importInfrastructureMutation,
   importInfrastructurePreview,
-  importInputRef,
   importInfrastructureFile,
   importCollaboratorsFile,
   setFeedback,
@@ -101,9 +100,6 @@ export function useCatalogImportActions({
     },
     handleExportCollaboratorsCsv: () => {
       exportCollaboratorsCsv({ collaborators, departments, units });
-    },
-    handleImportAssetsClick: () => {
-      importInputRef.current?.click();
     },
     handleImportAssetsFile: async (event) =>
       handleImportFileSelection(event, (file, rowsToImport) => {

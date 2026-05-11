@@ -3,28 +3,21 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, FileText, Globe, KeyRound, MapPinHouse, Monitor, Network, RefreshCw, Search, Trash2, Upload, UserPlus } from 'lucide-react';
 
-import CatalogEntityDialog from '@/components/CatalogEntityDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
-import AssetActionsMenu from '@/pages/catalog-manager/components/AssetActionsMenu';
-import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
+import CatalogAuxDialogs from '@/pages/catalog-manager/components/CatalogAuxDialogs';
+import CatalogActionMenus from '@/pages/catalog-manager/components/CatalogActionMenus';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
 import CatalogHeader from '@/pages/catalog-manager/components/CatalogHeader';
 import CatalogImportDialogs from '@/pages/catalog-manager/components/CatalogImportDialogs';
+import CatalogRecordDialog from '@/pages/catalog-manager/components/CatalogRecordDialog';
 import CatalogEntityTable from '@/pages/catalog-manager/components/CatalogEntityTable';
-import CollaboratorActionsMenu from '@/pages/catalog-manager/components/CollaboratorActionsMenu';
-import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
-import ContactActionsMenu from '@/pages/catalog-manager/components/ContactActionsMenu';
-import CorporateLineActionsMenu from '@/pages/catalog-manager/components/CorporateLineActionsMenu';
-import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
 import DepartmentCardsGrid from '@/pages/catalog-manager/components/DepartmentCardsGrid';
-import InfrastructureActionsMenu from '@/pages/catalog-manager/components/InfrastructureActionsMenu';
-import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import UnitCardsGrid from '@/pages/catalog-manager/components/UnitCardsGrid';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
@@ -43,8 +36,11 @@ import {
 } from '@/pages/catalog-manager/config/staticOptions';
 import { contactTypeTone, statusTone } from '@/pages/catalog-manager/config/uiMaps';
 import { useActionMenu } from '@/pages/catalog-manager/hooks/useActionMenu';
+import { useCatalogActionHandlers } from '@/pages/catalog-manager/hooks/useCatalogActionHandlers';
 import { useCatalogImportActions } from '@/pages/catalog-manager/hooks/useCatalogImportActions';
 import { useCatalogMutations } from '@/pages/catalog-manager/hooks/useCatalogMutations';
+import { useCatalogPasswordActions } from '@/pages/catalog-manager/hooks/useCatalogPasswordActions';
+import { useCatalogViewState } from '@/pages/catalog-manager/hooks/useCatalogViewState';
 import {
   countAssetsByDepartmentId,
   countAssetsByUnitId,
@@ -184,26 +180,6 @@ export default function CatalogManager({ lockedEntityKey }) {
   const infrastructureMenu = getMenu('infrastructure');
   const collaboratorMenu = getMenu('collaborator');
 
-  function showMenuError(message) {
-    setFeedback({ type: 'error', message });
-    closeMenu();
-  }
-
-  function openRecordEditor(menu) {
-    setEditingRecord(menu.row);
-    closeMenu();
-  }
-
-  function confirmMenuDeletion(rowId, message) {
-    const confirmed = window.confirm(message);
-    if (!confirmed) {
-      closeMenu();
-      return;
-    }
-
-    runWithClosedMenu(() => deleteMutation.mutate(rowId));
-  }
-
   const departmentsQuery = useQuery({
     queryKey: ['departamentos'],
     queryFn: catalogApi.departamentos.list,
@@ -250,103 +226,6 @@ export default function CatalogManager({ lockedEntityKey }) {
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
 
-  function openMenuAssignment(setter, menu) {
-    setter(menu.row);
-    closeMenu();
-  }
-
-  function hasLinkedCollaboratorItems(collaboratorId) {
-    return (
-      assets.some((asset) => asset.usuario_id === collaboratorId) ||
-      corporateLines.some((line) => line.colaborador_id === collaboratorId)
-    );
-  }
-
-  const collaboratorCanUnlinkAll = Boolean(
-    collaboratorMenu &&
-      collaboratorMenu.row.status === 'inativo' &&
-      hasLinkedCollaboratorItems(collaboratorMenu.row.id)
-  );
-
-  const assetMenuHandlers = {
-    onAssign: () => openMenuAssignment(setAssigningAsset, assetMenu),
-    onDelete: () => {
-      if (assetMenu?.row?.usuario_id) {
-        showMenuError('Nao e permitido excluir um ativo com usuario vinculado.');
-        return;
-      }
-
-      confirmMenuDeletion(
-        assetMenu.row.id,
-        `Deseja realmente excluir ${assetMenu?.row?.nome || assetMenu?.row?.patrimonio || 'este ativo'}?`
-      );
-    },
-    onEdit: () => openRecordEditor(assetMenu),
-  };
-
-  const contactMenuHandlers = {
-    onDelete: () => {
-      confirmMenuDeletion(
-        contactMenu.row.id,
-        `Deseja realmente excluir ${contactMenu?.row?.nome || 'este contato'}?`
-      );
-    },
-    onEdit: () => openRecordEditor(contactMenu),
-  };
-
-  const corporateLineMenuHandlers = {
-    onAssign: () => openMenuAssignment(setAssigningCorporateLine, corporateLineMenu),
-    onDelete: () => {
-      if (corporateLineMenu?.row?.colaborador_id) {
-        showMenuError('Nao e permitido excluir uma linha corporativa com colaborador vinculado.');
-        return;
-      }
-
-      confirmMenuDeletion(
-        corporateLineMenu.row.id,
-        `Deseja realmente excluir ${corporateLineMenu?.row?.nome || corporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
-      );
-    },
-    onEdit: () => openRecordEditor(corporateLineMenu),
-  };
-
-  const infrastructureMenuHandlers = {
-    onDelete: () => {
-      confirmMenuDeletion(
-        infrastructureMenu.row.id,
-        `Deseja realmente excluir ${infrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
-      );
-    },
-    onEdit: () => openRecordEditor(infrastructureMenu),
-  };
-
-  const collaboratorMenuHandlers = {
-    onDelete: () => {
-      if (hasLinkedCollaboratorItems(collaboratorMenu?.row?.id)) {
-        showMenuError('Nao e permitido excluir um colaborador com itens vinculados.');
-        return;
-      }
-
-      confirmMenuDeletion(
-        collaboratorMenu.row.id,
-        `Deseja realmente excluir o usuario ${collaboratorMenu?.row?.nome || collaboratorMenu?.row?.email || ''}?`
-      );
-    },
-    onEdit: () => openRecordEditor(collaboratorMenu),
-    onResetPassword: () => {
-      setPasswordRecord(collaboratorMenu.row);
-      closeMenu();
-    },
-    onUnlinkAll: () => {
-      const confirmed = window.confirm(
-        `Deseja realmente desvincular todos os ativos e linhas corporativas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`
-      );
-      if (confirmed) {
-        unlinkAssignmentsMutation.mutate(collaboratorMenu.row.id);
-      }
-      closeMenu();
-    },
-  };
 
   const linkedAssetsByCollaboratorId = useMemo(
     () =>
@@ -475,34 +354,34 @@ export default function CatalogManager({ lockedEntityKey }) {
     };
   }, [assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, terms, units]);
 
-  const current = config[lockedEntityKey];
-  const rows = current.rows.filter((row) => {
-    const query = search.toLowerCase();
-    const matchesSearch =
-      !query ||
-      Object.values(row).some((value) => String(value || '').toLowerCase().includes(query)) ||
-      collaborators
-        .find((item) => item.id === row.usuario_id)
-        ?.nome?.toLowerCase()
-        .includes(query);
+  const loadingByEntity = {
+    ativos: assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
+    colaboradores:
+      collaboratorsQuery.isLoading ||
+      assetsQuery.isLoading ||
+      corporateLinesQuery.isLoading ||
+      departmentsQuery.isLoading ||
+      unitsQuery.isLoading,
+    contatos: contactsQuery.isLoading || unitsQuery.isLoading,
+    departamentos: departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
+    infra_estrutura: infraQuery.isLoading || unitsQuery.isLoading,
+    linhas_corporativas: corporateLinesQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
+    termos_posse: termsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
+    unidades: unitsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
+  };
 
-    if (lockedEntityKey !== 'ativos') {
-      if (lockedEntityKey !== 'colaboradores') {
-        return matchesSearch;
-      }
-
-      const matchesUnit = collaboratorUnitFilter === 'all' || row.unidade_id === collaboratorUnitFilter;
-      const matchesDepartment = collaboratorDepartmentFilter === 'all' || row.departamento_id === collaboratorDepartmentFilter;
-      const matchesStatus = collaboratorStatusFilter === 'all' || row.status === collaboratorStatusFilter;
-
-      return matchesSearch && matchesUnit && matchesDepartment && matchesStatus;
-    }
-
-    const matchesStatus = assetStatusFilter === 'all' || row.status === assetStatusFilter;
-    const matchesCategory = assetCategoryFilter === 'all' || row.categoria === assetCategoryFilter;
-    const matchesUnit = assetUnitFilter === 'all' || row.unidade_id === assetUnitFilter;
-
-    return matchesSearch && matchesStatus && matchesCategory && matchesUnit;
+  const { current, isLoading, rows } = useCatalogViewState({
+    assetCategoryFilter,
+    assetStatusFilter,
+    assetUnitFilter,
+    collaborators,
+    collaboratorDepartmentFilter,
+    collaboratorStatusFilter,
+    collaboratorUnitFilter,
+    config,
+    loadingByEntity,
+    lockedEntityKey,
+    search,
   });
 
   const resetImportAssetsDialog = () => {
@@ -555,6 +434,32 @@ export default function CatalogManager({ lockedEntityKey }) {
   });
 
   const {
+    assetMenuHandlers,
+    collaboratorCanUnlinkAll,
+    collaboratorMenuHandlers,
+    contactMenuHandlers,
+    corporateLineMenuHandlers,
+    infrastructureMenuHandlers,
+  } = useCatalogActionHandlers({
+    assetMenu,
+    assets,
+    closeMenu,
+    collaboratorMenu,
+    corporateLineMenu,
+    corporateLines,
+    contactMenu,
+    deleteRecord: (rowId) => deleteMutation.mutate(rowId),
+    infrastructureMenu,
+    openAssetAssignment: setAssigningAsset,
+    openCorporateLineAssignment: setAssigningCorporateLine,
+    openPasswordReset: setPasswordRecord,
+    openRecord: setEditingRecord,
+    runWithClosedMenu,
+    setFeedback,
+    unlinkAssignments: (collaboratorId) => unlinkAssignmentsMutation.mutate(collaboratorId),
+  });
+
+  const {
     handleConfirmImportAssets,
     handleConfirmImportCollaborators,
     handleConfirmImportInfrastructure,
@@ -566,7 +471,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     handleDownloadInfrastructureTemplate,
     handleExportAssetsCsv,
     handleExportCollaboratorsCsv,
-    handleImportAssetsClick,
     handleImportAssetsFile,
     handleImportCollaboratorsFile,
     handleImportInfrastructureFile,
@@ -586,7 +490,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     importInfrastructureFile,
     importInfrastructureMutation,
     importInfrastructurePreview,
-    importInputRef,
     setFeedback,
     setImportAssetsOpen,
     setImportAssetsPreview,
@@ -600,56 +503,15 @@ export default function CatalogManager({ lockedEntityKey }) {
     units,
   });
 
-  const handleGeneratePassword = async () => {
-    const nextPassword = generatePassword();
-    setPasswordForm({ password: nextPassword, confirmPassword: nextPassword });
-    try {
-      await navigator.clipboard.writeText(nextPassword);
-      setFeedback({ type: 'success', message: 'Senha gerada e copiada.' });
-    } catch {
-      setFeedback({ type: 'success', message: 'Senha gerada com sucesso.' });
-    }
-  };
-
-  const handleCopyPassword = async () => {
-    if (!passwordForm.password) return;
-    try {
-      await navigator.clipboard.writeText(passwordForm.password);
-      setFeedback({ type: 'success', message: 'Senha copiada.' });
-    } catch {
-      setFeedback({ type: 'error', message: 'Nao foi possivel copiar a senha.' });
-    }
-  };
-
-  const handleSubmitPassword = () => {
-    if (!passwordRecord?.id) return;
-    if (!passwordForm.password || passwordForm.password.length < 6) {
-      setFeedback({ type: 'error', message: 'A senha precisa ter pelo menos 6 caracteres.' });
-      return;
-    }
-    if (passwordForm.password !== passwordForm.confirmPassword) {
-      setFeedback({ type: 'error', message: 'As senhas nao conferem.' });
-      return;
-    }
-    passwordMutation.mutate({ id: passwordRecord.id, password: passwordForm.password });
-  };
-
-  const isLoading =
-    lockedEntityKey === 'departamentos'
-      ? departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
-      : lockedEntityKey === 'unidades'
-        ? unitsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
-        : lockedEntityKey === 'colaboradores'
-          ? collaboratorsQuery.isLoading || assetsQuery.isLoading || corporateLinesQuery.isLoading || departmentsQuery.isLoading || unitsQuery.isLoading
-          : lockedEntityKey === 'contatos'
-            ? contactsQuery.isLoading || unitsQuery.isLoading
-            : lockedEntityKey === 'linhas_corporativas'
-              ? corporateLinesQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading
-          : lockedEntityKey === 'infra_estrutura'
-            ? infraQuery.isLoading || unitsQuery.isLoading
-          : lockedEntityKey === 'termos_posse'
-            ? termsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading
-            : assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading;
+  const { handleCopyPassword, handleGeneratePassword, handleSubmitPassword } = useCatalogPasswordActions({
+    generatePassword,
+    mutatePassword: (payload) => passwordMutation.mutate(payload),
+    navigatorClipboard: navigator.clipboard,
+    passwordForm,
+    passwordRecord,
+    setFeedback,
+    setPasswordForm,
+  });
 
   return (
     <div className="space-y-6">
@@ -765,198 +627,93 @@ export default function CatalogManager({ lockedEntityKey }) {
       )}
 
       {editingRecord !== null ? (
-        <CatalogEntityDialog
-          open={editingRecord !== null}
+        <CatalogRecordDialog
+          editingRecord={editingRecord}
+          fields={current.fields}
+          isPending={saveMutation.isPending}
+          lockedEntityKey={lockedEntityKey}
           onOpenChange={(open) => {
             if (!open) setEditingRecord(null);
           }}
-          title={
-            lockedEntityKey === 'unidades'
-              ? `${editingRecord?.id ? 'Editar' : 'Nova'} Unidade`
-              : lockedEntityKey === 'contatos'
-                ? editingRecord?.id
-                  ? 'Editar Fornecedor'
-                  : 'Novo Fornecedor'
-              : lockedEntityKey === 'infra_estrutura'
-                ? editingRecord?.id
-                  ? 'Editar Registro'
-                  : 'Novo Registro'
-              : lockedEntityKey === 'termos_posse'
-                ? editingRecord?.id
-                  ? 'Editar Termo de Posse'
-                  : 'Gerar Termo de Posse'
-                : `${editingRecord?.id ? 'Editar' : 'Novo'} ${entityMeta[lockedEntityKey].singular}`
-          }
-          description={
-            lockedEntityKey === 'colaboradores'
-              ? ''
-              : lockedEntityKey === 'ativos'
-                ? ''
-                : lockedEntityKey === 'contatos'
-                  ? ''
-                  : lockedEntityKey === 'linhas_corporativas'
-                    ? ''
-                : lockedEntityKey === 'infra_estrutura'
-                  ? ''
-                : lockedEntityKey === 'termos_posse'
-                  ? ''
-                : 'Edite apenas os campos que existem hoje no banco.'
-          }
-          record={editingRecord?.id ? editingRecord : null}
-          fields={current.fields}
-          loading={saveMutation.isPending}
-          hideDescription={lockedEntityKey === 'unidades' || lockedEntityKey === 'termos_posse' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' || lockedEntityKey === 'linhas_corporativas'}
-          dialogClassName={
-            lockedEntityKey === 'unidades'
-              ? 'max-w-[520px] rounded-[16px] border bg-background p-6 text-foreground shadow-[0_30px_80px_rgba(0,0,0,0.18)]'
-              : lockedEntityKey === 'contatos'
-                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
-              : lockedEntityKey === 'linhas_corporativas'
-                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
-              : lockedEntityKey === 'infra_estrutura'
-                ? 'w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg sm:rounded-lg'
-                : lockedEntityKey === 'ativos'
-                  ? 'max-w-[460px] rounded-[12px] p-3.5'
-                : lockedEntityKey === 'termos_posse'
-                  ? 'max-w-[760px] rounded-[14px] p-4'
-                : undefined
-          }
-          formClassName={
-            lockedEntityKey === 'unidades'
-              ? 'grid gap-5 sm:grid-cols-2'
-              : lockedEntityKey === 'contatos'
-                ? 'mt-2 grid gap-4 sm:grid-cols-2'
-              : lockedEntityKey === 'linhas_corporativas'
-                ? 'mt-2 grid gap-4 sm:grid-cols-2'
-              : lockedEntityKey === 'infra_estrutura'
-                ? 'mt-2 space-y-4'
-              : lockedEntityKey === 'ativos'
-                ? 'grid gap-2.5 sm:grid-cols-2'
-                : lockedEntityKey === 'termos_posse'
-                  ? 'grid gap-3 sm:grid-cols-2'
-                : undefined
-          }
-          footerClassName={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'justify-end gap-3 pt-2 sm:space-x-0' : undefined}
-          cancelLabel={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'Cancelar' : undefined}
-          submitLabel={
-            lockedEntityKey === 'unidades'
-              ? editingRecord?.id
-                ? 'Salvar'
-                : 'Cadastrar'
-              : lockedEntityKey === 'contatos'
-                ? editingRecord?.id
-                  ? 'Salvar'
-                  : 'Cadastrar'
-              : lockedEntityKey === 'infra_estrutura'
-                ? editingRecord?.id
-                  ? 'Salvar'
-                  : 'Cadastrar'
-              : undefined
-          }
-          cancelButtonClassName={lockedEntityKey === 'unidades' || lockedEntityKey === 'infra_estrutura' || lockedEntityKey === 'contatos' ? 'h-9 rounded-md px-4 py-2 text-sm font-medium' : undefined}
-          submitButtonClassName={
-            lockedEntityKey === 'unidades'
-              ? 'h-10 rounded-lg bg-[#d1131f] px-6 text-[15px] text-white hover:bg-[#b50f1a]'
-              : lockedEntityKey === 'contatos'
-                ? 'h-9 gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90'
-              : lockedEntityKey === 'infra_estrutura'
-                ? 'h-9 gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90'
-              : lockedEntityKey === 'ativos'
-                ? 'h-8 rounded-lg px-4 text-[13px]'
-                : lockedEntityKey === 'termos_posse'
-                  ? 'h-9 rounded-lg px-4 text-[13px]'
-                : undefined
-          }
           onSubmit={(payload) => saveMutation.mutateAsync({ record: editingRecord?.id ? editingRecord : null, payload })}
+          singularLabel={entityMeta[lockedEntityKey].singular}
         />
       ) : null}
 
-      <AssetAssignmentDialog
-        collaborators={collaborators}
-        loading={assignUserMutation.isPending}
-        onOpenChange={(open) => {
-          if (!open) setAssigningAsset(null);
+      <CatalogAuxDialogs
+        assetAssignment={{
+          collaborators,
+          loading: assignUserMutation.isPending,
+          onOpenChange: (open) => {
+            if (!open) setAssigningAsset(null);
+          },
+          onSubmit: (payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload }),
+          open: assigningAsset !== null,
+          record: assigningAsset,
         }}
-        onSubmit={(payload) => assignUserMutation.mutateAsync({ id: assigningAsset.id, payload })}
-        open={assigningAsset !== null}
-        record={assigningAsset}
-      />
-
-      <CorporateLineAssignmentDialog
-        collaborators={collaborators}
-        loading={assignCorporateLineMutation.isPending}
-        onOpenChange={(open) => {
-          if (!open) setAssigningCorporateLine(null);
-        }}
-        onSubmit={(payload) =>
-          assignCorporateLineMutation.mutateAsync({
-            id: assigningCorporateLine.id,
-            payload: {
-              ...payload,
-              status: payload.colaborador_id ? 'em_uso' : 'disponivel',
-            },
-          })
-        }
-        open={assigningCorporateLine !== null}
-        record={assigningCorporateLine}
-      />
-
-      <CollaboratorLinksDialog
-        assets={viewingCollaboratorLinks ? linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || [] : []}
-        collaborator={viewingCollaboratorLinks}
-        departmentName={
-          viewingCollaboratorLinks
+        collaboratorLinks={{
+          assets: viewingCollaboratorLinks ? linkedAssetsByCollaboratorId[viewingCollaboratorLinks.id] || [] : [],
+          collaborator: viewingCollaboratorLinks,
+          departmentName: viewingCollaboratorLinks
             ? departments.find((item) => item.id === viewingCollaboratorLinks.departamento_id)?.nome || 'Sem departamento'
-            : 'Sem departamento'
-        }
-        formatDate={formatDate}
-        formatPhone={formatPhone}
-        lines={viewingCollaboratorLinks ? linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || [] : []}
-        onOpenChange={(open) => {
-          if (!open) setViewingCollaboratorLinks(null);
-        }}
-        open={viewingCollaboratorLinks !== null}
-        unitName={
-          viewingCollaboratorLinks
+            : 'Sem departamento',
+          formatDate,
+          formatPhone,
+          lines: viewingCollaboratorLinks ? linkedLinesByCollaboratorId[viewingCollaboratorLinks.id] || [] : [],
+          onOpenChange: (open) => {
+            if (!open) setViewingCollaboratorLinks(null);
+          },
+          open: viewingCollaboratorLinks !== null,
+          unitName: viewingCollaboratorLinks
             ? units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'
-            : 'Sem unidade'
-        }
+            : 'Sem unidade',
+        }}
+        corporateLineAssignment={{
+          collaborators,
+          loading: assignCorporateLineMutation.isPending,
+          onOpenChange: (open) => {
+            if (!open) setAssigningCorporateLine(null);
+          },
+          onSubmit: (payload) =>
+            assignCorporateLineMutation.mutateAsync({
+              id: assigningCorporateLine.id,
+              payload: {
+                ...payload,
+                status: payload.colaborador_id ? 'em_uso' : 'disponivel',
+              },
+            }),
+          open: assigningCorporateLine !== null,
+          record: assigningCorporateLine,
+        }}
+        passwordReset={{
+          form: passwordForm,
+          isPending: passwordMutation.isPending,
+          onClose: () => {
+            setPasswordRecord(null);
+            setPasswordForm({ password: '', confirmPassword: '' });
+          },
+          onConfirmPasswordChange: (value) => setPasswordForm((current) => ({ ...current, confirmPassword: value })),
+          onCopyPassword: handleCopyPassword,
+          onGeneratePassword: handleGeneratePassword,
+          onPasswordChange: (value) => setPasswordForm((current) => ({ ...current, password: value })),
+          onSubmit: handleSubmitPassword,
+          open: passwordRecord !== null,
+        }}
       />
 
-      <AssetActionsMenu
-        menu={assetMenu}
-        onAssign={assetMenuHandlers.onAssign}
-        onDelete={assetMenuHandlers.onDelete}
-        onEdit={assetMenuHandlers.onEdit}
-      />
-
-      <ContactActionsMenu
-        menu={contactMenu}
-        onDelete={contactMenuHandlers.onDelete}
-        onEdit={contactMenuHandlers.onEdit}
-      />
-
-      <CorporateLineActionsMenu
-        menu={corporateLineMenu}
-        onAssign={corporateLineMenuHandlers.onAssign}
-        onDelete={corporateLineMenuHandlers.onDelete}
-        onEdit={corporateLineMenuHandlers.onEdit}
-      />
-
-      <InfrastructureActionsMenu
-        menu={infrastructureMenu}
-        onDelete={infrastructureMenuHandlers.onDelete}
-        onEdit={infrastructureMenuHandlers.onEdit}
-      />
-
-      <CollaboratorActionsMenu
-        canUnlinkAll={collaboratorCanUnlinkAll}
+      <CatalogActionMenus
+        assetMenu={assetMenu}
+        assetMenuHandlers={assetMenuHandlers}
+        collaboratorCanUnlinkAll={collaboratorCanUnlinkAll}
+        collaboratorMenu={collaboratorMenu}
+        collaboratorMenuHandlers={collaboratorMenuHandlers}
+        contactMenu={contactMenu}
+        contactMenuHandlers={contactMenuHandlers}
+        corporateLineMenu={corporateLineMenu}
+        corporateLineMenuHandlers={corporateLineMenuHandlers}
+        infrastructureMenu={infrastructureMenu}
+        infrastructureMenuHandlers={infrastructureMenuHandlers}
         isUnlinking={unlinkAssignmentsMutation.isPending}
-        menu={collaboratorMenu}
-        onDelete={collaboratorMenuHandlers.onDelete}
-        onEdit={collaboratorMenuHandlers.onEdit}
-        onResetPassword={collaboratorMenuHandlers.onResetPassword}
-        onUnlinkAll={collaboratorMenuHandlers.onUnlinkAll}
       />
 
       <CatalogImportDialogs
@@ -1013,29 +770,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         }}
       />
 
-      <PasswordResetDialog
-        form={passwordForm}
-        isPending={passwordMutation.isPending}
-        onClose={() => {
-          setPasswordRecord(null);
-          setPasswordForm({ password: '', confirmPassword: '' });
-        }}
-        onConfirmPasswordChange={(value) => setPasswordForm((current) => ({ ...current, confirmPassword: value }))}
-        onCopyPassword={handleCopyPassword}
-        onGeneratePassword={handleGeneratePassword}
-        onPasswordChange={(value) => setPasswordForm((current) => ({ ...current, password: value }))}
-        onSubmit={handleSubmitPassword}
-        open={passwordRecord !== null}
-      />
-
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
   );
 }
-
-
-
-
-
-
-
