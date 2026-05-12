@@ -1,0 +1,51 @@
+{
+  "name": "Report",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do relat\u00f3rio"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do relat\u00f3rio"
+    },
+    "embed_code": {
+      "type": "string",
+      "description": "C\u00f3digo embed do Power BI (iframe completo)"
+    },
+    "unit_id": {
+      "type": "string",
+      "description": "ID da unidade associada"
+    },
+    "unit_name": {
+      "type": "string",
+      "description": "Nome da unidade (para exibi\u00e7\u00e3o r\u00e1pida)"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "gerencial",
+        "financeiro",
+        "operacional",
+        "comercial",
+        "rh",
+        "outros"
+      ],
+      "description": "Categoria do relat\u00f3rio"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Nome do \u00edcone (lucide)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se o relat\u00f3rio est\u00e1 ativo"
+    }
+  },
+  "required": [
+    "title",
+    "embed_code"
+  ]
+}

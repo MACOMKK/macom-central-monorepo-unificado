@@ -1,0 +1,22 @@
+{
+  "name": "Unit",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome da unidade (ex: Bel\u00e9m, S\u00e3o Paulo)"
+    },
+    "code": {
+      "type": "string",
+      "description": "C\u00f3digo da unidade"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Se a unidade est\u00e1 ativa"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
