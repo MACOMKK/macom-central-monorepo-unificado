@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, HardDrive, MonitorCog, UsersRound, Wrench } from 'lucide-react';
 
@@ -7,66 +7,62 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { catalogApi } from '@/lib/catalogApi';
 
-function polarToCartesian(cx, cy, radius, angleDeg) {
-  const angleRad = ((angleDeg - 90) * Math.PI) / 180.0;
-  return {
-    x: cx + radius * Math.cos(angleRad),
-    y: cy + radius * Math.sin(angleRad),
-  };
-}
-
-function describeDonutSegment(cx, cy, outerRadius, innerRadius, startAngle, endAngle) {
-  const outerStart = polarToCartesian(cx, cy, outerRadius, endAngle);
-  const outerEnd = polarToCartesian(cx, cy, outerRadius, startAngle);
-  const innerStart = polarToCartesian(cx, cy, innerRadius, startAngle);
-  const innerEnd = polarToCartesian(cx, cy, innerRadius, endAngle);
-  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-
-  return [
-    'M', outerStart.x, outerStart.y,
-    'A', outerRadius, outerRadius, 0, largeArcFlag, 0, outerEnd.x, outerEnd.y,
-    'L', innerStart.x, innerStart.y,
-    'A', innerRadius, innerRadius, 0, largeArcFlag, 1, innerEnd.x, innerEnd.y,
-    'Z',
-  ].join(' ');
-}
-
 function DonutChart({ data }) {
+  const [animated, setAnimated] = useState(false);
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const radius = 80;
-  const circumferenceGap = 4;
   const strokeWidth = 40;
-  const innerRadius = radius - strokeWidth / 2;
-  const outerRadius = radius + strokeWidth / 2;
-  let currentAngle = 0;
+  const circumference = 2 * Math.PI * radius;
+  const gapSize = 7;
+
+  useEffect(() => {
+    setAnimated(false);
+    const frame = window.requestAnimationFrame(() => {
+      setAnimated(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [data]);
+
+  let cumulativeLength = 0;
 
   return (
     <div className="flex h-[250px] flex-col items-center justify-center">
       {total ? (
         <svg viewBox="0 0 240 240" className="h-[220px] w-[220px]">
-          <circle cx="120" cy="120" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="40" />
+          <circle cx="120" cy="120" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth={strokeWidth} />
           {data.map((item) => {
-            const sweep = (item.value / total) * 360;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + Math.max(sweep - circumferenceGap, 0);
-            currentAngle += sweep;
-
             if (item.value === 0) return null;
 
-            const segmentD = describeDonutSegment(120, 120, outerRadius, innerRadius, startAngle, endAngle);
+            const segmentLength = (item.value / total) * circumference;
+            const visibleLength = Math.max(segmentLength - gapSize, 0);
+            const dashLength = animated ? visibleLength : 0;
+            const dashOffset = -cumulativeLength;
+            const delay = 120 + (cumulativeLength / circumference) * 520;
+            cumulativeLength += segmentLength;
 
             return (
-              <path
+              <circle
                 key={item.label}
-                d={segmentD}
-                fill={item.color}
-                stroke="rgba(255,255,255,0.95)"
-                strokeWidth="1"
-                strokeLinejoin="round"
+                cx="120"
+                cy="120"
+                r={radius}
+                fill="none"
+                stroke={item.color}
+                strokeWidth={strokeWidth}
+                strokeLinecap="butt"
+                strokeDasharray={`${dashLength} ${circumference}`}
+                strokeDashoffset={dashOffset}
+                transform="rotate(-90 120 120)"
+                style={{
+                  opacity: animated ? 1 : 0.45,
+                  transition: 'stroke-dasharray 1200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 600ms ease',
+                  transitionDelay: `${delay}ms`,
+                }}
               />
             );
           })}
-          <circle cx="120" cy="120" r={innerRadius} fill="hsl(var(--card))" />
+          <circle cx="120" cy="120" r={radius - strokeWidth / 2} fill="hsl(var(--card))" />
         </svg>
       ) : (
         <div className="py-16 text-center text-sm text-muted-foreground">Nenhum dado para exibir</div>
@@ -84,7 +80,17 @@ function DonutChart({ data }) {
 }
 
 function HorizontalBarChart({ data, maxValue }) {
+  const [animated, setAnimated] = useState(false);
   const chartMax = Math.max(maxValue, 1);
+
+  useEffect(() => {
+    setAnimated(false);
+    const frame = window.requestAnimationFrame(() => {
+      setAnimated(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [data, maxValue]);
 
   if (!data.length) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Nenhum dado para exibir</div>;
@@ -92,7 +98,7 @@ function HorizontalBarChart({ data, maxValue }) {
 
   return (
     <div className="flex h-[280px] flex-col justify-center gap-5">
-      {data.map((item) => (
+      {data.map((item, index) => (
         <div key={item.label} className="grid grid-cols-[80px_1fr] items-center gap-4">
           <div className="truncate text-[11px] text-muted-foreground">{item.label}</div>
           <div className="relative h-10">
@@ -103,7 +109,11 @@ function HorizontalBarChart({ data, maxValue }) {
             </div>
             <div
               className="relative h-10 rounded-r-md bg-[#e50914]"
-              style={{ width: `${(item.value / chartMax) * 100}%` }}
+              style={{
+                width: animated ? `${(item.value / chartMax) * 100}%` : '0%',
+                transition: 'width 850ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transitionDelay: `${120 + index * 90}ms`,
+              }}
             />
           </div>
         </div>
