@@ -4,14 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --config apps/central/vite.config.js",
-    "build": "vite build --config apps/central/vite.config.js",
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
     "lint": "eslint apps/central/src --quiet",
     "lint:fix": "eslint apps/central/src --fix",
-    "test": "vitest --config apps/central/vite.config.js",
-    "test:run": "vitest run --config apps/central/vite.config.js",
+    "test": "vitest --configLoader runner",
+    "test:run": "vitest run --configLoader runner",
     "typecheck": "tsc -p ./apps/central/jsconfig.json",
-    "preview": "vite preview --config apps/central/vite.config.js"
+    "preview": "vite preview --configLoader runner"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",

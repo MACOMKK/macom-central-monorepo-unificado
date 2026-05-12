@@ -3,7 +3,17 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@macom/api-client": ["../../packages/api-client/src/index.js"],
+      "@macom/api-client/*": ["../../packages/api-client/src/*"],
+      "@macom/auth": ["../../packages/auth/src/index.js"],
+      "@macom/auth/*": ["../../packages/auth/src/*"],
+      "@macom/test-utils": ["../../packages/test-utils/src/index.js"],
+      "@macom/test-utils/*": ["../../packages/test-utils/src/*"],
+      "@macom/ui": ["../../packages/ui/src/index.js"],
+      "@macom/ui/*": ["../../packages/ui/src/*"],
+      "@macom/validation": ["../../packages/validation/src/index.js"],
+      "@macom/validation/*": ["../../packages/validation/src/*"]
     }
   },
   "include": ["src/**/*.js", "src/**/*.jsx"],

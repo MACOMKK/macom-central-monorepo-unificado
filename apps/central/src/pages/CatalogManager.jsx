@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, FileText, Globe, KeyRound, MapPinHouse, Monitor, Network, RefreshCw, Search, Trash2, Upload, UserPlus } from 'lucide-react';
+import { Building2, Globe, Monitor, Network, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FeedbackToast from '@/components/ui/feedback-toast';
-import { Input } from '@/components/ui/input';
 import CatalogAuxDialogs from '@/pages/catalog-manager/components/CatalogAuxDialogs';
 import CatalogActionMenus from '@/pages/catalog-manager/components/CatalogActionMenus';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
@@ -41,6 +38,7 @@ import { useCatalogImportActions } from '@/pages/catalog-manager/hooks/useCatalo
 import { useCatalogMutations } from '@/pages/catalog-manager/hooks/useCatalogMutations';
 import { useCatalogPasswordActions } from '@/pages/catalog-manager/hooks/useCatalogPasswordActions';
 import { useCatalogViewState } from '@/pages/catalog-manager/hooks/useCatalogViewState';
+import { hasExactDigits, normalizeText, resolveIdByName } from '@macom/validation';
 import {
   countAssetsByDepartmentId,
   countAssetsByUnitId,
@@ -50,7 +48,6 @@ import {
   createSelectOptions,
   indexById,
 } from '@/pages/catalog-manager/utils/buildConfigLookups';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { catalogApi } from '@/lib/catalogApi';
 
 function formatDate(dateString) {
@@ -77,66 +74,9 @@ function formatPhone(phone) {
   return phone;
 }
 
-function hasExactDigits(value, length) {
-  return String(value || '').replace(/\D/g, '').length === length;
-}
-
 function generatePassword(length = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
   return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-function levenshteinDistance(source, target) {
-  const rows = source.length + 1;
-  const cols = target.length + 1;
-  const matrix = Array.from({ length: rows }, () => Array(cols).fill(0));
-
-  for (let row = 0; row < rows; row += 1) matrix[row][0] = row;
-  for (let col = 0; col < cols; col += 1) matrix[0][col] = col;
-
-  for (let row = 1; row < rows; row += 1) {
-    for (let col = 1; col < cols; col += 1) {
-      const cost = source[row - 1] === target[col - 1] ? 0 : 1;
-      matrix[row][col] = Math.min(
-        matrix[row - 1][col] + 1,
-        matrix[row][col - 1] + 1,
-        matrix[row - 1][col - 1] + cost
-      );
-    }
-  }
-
-  return matrix[source.length][target.length];
-}
-
-function resolveIdByName(rawValue, options) {
-  const normalizedInput = normalizeText(rawValue);
-  if (!normalizedInput) return null;
-
-  const exactMatch = options.find((option) => option.normalized === normalizedInput);
-  if (exactMatch) return exactMatch.id;
-
-  let bestMatch = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const option of options) {
-    const distance = levenshteinDistance(normalizedInput, option.normalized);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestMatch = option;
-    }
-  }
-
-  const maxDistance = normalizedInput.length <= 6 ? 1 : 2;
-  return bestDistance <= maxDistance ? bestMatch?.id || null : null;
 }
 
 export default function CatalogManager({ lockedEntityKey }) {
