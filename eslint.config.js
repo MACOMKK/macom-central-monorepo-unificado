@@ -7,11 +7,11 @@ import pluginUnusedImports from "eslint-plugin-unused-imports";
 export default [
   {
     files: [
-      "src/components/**/*.{js,mjs,cjs,jsx}",
-      "src/pages/**/*.{js,mjs,cjs,jsx}",
-      "src/Layout.jsx",
+      "apps/central/src/components/**/*.{js,mjs,cjs,jsx}",
+      "apps/central/src/pages/**/*.{js,mjs,cjs,jsx}",
+      "apps/central/src/App.jsx",
     ],
-    ignores: ["src/lib/**/*", "src/components/ui/**/*"],
+    ignores: ["apps/central/src/lib/**/*", "apps/central/src/components/ui/**/*"],
     ...pluginJs.configs.recommended,
     ...pluginReact.configs.flat.recommended,
     languageOptions: {

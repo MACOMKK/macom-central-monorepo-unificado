@@ -1,0 +1,16 @@
+{
+  "name": "central",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint src --quiet",
+    "lint:fix": "eslint src --fix",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc -p ./jsconfig.json",
+    "preview": "vite preview"
+  }
+}
