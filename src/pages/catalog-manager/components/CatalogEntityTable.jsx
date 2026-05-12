@@ -14,30 +14,41 @@ const MENU_TYPES_BY_ENTITY = {
 };
 
 export default function CatalogEntityTable({
+  allRowsSelected = false,
   columns,
   entityKey,
   isLoading,
   onDelete,
   onEdit,
   onRowClick,
+  onToggleAllRows,
+  onToggleRowSelection,
   rows,
+  selectedRowIds = [],
   toggleRowMenu,
 }) {
   const menuType = MENU_TYPES_BY_ENTITY[entityKey];
   const isCenteredActions = Boolean(menuType);
   const isCollaborators = entityKey === 'colaboradores';
+  const isInfrastructure = entityKey === 'infra_estrutura';
 
   return (
-    <CatalogTableShell columns={columns} entityKey={entityKey}>
+    <CatalogTableShell
+      allRowsSelected={allRowsSelected}
+      columns={columns}
+      entityKey={entityKey}
+      onToggleAllRows={onToggleAllRows}
+      showSelection={isInfrastructure}
+    >
       {isLoading ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={columns.length + 1 + (isInfrastructure ? 1 : 0)} className="py-12 text-center text-muted-foreground">
             Carregando...
           </TableCell>
         </TableRow>
       ) : rows.length === 0 ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={columns.length + 1 + (isInfrastructure ? 1 : 0)} className="py-12 text-center text-muted-foreground">
             Nenhum registro encontrado
           </TableCell>
         </TableRow>
@@ -48,6 +59,16 @@ export default function CatalogEntityTable({
             className={`transition-colors hover:bg-muted/30 ${isCollaborators ? 'cursor-pointer' : ''}`}
             onClick={isCollaborators ? () => onRowClick?.(row) : undefined}
           >
+            {isInfrastructure ? (
+              <TableCell onClick={(event) => event.stopPropagation()}>
+                <input
+                  aria-label={`Selecionar infraestrutura ${row.nome || row.id}`}
+                  checked={selectedRowIds.includes(row.id)}
+                  onChange={(event) => onToggleRowSelection?.(row.id, event.target.checked)}
+                  type="checkbox"
+                />
+              </TableCell>
+            ) : null}
             {columns.map((column) => (
               <TableCell key={`${row.id}-${column.key}`} className={isCollaborators ? 'py-3 text-[14px]' : ''}>
                 {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}

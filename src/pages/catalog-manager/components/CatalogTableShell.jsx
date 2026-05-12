@@ -1,7 +1,14 @@
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-export default function CatalogTableShell({ children, columns, entityKey }) {
+export default function CatalogTableShell({
+  allRowsSelected = false,
+  children,
+  columns,
+  entityKey,
+  onToggleAllRows,
+  showSelection = false,
+}) {
   const isCenteredActionsHeader =
     entityKey === 'colaboradores' ||
     entityKey === 'ativos' ||
@@ -15,6 +22,16 @@ export default function CatalogTableShell({ children, columns, entityKey }) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              {showSelection ? (
+                <TableHead className="w-12">
+                  <input
+                    aria-label="Selecionar todos os registros de infraestrutura"
+                    checked={allRowsSelected}
+                    onChange={(event) => onToggleAllRows?.(event.target.checked)}
+                    type="checkbox"
+                  />
+                </TableHead>
+              ) : null}
               {columns.map((column) => (
                 <TableHead key={column.key} className={entityKey === 'colaboradores' ? 'text-[13px] font-semibold' : 'font-bold'}>
                   {column.label}

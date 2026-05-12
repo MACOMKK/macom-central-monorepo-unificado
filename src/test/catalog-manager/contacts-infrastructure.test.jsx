@@ -232,4 +232,75 @@ describe('CatalogManager contacts and infrastructure', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('Falha ao remover infraestrutura.');
     });
   });
+
+  it('remove varios registros de infraestrutura selecionados de uma vez', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.infra_estrutura.list.mockResolvedValue([
+      {
+        id: 'infra-bulk-1',
+        tipo: 'ip',
+        nome: 'Servidor A',
+        valor_identificador: '10.0.0.10',
+        unidade_id: 'unit-1',
+      },
+      {
+        id: 'infra-bulk-2',
+        tipo: 'link',
+        nome: 'Sistema B',
+        valor_identificador: 'https://sistema-b.macom.com',
+        unidade_id: 'unit-1',
+      },
+    ]);
+
+    renderCatalogManager('infra_estrutura');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar infraestrutura Servidor A' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar infraestrutura Sistema B' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    await waitFor(() => {
+      expect(catalogApi.infra_estrutura.remove).toHaveBeenCalledWith('infra-bulk-1');
+      expect(catalogApi.infra_estrutura.remove).toHaveBeenCalledWith('infra-bulk-2');
+    });
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente excluir 2 registro(s) de infraestrutura selecionado(s)?'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('2 registro(s) removido(s) com sucesso.');
+  });
+
+  it('nao remove registros de infraestrutura selecionados quando a exclusao em lote e cancelada', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(false);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.infra_estrutura.list.mockResolvedValue([
+      {
+        id: 'infra-bulk-cancel-1',
+        tipo: 'ip',
+        nome: 'Servidor Cancelado 1',
+        valor_identificador: '10.0.0.21',
+        unidade_id: 'unit-1',
+      },
+      {
+        id: 'infra-bulk-cancel-2',
+        tipo: 'ip',
+        nome: 'Servidor Cancelado 2',
+        valor_identificador: '10.0.0.22',
+        unidade_id: 'unit-1',
+      },
+    ]);
+
+    renderCatalogManager('infra_estrutura');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar infraestrutura Servidor Cancelado 1' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar infraestrutura Servidor Cancelado 2' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente excluir 2 registro(s) de infraestrutura selecionado(s)?'
+    );
+    expect(catalogApi.infra_estrutura.remove).not.toHaveBeenCalled();
+  });
 });

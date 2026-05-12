@@ -80,6 +80,46 @@ export function useCatalogMutations({
     onError: (error) => showMutationError(error, 'Falha ao remover registro.'),
   });
 
+  const deleteManyMutation = useMutation({
+    mutationFn: async (ids) => {
+      const results = await Promise.allSettled(ids.map((id) => catalogApi[lockedEntityKey].remove(id)));
+
+      return results.reduce(
+        (acc, result, index) => {
+          if (result.status === 'fulfilled') {
+            acc.removedIds.push(ids[index]);
+          } else {
+            acc.failedIds.push(ids[index]);
+          }
+
+          return acc;
+        },
+        { failedIds: [], removedIds: [] },
+      );
+    },
+    onSuccess: ({ failedIds, removedIds }) => {
+      if (removedIds.length) {
+        queryClient.invalidateQueries({ queryKey: [currentQueryKey] });
+      }
+
+      if (!failedIds.length) {
+        setFeedback({
+          type: 'success',
+          message: `${removedIds.length} registro(s) removido(s) com sucesso.`,
+        });
+        return;
+      }
+
+      setFeedback({
+        type: 'error',
+        message: removedIds.length
+          ? `${removedIds.length} registro(s) removido(s), mas ${failedIds.length} falharam.`
+          : 'Falha ao remover os registros selecionados.',
+      });
+    },
+    onError: (error) => showMutationError(error, 'Falha ao remover os registros selecionados.'),
+  });
+
   const assignUserMutation = useMutation({
     mutationFn: async ({ id, payload }) => catalogApi.ativos.update(id, payload),
     onSuccess: () =>
@@ -208,6 +248,7 @@ export function useCatalogMutations({
     assignCorporateLineMutation,
     assignUserMutation,
     deleteMutation,
+    deleteManyMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
     importInfrastructureMutation,

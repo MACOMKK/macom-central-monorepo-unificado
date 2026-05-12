@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, FileText, Globe, KeyRound, MapPinHouse, Monitor, Network, RefreshCw, Search, Trash2, Upload, UserPlus } from 'lucide-react';
@@ -171,6 +171,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorUnitFilter, setCollaboratorUnitFilter] = useState('all');
   const [collaboratorDepartmentFilter, setCollaboratorDepartmentFilter] = useState('all');
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
+  const [selectedInfrastructureIds, setSelectedInfrastructureIds] = useState([]);
   const [feedback, setFeedback] = useState(null);
 
   const { closeMenu, getMenu, runWithClosedMenu, toggleRowMenu } = useActionMenu();
@@ -434,6 +435,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const {
     assignCorporateLineMutation,
     assignUserMutation,
+    deleteManyMutation,
     deleteMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
@@ -461,6 +463,19 @@ export default function CatalogManager({ lockedEntityKey }) {
     setFeedback,
     units,
   });
+
+  useEffect(() => {
+    if (!isInfrastructureView) {
+      setSelectedInfrastructureIds((currentSelection) => (currentSelection.length ? [] : currentSelection));
+      return;
+    }
+
+    const availableIds = new Set(infraRows.map((row) => row.id));
+    setSelectedInfrastructureIds((currentSelection) => {
+      const nextSelection = currentSelection.filter((selectedId) => availableIds.has(selectedId));
+      return nextSelection.length === currentSelection.length ? currentSelection : nextSelection;
+    });
+  }, [infraRows, isInfrastructureView]);
 
   const {
     assetMenuHandlers,
@@ -542,6 +557,40 @@ export default function CatalogManager({ lockedEntityKey }) {
     setPasswordForm,
   });
 
+  const allInfrastructureRowsSelected =
+    isInfrastructureView &&
+    rows.length > 0 &&
+    rows.every((row) => selectedInfrastructureIds.includes(row.id));
+
+  const handleToggleInfrastructureSelection = (rowId, checked) => {
+    setSelectedInfrastructureIds((currentSelection) =>
+      checked
+        ? [...currentSelection, rowId]
+        : currentSelection.filter((selectedId) => selectedId !== rowId)
+    );
+  };
+
+  const handleToggleAllInfrastructureRows = (checked) => {
+    setSelectedInfrastructureIds(checked ? rows.map((row) => row.id) : []);
+  };
+
+  const handleDeleteSelectedInfrastructure = async () => {
+    if (!selectedInfrastructureIds.length) return;
+
+    const confirmed = window.confirm(
+      `Deseja realmente excluir ${selectedInfrastructureIds.length} registro(s) de infraestrutura selecionado(s)?`
+    );
+
+    if (!confirmed) return;
+
+    const result = await deleteManyMutation.mutateAsync(selectedInfrastructureIds);
+    if (result?.removedIds?.length) {
+      setSelectedInfrastructureIds((currentSelection) =>
+        currentSelection.filter((selectedId) => !result.removedIds.includes(selectedId))
+      );
+    }
+  };
+
   return (
     <div className="space-y-6">
       <CatalogHeader
@@ -592,6 +641,26 @@ export default function CatalogManager({ lockedEntityKey }) {
       ) : (
         <SearchToolbar onSearchChange={setSearch} placeholder={current.searchPlaceholder} search={search} />
       )}
+
+      {isInfrastructureView && selectedInfrastructureIds.length > 0 ? (
+        <Card className="flex flex-col gap-3 border-destructive/20 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {selectedInfrastructureIds.length} registro(s) de infraestrutura selecionado(s)
+            </p>
+            <p className="text-sm text-muted-foreground">Use a exclusao em lote para remover varios itens de uma vez.</p>
+          </div>
+          <Button
+            className="sm:self-auto"
+            disabled={deleteManyMutation.isPending}
+            onClick={handleDeleteSelectedInfrastructure}
+            variant="destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+            Excluir selecionados
+          </Button>
+        </Card>
+      ) : null}
 
       {lockedEntityKey === 'departamentos' ? (
         isLoading ? (
@@ -644,13 +713,17 @@ export default function CatalogManager({ lockedEntityKey }) {
         )
       ) : (
         <CatalogEntityTable
+          allRowsSelected={allInfrastructureRowsSelected}
           columns={current.columns}
           entityKey={lockedEntityKey}
           isLoading={isLoading}
           onDelete={(rowId) => deleteMutation.mutate(rowId)}
           onEdit={setEditingRecord}
           onRowClick={setViewingCollaboratorLinks}
+          onToggleAllRows={handleToggleAllInfrastructureRows}
+          onToggleRowSelection={handleToggleInfrastructureSelection}
           rows={rows}
+          selectedRowIds={selectedInfrastructureIds}
           toggleRowMenu={toggleRowMenu}
         />
       )}
