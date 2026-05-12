@@ -220,12 +220,12 @@ export default function CatalogManager({ lockedEntityKey }) {
   const departments = departmentsQuery.data || [];
   const units = unitsQuery.data || [];
   const collaborators = collaboratorsQuery.data || [];
+  const activeCollaborators = collaborators.filter((collaborator) => collaborator.status !== 'inativo');
   const contacts = contactsQuery.data || [];
   const corporateLines = corporateLinesQuery.data || [];
   const assets = assetsQuery.data || [];
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
-
 
   const linkedAssetsByCollaboratorId = useMemo(
     () =>
@@ -255,13 +255,14 @@ export default function CatalogManager({ lockedEntityKey }) {
     const departmentOptions = createSelectOptions(departments);
     const unitOptions = createSelectOptions(units);
     const collaboratorOptions = createCollaboratorOptions(collaborators);
+    const activeCollaboratorOptions = createCollaboratorOptions(activeCollaborators);
     const assetOptions = createAssetOptions(assets);
     const assetsByProfileId = countByKey(assets, 'usuario_id');
     const linesByProfileId = countByKey(corporateLines, 'colaborador_id');
-    const collaboratorsByDepartmentId = countByKey(collaborators, 'departamento_id');
+    const collaboratorsByDepartmentId = countByKey(activeCollaborators, 'departamento_id');
     const collaboratorsById = indexById(collaborators);
     const assetsByDepartmentId = countAssetsByDepartmentId(assets, collaboratorsById);
-    const collaboratorsByUnitId = countByKey(collaborators, 'unidade_id');
+    const collaboratorsByUnitId = countByKey(activeCollaborators, 'unidade_id');
     const assetsByUnitId = countAssetsByUnitId(assets);
 
     return {
@@ -317,7 +318,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         statusTone,
         unitOptions,
         units,
-        collaboratorOptions,
+        collaboratorOptions: activeCollaboratorOptions,
         Badge,
       }),
       ativos: buildAssetsConfig({
@@ -325,7 +326,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         assetConditionOptions,
         assets,
         collaborators,
-        collaboratorOptions,
+        collaboratorOptions: activeCollaboratorOptions,
         statusTone,
         unitOptions,
         units,
@@ -352,7 +353,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         terms,
       }),
     };
-  }, [assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, terms, units]);
+  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, terms, units]);
 
   const loadingByEntity = {
     ativos: assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
@@ -400,6 +401,34 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportInfrastructureOpen(false);
     setImportInfrastructureFile(null);
     setImportInfrastructurePreview([]);
+  };
+
+  const handleDeleteDepartment = (departmentId) => {
+    const hasLinkedCollaborators = collaborators.some((collaborator) => collaborator.departamento_id === departmentId);
+
+    if (hasLinkedCollaborators) {
+      setFeedback({ type: 'error', message: 'Nao e permitido excluir um departamento com colaboradores vinculados.' });
+      return;
+    }
+
+    const confirmed = window.confirm('Deseja realmente excluir este departamento?');
+    if (!confirmed) return;
+
+    deleteMutation.mutate(departmentId);
+  };
+
+  const handleDeleteUnit = (unitId) => {
+    const hasLinkedCollaborators = collaborators.some((collaborator) => collaborator.unidade_id === unitId);
+
+    if (hasLinkedCollaborators) {
+      setFeedback({ type: 'error', message: 'Nao e permitido excluir uma unidade com colaboradores vinculados.' });
+      return;
+    }
+
+    const confirmed = window.confirm('Deseja realmente excluir esta unidade?');
+    if (!confirmed) return;
+
+    deleteMutation.mutate(unitId);
   };
 
   const {
@@ -584,7 +613,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             assetsByDepartmentId={current.cardStats?.assetsByDepartmentId}
             collaboratorsByDepartmentId={current.cardStats?.collaboratorsByDepartmentId}
             departments={rows}
-            onDelete={(departmentId) => deleteMutation.mutate(departmentId)}
+            onDelete={handleDeleteDepartment}
             onEdit={setEditingRecord}
           />
         )
@@ -608,7 +637,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             assetsByUnitId={current.cardStats?.assetsByUnitId}
             collaboratorsByUnitId={current.cardStats?.collaboratorsByUnitId}
             formatPhone={formatPhone}
-            onDelete={(unitId) => deleteMutation.mutate(unitId)}
+            onDelete={handleDeleteUnit}
             onEdit={setEditingRecord}
             units={rows}
           />
@@ -642,7 +671,7 @@ export default function CatalogManager({ lockedEntityKey }) {
 
       <CatalogAuxDialogs
         assetAssignment={{
-          collaborators,
+          collaborators: activeCollaborators,
           loading: assignUserMutation.isPending,
           onOpenChange: (open) => {
             if (!open) setAssigningAsset(null);
@@ -669,7 +698,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             : 'Sem unidade',
         }}
         corporateLineAssignment={{
-          collaborators,
+          collaborators: activeCollaborators,
           loading: assignCorporateLineMutation.isPending,
           onOpenChange: (open) => {
             if (!open) setAssigningCorporateLine(null);

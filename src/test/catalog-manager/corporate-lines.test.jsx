@@ -34,6 +34,32 @@ describe('CatalogManager corporate lines', () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
+  it('nao exibe colaboradores inativos na lista de vinculacao de linhas corporativas', async () => {
+    const user = userEvent.setup();
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao Ativo', email: 'joao@macom.com', status: 'ativo' },
+      { id: 'col-2', nome: 'Maria Inativa', email: 'maria@macom.com', status: 'inativo' },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.linhas_corporativas.list.mockResolvedValue([
+      {
+        id: 'line-2',
+        numero: '85988887777',
+        nome: 'Linha Diretoria',
+        operadora: 'Claro',
+      },
+    ]);
+
+    renderCatalogManager('linhas_corporativas');
+
+    const trigger = await screen.findByRole('button', { name: 'Abrir menu de acoes' });
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Vincular colaborador' }));
+
+    expect(await screen.findByText('Joao Ativo')).toBeInTheDocument();
+    expect(screen.queryByText('Maria Inativa')).not.toBeInTheDocument();
+  });
+
   it('valida campos obrigatorios ao criar uma nova linha corporativa', async () => {
     const user = userEvent.setup();
     catalogApi.ativos.list.mockResolvedValue([]);

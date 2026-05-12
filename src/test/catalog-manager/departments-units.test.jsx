@@ -50,6 +50,7 @@ describe('CatalogManager departments and units', () => {
 
   it('remove departamento pelo card', async () => {
     const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
     catalogApi.ativos.list.mockResolvedValue([]);
     catalogApi.colaboradores.list.mockResolvedValue([]);
     catalogApi.departamentos.list.mockResolvedValue([
@@ -67,6 +68,65 @@ describe('CatalogManager departments and units', () => {
     await waitFor(() => {
       expect(deleteMutateMock).toHaveBeenCalledWith('dep-1');
     });
+    expect(window.confirm).toHaveBeenCalled();
+  });
+
+  it('nao remove departamento com colaborador vinculado', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao', departamento_id: 'dep-1' },
+    ]);
+    catalogApi.departamentos.list.mockResolvedValue([
+      { id: 'dep-1', nome: 'Tecnologia', descricao: 'TI' },
+    ]);
+
+    renderCatalogManager('departamentos');
+
+    const cardTitle = await screen.findByText('Tecnologia');
+    const card = cardTitle.closest('div[class]')?.parentElement?.parentElement;
+    const buttons = within(card).getAllByRole('button');
+    await user.click(buttons[1]);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Nao e permitido excluir um departamento com colaboradores vinculados.');
+    expect(deleteMutateMock).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
+  it('nao remove departamento quando a exclusao e cancelada', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(false);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([]);
+    catalogApi.departamentos.list.mockResolvedValue([
+      { id: 'dep-1', nome: 'Tecnologia', descricao: 'TI' },
+    ]);
+
+    renderCatalogManager('departamentos');
+
+    const cardTitle = await screen.findByText('Tecnologia');
+    const card = cardTitle.closest('div[class]')?.parentElement?.parentElement;
+    const buttons = within(card).getAllByRole('button');
+    await user.click(buttons[1]);
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(deleteMutateMock).not.toHaveBeenCalled();
+  });
+
+  it('ignora colaboradores inativos na contagem de departamentos', async () => {
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao', departamento_id: 'dep-1', status: 'ativo' },
+      { id: 'col-2', nome: 'Maria', departamento_id: 'dep-1', status: 'inativo' },
+    ]);
+    catalogApi.departamentos.list.mockResolvedValue([
+      { id: 'dep-1', nome: 'Tecnologia', descricao: 'TI' },
+    ]);
+
+    renderCatalogManager('departamentos');
+
+    expect(await screen.findByText('Tecnologia')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   it('valida campos obrigatorios ao criar uma nova unidade', async () => {
@@ -117,6 +177,7 @@ describe('CatalogManager departments and units', () => {
 
   it('remove unidade pelo card', async () => {
     const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
     catalogApi.ativos.list.mockResolvedValue([]);
     catalogApi.colaboradores.list.mockResolvedValue([]);
     catalogApi.unidades.list.mockResolvedValue([
@@ -134,5 +195,64 @@ describe('CatalogManager departments and units', () => {
     await waitFor(() => {
       expect(deleteMutateMock).toHaveBeenCalledWith('unit-1');
     });
+    expect(window.confirm).toHaveBeenCalled();
+  });
+
+  it('nao remove unidade com colaborador vinculado', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao', unidade_id: 'unit-1' },
+    ]);
+    catalogApi.unidades.list.mockResolvedValue([
+      { id: 'unit-1', nome: 'Matriz', cidade: 'Fortaleza', ativo: true },
+    ]);
+
+    renderCatalogManager('unidades');
+
+    const cardTitle = await screen.findByText('Matriz');
+    const card = cardTitle.closest('div[class]')?.parentElement?.parentElement?.parentElement;
+    const buttons = within(card).getAllByRole('button');
+    await user.click(buttons[1]);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Nao e permitido excluir uma unidade com colaboradores vinculados.');
+    expect(deleteMutateMock).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
+  it('nao remove unidade quando a exclusao e cancelada', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(false);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([]);
+    catalogApi.unidades.list.mockResolvedValue([
+      { id: 'unit-1', nome: 'Matriz', cidade: 'Fortaleza', ativo: true },
+    ]);
+
+    renderCatalogManager('unidades');
+
+    const cardTitle = await screen.findByText('Matriz');
+    const card = cardTitle.closest('div[class]')?.parentElement?.parentElement?.parentElement;
+    const buttons = within(card).getAllByRole('button');
+    await user.click(buttons[1]);
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(deleteMutateMock).not.toHaveBeenCalled();
+  });
+
+  it('ignora colaboradores inativos na contagem de unidades', async () => {
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao', unidade_id: 'unit-1', status: 'ativo' },
+      { id: 'col-2', nome: 'Maria', unidade_id: 'unit-1', status: 'inativo' },
+    ]);
+    catalogApi.unidades.list.mockResolvedValue([
+      { id: 'unit-1', nome: 'Matriz', cidade: 'Fortaleza', ativo: true },
+    ]);
+
+    renderCatalogManager('unidades');
+
+    expect(await screen.findByText('Matriz')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 });

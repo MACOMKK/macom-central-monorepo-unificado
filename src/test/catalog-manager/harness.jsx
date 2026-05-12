@@ -158,11 +158,37 @@ vi.mock('@/components/ui/table', () => ({
   TableRow: ({ children, ...props }) => <tr {...props}>{children}</tr>,
 }));
 
-vi.mock('@/pages/catalog-manager/components/AssetAssignmentDialog', () => ({ default: () => null }));
+vi.mock('@/pages/catalog-manager/components/AssetAssignmentDialog', () => ({
+  default: ({ collaborators, onOpenChange, open }) =>
+    open ? (
+      <div>
+        <h2>Vincular Usuario</h2>
+        <button type="button" onClick={() => onOpenChange(false)}>Fechar vinculacao de ativo</button>
+        <ul>
+          {collaborators.map((item) => (
+            <li key={item.id}>{item.nome || item.email || item.id}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null,
+}));
 vi.mock('@/pages/catalog-manager/components/AssetsToolbar', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/CollaboratorLinksDialog', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/CollaboratorsToolbar', () => ({ default: () => null }));
-vi.mock('@/pages/catalog-manager/components/CorporateLineAssignmentDialog', () => ({ default: () => null }));
+vi.mock('@/pages/catalog-manager/components/CorporateLineAssignmentDialog', () => ({
+  default: ({ collaborators, onOpenChange, open }) =>
+    open ? (
+      <div>
+        <h2>Vincular Responsavel</h2>
+        <button type="button" onClick={() => onOpenChange(false)}>Fechar vinculacao de linha</button>
+        <ul>
+          {collaborators.map((item) => (
+            <li key={item.id}>{item.nome || item.email || item.id}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null,
+}));
 vi.mock('@/pages/catalog-manager/components/InfrastructureImportDialog', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/ImportPreviewTable', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/PasswordResetDialog', () => ({ default: () => null }));

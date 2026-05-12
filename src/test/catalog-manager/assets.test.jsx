@@ -64,6 +64,34 @@ describe('CatalogManager assets', () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
+  it('nao exibe colaboradores inativos na lista de vinculacao de ativos', async () => {
+    const user = userEvent.setup();
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-1', nome: 'Joao Ativo', email: 'joao@macom.com', status: 'ativo' },
+      { id: 'col-2', nome: 'Maria Inativa', email: 'maria@macom.com', status: 'inativo' },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([
+      {
+        id: 'asset-3',
+        nome: 'Notebook Dell',
+        categoria: 'Notebook',
+        numero_serie: 'SN-003',
+        patrimonio: 'PAT-003',
+        unidade_id: 'unit-1',
+        status: 'disponivel',
+      },
+    ]);
+
+    renderCatalogManager('ativos');
+
+    const trigger = await screen.findByRole('button', { name: 'Abrir menu de acoes' });
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Vincular colaborador' }));
+
+    expect(await screen.findByText('Joao Ativo')).toBeInTheDocument();
+    expect(screen.queryByText('Maria Inativa')).not.toBeInTheDocument();
+  });
+
   it('valida campos obrigatorios ao criar um novo ativo', async () => {
     const user = userEvent.setup();
     catalogApi.ativos.list.mockResolvedValue([]);
