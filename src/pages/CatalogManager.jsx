@@ -150,6 +150,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
   const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
   const isBulkDeleteView =
+    lockedEntityKey === 'ativos' ||
     lockedEntityKey === 'infra_estrutura' ||
     lockedEntityKey === 'linhas_corporativas' ||
     lockedEntityKey === 'contatos';
@@ -581,6 +582,20 @@ export default function CatalogManager({ lockedEntityKey }) {
   const handleDeleteSelectedRows = async () => {
     if (!selectedBulkIds.length) return;
 
+    if (isAssetsView) {
+      const hasLinkedUsers = rows.some(
+        (row) => selectedBulkIds.includes(row.id) && row.usuario_id
+      );
+
+      if (hasLinkedUsers) {
+        setFeedback({
+          type: 'error',
+          message: 'Nao e permitido excluir ativos com usuario vinculado.',
+        });
+        return;
+      }
+    }
+
     if (isCorporateLinesView) {
       const hasLinkedCollaborators = rows.some(
         (row) => selectedBulkIds.includes(row.id) && row.colaborador_id
@@ -596,7 +611,9 @@ export default function CatalogManager({ lockedEntityKey }) {
     }
 
     const selectionLabel =
-      lockedEntityKey === 'contatos'
+      lockedEntityKey === 'ativos'
+        ? 'ativo(s)'
+        : lockedEntityKey === 'contatos'
         ? 'contato(s)'
         : lockedEntityKey === 'linhas_corporativas'
           ? 'linha(s) corporativa(s)'

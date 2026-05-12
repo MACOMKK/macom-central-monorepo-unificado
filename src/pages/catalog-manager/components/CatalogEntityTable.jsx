@@ -14,6 +14,7 @@ const MENU_TYPES_BY_ENTITY = {
 };
 
 const SELECTION_LABELS_BY_ENTITY = {
+  ativos: 'ativo',
   contatos: 'contato',
   infra_estrutura: 'infraestrutura',
   linhas_corporativas: 'linha corporativa',

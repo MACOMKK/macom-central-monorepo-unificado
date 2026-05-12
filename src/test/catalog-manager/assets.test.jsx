@@ -64,6 +64,84 @@ describe('CatalogManager assets', () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
+  it('remove varios ativos selecionados de uma vez', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
+    catalogApi.ativos.list.mockResolvedValue([
+      {
+        id: 'asset-bulk-1',
+        nome: 'Notebook A',
+        categoria: 'Notebook',
+        numero_serie: 'SN-BULK-1',
+        patrimonio: 'PAT-BULK-1',
+        unidade_id: 'unit-1',
+        status: 'disponivel',
+      },
+      {
+        id: 'asset-bulk-2',
+        nome: 'Notebook B',
+        categoria: 'Notebook',
+        numero_serie: 'SN-BULK-2',
+        patrimonio: 'PAT-BULK-2',
+        unidade_id: 'unit-1',
+        status: 'disponivel',
+      },
+    ]);
+
+    renderCatalogManager('ativos');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar ativo Notebook A' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar ativo Notebook B' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    await waitFor(() => {
+      expect(catalogApi.ativos.remove).toHaveBeenCalledWith('asset-bulk-1');
+      expect(catalogApi.ativos.remove).toHaveBeenCalledWith('asset-bulk-2');
+    });
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente excluir 2 ativo(s) selecionado(s)?'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('2 registro(s) removido(s) com sucesso.');
+  });
+
+  it('bloqueia exclusao em lote de ativos quando houver usuario vinculado', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([
+      {
+        id: 'asset-bulk-linked-1',
+        nome: 'Notebook Vinculado',
+        categoria: 'Notebook',
+        numero_serie: 'SN-BULK-LINKED',
+        patrimonio: 'PAT-BULK-LINKED',
+        unidade_id: 'unit-1',
+        usuario_id: 'col-1',
+        status: 'em_uso',
+      },
+      {
+        id: 'asset-bulk-free-1',
+        nome: 'Notebook Livre',
+        categoria: 'Notebook',
+        numero_serie: 'SN-BULK-FREE',
+        patrimonio: 'PAT-BULK-FREE',
+        unidade_id: 'unit-1',
+        status: 'disponivel',
+      },
+    ]);
+
+    renderCatalogManager('ativos');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar ativo Notebook Vinculado' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar ativo Notebook Livre' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Nao e permitido excluir ativos com usuario vinculado.'
+    );
+    expect(catalogApi.ativos.remove).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
   it('nao exibe colaboradores inativos na lista de vinculacao de ativos', async () => {
     const user = userEvent.setup();
     catalogApi.colaboradores.list.mockResolvedValue([
