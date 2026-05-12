@@ -34,6 +34,38 @@ describe('CatalogManager corporate lines', () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
+  it('bloqueia exclusao em lote de linhas corporativas vinculadas', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.linhas_corporativas.list.mockResolvedValue([
+      {
+        id: 'line-bulk-1',
+        numero: '85911111111',
+        nome: 'Linha Vinculada',
+        operadora: 'Claro',
+        colaborador_id: 'col-1',
+      },
+      {
+        id: 'line-bulk-2',
+        numero: '85922222222',
+        nome: 'Linha Livre',
+        operadora: 'Vivo',
+      },
+    ]);
+
+    renderCatalogManager('linhas_corporativas');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar linha corporativa Linha Vinculada' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar linha corporativa Linha Livre' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Nao e permitido excluir linhas corporativas com colaborador vinculado.'
+    );
+    expect(catalogApi.linhas_corporativas.remove).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
   it('nao exibe colaboradores inativos na lista de vinculacao de linhas corporativas', async () => {
     const user = userEvent.setup();
     catalogApi.colaboradores.list.mockResolvedValue([

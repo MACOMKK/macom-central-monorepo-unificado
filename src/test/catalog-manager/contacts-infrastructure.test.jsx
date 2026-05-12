@@ -124,6 +124,44 @@ describe('CatalogManager contacts and infrastructure', () => {
     expect(catalogApi.contatos.remove).not.toHaveBeenCalled();
   });
 
+  it('remove varios contatos selecionados de uma vez', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.contatos.list.mockResolvedValue([
+      {
+        id: 'contact-bulk-1',
+        tipo: 'fornecedor',
+        nome: 'Fornecedor A',
+        telefone: '85999999999',
+        email: 'a@fornecedor.com',
+      },
+      {
+        id: 'contact-bulk-2',
+        tipo: 'fornecedor',
+        nome: 'Fornecedor B',
+        telefone: '85888888888',
+        email: 'b@fornecedor.com',
+      },
+    ]);
+
+    renderCatalogManager('contatos');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar contato Fornecedor A' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar contato Fornecedor B' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    await waitFor(() => {
+      expect(catalogApi.contatos.remove).toHaveBeenCalledWith('contact-bulk-1');
+      expect(catalogApi.contatos.remove).toHaveBeenCalledWith('contact-bulk-2');
+    });
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente excluir 2 contato(s) selecionado(s)?'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('2 registro(s) removido(s) com sucesso.');
+  });
+
   it('valida campos obrigatorios ao criar um novo registro de infraestrutura', async () => {
     const user = userEvent.setup();
     catalogApi.ativos.list.mockResolvedValue([]);

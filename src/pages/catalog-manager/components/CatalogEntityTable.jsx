@@ -13,6 +13,12 @@ const MENU_TYPES_BY_ENTITY = {
   linhas_corporativas: 'corporateLine',
 };
 
+const SELECTION_LABELS_BY_ENTITY = {
+  contatos: 'contato',
+  infra_estrutura: 'infraestrutura',
+  linhas_corporativas: 'linha corporativa',
+};
+
 export default function CatalogEntityTable({
   allRowsSelected = false,
   columns,
@@ -30,7 +36,8 @@ export default function CatalogEntityTable({
   const menuType = MENU_TYPES_BY_ENTITY[entityKey];
   const isCenteredActions = Boolean(menuType);
   const isCollaborators = entityKey === 'colaboradores';
-  const isInfrastructure = entityKey === 'infra_estrutura';
+  const showSelection = Boolean(SELECTION_LABELS_BY_ENTITY[entityKey]);
+  const selectionLabel = SELECTION_LABELS_BY_ENTITY[entityKey];
 
   return (
     <CatalogTableShell
@@ -38,17 +45,18 @@ export default function CatalogEntityTable({
       columns={columns}
       entityKey={entityKey}
       onToggleAllRows={onToggleAllRows}
-      showSelection={isInfrastructure}
+      selectionLabel={selectionLabel}
+      showSelection={showSelection}
     >
       {isLoading ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1 + (isInfrastructure ? 1 : 0)} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={columns.length + 1 + (showSelection ? 1 : 0)} className="py-12 text-center text-muted-foreground">
             Carregando...
           </TableCell>
         </TableRow>
       ) : rows.length === 0 ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1 + (isInfrastructure ? 1 : 0)} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={columns.length + 1 + (showSelection ? 1 : 0)} className="py-12 text-center text-muted-foreground">
             Nenhum registro encontrado
           </TableCell>
         </TableRow>
@@ -59,10 +67,10 @@ export default function CatalogEntityTable({
             className={`transition-colors hover:bg-muted/30 ${isCollaborators ? 'cursor-pointer' : ''}`}
             onClick={isCollaborators ? () => onRowClick?.(row) : undefined}
           >
-            {isInfrastructure ? (
+            {showSelection ? (
               <TableCell onClick={(event) => event.stopPropagation()}>
                 <input
-                  aria-label={`Selecionar infraestrutura ${row.nome || row.id}`}
+                  aria-label={`Selecionar ${selectionLabel} ${row.nome || row.numero || row.id}`}
                   checked={selectedRowIds.includes(row.id)}
                   onChange={(event) => onToggleRowSelection?.(row.id, event.target.checked)}
                   type="checkbox"

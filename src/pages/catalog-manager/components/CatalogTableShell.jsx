@@ -7,6 +7,7 @@ export default function CatalogTableShell({
   columns,
   entityKey,
   onToggleAllRows,
+  selectionLabel,
   showSelection = false,
 }) {
   const isCenteredActionsHeader =
@@ -25,7 +26,7 @@ export default function CatalogTableShell({
               {showSelection ? (
                 <TableHead className="w-12">
                   <input
-                    aria-label="Selecionar todos os registros de infraestrutura"
+                    aria-label={`Selecionar todos os registros de ${selectionLabel}`}
                     checked={allRowsSelected}
                     onChange={(event) => onToggleAllRows?.(event.target.checked)}
                     type="checkbox"
