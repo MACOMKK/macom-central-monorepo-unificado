@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 
 import {
   catalogApi,
+  readImportFileRows,
   renderCatalogManager,
   resetCatalogManagerMocks,
 } from '@/test/catalog-manager/harness';
@@ -160,6 +161,46 @@ describe('CatalogManager contacts and infrastructure', () => {
       'Deseja realmente excluir 2 contato(s) selecionado(s)?'
     );
     expect(screen.getByRole('alert')).toHaveTextContent('2 registro(s) removido(s) com sucesso.');
+  });
+
+  it('importa contatos com sucesso a partir do preview carregado', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        tipo: 'fornecedor',
+        nome: 'Fornecedor Importado',
+        identificador: '12345678000190',
+        descricao: 'Suporte tecnico',
+        nome_contato: 'Carlos Silva',
+        telefone: '85999999999',
+        email: 'contato@fornecedor.com',
+        unidade: 'Matriz',
+      },
+    ]);
+
+    renderCatalogManager('contatos');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar contatos' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de contatos');
+    const file = new File(['fake'], 'contatos.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de contatos' }));
+
+    await waitFor(() => {
+      expect(catalogApi.contatos.create).toHaveBeenCalledWith({
+        tipo: 'fornecedor',
+        nome: 'Fornecedor Importado',
+        identificador: '12345678000190',
+        descricao: 'Suporte tecnico',
+        nome_contato: 'Carlos Silva',
+        telefone: '85999999999',
+        email: 'contato@fornecedor.com',
+        unidade_id: 'unit-1',
+      });
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('1 contato(s) importado(s) com sucesso.');
   });
 
   it('valida campos obrigatorios ao criar um novo registro de infraestrutura', async () => {

@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 export default function CatalogHeader({
   importAssetsPending,
   importCollaboratorsPending,
+  importContactsPending,
+  importCorporateLinesPending,
   importInfrastructurePending,
   lockedEntityKey,
   onExportAssetsCsv,
   onExportCollaboratorsCsv,
   onImportAssets,
   onImportCollaborators,
+  onImportContacts,
+  onImportCorporateLines,
   onImportInfrastructure,
   onNewRecord,
   singularLabel,
@@ -75,6 +79,28 @@ export default function CatalogHeader({
             className="h-10 gap-2 rounded-xl px-4 text-[14px]"
             onClick={onImportInfrastructure}
             disabled={importInfrastructurePending}
+          >
+            <Upload className="h-4 w-4" /> Importar
+          </Button>
+        ) : null}
+        {lockedEntityKey === 'contatos' ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+            onClick={onImportContacts}
+            disabled={importContactsPending}
+          >
+            <Upload className="h-4 w-4" /> Importar
+          </Button>
+        ) : null}
+        {lockedEntityKey === 'linhas_corporativas' ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+            onClick={onImportCorporateLines}
+            disabled={importCorporateLinesPending}
           >
             <Upload className="h-4 w-4" /> Importar
           </Button>

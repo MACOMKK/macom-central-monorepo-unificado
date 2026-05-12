@@ -190,6 +190,30 @@ vi.mock('@/pages/catalog-manager/components/CorporateLineAssignmentDialog', () =
     ) : null,
 }));
 vi.mock('@/pages/catalog-manager/components/InfrastructureImportDialog', () => ({ default: () => null }));
+vi.mock('@/pages/catalog-manager/components/ContactsImportDialog', () => ({
+  default: ({ onConfirm, onFileChange, onOpenChange, open, preview }) =>
+    open ? (
+      <div>
+        <h2>Importar Contatos</h2>
+        <input aria-label="Arquivo de importacao de contatos" type="file" onChange={onFileChange} />
+        <div>{preview}</div>
+        <button type="button" onClick={() => onOpenChange(false)}>Cancelar importacao de contatos</button>
+        <button type="button" onClick={onConfirm}>Confirmar importacao de contatos</button>
+      </div>
+    ) : null,
+}));
+vi.mock('@/pages/catalog-manager/components/CorporateLinesImportDialog', () => ({
+  default: ({ onConfirm, onFileChange, onOpenChange, open, preview }) =>
+    open ? (
+      <div>
+        <h2>Importar Linhas Corporativas</h2>
+        <input aria-label="Arquivo de importacao de linhas corporativas" type="file" onChange={onFileChange} />
+        <div>{preview}</div>
+        <button type="button" onClick={() => onOpenChange(false)}>Cancelar importacao de linhas</button>
+        <button type="button" onClick={onConfirm}>Confirmar importacao de linhas corporativas</button>
+      </div>
+    ) : null,
+}));
 vi.mock('@/pages/catalog-manager/components/ImportPreviewTable', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/PasswordResetDialog', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/SearchToolbar', () => ({ default: () => null }));
@@ -275,11 +299,13 @@ vi.mock('@/pages/catalog-manager/components/CollaboratorActionsMenu', () => ({
 }));
 
 vi.mock('@/pages/catalog-manager/components/CatalogHeader', () => ({
-  default: ({ lockedEntityKey, onImportAssets, onImportCollaborators, onNewRecord, singularLabel, title }) => (
+  default: ({ lockedEntityKey, onImportAssets, onImportCollaborators, onImportContacts, onImportCorporateLines, onNewRecord, singularLabel, title }) => (
     <div>
       <div>{title}</div>
       {lockedEntityKey === 'ativos' ? <button type="button" onClick={onImportAssets}>Importar ativos</button> : null}
       {lockedEntityKey === 'colaboradores' ? <button type="button" onClick={onImportCollaborators}>Importar colaboradores</button> : null}
+      {lockedEntityKey === 'contatos' ? <button type="button" onClick={onImportContacts}>Importar contatos</button> : null}
+      {lockedEntityKey === 'linhas_corporativas' ? <button type="button" onClick={onImportCorporateLines}>Importar linhas corporativas</button> : null}
       <button type="button" onClick={onNewRecord}>{`Novo ${singularLabel}`}</button>
     </div>
   ),
@@ -302,6 +328,10 @@ vi.mock('@/pages/catalog-manager/utils/importExportHelpers', () => ({
   downloadAssetsTemplate: vi.fn(),
   downloadCollaboratorsJsonTemplate: vi.fn(),
   downloadCollaboratorsTemplate: vi.fn(),
+  downloadContactsJsonTemplate: vi.fn(),
+  downloadContactsTemplate: vi.fn(),
+  downloadCorporateLinesJsonTemplate: vi.fn(),
+  downloadCorporateLinesTemplate: vi.fn(),
   downloadInfrastructureJsonTemplate: vi.fn(),
   downloadInfrastructureTemplate: vi.fn(),
   exportAssetsCsv: vi.fn(),

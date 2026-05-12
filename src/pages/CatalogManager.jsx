@@ -151,6 +151,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
   const isBulkDeleteView =
     lockedEntityKey === 'ativos' ||
+    lockedEntityKey === 'colaboradores' ||
     lockedEntityKey === 'infra_estrutura' ||
     lockedEntityKey === 'linhas_corporativas' ||
     lockedEntityKey === 'contatos';
@@ -169,6 +170,12 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [importCollaboratorsOpen, setImportCollaboratorsOpen] = useState(false);
   const [importCollaboratorsFile, setImportCollaboratorsFile] = useState(null);
   const [importCollaboratorsPreview, setImportCollaboratorsPreview] = useState([]);
+  const [importContactsOpen, setImportContactsOpen] = useState(false);
+  const [importContactsFile, setImportContactsFile] = useState(null);
+  const [importContactsPreview, setImportContactsPreview] = useState([]);
+  const [importCorporateLinesOpen, setImportCorporateLinesOpen] = useState(false);
+  const [importCorporateLinesFile, setImportCorporateLinesFile] = useState(null);
+  const [importCorporateLinesPreview, setImportCorporateLinesPreview] = useState([]);
   const [search, setSearch] = useState('');
   const [assetStatusFilter, setAssetStatusFilter] = useState('all');
   const [assetCategoryFilter, setAssetCategoryFilter] = useState('all');
@@ -403,6 +410,18 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportCollaboratorsPreview([]);
   };
 
+  const resetImportContactsDialog = () => {
+    setImportContactsOpen(false);
+    setImportContactsFile(null);
+    setImportContactsPreview([]);
+  };
+
+  const resetImportCorporateLinesDialog = () => {
+    setImportCorporateLinesOpen(false);
+    setImportCorporateLinesFile(null);
+    setImportCorporateLinesPreview([]);
+  };
+
   const resetImportInfrastructureDialog = () => {
     setImportInfrastructureOpen(false);
     setImportInfrastructureFile(null);
@@ -444,6 +463,8 @@ export default function CatalogManager({ lockedEntityKey }) {
     deleteMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
+    importContactsMutation,
+    importCorporateLinesMutation,
     importInfrastructureMutation,
     passwordMutation,
     saveMutation,
@@ -462,6 +483,8 @@ export default function CatalogManager({ lockedEntityKey }) {
     },
     onResetAssetsImport: resetImportAssetsDialog,
     onResetCollaboratorsImport: resetImportCollaboratorsDialog,
+    onResetContactsImport: resetImportContactsDialog,
+    onResetCorporateLinesImport: resetImportCorporateLinesDialog,
     onResetInfrastructureImport: resetImportInfrastructureDialog,
     onSaveSuccess: () => setEditingRecord(null),
     resolveIdByName,
@@ -511,20 +534,30 @@ export default function CatalogManager({ lockedEntityKey }) {
   const {
     handleConfirmImportAssets,
     handleConfirmImportCollaborators,
+    handleConfirmImportContacts,
+    handleConfirmImportCorporateLines,
     handleConfirmImportInfrastructure,
     handleDownloadAssetsJsonTemplate,
     handleDownloadAssetsTemplate,
     handleDownloadCollaboratorsJsonTemplate,
     handleDownloadCollaboratorsTemplate,
+    handleDownloadContactsJsonTemplate,
+    handleDownloadContactsTemplate,
+    handleDownloadCorporateLinesJsonTemplate,
+    handleDownloadCorporateLinesTemplate,
     handleDownloadInfrastructureJsonTemplate,
     handleDownloadInfrastructureTemplate,
     handleExportAssetsCsv,
     handleExportCollaboratorsCsv,
     handleImportAssetsFile,
     handleImportCollaboratorsFile,
+    handleImportContactsFile,
+    handleImportCorporateLinesFile,
     handleImportInfrastructureFile,
     openAssetsImportDialog,
     openCollaboratorsImportDialog,
+    openContactsImportDialog,
+    openCorporateLinesImportDialog,
     openInfrastructureImportDialog,
   } = useCatalogImportActions({
     assets,
@@ -532,9 +565,15 @@ export default function CatalogManager({ lockedEntityKey }) {
     departments,
     importAssetsMutation,
     importAssetsPreview,
+    importContactsFile,
+    importContactsMutation,
+    importContactsPreview,
     importCollaboratorsFile,
     importCollaboratorsMutation,
     importCollaboratorsPreview,
+    importCorporateLinesFile,
+    importCorporateLinesMutation,
+    importCorporateLinesPreview,
     importFile,
     importInfrastructureFile,
     importInfrastructureMutation,
@@ -545,6 +584,12 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportCollaboratorsFile,
     setImportCollaboratorsOpen,
     setImportCollaboratorsPreview,
+    setImportContactsFile,
+    setImportContactsOpen,
+    setImportContactsPreview,
+    setImportCorporateLinesFile,
+    setImportCorporateLinesOpen,
+    setImportCorporateLinesPreview,
     setImportFile,
     setImportInfrastructureFile,
     setImportInfrastructureOpen,
@@ -596,6 +641,23 @@ export default function CatalogManager({ lockedEntityKey }) {
       }
     }
 
+    if (isCollaboratorsView) {
+      const hasLinkedItems = rows.some((row) => {
+        if (!selectedBulkIds.includes(row.id)) return false;
+        const assetsCount = linkedAssetsByCollaboratorId[row.id]?.length || 0;
+        const linesCount = linkedLinesByCollaboratorId[row.id]?.length || 0;
+        return assetsCount + linesCount > 0;
+      });
+
+      if (hasLinkedItems) {
+        setFeedback({
+          type: 'error',
+          message: 'Nao e permitido excluir colaboradores com itens vinculados.',
+        });
+        return;
+      }
+    }
+
     if (isCorporateLinesView) {
       const hasLinkedCollaborators = rows.some(
         (row) => selectedBulkIds.includes(row.id) && row.colaborador_id
@@ -613,11 +675,13 @@ export default function CatalogManager({ lockedEntityKey }) {
     const selectionLabel =
       lockedEntityKey === 'ativos'
         ? 'ativo(s)'
+        : lockedEntityKey === 'colaboradores'
+          ? 'colaborador(es)'
         : lockedEntityKey === 'contatos'
-        ? 'contato(s)'
+          ? 'contato(s)'
         : lockedEntityKey === 'linhas_corporativas'
-          ? 'linha(s) corporativa(s)'
-          : 'registro(s) de infraestrutura';
+            ? 'linha(s) corporativa(s)'
+            : 'registro(s) de infraestrutura';
 
     const confirmed = window.confirm(
       `Deseja realmente excluir ${selectedBulkIds.length} ${selectionLabel} selecionado(s)?`
@@ -638,12 +702,16 @@ export default function CatalogManager({ lockedEntityKey }) {
       <CatalogHeader
         importAssetsPending={importAssetsMutation.isPending}
         importCollaboratorsPending={importCollaboratorsMutation.isPending}
+        importContactsPending={importContactsMutation.isPending}
+        importCorporateLinesPending={importCorporateLinesMutation.isPending}
         importInfrastructurePending={importInfrastructureMutation.isPending}
         lockedEntityKey={lockedEntityKey}
         onExportAssetsCsv={handleExportAssetsCsv}
         onExportCollaboratorsCsv={handleExportCollaboratorsCsv}
         onImportAssets={openAssetsImportDialog}
         onImportCollaborators={openCollaboratorsImportDialog}
+        onImportContacts={openContactsImportDialog}
+        onImportCorporateLines={openCorporateLinesImportDialog}
         onImportInfrastructure={openInfrastructureImportDialog}
         onNewRecord={() => setEditingRecord({})}
         singularLabel={entityMeta[lockedEntityKey].singular}
@@ -894,6 +962,40 @@ export default function CatalogManager({ lockedEntityKey }) {
           },
           open: importCollaboratorsOpen,
           previewRows: importCollaboratorsPreview,
+        }}
+        contactsImport={{
+          fileName: importContactsFile?.name,
+          isPending: importContactsMutation.isPending,
+          onClose: resetImportContactsDialog,
+          onConfirm: handleConfirmImportContacts,
+          onDownloadCsvTemplate: handleDownloadContactsTemplate,
+          onDownloadJsonTemplate: handleDownloadContactsJsonTemplate,
+          onFileChange: handleImportContactsFile,
+          onOpenChange: (open) => {
+            setImportContactsOpen(open);
+            if (!open) {
+              resetImportContactsDialog();
+            }
+          },
+          open: importContactsOpen,
+          previewRows: importContactsPreview,
+        }}
+        corporateLinesImport={{
+          fileName: importCorporateLinesFile?.name,
+          isPending: importCorporateLinesMutation.isPending,
+          onClose: resetImportCorporateLinesDialog,
+          onConfirm: handleConfirmImportCorporateLines,
+          onDownloadCsvTemplate: handleDownloadCorporateLinesTemplate,
+          onDownloadJsonTemplate: handleDownloadCorporateLinesJsonTemplate,
+          onFileChange: handleImportCorporateLinesFile,
+          onOpenChange: (open) => {
+            setImportCorporateLinesOpen(open);
+            if (!open) {
+              resetImportCorporateLinesDialog();
+            }
+          },
+          open: importCorporateLinesOpen,
+          previewRows: importCorporateLinesPreview,
         }}
         infrastructureImport={{
           fileName: importInfrastructureFile?.name,

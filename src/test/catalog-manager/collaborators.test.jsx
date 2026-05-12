@@ -40,6 +40,66 @@ describe('CatalogManager collaborators', () => {
     expect(window.confirm).not.toHaveBeenCalled();
   });
 
+  it('remove varios colaboradores selecionados de uma vez', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-bulk-1', nome: 'Ana Silva', email: 'ana@macom.com', status: 'ativo' },
+      { id: 'col-bulk-2', nome: 'Bruno Lima', email: 'bruno@macom.com', status: 'ativo' },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.linhas_corporativas.list.mockResolvedValue([]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar colaborador Ana Silva' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar colaborador Bruno Lima' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    await waitFor(() => {
+      expect(catalogApi.colaboradores.remove).toHaveBeenCalledWith('col-bulk-1');
+      expect(catalogApi.colaboradores.remove).toHaveBeenCalledWith('col-bulk-2');
+    });
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente excluir 2 colaborador(es) selecionado(s)?'
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('2 registro(s) removido(s) com sucesso.');
+  });
+
+  it('bloqueia exclusao em lote de colaboradores quando houver itens vinculados', async () => {
+    const user = userEvent.setup();
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-bulk-linked-1', nome: 'Carlos Vinculado', email: 'carlos@macom.com', status: 'ativo' },
+      { id: 'col-bulk-free-1', nome: 'Debora Livre', email: 'debora@macom.com', status: 'ativo' },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([
+      {
+        id: 'asset-col-linked-1',
+        nome: 'Notebook Vinculado',
+        categoria: 'Notebook',
+        numero_serie: 'SN-COL-LINKED',
+        patrimonio: 'PAT-COL-LINKED',
+        unidade_id: 'unit-1',
+        usuario_id: 'col-bulk-linked-1',
+        status: 'em_uso',
+      },
+    ]);
+    catalogApi.linhas_corporativas.list.mockResolvedValue([]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Selecionar colaborador Carlos Vinculado' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Selecionar colaborador Debora Livre' }));
+    await user.click(screen.getByRole('button', { name: /Excluir selecionados/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Nao e permitido excluir colaboradores com itens vinculados.'
+    );
+    expect(catalogApi.colaboradores.remove).not.toHaveBeenCalled();
+    expect(window.confirm).not.toHaveBeenCalled();
+  });
+
   it('exibe a acao de desvincular tudo para colaborador inativo com itens vinculados', async () => {
     const user = userEvent.setup();
     window.confirm.mockReturnValue(true);

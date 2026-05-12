@@ -3,6 +3,10 @@ import {
   downloadAssetsTemplate,
   downloadCollaboratorsJsonTemplate,
   downloadCollaboratorsTemplate,
+  downloadContactsJsonTemplate,
+  downloadContactsTemplate,
+  downloadCorporateLinesJsonTemplate,
+  downloadCorporateLinesTemplate,
   downloadInfrastructureJsonTemplate,
   downloadInfrastructureTemplate,
   exportAssetsCsv,
@@ -17,8 +21,14 @@ export function useCatalogImportActions({
   departments,
   importAssetsMutation,
   importAssetsPreview,
+  importContactsFile,
+  importContactsMutation,
+  importContactsPreview,
   importCollaboratorsMutation,
   importCollaboratorsPreview,
+  importCorporateLinesFile,
+  importCorporateLinesMutation,
+  importCorporateLinesPreview,
   importFile,
   importInfrastructureMutation,
   importInfrastructurePreview,
@@ -30,6 +40,12 @@ export function useCatalogImportActions({
   setImportCollaboratorsFile,
   setImportCollaboratorsOpen,
   setImportCollaboratorsPreview,
+  setImportContactsFile,
+  setImportContactsOpen,
+  setImportContactsPreview,
+  setImportCorporateLinesFile,
+  setImportCorporateLinesOpen,
+  setImportCorporateLinesPreview,
   setImportFile,
   setImportInfrastructureFile,
   setImportInfrastructureOpen,
@@ -69,6 +85,22 @@ export function useCatalogImportActions({
 
       importCollaboratorsMutation.mutate(importCollaboratorsPreview);
     },
+    handleConfirmImportContacts: async () => {
+      if (!importContactsFile || !importContactsPreview.length) {
+        setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
+        return;
+      }
+
+      importContactsMutation.mutate(importContactsPreview);
+    },
+    handleConfirmImportCorporateLines: async () => {
+      if (!importCorporateLinesFile || !importCorporateLinesPreview.length) {
+        setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
+        return;
+      }
+
+      importCorporateLinesMutation.mutate(importCorporateLinesPreview);
+    },
     handleConfirmImportInfrastructure: async () => {
       if (!importInfrastructureFile || !importInfrastructurePreview.length) {
         setFeedback({ type: 'error', message: 'Escolha um arquivo para importar.' });
@@ -88,6 +120,18 @@ export function useCatalogImportActions({
     },
     handleDownloadCollaboratorsTemplate: () => {
       downloadCollaboratorsTemplate(templateExamples);
+    },
+    handleDownloadContactsJsonTemplate: () => {
+      downloadContactsJsonTemplate(templateExamples);
+    },
+    handleDownloadContactsTemplate: () => {
+      downloadContactsTemplate(templateExamples);
+    },
+    handleDownloadCorporateLinesJsonTemplate: () => {
+      downloadCorporateLinesJsonTemplate(templateExamples);
+    },
+    handleDownloadCorporateLinesTemplate: () => {
+      downloadCorporateLinesTemplate(templateExamples);
     },
     handleDownloadInfrastructureJsonTemplate: () => {
       downloadInfrastructureJsonTemplate(templateExamples);
@@ -111,6 +155,16 @@ export function useCatalogImportActions({
         setImportCollaboratorsFile(file);
         setImportCollaboratorsPreview(rowsToImport);
       }),
+    handleImportContactsFile: async (event) =>
+      handleImportFileSelection(event, (file, rowsToImport) => {
+        setImportContactsFile(file);
+        setImportContactsPreview(rowsToImport);
+      }),
+    handleImportCorporateLinesFile: async (event) =>
+      handleImportFileSelection(event, (file, rowsToImport) => {
+        setImportCorporateLinesFile(file);
+        setImportCorporateLinesPreview(rowsToImport);
+      }),
     handleImportInfrastructureFile: async (event) =>
       handleImportFileSelection(event, (file, rowsToImport) => {
         setImportInfrastructureFile(file);
@@ -123,6 +177,16 @@ export function useCatalogImportActions({
     openCollaboratorsImportDialog: () => {
       setImportCollaboratorsOpen(true);
       setImportCollaboratorsFile(null);
+    },
+    openContactsImportDialog: () => {
+      setImportContactsOpen(true);
+      setImportContactsFile(null);
+      setImportContactsPreview([]);
+    },
+    openCorporateLinesImportDialog: () => {
+      setImportCorporateLinesOpen(true);
+      setImportCorporateLinesFile(null);
+      setImportCorporateLinesPreview([]);
     },
     openInfrastructureImportDialog: () => {
       setImportInfrastructureOpen(true);

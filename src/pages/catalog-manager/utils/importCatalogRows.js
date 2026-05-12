@@ -126,3 +126,113 @@ export async function importCollaboratorRows({
 
   return { created, errors };
 }
+
+export async function importContactRows({
+  contactsApiCreate,
+  normalizeText,
+  resolveIdByName,
+  rowsToImport,
+  units,
+}) {
+  const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
+  const created = [];
+  const errors = [];
+
+  for (let index = 0; index < rowsToImport.length; index += 1) {
+    const row = rowsToImport[index];
+
+    try {
+      const unidadeNome = normalizeText(row.unidade || row.unidade_nome);
+      const unidadeId = unidadeNome ? resolveIdByName(unidadeNome, unitOptions) : null;
+
+      if (unidadeNome && !unidadeId) {
+        throw new Error(`Unidade nao encontrada: ${row.unidade || row.unidade_nome}`);
+      }
+
+      const payload = {
+        tipo: row.tipo || 'fornecedor',
+        nome: row.nome || null,
+        identificador: row.identificador || row.cnpj || null,
+        descricao: row.descricao || null,
+        nome_contato: row.nome_contato || row.contato || null,
+        telefone: row.telefone || null,
+        email: row.email || null,
+        unidade_id: unidadeId || null,
+      };
+
+      if (!payload.nome) throw new Error('Nome do fornecedor obrigatorio.');
+
+      const createdRow = await contactsApiCreate(payload);
+      created.push(createdRow);
+    } catch (error) {
+      errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
+    }
+  }
+
+  return { created, errors };
+}
+
+export async function importCorporateLineRows({
+  collaborators,
+  corporateLinesApiCreate,
+  normalizeText,
+  resolveIdByName,
+  rowsToImport,
+  units,
+}) {
+  const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
+  const collaboratorEmailOptions = collaborators
+    .filter((item) => item.email)
+    .map((item) => ({ id: item.id, normalized: normalizeText(item.email) }));
+  const collaboratorNameOptions = collaborators
+    .filter((item) => item.nome)
+    .map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
+
+  const created = [];
+  const errors = [];
+
+  for (let index = 0; index < rowsToImport.length; index += 1) {
+    const row = rowsToImport[index];
+
+    try {
+      const unidadeNome = normalizeText(row.unidade || row.unidade_nome);
+      const collaboratorEmail = normalizeText(row.colaborador_email || row.responsavel_email);
+      const collaboratorName = normalizeText(row.colaborador_nome || row.responsavel_nome || row.colaborador || row.responsavel);
+
+      const unidadeId = unidadeNome ? resolveIdByName(unidadeNome, unitOptions) : null;
+      const colaboradorId = collaboratorEmail
+        ? resolveIdByName(collaboratorEmail, collaboratorEmailOptions)
+        : collaboratorName
+          ? resolveIdByName(collaboratorName, collaboratorNameOptions)
+          : null;
+
+      if (unidadeNome && !unidadeId) {
+        throw new Error(`Unidade nao encontrada: ${row.unidade || row.unidade_nome}`);
+      }
+
+      if ((collaboratorEmail || collaboratorName) && !colaboradorId) {
+        throw new Error(`Colaborador nao encontrado: ${row.colaborador_email || row.responsavel_email || row.colaborador_nome || row.responsavel_nome || row.colaborador || row.responsavel}`);
+      }
+
+      const payload = {
+        tipo: row.tipo || 'chip',
+        nome: row.nome || null,
+        numero: row.numero || null,
+        operadora: row.operadora || null,
+        status: row.status || 'disponivel',
+        colaborador_id: colaboradorId || null,
+        unidade_id: unidadeId || null,
+        observacao: row.observacao || null,
+      };
+
+      if (!payload.numero) throw new Error('Numero obrigatorio.');
+
+      const createdRow = await corporateLinesApiCreate(payload);
+      created.push(createdRow);
+    } catch (error) {
+      errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
+    }
+  }
+
+  return { created, errors };
+}

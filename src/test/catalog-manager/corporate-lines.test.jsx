@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 
 import {
   catalogApi,
+  readImportFileRows,
   renderCatalogManager,
   resetCatalogManagerMocks,
 } from '@/test/catalog-manager/harness';
@@ -152,5 +153,45 @@ describe('CatalogManager corporate lines', () => {
     });
 
     expect(screen.getByRole('alert')).toHaveTextContent('Registro salvo com sucesso.');
+  });
+
+  it('importa linhas corporativas com sucesso a partir do preview carregado', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        tipo: 'linha_movel',
+        nome: 'Linha Importada',
+        numero: '85999999999',
+        operadora: 'Vivo',
+        status: 'em_uso',
+        colaborador_email: 'joao@macom.com',
+        unidade: 'Matriz',
+        observacao: 'Linha principal',
+      },
+    ]);
+
+    renderCatalogManager('linhas_corporativas');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar linhas corporativas' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de linhas corporativas');
+    const file = new File(['fake'], 'linhas.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de linhas corporativas' }));
+
+    await waitFor(() => {
+      expect(catalogApi.linhas_corporativas.create).toHaveBeenCalledWith({
+        tipo: 'linha_movel',
+        nome: 'Linha Importada',
+        numero: '85999999999',
+        operadora: 'Vivo',
+        status: 'em_uso',
+        colaborador_id: 'col-1',
+        unidade_id: 'unit-1',
+        observacao: 'Linha principal',
+      });
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('1 linha(s) corporativa(s) importada(s) com sucesso.');
   });
 });

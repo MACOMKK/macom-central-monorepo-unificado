@@ -183,3 +183,59 @@ export function downloadInfrastructureJsonTemplate(examples) {
 
   downloadFile(JSON.stringify(jsonModel, null, 2), 'modelo-importacao-infraestrutura.json', 'application/json;charset=utf-8;');
 }
+
+export function downloadContactsTemplate(examples) {
+  const { unitName } = examples;
+  const csv = [
+    'tipo,nome,identificador,descricao,nome_contato,telefone,email,unidade',
+    `fornecedor,Fornecedor XPTO,12.345.678/0001-90,Suporte de impressoras,Carlos Silva,85999999999,contato@fornecedor.com,${unitName}`,
+  ].join('\n');
+
+  downloadFile(csv, 'modelo-importacao-contatos.csv', 'text/csv;charset=utf-8;');
+}
+
+export function downloadContactsJsonTemplate(examples) {
+  const { unitName } = examples;
+  const jsonModel = [
+    {
+      tipo: 'fornecedor',
+      nome: 'Fornecedor XPTO',
+      identificador: '12.345.678/0001-90',
+      descricao: 'Suporte de impressoras',
+      nome_contato: 'Carlos Silva',
+      telefone: '85999999999',
+      email: 'contato@fornecedor.com',
+      unidade: unitName,
+    },
+  ];
+
+  downloadFile(JSON.stringify(jsonModel, null, 2), 'modelo-importacao-contatos.json', 'application/json;charset=utf-8;');
+}
+
+export function downloadCorporateLinesTemplate(examples) {
+  const { collaboratorEmail, unitName } = examples;
+  const csv = [
+    'tipo,nome,numero,operadora,status,colaborador_email,unidade,observacao',
+    `linha_movel,Linha Comercial 01,85999999999,Vivo,em_uso,${collaboratorEmail},${unitName},Linha principal do comercial`,
+  ].join('\n');
+
+  downloadFile(csv, 'modelo-importacao-linhas-corporativas.csv', 'text/csv;charset=utf-8;');
+}
+
+export function downloadCorporateLinesJsonTemplate(examples) {
+  const { collaboratorEmail, unitName } = examples;
+  const jsonModel = [
+    {
+      tipo: 'linha_movel',
+      nome: 'Linha Comercial 01',
+      numero: '85999999999',
+      operadora: 'Vivo',
+      status: 'em_uso',
+      colaborador_email: collaboratorEmail,
+      unidade: unitName,
+      observacao: 'Linha principal do comercial',
+    },
+  ];
+
+  downloadFile(JSON.stringify(jsonModel, null, 2), 'modelo-importacao-linhas-corporativas.json', 'application/json;charset=utf-8;');
+}

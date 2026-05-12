@@ -2,7 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { catalogApi } from '@/lib/catalogApi';
 import { buildImportFeedback } from '@/pages/catalog-manager/utils/importFeedback';
-import { importAssetRows, importCollaboratorRows } from '@/pages/catalog-manager/utils/importCatalogRows';
+import {
+  importAssetRows,
+  importCollaboratorRows,
+  importContactRows,
+  importCorporateLineRows,
+} from '@/pages/catalog-manager/utils/importCatalogRows';
 import { importInfrastructureRows } from '@/pages/catalog-manager/utils/importInfrastructureRows';
 
 export function useCatalogMutations({
@@ -16,6 +21,8 @@ export function useCatalogMutations({
   onPasswordSuccess,
   onResetAssetsImport,
   onResetCollaboratorsImport,
+  onResetContactsImport,
+  onResetCorporateLinesImport,
   onResetInfrastructureImport,
   onSaveSuccess,
   resolveIdByName,
@@ -224,6 +231,53 @@ export function useCatalogMutations({
     onError: (error) => showMutationError(error, 'Falha ao importar infraestrutura.'),
   });
 
+  const importContactsMutation = useMutation({
+    mutationFn: async (rowsToImport) =>
+      importContactRows({
+        contactsApiCreate: catalogApi.contatos.create,
+        normalizeText,
+        resolveIdByName,
+        rowsToImport,
+        units,
+      }),
+    onSuccess: ({ created, errors }) =>
+      handleImportSuccess({
+        queryKey: 'contatos',
+        created,
+        errors,
+        resetImportState: onResetContactsImport,
+        successMessage: (createdCount) => `${createdCount} contato(s) importado(s) com sucesso.`,
+        partialSuccessMessage: (createdCount, importErrors) =>
+          `${createdCount} contato(s) importado(s). ${importErrors.length} linha(s) com erro: ${importErrors.slice(0, 3).join(' | ')}`,
+        emptyMessage: 'Nenhum contato foi importado.',
+      }),
+    onError: (error) => showMutationError(error, 'Falha ao importar contatos.'),
+  });
+
+  const importCorporateLinesMutation = useMutation({
+    mutationFn: async (rowsToImport) =>
+      importCorporateLineRows({
+        collaborators,
+        corporateLinesApiCreate: catalogApi.linhas_corporativas.create,
+        normalizeText,
+        resolveIdByName,
+        rowsToImport,
+        units,
+      }),
+    onSuccess: ({ created, errors }) =>
+      handleImportSuccess({
+        queryKey: 'linhas_corporativas',
+        created,
+        errors,
+        resetImportState: onResetCorporateLinesImport,
+        successMessage: (createdCount) => `${createdCount} linha(s) corporativa(s) importada(s) com sucesso.`,
+        partialSuccessMessage: (createdCount, importErrors) =>
+          `${createdCount} linha(s) corporativa(s) importada(s). ${importErrors.length} linha(s) com erro: ${importErrors.slice(0, 3).join(' | ')}`,
+        emptyMessage: 'Nenhuma linha corporativa foi importada.',
+      }),
+    onError: (error) => showMutationError(error, 'Falha ao importar linhas corporativas.'),
+  });
+
   const unlinkAssignmentsMutation = useMutation({
     mutationFn: async (id) => catalogApi.colaboradores.unlinkAssignments(id),
     onSuccess: (result) => {
@@ -251,6 +305,8 @@ export function useCatalogMutations({
     deleteManyMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
+    importContactsMutation,
+    importCorporateLinesMutation,
     importInfrastructureMutation,
     passwordMutation,
     saveMutation,
