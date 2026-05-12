@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Building2, ChevronLeft, ChevronRight, FileText, Home, Laptop, LogOut, Moon, Network, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, FileText, Home, KeyRound, Laptop, LogOut, Moon, Network, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/contatos', label: 'Contatos', icon: Phone },
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network },
+  { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText },
 ];
 

@@ -12,6 +12,7 @@ export function useCatalogActionHandlers({
   openAssetAssignment,
   openCorporateLineAssignment,
   openPasswordReset,
+  systemAccesses,
   runWithClosedMenu,
   setFeedback,
   unlinkAssignments,
@@ -43,7 +44,8 @@ export function useCatalogActionHandlers({
 
   const hasLinkedCollaboratorItems = (collaboratorId) =>
     assets.some((asset) => asset.usuario_id === collaboratorId) ||
-    corporateLines.some((line) => line.colaborador_id === collaboratorId);
+    corporateLines.some((line) => line.colaborador_id === collaboratorId) ||
+    systemAccesses.some((access) => access.colaborador_id === collaboratorId);
 
   const collaboratorCanUnlinkAll = Boolean(
     collaboratorMenu &&
@@ -122,7 +124,7 @@ export function useCatalogActionHandlers({
     },
     onUnlinkAll: () => {
       const confirmed = window.confirm(
-        `Deseja realmente desvincular todos os ativos e linhas corporativas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`
+        `Deseja realmente desvincular todos os ativos, linhas corporativas e sistemas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`
       );
       if (confirmed) {
         unlinkAssignments(collaboratorMenu.row.id);

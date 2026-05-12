@@ -49,6 +49,7 @@ import {
   indexById,
 } from '@/pages/catalog-manager/utils/buildConfigLookups';
 import { catalogApi } from '@/lib/catalogApi';
+import { systemAccessApi } from '@/lib/systemAccessApi';
 
 function formatDate(dateString) {
   if (!dateString) return '-';
@@ -169,6 +170,16 @@ export default function CatalogManager({ lockedEntityKey }) {
     queryFn: catalogApi.termos_posse.list,
     enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView,
   });
+  const systemsQuery = useQuery({
+    queryKey: ['sistemas'],
+    queryFn: systemAccessApi.systems.list,
+    enabled: isCollaboratorsView,
+  });
+  const systemAccessesQuery = useQuery({
+    queryKey: ['acessos_usuario_sistema'],
+    queryFn: systemAccessApi.accesses.list,
+    enabled: isCollaboratorsView,
+  });
 
   const departments = departmentsQuery.data || [];
   const units = unitsQuery.data || [];
@@ -179,6 +190,8 @@ export default function CatalogManager({ lockedEntityKey }) {
   const assets = assetsQuery.data || [];
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
+  const systems = systemsQuery.data || [];
+  const systemAccesses = systemAccessesQuery.data || [];
 
   const linkedAssetsByCollaboratorId = useMemo(
     () =>
@@ -204,6 +217,31 @@ export default function CatalogManager({ lockedEntityKey }) {
     [corporateLines]
   );
 
+  const linkedSystemsByCollaboratorId = useMemo(() => {
+    const systemsById = systems.reduce((acc, system) => {
+      acc[system.id] = system;
+      return acc;
+    }, {});
+
+    return systemAccesses.reduce((acc, access) => {
+      if (!access.colaborador_id) {
+        return acc;
+      }
+
+      if (!acc[access.colaborador_id]) {
+        acc[access.colaborador_id] = [];
+      }
+
+      const linkedSystem = access.sistema_id ? systemsById[access.sistema_id] : null;
+      acc[access.colaborador_id].push({
+        ...access,
+        sistema_nome: linkedSystem?.nome || 'Sistema sem nome',
+        sistema_slug: linkedSystem?.slug || null,
+      });
+      return acc;
+    }, {});
+  }, [systemAccesses, systems]);
+
   const config = useMemo(() => {
     const departmentOptions = createSelectOptions(departments);
     const unitOptions = createSelectOptions(units);
@@ -212,6 +250,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     const assetOptions = createAssetOptions(assets);
     const assetsByProfileId = countByKey(assets, 'usuario_id');
     const linesByProfileId = countByKey(corporateLines, 'colaborador_id');
+    const systemsByProfileId = countByKey(systemAccesses, 'colaborador_id');
     const collaboratorsByDepartmentId = countByKey(activeCollaborators, 'departamento_id');
     const collaboratorsById = indexById(collaborators);
     const assetsByDepartmentId = countAssetsByDepartmentId(assets, collaboratorsById);
@@ -249,6 +288,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         linesByProfileId,
         Monitor,
         onViewLinks: setViewingCollaboratorLinks,
+        systemsByProfileId,
         statusTone,
         unitOptions,
         units,
@@ -306,7 +346,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         terms,
       }),
     };
-  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, terms, units]);
+  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, systemAccesses, terms, units]);
 
   const loadingByEntity = {
     ativos: assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
@@ -315,7 +355,9 @@ export default function CatalogManager({ lockedEntityKey }) {
       assetsQuery.isLoading ||
       corporateLinesQuery.isLoading ||
       departmentsQuery.isLoading ||
-      unitsQuery.isLoading,
+      unitsQuery.isLoading ||
+      systemsQuery.isLoading ||
+      systemAccessesQuery.isLoading,
     contatos: contactsQuery.isLoading || unitsQuery.isLoading,
     departamentos: departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
     infra_estrutura: infraQuery.isLoading || unitsQuery.isLoading,
@@ -466,6 +508,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     openCorporateLineAssignment: setAssigningCorporateLine,
     openPasswordReset: setPasswordRecord,
     openRecord: setEditingRecord,
+    systemAccesses,
     runWithClosedMenu,
     setFeedback,
     unlinkAssignments: (collaboratorId) => unlinkAssignmentsMutation.mutate(collaboratorId),
@@ -586,7 +629,8 @@ export default function CatalogManager({ lockedEntityKey }) {
         if (!selectedBulkIds.includes(row.id)) return false;
         const assetsCount = linkedAssetsByCollaboratorId[row.id]?.length || 0;
         const linesCount = linkedLinesByCollaboratorId[row.id]?.length || 0;
-        return assetsCount + linesCount > 0;
+        const systemsCount = linkedSystemsByCollaboratorId[row.id]?.length || 0;
+        return assetsCount + linesCount + systemsCount > 0;
       });
 
       if (hasLinkedItems) {
@@ -816,6 +860,7 @@ export default function CatalogManager({ lockedEntityKey }) {
             if (!open) setViewingCollaboratorLinks(null);
           },
           open: viewingCollaboratorLinks !== null,
+          systems: viewingCollaboratorLinks ? linkedSystemsByCollaboratorId[viewingCollaboratorLinks.id] || [] : [],
           unitName: viewingCollaboratorLinks
             ? units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'
             : 'Sem unidade',

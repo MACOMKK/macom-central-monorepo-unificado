@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
 import { dataClient } from '@/api/dataClient';
 import { hasSupabaseEnv } from '@/api/supabaseClient';
 
@@ -21,7 +22,7 @@ export const AuthProvider = ({ children }) => {
     if (!hasSupabaseEnv) {
       setAuthError({
         type: 'config',
-        message: 'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local'
+        message: 'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local da raiz do monorepo',
       });
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
@@ -41,15 +42,21 @@ export const AuthProvider = ({ children }) => {
       console.error('Auth check failed:', error);
       setUser(null);
       setIsAuthenticated(false);
+
       if (error.status === 401 || error.status === 403) {
         setAuthError({
-          type: error.code === 'user_inactive' ? 'user_inactive' : 'auth_required',
-          message: error.message || 'Authentication required'
+          type:
+            error.code === 'user_inactive'
+              ? 'user_inactive'
+              : error.code === 'user_not_registered'
+                ? 'user_not_registered'
+                : 'auth_required',
+          message: error.message || 'Authentication required',
         });
       } else {
         setAuthError({
           type: 'unknown',
-          message: error.message || 'Failed to authenticate'
+          message: error.message || 'Failed to authenticate',
         });
       }
     } finally {
@@ -72,19 +79,21 @@ export const AuthProvider = ({ children }) => {
   const checkAppState = checkUserAuth;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isAuthenticated, 
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
-      appPublicSettings,
-      authChecked,
-      logout,
-      navigateToLogin,
-      checkUserAuth,
-      checkAppState
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated,
+        isLoadingAuth,
+        isLoadingPublicSettings,
+        authError,
+        appPublicSettings,
+        authChecked,
+        logout,
+        navigateToLogin,
+        checkUserAuth,
+        checkAppState,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -44,3 +44,5 @@ As tabelas principais usadas pela aplicação:
 - Login é feito via `supabase.auth.signInWithPassword`.
 - O botão "Convidar usuário" chama a Edge Function `invite-user` para enviar convite de primeiro acesso.
 - As permissões iniciais em `supabase/schema.sql` são funcionais, mas você pode endurecer as regras RLS conforme sua política.
+No monorepo, o `relatorios` usa a mesma conexao Supabase do `central`.
+Defina essas variaveis no `.env.local` da raiz do repositorio.

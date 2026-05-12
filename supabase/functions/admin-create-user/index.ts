@@ -280,11 +280,21 @@ Deno.serve(async (request) => {
         [collaboratorId],
       );
 
+      const removedSystemAccesses = await sql.unsafe(
+        `
+          delete from public.acessos_usuario_sistema
+          where colaborador_id = $1
+          returning id;
+        `,
+        [collaboratorId],
+      );
+
       return json({
         success: true,
         ativos_count: updatedAssets.length,
         linhas_count: updatedLines.length,
-        total_count: updatedAssets.length + updatedLines.length,
+        sistemas_count: removedSystemAccesses.length,
+        total_count: updatedAssets.length + updatedLines.length + removedSystemAccesses.length,
       });
     }
 

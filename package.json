@@ -5,8 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
+    "dev:central": "vite --configLoader runner",
+    "dev:relatorios": "vite --config apps/relatorios/vite.config.js --configLoader runner",
     "build": "vite build --configLoader runner",
+    "build:central": "vite build --configLoader runner",
+    "build:relatorios": "vite build --config apps/relatorios/vite.config.js --configLoader runner",
     "lint": "eslint apps/central/src --quiet",
+    "lint:relatorios": "eslint apps/relatorios/src --quiet",
     "lint:fix": "eslint apps/central/src --fix",
     "test": "vitest --configLoader runner",
     "test:run": "vitest run --configLoader runner",

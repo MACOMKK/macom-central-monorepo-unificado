@@ -12,6 +12,7 @@ import Dashboard from '@/pages/Dashboard';
 import Departments from '@/pages/Departments';
 import Infrastructure from '@/pages/Infrastructure';
 import Login from '@/pages/Login';
+import SystemAccess from '@/pages/SystemAccess';
 import TermsPossession from '@/pages/TermsPossession';
 import { queryClientInstance } from '@/lib/query-client';
 import Units from '@/pages/Units';
@@ -47,6 +48,7 @@ export default function App() {
                 <Route path="/departamentos" element={<Departments />} />
                 <Route path="/unidades" element={<Units />} />
                 <Route path="/infraestrutura" element={<Infrastructure />} />
+                <Route path="/acessos-sistemas" element={<SystemAccess />} />
                 <Route path="/termos-posse" element={<TermsPossession />} />
               </Route>
             </Route>

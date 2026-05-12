@@ -61,7 +61,7 @@ export default function PermissionForm({ onSaved, onCancel }) {
           <SelectContent>
             {activeUsers.map(u => (
               <SelectItem key={u.email} value={u.email}>
-                {u.full_name || u.email} {u.role === 'admin' ? '(Admin)' : ''}
+                {u.full_name || u.email} {u.role === 'admin' ? '(Admin)' : u.role === 'manager' ? '(Gestor)' : ''}
               </SelectItem>
             ))}
           </SelectContent>

@@ -6,6 +6,7 @@ import {
   readImportFileRows,
   renderCatalogManager,
   resetCatalogManagerMocks,
+  systemAccessApi,
 } from '@/test/catalog-manager/harness';
 
 describe('CatalogManager collaborators', () => {
@@ -133,6 +134,36 @@ describe('CatalogManager collaborators', () => {
 
     expect(window.confirm).toHaveBeenCalled();
     expect(catalogApi.colaboradores.unlinkAssignments).toHaveBeenCalledWith('col-1');
+  });
+
+  it('considera sistemas vinculados ao exibir a acao de desvincular tudo', async () => {
+    const user = userEvent.setup();
+    window.confirm.mockReturnValue(true);
+    catalogApi.colaboradores.list.mockResolvedValue([
+      { id: 'col-system-1', nome: 'Joao Sistema', email: 'joao.sistema@macom.com', status: 'inativo' },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.linhas_corporativas.list.mockResolvedValue([]);
+    systemAccessApi.accesses.list.mockResolvedValue([
+      {
+        id: 'access-1',
+        colaborador_id: 'col-system-1',
+        sistema_id: 'system-reports',
+        nivel_acesso: 'usuario',
+        ativo: true,
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    const trigger = await screen.findByRole('button', { name: 'Abrir menu de acoes' });
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Desvincular tudo' }));
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Deseja realmente desvincular todos os ativos, linhas corporativas e sistemas de Joao Sistema?'
+    );
+    expect(catalogApi.colaboradores.unlinkAssignments).toHaveBeenCalledWith('col-system-1');
   });
 
   it('valida campos obrigatorios ao criar um novo colaborador', async () => {

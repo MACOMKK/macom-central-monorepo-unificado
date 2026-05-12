@@ -529,6 +529,7 @@ export function buildCollaboratorsConfig({
   linesByProfileId,
   Monitor,
   onViewLinks,
+  systemsByProfileId,
   statusTone,
   unitOptions,
   units,
@@ -612,7 +613,10 @@ export function buildCollaboratorsConfig({
         key: 'equipamentos_vinculados',
         label: 'Equipamentos',
         render: (_, row) => {
-          const total = (assetsByProfileId[row.id] || 0) + (linesByProfileId[row.id] || 0);
+          const total =
+            (assetsByProfileId[row.id] || 0) +
+            (linesByProfileId[row.id] || 0) +
+            (systemsByProfileId[row.id] || 0);
 
           if (total > 0) {
             return (

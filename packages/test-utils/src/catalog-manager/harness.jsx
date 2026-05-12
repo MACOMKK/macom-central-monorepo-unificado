@@ -24,6 +24,17 @@ vi.mock('@/lib/catalogApi', () => ({
   },
 }));
 
+vi.mock('@/lib/systemAccessApi', () => ({
+  systemAccessApi: {
+    systems: {
+      list: vi.fn(),
+    },
+    accesses: {
+      list: vi.fn(),
+    },
+  },
+}));
+
 vi.mock('@/components/CatalogEntityDialog', () => ({
   default: ({ fields, onOpenChange, onSubmit, open, record, title }) => {
     const React = require('react');
@@ -342,6 +353,7 @@ vi.mock('@/pages/catalog-manager/utils/importParsers', () => ({
 
 const { default: CatalogManager } = await import('@/pages/CatalogManager');
 const { catalogApi } = await import('@/lib/catalogApi');
+const { systemAccessApi } = await import('@/lib/systemAccessApi');
 const { readImportFileRows } = await import('@/pages/catalog-manager/utils/importParsers');
 
 function createQueryClient() {
@@ -390,9 +402,15 @@ export function resetCatalogManagerMocks() {
   catalogApi.colaboradores.unlinkAssignments.mockResolvedValue({
     ativos_count: 1,
     linhas_count: 1,
-    total_count: 2,
+    sistemas_count: 1,
+    total_count: 3,
   });
+  systemAccessApi.systems.list.mockResolvedValue([
+    { id: 'system-central', slug: 'central', nome: 'Central', ativo: true },
+    { id: 'system-reports', slug: 'relatorios', nome: 'Relatorios', ativo: true },
+  ]);
+  systemAccessApi.accesses.list.mockResolvedValue([]);
   readImportFileRows.mockReset();
 }
 
-export { catalogApi, readImportFileRows };
+export { catalogApi, readImportFileRows, systemAccessApi };

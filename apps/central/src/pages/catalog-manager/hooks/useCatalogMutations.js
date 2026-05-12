@@ -284,14 +284,17 @@ export function useCatalogMutations({
       queryClient.invalidateQueries({ queryKey: ['ativos'] });
       queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
       queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
+      queryClient.invalidateQueries({ queryKey: ['acessos_usuario_sistema'] });
+      queryClient.invalidateQueries({ queryKey: ['sistemas'] });
       const ativosCount = result?.ativos_count || 0;
       const linhasCount = result?.linhas_count || 0;
+      const sistemasCount = result?.sistemas_count || 0;
       const totalCount = result?.total_count || 0;
       setFeedback({
         type: 'success',
         message:
           totalCount > 0
-            ? `${ativosCount} ativo(s) e ${linhasCount} linha(s) desvinculado(s) com sucesso.`
+            ? `${ativosCount} ativo(s), ${linhasCount} linha(s) e ${sistemasCount} sistema(s) desvinculado(s) com sucesso.`
             : 'Nenhum item vinculado para remover.',
       });
     },

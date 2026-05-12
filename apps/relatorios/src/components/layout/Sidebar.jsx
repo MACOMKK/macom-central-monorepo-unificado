@@ -17,7 +17,7 @@ const navItems = [
   { path: '/admin/reports', icon: FileText, label: 'Relatorios', adminOnly: true },
   { path: '/admin/units', icon: Building2, label: 'Unidades', adminOnly: true },
   { path: '/admin/permissions', icon: Shield, label: 'Permissoes', adminOnly: true },
-  { path: '/admin/settings', icon: Settings, label: 'Configuracoes', adminOnly: true },
+  { path: '/admin/settings', icon: Settings, label: 'Acessos', adminOnly: true },
 ];
 
 export default function Sidebar({ user, collapsed, onToggle, onClose }) {

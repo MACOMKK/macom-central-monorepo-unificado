@@ -110,6 +110,19 @@ const ENTITY_CONFIG = {
       'processado_em',
     ],
   },
+  sistemas: {
+    schema: 'public',
+    table: 'sistemas',
+    orderBy: 'nome',
+    allowedFields: ['slug', 'nome', 'descricao', 'ativo'],
+  },
+  acessos_usuario_sistema: {
+    schema: 'public',
+    table: 'acessos_usuario_sistema',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['colaborador_id', 'sistema_id', 'nivel_acesso', 'ativo'],
+  },
 } as const;
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
@@ -756,6 +769,30 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
+    if (action === 'access_check' && entity === 'acessos_usuario_sistema') {
+      const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
+
+      if (!systemSlug) {
+        return json({ error: 'Slug do sistema obrigatorio.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select
+            aus.*,
+            row_to_json(s) as sistema
+          from public.acessos_usuario_sistema aus
+          join public.sistemas s on s.id = aus.sistema_id
+          where aus.colaborador_id = $1
+            and s.slug = $2
+          limit 1;
+        `,
+        [user.id, systemSlug],
+      );
+
+      return json({ row: rows[0] || null });
+    }
+
     const accessRows = await sql.unsafe('select funcao, status from public.colaboradores where id = $1 limit 1;', [user.id]);
     const accessProfile = accessRows[0];
 
@@ -766,6 +803,42 @@ Deno.serve(async (request) => {
     if (action === 'list') {
       const rows = await sql.unsafe(`select * from ${schema}.${table} order by ${orderBy} ${orderDirection};`);
       return json({ rows });
+    }
+
+    if (action === 'save' && entity === 'acessos_usuario_sistema') {
+      const sanitized = sanitizePayload(entity, payload);
+      const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
+      const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
+
+      if (!colaboradorId || !sistemaId) {
+        return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into public.acessos_usuario_sistema (
+            colaborador_id,
+            sistema_id,
+            nivel_acesso,
+            ativo
+          )
+          values ($1, $2, $3, $4)
+          on conflict (colaborador_id, sistema_id)
+          do update set
+            nivel_acesso = excluded.nivel_acesso,
+            ativo = excluded.ativo,
+            atualizado_em = now()
+          returning *;
+        `,
+        [
+          colaboradorId,
+          sistemaId,
+          sanitized.nivel_acesso ?? 'usuario',
+          sanitized.ativo ?? true,
+        ],
+      );
+
+      return json({ row: rows[0] || null });
     }
 
     if (action === 'generate' && entity === 'termos_posse') {
