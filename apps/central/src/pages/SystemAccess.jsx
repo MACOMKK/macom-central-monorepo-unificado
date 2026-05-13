@@ -48,23 +48,33 @@ export default function SystemAccess() {
     queryKey: ['acessos_usuario_sistema'],
     queryFn: systemAccessApi.accesses.list,
   });
+  const normalizedCollaboratorSearch = useMemo(() => collaboratorSearch.trim().toLowerCase(), [collaboratorSearch]);
+  const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search]);
 
   const activeCollaborators = useMemo(
     () => collaborators.filter((collaborator) => collaborator.status !== 'inativo'),
     [collaborators],
   );
 
-  const filteredActiveCollaborators = useMemo(() => {
-    const term = collaboratorSearch.trim().toLowerCase();
+  const collaboratorsById = useMemo(
+    () => new Map(collaborators.map((collaborator) => [collaborator.id, collaborator])),
+    [collaborators],
+  );
 
-    if (!term) return activeCollaborators;
+  const systemsById = useMemo(
+    () => new Map(systems.map((system) => [system.id, system])),
+    [systems],
+  );
+
+  const filteredActiveCollaborators = useMemo(() => {
+    if (!normalizedCollaboratorSearch) return activeCollaborators;
 
     return activeCollaborators.filter((collaborator) =>
       [collaborator.nome, collaborator.email, collaborator.cargo]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term)),
+        .some((value) => String(value).toLowerCase().includes(normalizedCollaboratorSearch)),
     );
-  }, [activeCollaborators, collaboratorSearch]);
+  }, [activeCollaborators, normalizedCollaboratorSearch]);
 
   useEffect(() => {
     if (systemsError) {
@@ -124,27 +134,28 @@ export default function SystemAccess() {
     },
   });
 
-  const filteredAccesses = useMemo(() => {
-    const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
-    const systemsById = new Map(systems.map((system) => [system.id, system]));
-    const term = search.trim().toLowerCase();
-    const hydratedAccesses = accesses.map((entry) => ({
+  const hydratedAccesses = useMemo(
+    () =>
+      accesses.map((entry) => ({
       ...entry,
       colaborador: collaboratorsById.get(entry.colaborador_id) || null,
       sistema: systemsById.get(entry.sistema_id) || null,
-    }));
+    })),
+    [accesses, collaboratorsById, systemsById],
+  );
 
-    if (!term) return hydratedAccesses;
+  const filteredAccesses = useMemo(() => {
+    if (!normalizedSearch) return hydratedAccesses;
     return hydratedAccesses.filter((entry) => {
       const collaboratorName = entry.colaborador?.nome || '';
       const collaboratorEmail = entry.colaborador?.email || '';
       const systemName = entry.sistema?.nome || '';
       const role = entry.nivel_acesso || '';
       return [collaboratorName, collaboratorEmail, systemName, role].some((value) =>
-        String(value).toLowerCase().includes(term)
+        String(value).toLowerCase().includes(normalizedSearch)
       );
     });
-  }, [accesses, collaborators, search, systems]);
+  }, [hydratedAccesses, normalizedSearch]);
 
   const isLoading = loadingCollaborators || loadingSystems || loadingAccesses;
 
