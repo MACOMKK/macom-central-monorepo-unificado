@@ -30,20 +30,20 @@ export default function ManagePermissions() {
     queryClient.invalidateQueries({ queryKey: ['all-permissions'] });
   };
 
-  const filtered = permissions.filter(p =>
-    p.user_email?.toLowerCase().includes(search.toLowerCase()) ||
-    p.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.report_title?.toLowerCase().includes(search.toLowerCase()) ||
-    p.unit_name?.toLowerCase().includes(search.toLowerCase())
+  const filtered = permissions.filter((permission) =>
+    permission.user_email?.toLowerCase().includes(search.toLowerCase()) ||
+    permission.user_name?.toLowerCase().includes(search.toLowerCase()) ||
+    permission.report_title?.toLowerCase().includes(search.toLowerCase()) ||
+    permission.unit_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <AdminGuard user={user}>
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administração</p>
-          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Permissões</h1>
-          <p className="text-xs mt-1" style={{ color: '#666' }}>Defina quem pode visualizar cada relatório</p>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administracao</p>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Permissoes</h1>
+          <p className="text-xs mt-1" style={{ color: '#666' }}>Defina quem pode visualizar cada relatorio</p>
         </div>
 
         <div className="px-6 lg:px-10 py-6">
@@ -51,9 +51,9 @@ export default function ManagePermissions() {
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#999' }} />
               <Input
-                placeholder="Buscar por usuário ou relatório..."
+                placeholder="Buscar por usuario ou relatorio..."
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
                 style={{ borderRadius: 2 }}
               />
@@ -62,10 +62,10 @@ export default function ManagePermissions() {
               onClick={() => setDialogOpen(true)}
               className="flex items-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
               style={{ background: '#E30613' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#b80010'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#E30613'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#b80010'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#E30613'; }}
             >
-              <Plus className="w-4 h-4" /> Nova Permissão
+              <Plus className="w-4 h-4" /> Nova Permissao
             </button>
           </div>
 
@@ -73,11 +73,11 @@ export default function ManagePermissions() {
             <Table>
               <TableHeader>
                 <TableRow style={{ background: '#fafafa' }}>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Usuário</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Usuario</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Email</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Relatório</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Relatorio</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Unidade</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Ações</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -87,26 +87,26 @@ export default function ManagePermissions() {
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-16">
                       <Shield className="w-10 h-10 mx-auto mb-2" style={{ color: '#ddd' }} />
-                      <p className="text-xs uppercase tracking-wider font-bold" style={{ color: '#bbb' }}>Nenhuma permissão cadastrada</p>
+                      <p className="text-xs uppercase tracking-wider font-bold" style={{ color: '#bbb' }}>Nenhuma permissao cadastrada</p>
                     </TableCell>
                   </TableRow>
-                ) : filtered.map(perm => (
-                  <TableRow key={perm.id} className="hover:bg-gray-50 transition-colors">
-                    <TableCell className="font-bold text-sm" style={{ color: '#141414' }}>{perm.user_name || '—'}</TableCell>
-                    <TableCell className="text-xs" style={{ color: '#666' }}>{perm.user_email}</TableCell>
+                ) : filtered.map((permission) => (
+                  <TableRow key={permission.id} className="hover:bg-gray-50 transition-colors">
+                    <TableCell className="font-bold text-sm" style={{ color: '#141414' }}>{permission.user_name || '—'}</TableCell>
+                    <TableCell className="text-xs" style={{ color: '#666' }}>{permission.user_email || '—'}</TableCell>
                     <TableCell>
                       <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5" style={{ background: '#141414', color: '#fff' }}>
-                        {perm.report_title || perm.report_id}
+                        {permission.report_title || permission.report_id}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs" style={{ color: '#666' }}>{perm.unit_name || '—'}</TableCell>
+                    <TableCell className="text-xs" style={{ color: '#666' }}>{permission.unit_name || '—'}</TableCell>
                     <TableCell className="text-right">
                       <button
-                        onClick={() => deleteMutation.mutate(perm.id)}
+                        onClick={() => deleteMutation.mutate(permission.id)}
                         className="p-2 transition-colors"
                         style={{ color: '#888' }}
-                        onMouseEnter={e => { e.currentTarget.style.color = '#E30613'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#888'; }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#E30613'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = '#888'; }}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -122,7 +122,7 @@ export default function ManagePermissions() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-wider text-sm">Nova Permissão</DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-wider text-sm">Nova Permissao</DialogTitle>
           </DialogHeader>
           <PermissionForm onSaved={handleSaved} onCancel={() => setDialogOpen(false)} />
         </DialogContent>

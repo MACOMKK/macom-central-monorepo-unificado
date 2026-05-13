@@ -63,9 +63,9 @@ export default function ReportViewer() {
   });
 
   const { data: permissions = [] } = useQuery({
-    queryKey: ['permission-check', user?.email, id],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ user_email: user?.email, report_id: id }),
-    enabled: !!user?.email && !isAdmin,
+    queryKey: ['permission-check', user?.id, id],
+    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id, report_id: id }),
+    enabled: !!user?.id && !isAdmin,
   });
 
   const hasAccess = isAdmin || permissions.length > 0;

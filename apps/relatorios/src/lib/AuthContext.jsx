@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    await dataClient.auth.logout(shouldRedirect ? '/login' : null);
+    await dataClient.auth.logout(shouldRedirect ? '/entrar' : null);
   };
 
   const navigateToLogin = () => {

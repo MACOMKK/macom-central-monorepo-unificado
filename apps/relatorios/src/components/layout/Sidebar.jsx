@@ -14,10 +14,10 @@ const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/obje
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
-  { path: '/admin/reports', icon: FileText, label: 'Relatorios', adminOnly: true },
-  { path: '/admin/units', icon: Building2, label: 'Unidades', adminOnly: true },
-  { path: '/admin/permissions', icon: Shield, label: 'Permissoes', adminOnly: true },
-  { path: '/admin/settings', icon: Settings, label: 'Acessos', adminOnly: true },
+  { path: '/admin/relatorios', icon: FileText, label: 'Relatorios', adminOnly: true },
+  { path: '/admin/unidades', icon: Building2, label: 'Unidades', adminOnly: true },
+  { path: '/admin/permissoes', icon: Shield, label: 'Permissoes', adminOnly: true },
+  { path: '/admin/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
 ];
 
 export default function Sidebar({ user, collapsed, onToggle, onClose }) {

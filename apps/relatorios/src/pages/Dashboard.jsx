@@ -28,9 +28,9 @@ export default function Dashboard() {
   });
 
   const { data: permissions = [], isLoading: loadingPermissions } = useQuery({
-    queryKey: ['permissions', user?.email],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ user_email: user?.email }),
-    enabled: !!user?.email && !isAdmin,
+    queryKey: ['permissions', user?.id],
+    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id }),
+    enabled: !!user?.id && !isAdmin,
   });
 
   const allowedReportIds = permissions.map(p => p.report_id);

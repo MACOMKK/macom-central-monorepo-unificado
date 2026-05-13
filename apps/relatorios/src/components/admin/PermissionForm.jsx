@@ -21,31 +21,23 @@ export default function PermissionForm({ onSaved, onCancel }) {
     queryFn: () => dataClient.entities.Report.list(),
   });
 
-  const activeUsers = users.filter(user => user.active !== false);
+  const activeUsers = users.filter((user) => user.active !== false);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const user = activeUsers.find(u => u.email === selectedUser);
-      const perms = selectedReports.map(reportId => {
-        const report = reports.find(r => r.id === reportId);
-        return {
-          user_email: selectedUser,
-          user_name: user?.full_name || '',
-          report_id: reportId,
-          report_title: report?.title || '',
-          unit_id: report?.unit_id || '',
-          unit_name: report?.unit_name || '',
-        };
-      });
+      const perms = selectedReports.map((reportId) => ({
+        collaborator_id: selectedUser,
+        report_id: reportId,
+      }));
       return dataClient.entities.ReportPermission.bulkCreate(perms);
     },
     onSuccess: onSaved,
   });
 
   const toggleReport = (reportId) => {
-    setSelectedReports(prev =>
+    setSelectedReports((prev) =>
       prev.includes(reportId)
-        ? prev.filter(id => id !== reportId)
+        ? prev.filter((id) => id !== reportId)
         : [...prev, reportId]
     );
   };
@@ -53,15 +45,15 @@ export default function PermissionForm({ onSaved, onCancel }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Usuário *</Label>
+        <Label>Usuario *</Label>
         <Select value={selectedUser} onValueChange={setSelectedUser}>
           <SelectTrigger>
-            <SelectValue placeholder="Selecione o usuário" />
+            <SelectValue placeholder="Selecione o usuario" />
           </SelectTrigger>
           <SelectContent>
-            {activeUsers.map(u => (
-              <SelectItem key={u.email} value={u.email}>
-                {u.full_name || u.email} {u.role === 'admin' ? '(Admin)' : u.role === 'manager' ? '(Gestor)' : ''}
+            {activeUsers.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.full_name || user.email} {user.role === 'admin' ? '(Admin)' : user.role === 'manager' ? '(Gestor)' : ''}
               </SelectItem>
             ))}
           </SelectContent>
@@ -69,20 +61,20 @@ export default function PermissionForm({ onSaved, onCancel }) {
       </div>
 
       <div className="space-y-2">
-        <Label>Relatórios *</Label>
-        <div className="max-h-60 overflow-y-auto border rounded-lg p-3 space-y-2">
+        <Label>Relatorios *</Label>
+        <div className="max-h-60 overflow-y-auto rounded-lg border p-3 space-y-2">
           {reports.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum relatório cadastrado</p>
+            <p className="text-sm text-muted-foreground">Nenhum relatorio cadastrado</p>
           ) : (
-            reports.map(report => (
-              <label key={report.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
+            reports.map((report) => (
+              <label key={report.id} className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-muted">
                 <Checkbox
                   checked={selectedReports.includes(report.id)}
                   onCheckedChange={() => toggleReport(report.id)}
                 />
                 <div>
                   <p className="text-sm font-medium">{report.title}</p>
-                  {report.unit_name && <p className="text-xs text-muted-foreground">{report.unit_name}</p>}
+                  {report.unit_name ? <p className="text-xs text-muted-foreground">{report.unit_name}</p> : null}
                 </div>
               </label>
             ))

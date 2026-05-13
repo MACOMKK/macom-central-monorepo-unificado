@@ -75,7 +75,7 @@ export default function Login() {
     }
 
     setIsRecovering(true);
-    const redirectTo = `${window.location.origin}/set-password`;
+    const redirectTo = `${window.location.origin}/definir-senha`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     setIsRecovering(false);
 

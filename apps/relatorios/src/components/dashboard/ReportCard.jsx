@@ -20,7 +20,7 @@ export default function ReportCard({ report }) {
       transition={{ duration: 0.25 }}
     >
       <Link
-        to={`/report/${report.id}`}
+        to={`/relatorio/${report.id}`}
         className="group block bg-white relative overflow-hidden transition-all duration-200"
         style={{
           borderLeft: '4px solid #E30613',

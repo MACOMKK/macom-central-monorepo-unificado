@@ -34,9 +34,9 @@ export default function UserPanel() {
   });
 
   const { data: permissions = [], isLoading: loadingPerms } = useQuery({
-    queryKey: ['permissions-user-panel', user?.email],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ user_email: user?.email }),
-    enabled: !!user?.email,
+    queryKey: ['permissions-user-panel', user?.id],
+    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id }),
+    enabled: !!user?.id,
   });
 
   const allowedIds = permissions.map(p => p.report_id);
@@ -166,7 +166,7 @@ export default function UserPanel() {
             {filtered.map(report => (
               <Link
                 key={report.id}
-                to={`/report/${report.id}`}
+                to={`/relatorio/${report.id}`}
                 className="group block bg-white relative overflow-hidden transition-all duration-200"
                 style={{ borderLeft: '4px solid #E30613', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
                 onMouseEnter={e => {

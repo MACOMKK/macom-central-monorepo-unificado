@@ -54,20 +54,27 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/set-password" element={<SetPassword />} />
+      <Route path="/entrar" element={<Login />} />
+      <Route path="/definir-senha" element={<SetPassword />} />
+      <Route path="/login" element={<Navigate replace to="/entrar" />} />
+      <Route path="/set-password" element={<Navigate replace to="/definir-senha" />} />
       {!isAuthenticated ? (
-        <Route path="*" element={<Navigate replace to="/login" />} />
+        <Route path="*" element={<Navigate replace to="/entrar" />} />
       ) : (
         <>
           <Route path="/painel" element={<UserPanel />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/relatorio/:id" element={<ReportViewer />} />
+            <Route path="/admin/relatorios" element={<ManageReports />} />
+            <Route path="/admin/unidades" element={<ManageUnits />} />
+            <Route path="/admin/permissoes" element={<ManagePermissions />} />
+            <Route path="/admin/acessos" element={<Settings />} />
             <Route path="/report/:id" element={<ReportViewer />} />
-            <Route path="/admin/reports" element={<ManageReports />} />
-            <Route path="/admin/units" element={<ManageUnits />} />
-            <Route path="/admin/permissions" element={<ManagePermissions />} />
-            <Route path="/admin/settings" element={<Settings />} />
+            <Route path="/admin/reports" element={<Navigate replace to="/admin/relatorios" />} />
+            <Route path="/admin/units" element={<Navigate replace to="/admin/unidades" />} />
+            <Route path="/admin/permissions" element={<Navigate replace to="/admin/permissoes" />} />
+            <Route path="/admin/settings" element={<Navigate replace to="/admin/acessos" />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </>
