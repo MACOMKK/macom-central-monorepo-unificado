@@ -5,6 +5,7 @@ import { systemAccessApi } from '@macom/api-client/systemAccessApi';
 const SORT_KEY_MAP = {
   created_date: 'criado_em'
 };
+const LOOKUP_CACHE_TTL_MS = 60 * 1000;
 
 const toError = (error, fallbackMessage) => {
   if (!error) return null;
@@ -66,6 +67,52 @@ const queryByFilters = (table, filters = {}) => {
 const matchesFilters = (row, filters = {}) =>
   Object.entries(filters).every(([key, value]) => row?.[key] === value);
 
+const createLookupCache = () => ({
+  data: null,
+  loadedAt: 0,
+  promise: null,
+});
+
+const unitsCache = createLookupCache();
+const collaboratorsCache = createLookupCache();
+
+const isCacheFresh = (cache) =>
+  Array.isArray(cache.data) && Date.now() - cache.loadedAt < LOOKUP_CACHE_TTL_MS;
+
+const readCached = async (cache, loader, { force = false } = {}) => {
+  if (!force && isCacheFresh(cache)) {
+    return cache.data;
+  }
+
+  if (!force && cache.promise) {
+    return cache.promise;
+  }
+
+  cache.promise = Promise.resolve(loader()).then((data) => {
+    cache.data = data;
+    cache.loadedAt = Date.now();
+    cache.promise = null;
+    return data;
+  }).catch((error) => {
+    cache.promise = null;
+    throw error;
+  });
+
+  return cache.promise;
+};
+
+const invalidateUnitsCache = () => {
+  unitsCache.data = null;
+  unitsCache.loadedAt = 0;
+  unitsCache.promise = null;
+};
+
+const invalidateCollaboratorsCache = () => {
+  collaboratorsCache.data = null;
+  collaboratorsCache.loadedAt = 0;
+  collaboratorsCache.promise = null;
+};
+
 const mapReportRow = (row = {}, unitsById = new Map()) => {
   const unit = unitsById.get(row.unidade_id) || null;
 
@@ -111,20 +158,35 @@ const mapReportPermissionPayload = (payload = {}) => ({
 });
 
 const hydrateReports = async (rows = []) => {
-  const units = await catalogApi.unidades.list();
-  const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+  const rowsAlreadyContainUnitNames = rows.every(
+    (row) => !row?.unidade_id || Boolean(row?.nome_unidade || row?.unidade_nome)
+  );
+
+  if (rowsAlreadyContainUnitNames) {
+    return rows.map((row) => mapReportRow(row));
+  }
+
+  let unitsById = new Map();
+  try {
+    const units = await readCached(unitsCache, () => catalogApi.unidades.list());
+    unitsById = new Map(units.map((unit) => [unit.id, unit]));
+  } catch (error) {
+    if (error?.message !== 'Acesso restrito a administradores.') {
+      throw error;
+    }
+  }
+
   return rows.map((row) => mapReportRow(row, unitsById));
 };
 
 const hydrateReportPermissions = async (rows = []) => {
   const [collaborators, reportRows] = await Promise.all([
-    catalogApi.colaboradores.list(),
-    catalogApi.relatorios.list(),
+    readCached(collaboratorsCache, () => catalogApi.colaboradores.list()),
+    catalogApi.relatorios.list().then((items) => hydrateReports(items)),
   ]);
 
   const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
-  const reports = await hydrateReports(reportRows);
-  const reportsById = new Map(reports.map((report) => [report.id, report]));
+  const reportsById = new Map(reportRows.map((report) => [report.id, report]));
 
   return rows.map((row) => {
     const base = mapReportPermissionRow(row);
@@ -292,7 +354,7 @@ const createEntity = (table) => ({
 
 const createCentralUnitEntity = () => ({
   list: async (sort) => {
-    const rows = await catalogApi.unidades.list();
+    const rows = await readCached(unitsCache, () => catalogApi.unidades.list());
     const mapped = rows.map(mapCentralUnit);
     const parsed = parseSort(sort);
 
@@ -312,7 +374,7 @@ const createCentralUnitEntity = () => ({
     });
   },
   filter: async (filters = {}) => {
-    const rows = await catalogApi.unidades.list();
+    const rows = await readCached(unitsCache, () => catalogApi.unidades.list());
     return rows.map(mapCentralUnit).filter((row) => matchesFilters(row, filters));
   },
   create: async () => {
@@ -332,7 +394,7 @@ const createCentralUnitEntity = () => ({
 const createCentralUserEntity = () => ({
   list: async () => {
     const [rows, { accessMap }] = await Promise.all([
-      catalogApi.colaboradores.list(),
+      readCached(collaboratorsCache, () => catalogApi.colaboradores.list()),
       getRelatoriosAccessMap(),
     ]);
 
@@ -361,6 +423,7 @@ const createCentralUserEntity = () => ({
       nivel_acesso: mapRoleToSystemAccessLevel(payload.role),
       ativo: payload.active !== false,
     });
+    invalidateCollaboratorsCache();
 
     return normalizeCentralCollaborator(result, null, access);
   },
@@ -374,8 +437,9 @@ const createCentralUserEntity = () => ({
         nome: payload.full_name || payload.nome,
         unidade_id: nextUnitId,
       });
+      invalidateCollaboratorsCache();
     } else {
-      const rows = await catalogApi.colaboradores.list();
+      const rows = await readCached(collaboratorsCache, () => catalogApi.colaboradores.list());
       collaborator = rows.find((row) => row.id === id) || null;
     }
 
@@ -526,6 +590,7 @@ export const dataClient = {
         nivel_acesso: mapRoleToSystemAccessLevel(role),
         ativo: true,
       });
+      invalidateCollaboratorsCache();
       return collaborator;
     },
     setUserPassword: async (userId, password) => {
