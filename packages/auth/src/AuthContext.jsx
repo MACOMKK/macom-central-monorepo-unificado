@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { catalogApi } from '@macom/api-client/catalogApi';
 import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
@@ -9,9 +9,12 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const inFlightValidationRef = useRef(null);
+  const validatedTokenRef = useRef(null);
 
-  async function validateAdminSession(nextSession) {
+  async function runAdminValidation(nextSession) {
     if (!nextSession?.user) {
+      validatedTokenRef.current = null;
       setSession(null);
       setProfile(null);
       setLoading(false);
@@ -22,22 +25,57 @@ export function AuthProvider({ children }) {
       const collaborator = await catalogApi.auth.me(nextSession.access_token);
 
       if (collaborator?.funcao !== 'admin' || collaborator?.status === 'inativo') {
+        validatedTokenRef.current = null;
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
         throw new Error('Acesso restrito a administradores.');
       }
 
+      validatedTokenRef.current = nextSession.access_token;
       setSession(nextSession);
       setProfile(collaborator);
       setLoading(false);
     } catch (error) {
+      validatedTokenRef.current = null;
       await supabase.auth.signOut().catch(() => null);
       setSession(null);
       setProfile(null);
       setLoading(false);
       throw error;
     }
+  }
+
+  async function validateAdminSession(nextSession, options = {}) {
+    const accessToken = nextSession?.access_token || null;
+    const { force = false } = options;
+
+    if (!nextSession?.user) {
+      return runAdminValidation(nextSession);
+    }
+
+    if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profile) {
+      setSession(nextSession);
+      setLoading(false);
+      return;
+    }
+
+    if (!force && inFlightValidationRef.current?.token === accessToken) {
+      return inFlightValidationRef.current.promise;
+    }
+
+    const validationPromise = runAdminValidation(nextSession).finally(() => {
+      if (inFlightValidationRef.current?.token === accessToken) {
+        inFlightValidationRef.current = null;
+      }
+    });
+
+    inFlightValidationRef.current = {
+      token: accessToken,
+      promise: validationPromise,
+    };
+
+    return validationPromise;
   }
 
   useEffect(() => {
@@ -89,7 +127,7 @@ export function AuthProvider({ children }) {
       async login(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        await validateAdminSession(data.session || null);
+        await validateAdminSession(data.session || null, { force: true });
       },
       async logout() {
         await supabase.auth.signOut();
