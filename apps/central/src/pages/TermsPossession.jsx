@@ -375,20 +375,36 @@ export default function TermsPossession() {
   const assets = assetsQuery.data || [];
   const terms = termsQuery.data || [];
   const departments = departmentsQuery.data || [];
+  const normalizedSearch = useMemo(() => normalizeText(search), [search]);
 
   const departmentById = useMemo(
     () => new Map(departments.map((department) => [department.id, department.nome])),
     [departments]
   );
 
+  const assetsByCollaboratorId = useMemo(() => {
+    const map = new Map();
+
+    assets.forEach((asset) => {
+      if (!asset.usuario_id) return;
+      const current = map.get(asset.usuario_id) || [];
+      current.push(asset);
+      map.set(asset.usuario_id, current);
+    });
+
+    map.forEach((linkedAssets) => {
+      linkedAssets.sort((left, right) => (left.nome || '').localeCompare(right.nome || ''));
+    });
+
+    return map;
+  }, [assets]);
+
   const collaboratorCards = useMemo(() => {
     const latestTermIndex = buildLatestTermIndex(terms);
 
     return collaborators
       .map((collaborator) => {
-        const linkedAssets = assets
-          .filter((asset) => asset.usuario_id === collaborator.id)
-          .sort((left, right) => (left.nome || '').localeCompare(right.nome || ''));
+        const linkedAssets = assetsByCollaboratorId.get(collaborator.id) || [];
         const latestTermsByAsset = linkedAssets.reduce((acc, asset) => {
           acc[asset.id] = latestTermIndex[`${collaborator.id}:${asset.id}`] || null;
           return acc;
@@ -415,12 +431,12 @@ export default function TermsPossession() {
           .map(normalizeText)
           .join(' ');
 
-        const matchesSearch = !search || haystack.includes(normalizeText(search));
+        const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
         const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
         return matchesSearch && matchesStatus;
       })
       .sort((left, right) => (left.collaborator.nome || '').localeCompare(right.collaborator.nome || ''));
-  }, [assets, collaborators, departmentById, search, statusFilter, terms]);
+  }, [assetsByCollaboratorId, collaborators, departmentById, normalizedSearch, statusFilter, terms]);
 
   const ensureTermRows = async (collaborator, linkedAssets, latestTermsByAsset) => {
     const rows = [];
@@ -749,7 +765,6 @@ export default function TermsPossession() {
 
                     <div className="space-y-2">
                       {linkedAssets.map((asset) => {
-                        const latestTerm = latestTermsByAsset[asset.id];
                         return (
                           <div
                             key={asset.id}
