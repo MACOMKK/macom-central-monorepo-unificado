@@ -11,13 +11,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const inFlightValidationRef = useRef(null);
   const validatedTokenRef = useRef(null);
+  const profileRef = useRef(null);
+
+  function clearAuthState() {
+    validatedTokenRef.current = null;
+    profileRef.current = null;
+    setSession(null);
+    setProfile(null);
+    setLoading(false);
+  }
 
   async function runAdminValidation(nextSession) {
     if (!nextSession?.user) {
-      validatedTokenRef.current = null;
-      setSession(null);
-      setProfile(null);
-      setLoading(false);
+      clearAuthState();
       return;
     }
 
@@ -25,23 +31,19 @@ export function AuthProvider({ children }) {
       const collaborator = await catalogApi.auth.me(nextSession.access_token);
 
       if (collaborator?.funcao !== 'admin' || collaborator?.status === 'inativo') {
-        validatedTokenRef.current = null;
         await supabase.auth.signOut();
-        setSession(null);
-        setProfile(null);
+        clearAuthState();
         throw new Error('Acesso restrito a administradores.');
       }
 
       validatedTokenRef.current = nextSession.access_token;
+      profileRef.current = collaborator;
       setSession(nextSession);
       setProfile(collaborator);
       setLoading(false);
     } catch (error) {
-      validatedTokenRef.current = null;
       await supabase.auth.signOut().catch(() => null);
-      setSession(null);
-      setProfile(null);
-      setLoading(false);
+      clearAuthState();
       throw error;
     }
   }
@@ -54,8 +56,9 @@ export function AuthProvider({ children }) {
       return runAdminValidation(nextSession);
     }
 
-    if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profile) {
+    if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profileRef.current) {
       setSession(nextSession);
+      setProfile(profileRef.current);
       setLoading(false);
       return;
     }
@@ -96,13 +99,11 @@ export function AuthProvider({ children }) {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT' || !nextSession) {
-        setSession(null);
-        setProfile(null);
-        setLoading(false);
+        clearAuthState();
         return;
       }
 
-      if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         try {
           await validateAdminSession(nextSession);
         } catch {
