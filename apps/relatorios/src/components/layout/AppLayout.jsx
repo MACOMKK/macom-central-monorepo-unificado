@@ -8,9 +8,7 @@ export default function AppLayout() {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isMd, setIsMd] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth >= 768 : true
-  );
+  const [isMd, setIsMd] = useState(() => window.innerWidth >= 768);
 
   useEffect(() => {
     const handler = () => setIsMd(window.innerWidth >= 768);
