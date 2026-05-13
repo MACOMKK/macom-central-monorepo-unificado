@@ -3,7 +3,7 @@ import { catalogApi } from '@macom/api-client/catalogApi';
 import { systemAccessApi } from '@macom/api-client/systemAccessApi';
 
 const SORT_KEY_MAP = {
-  created_date: 'created_at'
+  created_date: 'criado_em'
 };
 
 const toError = (error, fallbackMessage) => {
@@ -14,41 +14,36 @@ const toError = (error, fallbackMessage) => {
   return err;
 };
 
-const toFunctionError = async (error, fallbackMessage) => {
-  if (!error) return null;
-
-  let message = error.message || fallbackMessage;
-  let status = error.status || 500;
-  let details = error;
-
-  if (error.context) {
-    status = error.context.status || status;
-    try {
-      const payload = await error.context.json();
-      message = payload?.error || payload?.message || message;
-      details = payload || details;
-    } catch {
-      try {
-        const text = await error.context.text();
-        if (text) message = text;
-      } catch {
-        // Keep the original error when the function response body cannot be parsed.
-      }
-    }
-  }
-
-  const err = new Error(message || fallbackMessage);
-  err.status = status;
-  err.details = details;
-  return err;
-};
-
 const parseSort = (sort) => {
   if (!sort) return null;
   const desc = sort.startsWith('-');
   const rawKey = desc ? sort.slice(1) : sort;
   const key = SORT_KEY_MAP[rawKey] || rawKey;
   return { key, ascending: !desc };
+};
+
+const sortRows = (rows = [], sort) => {
+  const parsed = parseSort(sort);
+  if (!parsed) return rows;
+
+  return [...rows].sort((left, right) => {
+    const leftValue = left?.[parsed.key];
+    const rightValue = right?.[parsed.key];
+
+    if (leftValue == null && rightValue == null) return 0;
+    if (leftValue == null) return parsed.ascending ? 1 : -1;
+    if (rightValue == null) return parsed.ascending ? -1 : 1;
+
+    if (typeof leftValue === 'boolean' || typeof rightValue === 'boolean') {
+      const leftNumber = Number(leftValue);
+      const rightNumber = Number(rightValue);
+      return parsed.ascending ? leftNumber - rightNumber : rightNumber - leftNumber;
+    }
+
+    return parsed.ascending
+      ? String(leftValue).localeCompare(String(rightValue), 'pt-BR')
+      : String(rightValue).localeCompare(String(leftValue), 'pt-BR');
+  });
 };
 
 const maybeSingle = async (query) => {
@@ -62,6 +57,7 @@ const maybeSingle = async (query) => {
 const queryByFilters = (table, filters = {}) => {
   let query = supabase.from(table).select('*');
   Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined) return;
     query = query.eq(key, value);
   });
   return query;
@@ -69,6 +65,82 @@ const queryByFilters = (table, filters = {}) => {
 
 const matchesFilters = (row, filters = {}) =>
   Object.entries(filters).every(([key, value]) => row?.[key] === value);
+
+const mapReportRow = (row = {}, unitsById = new Map()) => {
+  const unit = unitsById.get(row.unidade_id) || null;
+
+  return ({
+  id: row.id,
+  title: row.titulo || '',
+  description: row.descricao || '',
+  embed_code: row.embed_code || '',
+  unit_id: row.unidade_id || null,
+  unit_name: unit?.nome || row.nome_unidade || row.unidade_nome || '',
+  category: row.categoria || '',
+  icon: row.icone || '',
+  active: row.ativo !== false,
+  created_at: row.criado_em || null,
+  updated_at: row.atualizado_em || null,
+  raw: row,
+  });
+};
+
+const mapReportPayload = (payload = {}) => ({
+  titulo: payload.title ?? payload.titulo ?? '',
+  descricao: payload.description ?? payload.descricao ?? null,
+  embed_code: payload.embed_code ?? payload.codigo_embed ?? '',
+  unidade_id: payload.unit_id ?? payload.unidade_id ?? null,
+  categoria: payload.category ?? payload.categoria ?? null,
+  icone: payload.icon ?? payload.icone ?? null,
+  ativo: payload.active ?? payload.ativo ?? true,
+});
+
+const mapReportPermissionRow = (row = {}) => ({
+  id: row.id,
+  collaborator_id: row.colaborador_id || null,
+  user_id: row.colaborador_id || null,
+  report_id: row.relatorio_id || null,
+  created_at: row.criado_em || null,
+  updated_at: row.atualizado_em || null,
+  raw: row,
+});
+
+const mapReportPermissionPayload = (payload = {}) => ({
+  colaborador_id: payload.collaborator_id ?? payload.colaborador_id ?? payload.user_id ?? null,
+  relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
+});
+
+const hydrateReports = async (rows = []) => {
+  const units = await catalogApi.unidades.list();
+  const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+  return rows.map((row) => mapReportRow(row, unitsById));
+};
+
+const hydrateReportPermissions = async (rows = []) => {
+  const [collaborators, reportRows] = await Promise.all([
+    catalogApi.colaboradores.list(),
+    catalogApi.relatorios.list(),
+  ]);
+
+  const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
+  const reports = await hydrateReports(reportRows);
+  const reportsById = new Map(reports.map((report) => [report.id, report]));
+
+  return rows.map((row) => {
+    const base = mapReportPermissionRow(row);
+    const collaborator = collaboratorsById.get(base.collaborator_id) || null;
+    const report = reportsById.get(base.report_id) || null;
+
+    return {
+      ...base,
+      user_email: collaborator?.email || '',
+      user_name: collaborator?.nome || '',
+      report_title: report?.title || '',
+      unit_id: report?.unit_id || null,
+      unit_name: report?.unit_name || '',
+    };
+  });
+};
 
 const mapCentralUnit = (unit) => ({
   id: unit.id,
@@ -81,12 +153,6 @@ const mapCentralUnit = (unit) => ({
   manager: unit.responsavel || '',
   raw: unit,
 });
-
-const mapRoleToCentral = (role) => {
-  if (role === 'admin') return 'admin';
-  if (role === 'manager') return 'gestor';
-  return 'usuario';
-};
 
 const mapSystemAccessLevelToRole = (level) => {
   if (level === 'admin') return 'admin';
@@ -332,6 +398,79 @@ const createCentralUserEntity = () => ({
   },
 });
 
+const createCatalogReportEntity = () => ({
+  list: async (sort) => {
+    const rows = await catalogApi.relatorios.list();
+    const reports = await hydrateReports(rows);
+    return sortRows(reports, sort);
+  },
+  filter: async (filters = {}) => {
+    const rows = await catalogApi.relatorios.list({
+      filters: {
+        id: filters.id,
+        ativo: 'active' in filters ? filters.active : filters.ativo,
+        unidade_id: filters.unit_id ?? filters.unidade_id,
+        categoria: filters.category ?? filters.categoria,
+      },
+    });
+    return hydrateReports(rows);
+  },
+  create: async (payload) => {
+    const row = await catalogApi.relatorios.create(mapReportPayload(payload));
+    return (await hydrateReports([row]))[0];
+  },
+  update: async (id, payload) => {
+    const row = await catalogApi.relatorios.update(id, mapReportPayload(payload));
+    return (await hydrateReports([row]))[0];
+  },
+  delete: async (id) => {
+    await catalogApi.relatorios.remove(id);
+    return { id };
+  },
+  bulkCreate: async (rows) => {
+    const created = await Promise.all(rows.map((row) => catalogApi.relatorios.create(mapReportPayload(row))));
+    return hydrateReports(created);
+  },
+});
+
+const createCatalogReportPermissionEntity = () => ({
+  list: async (sort) => {
+    const rows = await catalogApi.permissoes_relatorios.list();
+    const permissions = await hydrateReportPermissions(rows);
+    return sortRows(permissions, sort);
+  },
+  filter: async (filters = {}) => {
+    const payload = {};
+    if (filters.user_email || filters.user_id || filters.collaborator_id) {
+      payload.colaborador_id = filters.user_id || filters.collaborator_id || filters.user_email;
+    }
+    if (filters.report_id || filters.relatorio_id) {
+      payload.relatorio_id = filters.report_id || filters.relatorio_id;
+    }
+
+    const rows = await catalogApi.permissoes_relatorios.list({ filters: payload });
+    return hydrateReportPermissions(rows);
+  },
+  create: async (payload) => {
+    const row = await catalogApi.permissoes_relatorios.create(mapReportPermissionPayload(payload));
+    return (await hydrateReportPermissions([row]))[0];
+  },
+  update: async (id, payload) => {
+    const row = await catalogApi.permissoes_relatorios.update(id, mapReportPermissionPayload(payload));
+    return (await hydrateReportPermissions([row]))[0];
+  },
+  delete: async (id) => {
+    await catalogApi.permissoes_relatorios.remove(id);
+    return { id };
+  },
+  bulkCreate: async (rows) => {
+    const created = await Promise.all(
+      rows.map((row) => catalogApi.permissoes_relatorios.create(mapReportPermissionPayload(row)))
+    );
+    return hydrateReportPermissions(created);
+  },
+});
+
 export const dataClient = {
   auth: {
     me: async () => {
@@ -355,7 +494,7 @@ export const dataClient = {
 
       return ensureReportsSystemAccess(profile);
     },
-    logout: async (redirectTo = '/login') => {
+    logout: async (redirectTo = '/entrar') => {
       const { error } = await supabase.auth.signOut();
       if (error) throw toError(error, 'Unable to logout');
       if (typeof window !== 'undefined' && redirectTo) {
@@ -366,7 +505,7 @@ export const dataClient = {
       if (typeof window === 'undefined') return;
       const target = fromUrl || `${window.location.pathname}${window.location.search}`;
       const encoded = encodeURIComponent(target);
-      window.location.href = `/login?from=${encoded}`;
+      window.location.href = `/entrar?from=${encoded}`;
     }
   },
   users: {
@@ -416,9 +555,9 @@ export const dataClient = {
     }
   },
   entities: {
-    Report: createEntity('reports'),
+    Report: createCatalogReportEntity(),
     Unit: createCentralUnitEntity(),
-    ReportPermission: createEntity('report_permissions'),
+    ReportPermission: createCatalogReportPermissionEntity(),
     User: createCentralUserEntity()
   }
 };

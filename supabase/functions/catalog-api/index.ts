@@ -123,6 +123,20 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['colaborador_id', 'sistema_id', 'nivel_acesso', 'ativo'],
   },
+  relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'relatorios',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['id', 'titulo', 'descricao', 'embed_code', 'unidade_id', 'categoria', 'icone', 'ativo'],
+  },
+  permissoes_relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'permissoes_relatorios',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['id', 'colaborador_id', 'relatorio_id'],
+  },
 } as const;
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
@@ -159,6 +173,44 @@ function sanitizePayload(entity: keyof typeof ENTITY_CONFIG, payload: Record<str
   }
 
   return sanitized;
+}
+
+function buildSqlFilters(
+  filters: Record<string, unknown>,
+  startIndex = 1,
+  tableAlias?: string,
+) {
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+
+  for (const [field, value] of Object.entries(filters)) {
+    if (value === undefined) continue;
+    clauses.push(`${prefix}"${field}" = $${startIndex + values.length}`);
+    values.push(value);
+  }
+
+  return { clauses, values };
+}
+
+async function userHasActiveSystemAccess(userId: string, systemSlug: string) {
+  if (!sql) return false;
+
+  const rows = await sql.unsafe(
+    `
+      select 1
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      where aus.colaborador_id = $1
+        and aus.ativo = true
+        and s.slug = $2
+        and s.ativo = true
+      limit 1;
+    `,
+    [userId, systemSlug],
+  );
+
+  return Boolean(rows[0]);
 }
 
 function normalizeCollaboradoresPayload(payload: Record<string, unknown>) {
@@ -754,6 +806,7 @@ Deno.serve(async (request) => {
     const entity = body.entity as keyof typeof ENTITY_CONFIG;
     const id = body.id as string | undefined;
     const payload = body.payload as Record<string, unknown> | undefined;
+    const filters = body.filters as Record<string, unknown> | undefined;
 
     if (!entity || !ENTITY_CONFIG[entity]) {
       return json({ error: 'Entidade invalida.' }, 400);
@@ -795,8 +848,63 @@ Deno.serve(async (request) => {
 
     const accessRows = await sql.unsafe('select funcao, status from public.colaboradores where id = $1 limit 1;', [user.id]);
     const accessProfile = accessRows[0];
+    const isAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
 
-    if (!accessProfile || accessProfile.funcao !== 'admin' || accessProfile.status === 'inativo') {
+    if (action === 'list' && entity === 'relatorios') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'r');
+      const whereClauses = [...clauses];
+
+      if (!isAdmin) {
+        const hasReportsAccess = await userHasActiveSystemAccess(user.id, 'relatorios');
+        if (!hasReportsAccess) {
+          return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+        }
+
+        const permissionParam = values.length + 1;
+        whereClauses.push('r.ativo = true');
+        whereClauses.push(
+          `exists (
+            select 1
+            from gestao_relatorio.permissoes_relatorios pr
+            where pr.relatorio_id = r.id
+              and pr.colaborador_id = $${permissionParam}
+          )`,
+        );
+        values.push(user.id);
+      }
+
+      const whereSql = whereClauses.length ? `where ${whereClauses.join(' and ')}` : '';
+      const rows = await sql.unsafe(
+        `select r.* from gestao_relatorio.relatorios r ${whereSql} order by r.${orderBy} ${orderDirection};`,
+        values,
+      );
+      return json({ rows });
+    }
+
+    if (action === 'list' && entity === 'permissoes_relatorios') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const permissionFilters = { ...sanitizedFilters };
+
+      if (!isAdmin) {
+        const hasReportsAccess = await userHasActiveSystemAccess(user.id, 'relatorios');
+        if (!hasReportsAccess) {
+          return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+        }
+
+        permissionFilters.colaborador_id = user.id;
+      }
+
+      const { clauses, values } = buildSqlFilters(permissionFilters, 1);
+      const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const rows = await sql.unsafe(
+        `select * from gestao_relatorio.permissoes_relatorios ${whereSql} order by ${orderBy} ${orderDirection};`,
+        values,
+      );
+      return json({ rows });
+    }
+
+    if (!isAdmin) {
       return json({ error: 'Acesso restrito a administradores.' }, 403);
     }
 

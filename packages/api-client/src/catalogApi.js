@@ -60,11 +60,11 @@ async function invokeSupabaseFunction(functionName, payload = {}, accessTokenOve
   return result;
 }
 
-async function invokeCatalog(action, entity, payload = {}) {
+async function invokeCatalog(action, entity, options = {}) {
   return invokeSupabaseFunction('catalog-api', {
     action,
     entity,
-    ...payload,
+    ...options,
   });
 }
 
@@ -240,6 +240,46 @@ export const catalogApi = {
   email: {
     async sendTermoGmail(payload) {
       return invokeSupabaseFunction('enviar-termo-gmail', payload);
+    },
+  },
+  relatorios: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'relatorios', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'relatorios', { payload });
+      return result.row || null;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'relatorios', { id, payload });
+      return result.row || null;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'relatorios', { id });
+      return true;
+    },
+  },
+  permissoes_relatorios: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'permissoes_relatorios', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'permissoes_relatorios', { payload });
+      return result.row || null;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'permissoes_relatorios', { id, payload });
+      return result.row || null;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'permissoes_relatorios', { id });
+      return true;
     },
   },
 };
