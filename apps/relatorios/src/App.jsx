@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
-import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLayout from '@/components/layout/AppLayout';
@@ -25,8 +25,51 @@ const RouteFallback = () => (
   </div>
 );
 
+const PUBLIC_PATHS = new Set(['/entrar', '/definir-senha', '/login', '/set-password']);
+
+const getFromPath = (search) => {
+  const params = new URLSearchParams(search);
+  const from = params.get('from');
+  if (!from) return '/';
+
+  try {
+    const decoded = decodeURIComponent(from);
+    return decoded.startsWith('/') ? decoded : '/';
+  } catch {
+    return '/';
+  }
+};
+
+const LoginRoute = () => {
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const location = useLocation();
+  const isLoading = isLoadingAuth || isLoadingPublicSettings;
+
+  if (!isLoading && isAuthenticated) {
+    return <Navigate replace to={getFromPath(location.search)} />;
+  }
+
+  return <Login loading={isLoading} />;
+};
+
+const PublicRoutes = () => (
+  <Routes>
+    <Route path="/entrar" element={<LoginRoute />} />
+    <Route path="/definir-senha" element={<SetPassword />} />
+    <Route path="/login" element={<Navigate replace to="/entrar" />} />
+    <Route path="/set-password" element={<Navigate replace to="/definir-senha" />} />
+    <Route path="*" element={<Navigate replace to="/entrar" />} />
+  </Routes>
+);
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const isPublicPath = PUBLIC_PATHS.has(location.pathname);
+
+  if ((isLoadingPublicSettings || isLoadingAuth) && isPublicPath) {
+    return <PublicRoutes />;
+  }
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -62,7 +105,7 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
 
   return (
     <Routes>
-      <Route path="/entrar" element={<Login />} />
+      <Route path="/entrar" element={<LoginRoute />} />
       <Route path="/definir-senha" element={<SetPassword />} />
       <Route path="/login" element={<Navigate replace to="/entrar" />} />
       <Route path="/set-password" element={<Navigate replace to="/definir-senha" />} />

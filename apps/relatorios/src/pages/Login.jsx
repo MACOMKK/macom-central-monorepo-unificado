@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { dataClient } from '@/api/dataClient';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,21 +9,7 @@ import { useAuth } from '@/lib/AuthContext';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 
-const getFromPath = (search) => {
-  const params = new URLSearchParams(search);
-  const from = params.get('from');
-  if (!from) return '/';
-  try {
-    const decoded = decodeURIComponent(from);
-    return decoded.startsWith('/') ? decoded : '/';
-  } catch {
-    return '/';
-  }
-};
-
-export default function Login() {
-  const navigate = useNavigate();
-  const location = useLocation();
+export default function Login({ loading = false }) {
   const { toast } = useToast();
   const { checkUserAuth } = useAuth();
   const [email, setEmail] = useState('');
@@ -33,14 +17,17 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoverCooldownUntil, setRecoverCooldownUntil] = useState(0);
+  const isBusy = loading || isSubmitting;
 
   const onSubmit = async (event) => {
     event.preventDefault();
+    if (isBusy) return;
+
     setIsSubmitting(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setIsSubmitting(false);
 
     if (error) {
+      setIsSubmitting(false);
       toast({
         title: 'Falha no login',
         description: error.message
@@ -50,14 +37,13 @@ export default function Login() {
     try {
       await checkUserAuth();
     } catch (authCheckError) {
+      setIsSubmitting(false);
       toast({
         title: 'Acesso indisponivel',
         description: authCheckError.message || 'Nao foi possivel concluir o login.'
       });
       return;
     }
-
-    navigate(getFromPath(location.search), { replace: true });
   };
 
   const handleRecoverPassword = async () => {
@@ -170,7 +156,7 @@ export default function Login() {
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full h-12 text-sm font-bold" style={{ background: '#f50914' }}>
-              {isSubmitting ? (
+              {isBusy ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Entrando...
