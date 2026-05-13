@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
@@ -7,15 +8,22 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLayout from '@/components/layout/AppLayout';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import PageNotFound from '@/lib/PageNotFound';
-import Dashboard from '@/pages/Dashboard';
-import Login from '@/pages/Login';
-import ReportViewer from '@/pages/ReportViewer';
-import SetPassword from '@/pages/SetPassword';
-import UserPanel from '@/pages/UserPanel';
-import ManagePermissions from '@/pages/admin/ManagePermissions';
-import ManageReports from '@/pages/admin/ManageReports';
-import ManageUnits from '@/pages/admin/ManageUnits';
-import Settings from '@/pages/admin/Settings';
+
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const Login = lazy(() => import('@/pages/Login'));
+const ReportViewer = lazy(() => import('@/pages/ReportViewer'));
+const SetPassword = lazy(() => import('@/pages/SetPassword'));
+const UserPanel = lazy(() => import('@/pages/UserPanel'));
+const ManagePermissions = lazy(() => import('@/pages/admin/ManagePermissions'));
+const ManageReports = lazy(() => import('@/pages/admin/ManageReports'));
+const ManageUnits = lazy(() => import('@/pages/admin/ManageUnits'));
+const Settings = lazy(() => import('@/pages/admin/Settings'));
+
+const RouteFallback = () => (
+  <div className="fixed inset-0 flex items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+  </div>
+);
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
@@ -88,7 +96,9 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <AuthenticatedApp />
+          <Suspense fallback={<RouteFallback />}>
+            <AuthenticatedApp />
+          </Suspense>
         </Router>
         <Toaster />
       </QueryClientProvider>

@@ -142,6 +142,8 @@ const hydrateReportPermissions = async (rows = []) => {
   });
 };
 
+const mapReportPermissions = (rows = []) => rows.map(mapReportPermissionRow);
+
 const mapCentralUnit = (unit) => ({
   id: unit.id,
   name: unit.nome || '',
@@ -449,7 +451,7 @@ const createCatalogReportPermissionEntity = () => ({
     }
 
     const rows = await catalogApi.permissoes_relatorios.list({ filters: payload });
-    return hydrateReportPermissions(rows);
+    return mapReportPermissions(rows);
   },
   create: async (payload) => {
     const row = await catalogApi.permissoes_relatorios.create(mapReportPermissionPayload(payload));
