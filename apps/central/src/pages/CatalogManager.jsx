@@ -80,16 +80,22 @@ function generatePassword(length = 12) {
   return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 }
 
+const ENTITY_DEPENDENCIES = {
+  ativos: ['ativos', 'colaboradores', 'unidades'],
+  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
+  contatos: ['contatos', 'unidades'],
+  departamentos: ['departamentos', 'ativos', 'colaboradores'],
+  infra_estrutura: ['infra_estrutura', 'unidades'],
+  linhas_corporativas: ['linhas_corporativas', 'colaboradores', 'unidades'],
+  termos_posse: ['termos_posse', 'ativos', 'colaboradores'],
+  unidades: ['unidades', 'ativos', 'colaboradores'],
+};
+
 export default function CatalogManager({ lockedEntityKey }) {
   const importInputRef = useRef(null);
-  const isDepartmentsView = lockedEntityKey === 'departamentos';
-  const isUnitsView = lockedEntityKey === 'unidades';
   const isCollaboratorsView = lockedEntityKey === 'colaboradores';
-  const isTermsView = lockedEntityKey === 'termos_posse';
   const isAssetsView = lockedEntityKey === 'ativos';
-  const isContactsView = lockedEntityKey === 'contatos';
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
-  const isInfrastructureView = lockedEntityKey === 'infra_estrutura';
   const isBulkDeleteView =
     lockedEntityKey === 'ativos' ||
     lockedEntityKey === 'colaboradores' ||
@@ -133,52 +139,58 @@ export default function CatalogManager({ lockedEntityKey }) {
   const corporateLineMenu = getMenu('corporateLine');
   const infrastructureMenu = getMenu('infrastructure');
   const collaboratorMenu = getMenu('collaborator');
+  const requiredEntities = ENTITY_DEPENDENCIES[lockedEntityKey] || [];
+  const requiresEntity = (entityKey) => requiredEntities.includes(entityKey);
 
   const departmentsQuery = useQuery({
     queryKey: ['departamentos'],
     queryFn: catalogApi.departamentos.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView,
+    enabled: requiresEntity('departamentos'),
   });
-  const unitsQuery = useQuery({ queryKey: ['unidades'], queryFn: catalogApi.unidades.list });
+  const unitsQuery = useQuery({
+    queryKey: ['unidades'],
+    queryFn: catalogApi.unidades.list,
+    enabled: requiresEntity('unidades'),
+  });
   const collaboratorsQuery = useQuery({
     queryKey: ['colaboradores'],
     queryFn: catalogApi.colaboradores.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: requiresEntity('colaboradores'),
   });
   const contactsQuery = useQuery({
     queryKey: ['contatos'],
     queryFn: catalogApi.contatos.list,
-    enabled: !isAssetsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView && !isTermsView,
+    enabled: requiresEntity('contatos'),
   });
   const corporateLinesQuery = useQuery({
     queryKey: ['linhas_corporativas'],
     queryFn: catalogApi.linhas_corporativas.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isDepartmentsView && !isUnitsView && !isTermsView,
+    enabled: requiresEntity('linhas_corporativas'),
   });
   const assetsQuery = useQuery({
     queryKey: ['ativos'],
     queryFn: catalogApi.ativos.list,
-    enabled: !isContactsView && !isInfrastructureView,
+    enabled: requiresEntity('ativos'),
   });
   const infraQuery = useQuery({
     queryKey: ['infra_estrutura'],
     queryFn: catalogApi.infra_estrutura.list,
-    enabled: !isAssetsView && !isContactsView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView && !isTermsView,
+    enabled: requiresEntity('infra_estrutura'),
   });
   const termsQuery = useQuery({
     queryKey: ['termos_posse'],
     queryFn: catalogApi.termos_posse.list,
-    enabled: !isAssetsView && !isContactsView && !isInfrastructureView && !isCorporateLinesView && !isDepartmentsView && !isUnitsView && !isCollaboratorsView,
+    enabled: requiresEntity('termos_posse'),
   });
   const systemsQuery = useQuery({
     queryKey: ['sistemas'],
     queryFn: systemAccessApi.systems.list,
-    enabled: isCollaboratorsView,
+    enabled: requiresEntity('sistemas'),
   });
   const systemAccessesQuery = useQuery({
     queryKey: ['acessos_usuario_sistema'],
     queryFn: systemAccessApi.accesses.list,
-    enabled: isCollaboratorsView,
+    enabled: requiresEntity('acessos_usuario_sistema'),
   });
 
   const departments = departmentsQuery.data || [];
@@ -348,22 +360,21 @@ export default function CatalogManager({ lockedEntityKey }) {
     };
   }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, systemAccesses, terms, units]);
 
+  const queryStatesByEntity = {
+    acessos_usuario_sistema: systemAccessesQuery,
+    ativos: assetsQuery,
+    colaboradores: collaboratorsQuery,
+    contatos: contactsQuery,
+    departamentos: departmentsQuery,
+    infra_estrutura: infraQuery,
+    linhas_corporativas: corporateLinesQuery,
+    sistemas: systemsQuery,
+    termos_posse: termsQuery,
+    unidades: unitsQuery,
+  };
+
   const loadingByEntity = {
-    ativos: assetsQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
-    colaboradores:
-      collaboratorsQuery.isLoading ||
-      assetsQuery.isLoading ||
-      corporateLinesQuery.isLoading ||
-      departmentsQuery.isLoading ||
-      unitsQuery.isLoading ||
-      systemsQuery.isLoading ||
-      systemAccessesQuery.isLoading,
-    contatos: contactsQuery.isLoading || unitsQuery.isLoading,
-    departamentos: departmentsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
-    infra_estrutura: infraQuery.isLoading || unitsQuery.isLoading,
-    linhas_corporativas: corporateLinesQuery.isLoading || collaboratorsQuery.isLoading || unitsQuery.isLoading,
-    termos_posse: termsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
-    unidades: unitsQuery.isLoading || assetsQuery.isLoading || collaboratorsQuery.isLoading,
+    [lockedEntityKey]: requiredEntities.some((entityKey) => queryStatesByEntity[entityKey]?.isLoading),
   };
 
   const { current, isLoading, rows } = useCatalogViewState({
