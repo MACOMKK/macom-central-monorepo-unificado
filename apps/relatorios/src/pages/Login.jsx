@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 
@@ -26,6 +27,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { checkUserAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,7 +48,7 @@ export default function Login() {
       return;
     }
     try {
-      await dataClient.auth.me();
+      await checkUserAuth();
     } catch (authCheckError) {
       toast({
         title: 'Acesso indisponivel',
@@ -56,7 +58,6 @@ export default function Login() {
     }
 
     navigate(getFromPath(location.search), { replace: true });
-    window.location.reload();
   };
 
   const handleRecoverPassword = async () => {
