@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 
@@ -168,7 +169,14 @@ export default function Login() {
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full h-12 text-sm font-bold" style={{ background: '#f50914' }}>
-              {isSubmitting ? 'Entrando...' : 'Entrar'}
+              {isSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Entrando...
+                </span>
+              ) : (
+                'Entrar'
+              )}
             </Button>
 
             <button
