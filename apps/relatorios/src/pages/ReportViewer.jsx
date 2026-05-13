@@ -71,6 +71,15 @@ export default function ReportViewer() {
 
   const hasAccess = isAdmin || permissions.length > 0;
 
+  if (!user?.id) {
+    return (
+      <div className="p-6 lg:p-8" style={{ background: '#f2f2f2', minHeight: '100vh' }}>
+        <Skeleton className="h-8 w-48 mb-4" />
+        <Skeleton className="h-[80vh] w-full" />
+      </div>
+    );
+  }
+
   const iframeSrc = useMemo(() => {
     if (!report?.embed_code) return null;
     const match = report.embed_code.match(/src=["']([^"']+)["']/);
