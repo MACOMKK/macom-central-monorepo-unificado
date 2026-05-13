@@ -55,15 +55,16 @@ export default function ReportViewer() {
   }, []);
 
   const { data: report, isLoading } = useQuery({
-    queryKey: ['report', id],
+    queryKey: ['report', id, user?.id, user?.role],
     queryFn: async () => {
       const reports = await dataClient.entities.Report.filter({ id });
       return reports[0];
     },
+    enabled: !!id && !!user?.id,
   });
 
   const { data: permissions = [] } = useQuery({
-    queryKey: ['permission-check', user?.id, id],
+    queryKey: ['permission-check', user?.id, user?.role, id],
     queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id, report_id: id }),
     enabled: !!user?.id && !isAdmin,
   });

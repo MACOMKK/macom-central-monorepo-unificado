@@ -30,25 +30,19 @@ export default function UserPanel() {
   const isAdmin = user?.role === 'admin';
 
   const { data: allReports = [], isLoading: loadingReports } = useQuery({
-    queryKey: ['reports'],
+    queryKey: ['reports', user?.id, user?.role],
     queryFn: () => dataClient.entities.Report.filter({ active: true }),
+    enabled: !!user?.id,
   });
 
-  const { data: permissions = [], isLoading: loadingPerms } = useQuery({
-    queryKey: ['permissions', user?.id],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id }),
-    enabled: !!user?.id && !isAdmin,
-  });
-
-  const allowedIds = permissions.map((permission) => permission.report_id);
-  const reports = isAdmin ? allReports : allReports.filter((report) => allowedIds.includes(report.id));
+  const reports = allReports;
 
   const filtered = reports.filter(r =>
     r.title?.toLowerCase().includes(search.toLowerCase()) ||
     r.unit_name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const isLoading = loadingReports || (!isAdmin && loadingPerms);
+  const isLoading = loadingReports;
 
   const handleUpdateMyPassword = async () => {
     if (newPassword.length < 8) {

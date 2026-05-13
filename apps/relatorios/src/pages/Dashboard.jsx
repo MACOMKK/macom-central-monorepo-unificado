@@ -23,18 +23,11 @@ export default function Dashboard() {
   const isAdmin = user?.role === 'admin';
 
   const { data: allReports = [], isLoading: loadingReports } = useQuery({
-    queryKey: ['reports'],
+    queryKey: ['reports', user?.id, user?.role],
     queryFn: () => dataClient.entities.Report.filter({ active: true }),
+    enabled: !!user?.id,
   });
-
-  const { data: permissions = [], isLoading: loadingPermissions } = useQuery({
-    queryKey: ['permissions', user?.id],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id }),
-    enabled: !!user?.id && !isAdmin,
-  });
-
-  const allowedReportIds = permissions.map(p => p.report_id);
-  const reports = isAdmin ? allReports : allReports.filter(r => allowedReportIds.includes(r.id));
+  const reports = allReports;
 
   const filteredReports = reports.filter(r => {
     const matchSearch =
@@ -45,7 +38,7 @@ export default function Dashboard() {
   });
 
   const categories = ['all', ...new Set(reports.map(r => r.category).filter(Boolean))];
-  const isLoading = loadingReports || (!isAdmin && loadingPermissions);
+  const isLoading = loadingReports;
   const unitCount = new Set(reports.map(r => r.unit_name).filter(Boolean)).size;
 
   return (
