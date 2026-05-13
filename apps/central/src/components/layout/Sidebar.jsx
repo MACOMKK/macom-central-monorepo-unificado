@@ -4,6 +4,19 @@ import { Building2, ChevronLeft, ChevronRight, FileText, Home, KeyRound, Laptop,
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
 
+const routePrefetchers = {
+  '/': () => import('@/pages/Dashboard'),
+  '/ativos': () => import('@/pages/Assets'),
+  '/departamentos': () => import('@/pages/Departments'),
+  '/unidades': () => import('@/pages/Units'),
+  '/colaboradores': () => import('@/pages/Collaborators'),
+  '/contatos': () => import('@/pages/Contacts'),
+  '/linhas-corporativas': () => import('@/pages/CorporateLines'),
+  '/infraestrutura': () => import('@/pages/Infrastructure'),
+  '/acessos-sistemas': () => import('@/pages/SystemAccess'),
+  '/termos-posse': () => import('@/pages/TermsPossession'),
+};
+
 const navItems = [
   { path: '/', label: 'Dashboard', icon: Home },
   { path: '/ativos', label: 'Ativos', icon: Laptop },
@@ -19,12 +32,16 @@ const navItems = [
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, theme, toggleTheme }) {
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
   const handleLogout = async () => {
     await logout();
     window.location.href = '/login';
+  };
+
+  const handlePrefetch = (path) => {
+    routePrefetchers[path]?.().catch(() => null);
   };
 
   return (
@@ -70,6 +87,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                 key={item.path}
                 to={item.path}
                 onClick={() => setMobileOpen(false)}
+                onMouseEnter={() => handlePrefetch(item.path)}
+                onFocus={() => handlePrefetch(item.path)}
                 title={collapsed ? item.label : undefined}
                 aria-label={collapsed ? item.label : undefined}
                 className={`
