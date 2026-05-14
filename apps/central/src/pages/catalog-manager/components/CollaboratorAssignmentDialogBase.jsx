@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Loader2, Search } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -31,13 +31,12 @@ export default function CollaboratorAssignmentDialogBase({
   title,
 }) {
   const [search, setSearch] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(() => buildInitialValue(fieldKey, record));
+  const inlinePicker = Boolean(searchToRevealOptions);
 
   useEffect(() => {
     if (open) {
       setSearch('');
-      setPickerOpen(false);
       setSelectedId(buildInitialValue(fieldKey, record));
     }
   }, [fieldKey, open, record]);
@@ -48,8 +47,7 @@ export default function CollaboratorAssignmentDialogBase({
     const term = search.trim().toLowerCase();
 
     if (!term) {
-      if (!searchToRevealOptions) return collaborators;
-      return selectedCollaborator ? [selectedCollaborator] : [];
+      return collaborators;
     }
 
     return collaborators.filter((collaborator) =>
@@ -76,78 +74,66 @@ export default function CollaboratorAssignmentDialogBase({
         <form className="grid gap-3" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label>{label}</Label>
-            <div className="rounded-lg border border-border bg-background">
-              <button
-                type="button"
-                className="flex h-10 w-full items-center justify-between px-3 text-left text-sm text-foreground"
-                onClick={() => setPickerOpen((current) => !current)}
-              >
-                <span className="truncate">{selectedLabel}</span>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${pickerOpen ? 'rotate-180' : ''}`} />
-              </button>
+            <div className="rounded-lg border border-border bg-background p-2">
+              <div className={`rounded-md border border-border/70 bg-muted/20 px-3 py-2 ${inlinePicker ? 'mb-2' : 'mb-0'}`}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Selecionado</p>
+                <p className="truncate text-sm text-foreground">{selectedLabel}</p>
+              </div>
 
-              {pickerOpen ? (
-                <div className="border-t border-border p-2">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id={`${fieldKey}-search`}
-                      className="h-8 border-0 bg-muted/40 pl-9 shadow-none"
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Buscar colaborador"
-                    />
-                  </div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id={`${fieldKey}-search`}
+                  className="h-8 border-0 bg-muted/40 pl-9 shadow-none"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar colaborador"
+                />
+              </div>
 
-                  <div className="mt-2 max-h-44 space-y-1 overflow-y-auto">
+              <div className="mt-2 max-h-52 space-y-1 overflow-y-auto">
+                <button
+                  type="button"
+                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    selectedId === ''
+                      ? 'bg-primary/8 font-medium text-foreground'
+                      : 'text-foreground hover:bg-muted/40'
+                  }`}
+                  onClick={() => {
+                    setSelectedId('');
+                  }}
+                >
+                  {emptyLabel}
+                </button>
+
+                {filteredCollaborators.length ? (
+                  filteredCollaborators.map((collaborator) => (
                     <button
+                      key={collaborator.id}
                       type="button"
-                      className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                        selectedId === ''
-                          ? 'bg-primary/8 font-medium text-foreground'
-                          : 'text-foreground hover:bg-muted/40'
+                      className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+                        selectedId === collaborator.id
+                          ? 'bg-primary/8 text-foreground'
+                          : 'hover:bg-muted/40'
                       }`}
                       onClick={() => {
-                        setSelectedId('');
-                        setPickerOpen(false);
+                        setSelectedId(collaborator.id);
                       }}
                     >
-                      {emptyLabel}
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {collaborator.nome || collaborator.email || collaborator.id}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {collaborator.email || collaborator.cargo || 'Sem detalhes'}
+                      </p>
                     </button>
-
-                    {filteredCollaborators.length ? (
-                      filteredCollaborators.map((collaborator) => (
-                        <button
-                          key={collaborator.id}
-                          type="button"
-                          className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
-                            selectedId === collaborator.id
-                              ? 'bg-primary/8 text-foreground'
-                              : 'hover:bg-muted/40'
-                          }`}
-                          onClick={() => {
-                            setSelectedId(collaborator.id);
-                            setPickerOpen(false);
-                          }}
-                        >
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {collaborator.nome || collaborator.email || collaborator.id}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {collaborator.email || collaborator.cargo || 'Sem detalhes'}
-                          </p>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="rounded-md px-3 py-4 text-sm text-muted-foreground">
-                        {searchToRevealOptions && !search.trim()
-                          ? 'Digite para buscar colaboradores.'
-                          : 'Nenhum colaborador encontrado.'}
-                      </div>
-                    )}
+                  ))
+                ) : (
+                  <div className="rounded-md px-3 py-4 text-sm text-muted-foreground">
+                    Nenhum colaborador encontrado.
                   </div>
-                </div>
-              ) : null}
+                )}
+              </div>
             </div>
           </div>
 

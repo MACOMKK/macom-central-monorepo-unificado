@@ -6,7 +6,7 @@ export default function AssetAssignmentDialog({ collaborators, loading, onOpenCh
       collaborators={collaborators}
       emptyLabel="Sem usuario"
       fieldKey="usuario_id"
-      label="Usuario"
+      label="Selecionado"
       loading={loading}
       onOpenChange={onOpenChange}
       onSubmit={onSubmit}
