@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Building2, ChevronLeft, ChevronRight, FileText, Home, KeyRound, Laptop, LogOut, Moon, Network, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,12 +32,13 @@ const navItems = [
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, theme, toggleTheme }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { logout } = useAuth();
   const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   const handlePrefetch = (path) => {

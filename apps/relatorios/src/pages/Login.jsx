@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
+const prefetchDashboardRoute = () => import('@/pages/Dashboard');
 
 export default function Login({ loading = false }) {
   const { toast } = useToast();
@@ -24,6 +25,7 @@ export default function Login({ loading = false }) {
     if (isBusy) return;
 
     setIsSubmitting(true);
+    void prefetchDashboardRoute();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {

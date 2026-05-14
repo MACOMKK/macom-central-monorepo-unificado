@@ -1,10 +1,21 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 
 import Sidebar from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
 import { applyTheme, getInitialTheme } from '@/lib/theme';
+
+function PageContentFallback() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-border/70 bg-card/80 shadow-sm">
+      <div className="flex items-center gap-3 rounded-2xl bg-background/70 px-5 py-4">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#881337]/20 border-t-[#881337]" />
+        <span className="text-sm text-muted-foreground">Carregando conteudo...</span>
+      </div>
+    </div>
+  );
+}
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -50,7 +61,9 @@ export default function AppLayout() {
         </header>
 
         <main className="p-4 md:p-6 lg:p-8">
-          <Outlet />
+          <Suspense fallback={<PageContentFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

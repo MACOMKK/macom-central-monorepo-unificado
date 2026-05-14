@@ -139,9 +139,25 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <Suspense fallback={<RouteFallback />}>
-            <AuthenticatedApp />
-          </Suspense>
+          <Routes>
+            <Route
+              path="/entrar"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <LoginRoute />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/definir-senha"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <SetPassword />
+                </Suspense>
+              }
+            />
+            <Route path="*" element={<AuthenticatedApp />} />
+          </Routes>
         </Router>
         <Toaster />
       </QueryClientProvider>

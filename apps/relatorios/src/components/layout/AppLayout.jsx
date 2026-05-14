@@ -1,8 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import Sidebar from './Sidebar';
 import MobileHeader from './MobileHeader';
+
+function PageContentFallback() {
+  return (
+    <div className="min-h-[calc(100vh-56px)] md:min-h-screen" style={{ background: '#f2f2f2' }}>
+      <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
+        <div className="h-3 w-28 animate-pulse rounded bg-[#E30613]/60" />
+        <div className="mt-3 h-9 w-56 animate-pulse rounded bg-white/12" />
+        <div className="mt-2 h-3 w-72 max-w-full animate-pulse rounded bg-white/10" />
+      </div>
+      <div className="px-6 lg:px-10 py-6">
+        <div className="overflow-hidden bg-white shadow-sm" style={{ borderTop: '3px solid #E30613' }}>
+          <div className="space-y-4 p-5">
+            <div className="h-10 w-full animate-pulse rounded bg-slate-100" />
+            <div className="h-10 w-11/12 animate-pulse rounded bg-slate-100" />
+            <div className="h-10 w-10/12 animate-pulse rounded bg-slate-100" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AppLayout() {
   const { user } = useAuth();
@@ -49,7 +70,9 @@ export default function AppLayout() {
         className="transition-all duration-300"
         style={{ marginLeft: sidebarWidth, paddingTop: isMd ? 0 : 56 }}
       >
-        <Outlet context={{ user }} />
+        <Suspense fallback={<PageContentFallback />}>
+          <Outlet context={{ user }} />
+        </Suspense>
       </main>
     </div>
   );

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 
 const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 const bgUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/f_auto,q_auto,c_fill,w_2560,h_1440,fl_progressive/v1777911817/img-mitmotorts_jvikox.webp';
+const prefetchDashboardRoute = () => import('@/pages/Dashboard');
 
 export default function Login({ onSubmit, loading, defaultEmail = '' }) {
   const [email, setEmail] = useState(defaultEmail);
@@ -20,6 +21,7 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
     setSubmitting(true);
 
     try {
+      void prefetchDashboardRoute();
       await onSubmit(email.trim(), password);
     } catch (submitError) {
       setError(submitError.message || 'Falha ao entrar.');

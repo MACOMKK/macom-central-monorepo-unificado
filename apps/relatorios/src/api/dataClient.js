@@ -7,6 +7,14 @@ const SORT_KEY_MAP = {
 };
 const LOOKUP_CACHE_TTL_MS = 60 * 1000;
 
+const navigateWithoutReload = (path, { replace = false } = {}) => {
+  if (typeof window === 'undefined' || !path) return;
+
+  const method = replace ? 'replaceState' : 'pushState';
+  window.history[method]({}, '', path);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
 const toError = (error, fallbackMessage) => {
   if (!error) return null;
   const err = new Error(error.message || fallbackMessage);
@@ -282,7 +290,7 @@ const getRelatoriosAccessMap = async () => {
   return { system, accessMap };
 };
 
-const ensureReportsSystemAccess = async (profile, accessToken) => {
+const ensureReportsSystemAccess = async (profile, accessToken, prefetchedAccess = null) => {
   const collaboratorId = profile?.collaborator?.id;
   if (!collaboratorId) {
     const accessError = new Error('Seu usuario nao esta vinculado ao cadastro central.');
@@ -291,11 +299,13 @@ const ensureReportsSystemAccess = async (profile, accessToken) => {
     throw accessError;
   }
 
-  const access = await systemAccessApi.accesses.findByCollaboratorAndSystem(
-    collaboratorId,
-    'relatorios',
-    accessToken,
-  );
+  const access =
+    prefetchedAccess ||
+    (await systemAccessApi.accesses.findByCollaboratorAndSystem(
+      collaboratorId,
+      'relatorios',
+      accessToken,
+    ));
   const hasActiveAccess = access?.ativo === true && access?.sistema?.ativo === true;
 
   if (!hasActiveAccess) {
@@ -557,7 +567,8 @@ export const dataClient = {
       }
 
       const authUser = session.user;
-      const collaborator = await catalogApi.auth.me(session.access_token);
+      const authPayload = await catalogApi.auth.me(session.access_token, 'relatorios');
+      const collaborator = authPayload?.row || null;
       const profile = normalizeCentralCollaborator(collaborator, authUser);
 
       if (!profile.active) {
@@ -568,20 +579,18 @@ export const dataClient = {
         throw inactiveError;
       }
 
-      return ensureReportsSystemAccess(profile, session.access_token);
+      return ensureReportsSystemAccess(profile, session.access_token, authPayload?.access || null);
     },
     logout: async (redirectTo = '/entrar') => {
       const { error } = await supabase.auth.signOut();
       if (error) throw toError(error, 'Unable to logout');
-      if (typeof window !== 'undefined' && redirectTo) {
-        window.location.href = redirectTo;
-      }
+      navigateWithoutReload(redirectTo, { replace: true });
     },
     redirectToLogin: (fromUrl) => {
       if (typeof window === 'undefined') return;
       const target = fromUrl || `${window.location.pathname}${window.location.search}`;
       const encoded = encodeURIComponent(target);
-      window.location.href = `/entrar?from=${encoded}`;
+      navigateWithoutReload(`/entrar?from=${encoded}`, { replace: true });
     }
   },
   users: {

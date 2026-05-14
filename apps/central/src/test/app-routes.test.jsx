@@ -64,7 +64,7 @@ describe('App routes', () => {
     vi.clearAllMocks();
   });
 
-  it('renderiza a rota de login com o email padrao quando a sessao ainda esta carregando', () => {
+  it('renderiza a rota de login com o email padrao quando a sessao ainda esta carregando', async () => {
     window.history.pushState({}, '', '/login');
     useAuthMock.mockReturnValue({
       isAuthenticated: false,
@@ -74,10 +74,10 @@ describe('App routes', () => {
 
     render(<App />);
 
-    expect(screen.getByText('Login page:kevinkleymacom@gmail.com:loading')).toBeInTheDocument();
+    expect(await screen.findByText('Login page:kevinkleymacom@gmail.com:loading')).toBeInTheDocument();
   });
 
-  it('renderiza a rota de login em estado normal quando o usuario nao esta autenticado', () => {
+  it('renderiza a rota de login em estado normal quando o usuario nao esta autenticado', async () => {
     window.history.pushState({}, '', '/login');
     useAuthMock.mockReturnValue({
       isAuthenticated: false,
@@ -87,7 +87,7 @@ describe('App routes', () => {
 
     render(<App />);
 
-    expect(screen.getByText('Login page:kevinkleymacom@gmail.com:idle')).toBeInTheDocument();
+    expect(await screen.findByText('Login page:kevinkleymacom@gmail.com:idle')).toBeInTheDocument();
   });
 
   it('renderiza a arvore protegida para rotas autenticadas', () => {

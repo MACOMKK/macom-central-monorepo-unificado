@@ -49,25 +49,30 @@ export default function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <BrowserRouter>
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/login" element={<LoginRoute />} />
-              <Route element={<ProtectedRoute />}>
-                <Route element={<AppLayout />}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/ativos" element={<Assets />} />
-                  <Route path="/colaboradores" element={<Collaborators />} />
-                  <Route path="/contatos" element={<Contacts />} />
-                  <Route path="/linhas-corporativas" element={<CorporateLines />} />
-                  <Route path="/departamentos" element={<Departments />} />
-                  <Route path="/unidades" element={<Units />} />
-                  <Route path="/infraestrutura" element={<Infrastructure />} />
-                  <Route path="/acessos-sistemas" element={<SystemAccess />} />
-                  <Route path="/termos-posse" element={<TermsPossession />} />
-                </Route>
+          <Routes>
+            <Route
+              path="/login"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <LoginRoute />
+                </Suspense>
+              }
+            />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/ativos" element={<Assets />} />
+                <Route path="/colaboradores" element={<Collaborators />} />
+                <Route path="/contatos" element={<Contacts />} />
+                <Route path="/linhas-corporativas" element={<CorporateLines />} />
+                <Route path="/departamentos" element={<Departments />} />
+                <Route path="/unidades" element={<Units />} />
+                <Route path="/infraestrutura" element={<Infrastructure />} />
+                <Route path="/acessos-sistemas" element={<SystemAccess />} />
+                <Route path="/termos-posse" element={<TermsPossession />} />
               </Route>
-            </Routes>
-          </Suspense>
+            </Route>
+          </Routes>
         </BrowserRouter>
       </QueryClientProvider>
     </AuthProvider>

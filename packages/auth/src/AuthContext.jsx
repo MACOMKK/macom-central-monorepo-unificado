@@ -28,7 +28,8 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const collaborator = await catalogApi.auth.me(nextSession.access_token);
+      const authPayload = await catalogApi.auth.me(nextSession.access_token);
+      const collaborator = authPayload?.row || null;
 
       if (collaborator?.funcao !== 'admin' || collaborator?.status === 'inativo') {
         await supabase.auth.signOut();

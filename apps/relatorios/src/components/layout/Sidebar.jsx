@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, ChevronLeft, ChevronRight, MessageCircle, Mail } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@/lib/AuthContext';
@@ -20,7 +20,18 @@ const navItems = [
   { path: '/admin/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
 ];
 
+const routePrefetchers = {
+  '/': () => import('@/pages/Dashboard'),
+  '/admin/relatorios': () => import('@/pages/admin/ManageReports'),
+  '/admin/unidades': () => import('@/pages/admin/ManageUnits'),
+  '/admin/permissoes': () => import('@/pages/admin/ManagePermissions'),
+  '/admin/acessos': () => import('@/pages/admin/Settings'),
+};
+
+const prefetchLoginRoute = () => import('@/pages/Login');
+
 export default function Sidebar({ user, collapsed, onToggle, onClose }) {
+  const navigate = useNavigate();
   const { logout } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
@@ -28,6 +39,7 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [isSavingPassword, setIsSavingPassword] = React.useState(false);
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const isAdmin = user?.role === 'admin';
 
   const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin);
@@ -71,8 +83,34 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
     setConfirmPassword('');
   };
 
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    setIsLoggingOut(true);
+    void prefetchLoginRoute();
+
+    try {
+      await logout(false);
+      navigate('/entrar', { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const handlePrefetch = (path) => {
+    routePrefetchers[path]?.().catch(() => null);
+  };
+
   return (
     <TooltipProvider delayDuration={0}>
+      {isLoggingOut ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#141414]/95 px-5 py-4 shadow-2xl">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            <span className="text-sm font-semibold tracking-wide text-white">Saindo...</span>
+          </div>
+        </div>
+      ) : null}
       <aside
         className={`flex flex-col h-full transition-all duration-300 ${collapsed ? 'w-[68px]' : 'w-[240px]'}`}
         style={{ background: '#141414', borderRight: '1px solid #222' }}
@@ -100,6 +138,9 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
+                onMouseEnter={() => handlePrefetch(item.path)}
+                onFocus={() => handlePrefetch(item.path)}
+                onTouchStart={() => handlePrefetch(item.path)}
                 className={`flex items-center gap-3 px-3 py-2.5 text-sm font-semibold uppercase tracking-wider transition-all duration-150 ${
                   collapsed ? 'justify-center' : ''
                 }`}
@@ -243,14 +284,15 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
 
           {!collapsed && (
             <button
-              onClick={() => logout()}
+              onClick={handleLogout}
+              disabled={isLoggingOut}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors"
               style={{ color: '#555' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#E30613'; }}
               onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
             >
               <LogOut className="w-4 h-4" />
-              Sair
+              {isLoggingOut ? 'Saindo...' : 'Sair'}
             </button>
           )}
         </div>
