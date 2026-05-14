@@ -1,6 +1,5 @@
-import { useLocation } from 'react-router-dom';
-
 import { NotFoundPage } from '@macom/ui';
+import { useLocation } from 'react-router-dom';
 
 export default function PageNotFound() {
   const location = useLocation();

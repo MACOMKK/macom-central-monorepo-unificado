@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import PageNotFound from '@/lib/PageNotFound';
 import { queryClientInstance } from '@/lib/query-client';
 
 const Assets = lazy(() => import('@/pages/Assets'));
@@ -70,6 +71,7 @@ export default function App() {
                 <Route path="/infraestrutura" element={<Infrastructure />} />
                 <Route path="/acessos-sistemas" element={<SystemAccess />} />
                 <Route path="/termos-posse" element={<TermsPossession />} />
+                <Route path="*" element={<PageNotFound />} />
               </Route>
             </Route>
           </Routes>
