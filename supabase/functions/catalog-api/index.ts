@@ -899,7 +899,31 @@ Deno.serve(async (request) => {
     const authenticatedCollaboratorId = authenticatedCollaborator?.id || user.id;
 
     if (action === 'me' && entity === 'colaboradores') {
-      return json({ row: authenticatedCollaborator || null });
+      const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
+
+      if (!systemSlug) {
+        return json({ row: authenticatedCollaborator || null });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select
+            aus.*,
+            row_to_json(s) as sistema
+          from public.acessos_usuario_sistema aus
+          join public.sistemas s on s.id = aus.sistema_id
+          where aus.colaborador_id = any($1::uuid[])
+            and s.slug = $2
+          order by aus.ativo desc, aus.atualizado_em desc nulls last, aus.criado_em desc
+          limit 1;
+        `,
+        [authenticatedCollaboratorIds, systemSlug],
+      );
+
+      return json({
+        row: authenticatedCollaborator || null,
+        access: rows[0] || null,
+      });
     }
 
     if (action === 'access_check' && entity === 'acessos_usuario_sistema') {

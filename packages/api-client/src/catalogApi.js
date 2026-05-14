@@ -70,9 +70,20 @@ async function invokeCatalog(action, entity, options = {}) {
 
 export const catalogApi = {
   auth: {
-    async me(accessToken) {
-      const result = await invokeSupabaseFunction('catalog-api', { action: 'me', entity: 'colaboradores' }, accessToken);
-      return result.row || null;
+    async me(accessToken, systemSlug) {
+      const result = await invokeSupabaseFunction(
+        'catalog-api',
+        {
+          action: 'me',
+          entity: 'colaboradores',
+          ...(systemSlug ? { system_slug: systemSlug } : {}),
+        },
+        accessToken,
+      );
+      return {
+        row: result.row || null,
+        access: result.access || null,
+      };
     },
   },
   departamentos: {

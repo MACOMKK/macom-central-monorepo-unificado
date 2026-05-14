@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, Link } from 'react-router-dom';
-import { dataClient } from '@/api/dataClient';
+import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
+
+import { dataClient } from '@/api/dataClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
 import { useAuth } from '@/lib/AuthContext';
@@ -11,7 +12,6 @@ export default function ReportViewer() {
   const { user } = useAuth();
   const { id } = useParams();
   const [fullscreen, setFullscreen] = useState(false);
-  const isAdmin = user?.role === 'admin';
   const rotateToastRef = useRef(null);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function ReportViewer() {
 
       if (shouldShowHint && !rotateToastRef.current) {
         const toastInstance = toast({
-          title: 'Melhor visualização do gráfico',
+          title: 'Melhor visualizacao do grafico',
           description: 'Vire o celular para o modo horizontal.',
         });
         rotateToastRef.current = toastInstance;
@@ -59,18 +59,10 @@ export default function ReportViewer() {
     queryKey: ['report', id, user?.id, user?.role],
     queryFn: async () => {
       const reports = await dataClient.entities.Report.filter({ id });
-      return reports[0];
+      return reports[0] || null;
     },
     enabled: !!id && !!user?.id,
   });
-
-  const { data: permissions = [] } = useQuery({
-    queryKey: ['permission-check', user?.id, user?.role, id],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ collaborator_id: user?.id, report_id: id }),
-    enabled: !!user?.id && !isAdmin,
-  });
-
-  const hasAccess = isAdmin || permissions.length > 0;
 
   const iframeSrc = useMemo(() => {
     if (!report?.embed_code) return null;
@@ -81,7 +73,7 @@ export default function ReportViewer() {
   if (isLoading) {
     return (
       <div className="p-6 lg:p-8" style={{ background: '#f2f2f2', minHeight: '100vh' }}>
-        <Skeleton className="h-8 w-48 mb-4" />
+        <Skeleton className="mb-4 h-8 w-48" />
         <Skeleton className="h-[80vh] w-full" />
       </div>
     );
@@ -89,22 +81,13 @@ export default function ReportViewer() {
 
   if (!report) {
     return (
-      <div className="p-6 lg:p-8 text-center py-20" style={{ background: '#f2f2f2', minHeight: '100vh' }}>
-        <h2 className="text-xl font-black uppercase tracking-wider">Relatório não encontrado</h2>
-        <Link to="/" className="text-xs font-bold uppercase tracking-wider mt-4 inline-block" style={{ color: '#E30613' }}>
-          ← Voltar ao Dashboard
-        </Link>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: '#f2f2f2' }}>
-        <div className="text-center bg-white p-10" style={{ borderLeft: '4px solid #E30613' }}>
-          <Shield className="w-12 h-12 mx-auto mb-4" style={{ color: '#E30613' }} />
-          <h2 className="text-xl font-black uppercase tracking-wider mb-2">Acesso Negado</h2>
-          <p className="text-sm mb-6" style={{ color: '#888' }}>Você não tem permissão para visualizar este relatório.</p>
+      <div className="flex min-h-screen items-center justify-center" style={{ background: '#f2f2f2' }}>
+        <div className="bg-white p-10 text-center" style={{ borderLeft: '4px solid #E30613' }}>
+          <Shield className="mx-auto mb-4 h-12 w-12" style={{ color: '#E30613' }} />
+          <h2 className="mb-2 text-xl font-black uppercase tracking-wider">Relatorio indisponivel</h2>
+          <p className="mb-6 text-sm" style={{ color: '#888' }}>
+            Voce nao tem permissao para visualizar este relatorio ou ele nao esta mais disponivel.
+          </p>
           <Link
             to="/"
             className="inline-block px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white"
@@ -122,9 +105,8 @@ export default function ReportViewer() {
       className={fullscreen ? 'fixed inset-0 z-50 flex flex-col' : 'flex flex-col'}
       style={{ background: '#141414', minHeight: fullscreen ? '100vh' : 'calc(100vh - 0px)' }}
     >
-      {/* Header Bar */}
       <div
-        className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+        className="flex flex-shrink-0 items-center justify-between px-5 py-3"
         style={{ background: '#141414', borderBottom: '2px solid #E30613' }}
       >
         <div className="flex items-center gap-4">
@@ -132,54 +114,61 @@ export default function ReportViewer() {
             to="/"
             className="flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-colors"
             style={{ color: '#888' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#E30613'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#888'; }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.color = '#E30613';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.color = '#888';
+            }}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-4 w-4" />
             Voltar
           </Link>
           <div style={{ width: 1, height: 20, background: '#333' }} />
           <div>
             <h1 className="text-sm font-black uppercase tracking-widest text-white">{report.title}</h1>
-            {report.unit_name && (
+            {report.unit_name ? (
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider" style={{ color: '#E30613' }}>
-                <Building2 className="w-3 h-3" />
+                <Building2 className="h-3 w-3" />
                 {report.unit_name}
               </span>
-            )}
+            ) : null}
           </div>
         </div>
         <button
           onClick={() => setFullscreen(!fullscreen)}
           className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all"
           style={{ background: fullscreen ? '#333' : '#E30613', color: '#fff' }}
-          onMouseEnter={e => { if (!fullscreen) e.currentTarget.style.background = '#b80010'; }}
-          onMouseLeave={e => { if (!fullscreen) e.currentTarget.style.background = '#E30613'; }}
+          onMouseEnter={(event) => {
+            if (!fullscreen) event.currentTarget.style.background = '#b80010';
+          }}
+          onMouseLeave={(event) => {
+            if (!fullscreen) event.currentTarget.style.background = '#E30613';
+          }}
         >
-          {fullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           {fullscreen ? 'Sair' : 'Tela Cheia'}
         </button>
       </div>
 
-      {/* Embed */}
       <div className="flex-1 overflow-hidden">
         {iframeSrc ? (
           <iframe
             title={report.title}
             src={iframeSrc}
-            className="w-full h-full border-0"
+            className="h-full w-full border-0"
             style={{ minHeight: fullscreen ? 'calc(100vh - 56px)' : 'calc(100vh - 120px)' }}
             allowFullScreen
           />
         ) : report.embed_code ? (
           <div
-            className="w-full h-full"
+            className="h-full w-full"
             style={{ minHeight: 'calc(100vh - 120px)' }}
             dangerouslySetInnerHTML={{ __html: report.embed_code }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-white opacity-40 text-sm uppercase tracking-widest">
-            Nenhum código embed configurado.
+          <div className="flex h-full items-center justify-center text-sm uppercase tracking-widest text-white opacity-40">
+            Nenhum codigo embed configurado.
           </div>
         )}
       </div>
