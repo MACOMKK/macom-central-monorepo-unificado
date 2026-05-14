@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
@@ -15,6 +15,7 @@ export default function Login({ loading = false }) {
   const { checkUserAuth } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
   const [recoverCooldownUntil, setRecoverCooldownUntil] = useState(0);
@@ -148,13 +149,24 @@ export default function Login({ loading = false }) {
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#8d8d8d' }}>Senha</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-12 text-base border border-[#d6d6d6] bg-transparent"
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-12 border border-[#d6d6d6] bg-transparent pr-12 text-base"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  disabled={isBusy}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-[#666] transition-colors hover:text-[#141414] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <Button type="submit" disabled={isSubmitting} className="w-full h-12 text-sm font-bold" style={{ background: '#f50914' }}>

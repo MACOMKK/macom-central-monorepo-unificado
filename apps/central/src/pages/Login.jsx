@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 const bgUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/f_auto,q_auto,c_fill,w_2560,h_1440,fl_progressive/v1777911817/img-mitmotorts_jvikox.webp';
@@ -8,6 +8,7 @@ const prefetchDashboardRoute = () => import('@/pages/Dashboard');
 export default function Login({ onSubmit, loading, defaultEmail = '' }) {
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,16 +66,27 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
             <label htmlFor="password" className="mb-2 block text-[11px] font-semibold tracking-wide text-white/90">
               SENHA
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Sua senha"
-              required
-              disabled={isBusy}
-              className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Sua senha"
+                required
+                disabled={isBusy}
+                className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 pr-11 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                disabled={isBusy}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-zinc-500 transition hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           {error ? (
