@@ -35,14 +35,14 @@ function LoginRoute() {
   const { isAuthenticated, loading, login } = useAuth();
 
   if (loading) {
-    return <Login onSubmit={login} loading defaultEmail="kevinkleymacom@gmail.com" />;
+    return <Login onSubmit={login} loading />;
   }
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
 
-  return <Login onSubmit={login} loading={false} defaultEmail="kevinkleymacom@gmail.com" />;
+  return <Login onSubmit={login} loading={false} />;
 }
 
 export default function App() {

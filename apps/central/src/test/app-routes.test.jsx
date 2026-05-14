@@ -74,7 +74,7 @@ describe('App routes', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Login page:kevinkleymacom@gmail.com:loading')).toBeInTheDocument();
+    expect(await screen.findByText('Login page::loading')).toBeInTheDocument();
   });
 
   it('renderiza a rota de login em estado normal quando o usuario nao esta autenticado', async () => {
@@ -87,7 +87,7 @@ describe('App routes', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Login page:kevinkleymacom@gmail.com:idle')).toBeInTheDocument();
+    expect(await screen.findByText('Login page::idle')).toBeInTheDocument();
   });
 
   it('renderiza a arvore protegida para rotas autenticadas', () => {
