@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
@@ -11,8 +11,10 @@ import { useAuth } from '@/lib/AuthContext';
 export default function ReportViewer() {
   const { user } = useAuth();
   const { id } = useParams();
+  const location = useLocation();
   const [fullscreen, setFullscreen] = useState(false);
   const rotateToastRef = useRef(null);
+  const previewReport = location.state?.reportPreview || null;
 
   useEffect(() => {
     const isPortraitOrientation = () => {
@@ -58,8 +60,17 @@ export default function ReportViewer() {
   const { data: report, isLoading } = useQuery({
     queryKey: ['report', id, user?.id, user?.role],
     queryFn: async () => {
-      const reports = await dataClient.entities.Report.filter({ id });
-      return reports[0] || null;
+      try {
+        const reports = await dataClient.entities.Report.filter({ id });
+        if (reports[0]) {
+          return reports[0];
+        }
+      } catch {
+        // Fallback to the accessible report list when a direct lookup fails.
+      }
+
+      const accessibleReports = await dataClient.entities.Report.list();
+      return accessibleReports.find((item) => item.id === id) || null;
     },
     enabled: !!id && !!user?.id,
   });
@@ -70,16 +81,9 @@ export default function ReportViewer() {
     return match ? match[1] : null;
   }, [report?.embed_code]);
 
-  if (isLoading) {
-    return (
-      <div className="p-6 lg:p-8" style={{ background: '#f2f2f2', minHeight: '100vh' }}>
-        <Skeleton className="mb-4 h-8 w-48" />
-        <Skeleton className="h-[80vh] w-full" />
-      </div>
-    );
-  }
+  const headerReport = report || previewReport;
 
-  if (!report) {
+  if (!isLoading && !report) {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ background: '#f2f2f2' }}>
         <div className="bg-white p-10 text-center" style={{ borderLeft: '4px solid #E30613' }}>
@@ -126,13 +130,24 @@ export default function ReportViewer() {
           </Link>
           <div style={{ width: 1, height: 20, background: '#333' }} />
           <div>
-            <h1 className="text-sm font-black uppercase tracking-widest text-white">{report.title}</h1>
-            {report.unit_name ? (
-              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider" style={{ color: '#E30613' }}>
-                <Building2 className="h-3 w-3" />
-                {report.unit_name}
-              </span>
-            ) : null}
+            {headerReport ? (
+              <>
+                <h1 className="text-sm font-black uppercase tracking-widest text-white">{headerReport.title}</h1>
+                {headerReport.unit_name ? (
+                  <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider" style={{ color: '#E30613' }}>
+                    <Building2 className="h-3 w-3" />
+                    {headerReport.unit_name}
+                  </span>
+                ) : null}
+              </>
+            ) : isLoading ? (
+              <>
+                <Skeleton className="h-5 w-80 max-w-[55vw] bg-white/10" />
+                <Skeleton className="mt-2 h-3 w-40 bg-white/10" />
+              </>
+            ) : (
+              <span className="text-[10px] uppercase tracking-wider text-white/60">Carregando relatorio...</span>
+            )}
           </div>
         </div>
         <button
@@ -152,7 +167,11 @@ export default function ReportViewer() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {iframeSrc ? (
+        {isLoading ? (
+          <div className="p-5 md:p-6" style={{ background: '#f2f2f2', minHeight: fullscreen ? 'calc(100vh - 56px)' : 'calc(100vh - 120px)' }}>
+            <Skeleton className="h-full min-h-[70vh] w-full bg-black/10" />
+          </div>
+        ) : iframeSrc ? (
           <iframe
             title={report.title}
             src={iframeSrc}

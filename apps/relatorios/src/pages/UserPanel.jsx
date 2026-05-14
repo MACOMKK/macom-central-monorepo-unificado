@@ -162,6 +162,7 @@ export default function UserPanel() {
               <Link
                 key={report.id}
                 to={`/relatorio/${report.id}`}
+                state={{ reportPreview: report }}
                 className="group block bg-white relative overflow-hidden transition-all duration-200"
                 style={{ borderLeft: '4px solid #E30613', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
                 onMouseEnter={e => {

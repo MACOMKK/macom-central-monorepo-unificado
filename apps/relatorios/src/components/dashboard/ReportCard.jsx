@@ -21,6 +21,7 @@ export default function ReportCard({ report }) {
     >
       <Link
         to={`/relatorio/${report.id}`}
+        state={{ reportPreview: report }}
         className="group block bg-white relative overflow-hidden transition-all duration-200"
         style={{
           borderLeft: '4px solid #E30613',
