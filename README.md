@@ -79,6 +79,11 @@ Configuracao recomendada para cada projeto:
   - Central: `apps/central/dist`
   - Relatorios: `apps/relatorios/dist`
 
+Observacao:
+
+- O monorepo nao usa Turborepo no deploy.
+- Se a Vercel detectar comandos automaticos como `turbo run build`, sobrescreva manualmente com os comandos acima.
+
 Variaveis de ambiente frontend:
 
 - `VITE_SUPABASE_URL`
