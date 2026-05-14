@@ -4,7 +4,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
-import ProtectedRoute from '@/components/ProtectedRoute';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import AppLayout from '@/components/layout/AppLayout';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
@@ -64,7 +63,7 @@ const PublicRoutes = () => (
 );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
   const location = useLocation();
   const isPublicPath = PUBLIC_PATHS.has(location.pathname);
 
@@ -110,29 +109,27 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
       <Route path="/definir-senha" element={<SetPassword />} />
       <Route path="/login" element={<Navigate replace to="/entrar" />} />
       <Route path="/set-password" element={<Navigate replace to="/definir-senha" />} />
-      <Route
-        element={
-          <ProtectedRoute
-            unauthenticatedElement={<Navigate replace to={`/entrar?from=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />}
-          />
-        }
-      >
-        <Route path="/painel" element={<UserPanel />} />
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/relatorio/:id" element={<ReportViewer />} />
-          <Route path="/admin/relatorios" element={<ManageReports />} />
-          <Route path="/admin/unidades" element={<ManageUnits />} />
-          <Route path="/admin/permissoes" element={<ManagePermissions />} />
-          <Route path="/admin/acessos" element={<Settings />} />
-          <Route path="/report/:id" element={<ReportViewer />} />
-          <Route path="/admin/reports" element={<Navigate replace to="/admin/relatorios" />} />
-          <Route path="/admin/units" element={<Navigate replace to="/admin/unidades" />} />
-          <Route path="/admin/permissions" element={<Navigate replace to="/admin/permissoes" />} />
-          <Route path="/admin/settings" element={<Navigate replace to="/admin/acessos" />} />
-        </Route>
-      </Route>
-      <Route path="*" element={<PageNotFound />} />
+      {!isAuthenticated ? (
+        <Route path="*" element={<Navigate replace to="/entrar" />} />
+      ) : (
+        <>
+          <Route path="/painel" element={<UserPanel />} />
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/relatorio/:id" element={<ReportViewer />} />
+            <Route path="/admin/relatorios" element={<ManageReports />} />
+            <Route path="/admin/unidades" element={<ManageUnits />} />
+            <Route path="/admin/permissoes" element={<ManagePermissions />} />
+            <Route path="/admin/acessos" element={<Settings />} />
+            <Route path="/report/:id" element={<ReportViewer />} />
+            <Route path="/admin/reports" element={<Navigate replace to="/admin/relatorios" />} />
+            <Route path="/admin/units" element={<Navigate replace to="/admin/unidades" />} />
+            <Route path="/admin/permissions" element={<Navigate replace to="/admin/permissoes" />} />
+            <Route path="/admin/settings" element={<Navigate replace to="/admin/acessos" />} />
+          </Route>
+          <Route path="*" element={<PageNotFound />} />
+        </>
+      )}
     </Routes>
   );
 };

@@ -540,19 +540,15 @@ const createCatalogReportPermissionEntity = () => ({
 export const dataClient = {
   auth: {
     me: async () => {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
-
-      if (error || !session?.user || !session?.access_token) {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
         const authError = toError(error, 'Authentication required') || new Error('Authentication required');
         authError.status = 401;
         throw authError;
       }
 
-      const collaborator = await catalogApi.auth.me(session.access_token);
-      const profile = normalizeCentralCollaborator(collaborator, session.user);
+      const collaborator = await catalogApi.auth.me();
+      const profile = normalizeCentralCollaborator(collaborator, data.user);
 
       if (!profile.active) {
         await supabase.auth.signOut();
