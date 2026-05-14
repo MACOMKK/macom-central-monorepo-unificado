@@ -2,6 +2,8 @@
 
 Monorepo com apps frontend da MACOM e pacotes compartilhados.
 
+O repositório usa `npm workspaces` para instalar as dependencias da raiz, dos apps e dos pacotes compartilhados em um unico fluxo.
+
 ## Estrutura
 
 - `apps/central`: app administrativo do Central
@@ -78,6 +80,13 @@ Configuracao recomendada para cada projeto:
 - `Output Directory`:
   - Central: `apps/central/dist`
   - Relatorios: `apps/relatorios/dist`
+
+Padrao reutilizavel para qualquer projeto:
+
+- `Root Directory`: `/`
+- `Install Command`: `npm install`
+- `Build Command`: `npm run build:<nome-do-app>`
+- `Output Directory`: `apps/<nome-do-app>/dist`
 
 Observacao:
 
