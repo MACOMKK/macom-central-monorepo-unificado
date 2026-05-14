@@ -1,8 +1,10 @@
 import { assertSupabaseConfigured, supabase } from './supabaseClient';
 
-async function invokeCatalogFunction(action, payload = {}) {
+async function invokeCatalogFunction(action, payload = {}, accessTokenOverride) {
   assertSupabaseConfigured();
-  const { data } = await supabase.auth.getSession();
+  const { data } = accessTokenOverride
+    ? { data: { session: { access_token: accessTokenOverride } } }
+    : await supabase.auth.getSession();
   const token = data?.session?.access_token;
 
   if (!token) {
@@ -52,12 +54,12 @@ export const systemAccessApi = {
       const result = await invokeCatalogFunction('update', { entity: 'acessos_usuario_sistema', id, payload });
       return result.row || null;
     },
-    async findByCollaboratorAndSystem(colaboradorId, systemSlug) {
+    async findByCollaboratorAndSystem(colaboradorId, systemSlug, accessToken) {
       void colaboradorId;
       const result = await invokeCatalogFunction('access_check', {
         entity: 'acessos_usuario_sistema',
         system_slug: systemSlug,
-      });
+      }, accessToken);
       return result.row || null;
     },
     async remove(id) {

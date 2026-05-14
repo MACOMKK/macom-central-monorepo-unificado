@@ -24,7 +24,7 @@ export default function Login({ loading = false }) {
     if (isBusy) return;
 
     setIsSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
       setIsSubmitting(false);
@@ -35,7 +35,7 @@ export default function Login({ loading = false }) {
       return;
     }
     try {
-      await checkUserAuth();
+      await checkUserAuth(data?.session || null, { force: true });
     } catch (authCheckError) {
       setIsSubmitting(false);
       toast({

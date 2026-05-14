@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useOutletContext, useParams, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { dataClient } from '@/api/dataClient';
 import { ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function ReportViewer() {
-  const { user } = useOutletContext();
+  const { user } = useAuth();
   const { id } = useParams();
   const [fullscreen, setFullscreen] = useState(false);
   const isAdmin = user?.role === 'admin';

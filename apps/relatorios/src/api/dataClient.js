@@ -282,7 +282,7 @@ const getRelatoriosAccessMap = async () => {
   return { system, accessMap };
 };
 
-const ensureReportsSystemAccess = async (profile) => {
+const ensureReportsSystemAccess = async (profile, accessToken) => {
   const collaboratorId = profile?.collaborator?.id;
   if (!collaboratorId) {
     const accessError = new Error('Seu usuario nao esta vinculado ao cadastro central.');
@@ -291,7 +291,11 @@ const ensureReportsSystemAccess = async (profile) => {
     throw accessError;
   }
 
-  const access = await systemAccessApi.accesses.findByCollaboratorAndSystem(collaboratorId, 'relatorios');
+  const access = await systemAccessApi.accesses.findByCollaboratorAndSystem(
+    collaboratorId,
+    'relatorios',
+    accessToken,
+  );
   const hasActiveAccess = access?.ativo === true && access?.sistema?.ativo === true;
 
   if (!hasActiveAccess) {
@@ -539,16 +543,22 @@ const createCatalogReportPermissionEntity = () => ({
 
 export const dataClient = {
   auth: {
-    me: async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data?.user) {
-        const authError = toError(error, 'Authentication required') || new Error('Authentication required');
+    me: async (sessionOverride = null) => {
+      const sessionData = sessionOverride
+        ? { data: { session: sessionOverride }, error: null }
+        : await supabase.auth.getSession();
+      const session = sessionData?.data?.session || null;
+
+      if (sessionData?.error || !session?.user || !session?.access_token) {
+        const authError =
+          toError(sessionData?.error, 'Authentication required') || new Error('Authentication required');
         authError.status = 401;
         throw authError;
       }
 
-      const collaborator = await catalogApi.auth.me();
-      const profile = normalizeCentralCollaborator(collaborator, data.user);
+      const authUser = session.user;
+      const collaborator = await catalogApi.auth.me(session.access_token);
+      const profile = normalizeCentralCollaborator(collaborator, authUser);
 
       if (!profile.active) {
         await supabase.auth.signOut();
@@ -558,7 +568,7 @@ export const dataClient = {
         throw inactiveError;
       }
 
-      return ensureReportsSystemAccess(profile);
+      return ensureReportsSystemAccess(profile, session.access_token);
     },
     logout: async (redirectTo = '/entrar') => {
       const { error } = await supabase.auth.signOut();
