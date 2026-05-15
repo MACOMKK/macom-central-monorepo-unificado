@@ -339,9 +339,9 @@ as $$
     when 'feedback' then coalesce(pu.mod_feedback, 'view')
     else 'none'
   end
-  from (select public.current_colaborador_id() as colaborador_id) current_user
+  from (select public.current_colaborador_id() as colaborador_id) current_context
   left join gestao_intranet.permissoes_usuario pu
-    on pu.colaborador_id = current_user.colaborador_id;
+    on pu.colaborador_id = current_context.colaborador_id;
 $$;
 
 create or replace function public.intranet_can_view_module(module_name text)
