@@ -7,6 +7,7 @@ O repositório usa `npm workspaces` para instalar as dependencias da raiz, dos a
 ## Estrutura
 
 - `apps/central`: app administrativo do Central
+- `apps/intranet`: app da intranet corporativa
 - `apps/relatorios`: app de relatorios
 - `apps/_template`: molde base para criar novos apps React/Vite
 - `packages/*`: modulos compartilhados entre apps
@@ -32,6 +33,7 @@ VITE_SUPABASE_ANON_KEY=...
 
 ```bash
 npm run dev:central
+npm run dev:intranet
 npm run dev:relatorios
 ```
 
@@ -40,12 +42,14 @@ npm run dev:relatorios
 Cada app gera seu bundle dentro da propria pasta:
 
 - `apps/central/dist`
+- `apps/intranet/dist`
 - `apps/relatorios/dist`
 
 Comandos:
 
 ```bash
 npm run build:central
+npm run build:intranet
 npm run build:relatorios
 ```
 

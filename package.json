@@ -4,16 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/central",
+    "apps/intranet",
+    "apps/pagamentos",
+    "apps/relatorios",
+    "apps/rh",
+    "apps/_template",
+    "packages/*",
+    "services/*"
   ],
   "scripts": {
     "dev": "vite --configLoader runner",
     "dev:central": "vite --configLoader runner",
     "dev:relatorios": "vite --config apps/relatorios/vite.config.js --configLoader runner",
+    "dev:intranet": "vite --config apps/intranet/vite.config.js --configLoader runner",
     "build": "vite build --configLoader runner",
     "build:central": "vite build --configLoader runner",
     "build:relatorios": "vite build --config apps/relatorios/vite.config.js --configLoader runner",
+    "build:intranet": "vite build --config apps/intranet/vite.config.js --configLoader runner",
     "lint": "eslint apps/central/src --quiet",
     "lint:relatorios": "eslint apps/relatorios/src --quiet",
     "lint:fix": "eslint apps/central/src --fix",
