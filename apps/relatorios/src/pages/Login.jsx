@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@macom/ui';
+import { Button, Input, Label, useToast } from '@macom/ui';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 

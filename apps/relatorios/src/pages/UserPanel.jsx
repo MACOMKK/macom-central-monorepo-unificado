@@ -3,14 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { dataClient } from '@/api/dataClient';
 import { BarChart3, Search, LogOut, Building2, ArrowRight } from 'lucide-react';
 import { supabase } from '@/api/supabaseClient';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Skeleton, useToast } from '@macom/ui';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@macom/ui';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 

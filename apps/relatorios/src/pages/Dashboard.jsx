@@ -5,8 +5,7 @@ import { BarChart3, Building2, Search, TrendingUp } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
 import ReportCard from '@/components/dashboard/ReportCard';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Input, Skeleton } from '@macom/ui';
 
 const categoryLabels = {
   gerencial: 'Gerencial',

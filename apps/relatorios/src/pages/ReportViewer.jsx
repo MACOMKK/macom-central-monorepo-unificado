@@ -4,8 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@macom/ui';
+import { Skeleton, toast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function ReportViewer() {

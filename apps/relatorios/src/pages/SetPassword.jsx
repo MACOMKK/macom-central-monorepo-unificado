@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@macom/ui';
+import { Button, Input, Label, useToast } from '@macom/ui';
 
 export default function SetPassword() {
   const navigate = useNavigate();

@@ -5,8 +5,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Button, Input, Separator, Sheet, SheetContent, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@macom/ui';
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button, Input, Separator, Sheet, SheetContent, Skeleton, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@macom/ui';
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7

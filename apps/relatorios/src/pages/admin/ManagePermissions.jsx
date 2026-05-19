@@ -3,9 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { dataClient } from '@/api/dataClient';
 import { Plus, Trash2, Shield, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
 import PermissionForm from '@/components/admin/PermissionForm';
 import AdminGuard from '@/components/admin/AdminGuard';
 

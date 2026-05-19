@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { dataClient } from '@/api/dataClient';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Save } from 'lucide-react';
 

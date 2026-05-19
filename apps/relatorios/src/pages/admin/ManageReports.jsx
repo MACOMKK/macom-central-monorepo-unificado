@@ -6,8 +6,7 @@ import { FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { dataClient } from '@/api/dataClient';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ReportForm from '@/components/admin/ReportForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
 
 const categoryLabels = {
   gerencial: 'Gerencial',

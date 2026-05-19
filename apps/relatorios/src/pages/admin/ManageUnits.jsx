@@ -4,7 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Building2, MapPin, Phone, UserRound } from 'lucide-react';
 
 import AdminGuard from '@/components/admin/AdminGuard';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
 import { dataClient } from '@/api/dataClient';
 
 export default function ManageUnits() {

@@ -1,12 +1,8 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, ChevronLeft, ChevronRight, MessageCircle, Mail } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/api/supabaseClient';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
