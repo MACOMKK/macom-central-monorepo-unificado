@@ -33,6 +33,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
+  const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
   return (
     <aside
@@ -48,13 +49,11 @@ export default function Sidebar({ collapsed = false, onToggle }) {
         )}
       >
         <div className={cn('flex items-center', collapsed ? 'justify-center' : 'gap-3 pl-1')}>
-          <div className="w-8 h-8 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0 shadow-lg shadow-sidebar-primary/20">
-            <span className="text-white font-extrabold text-base leading-none">M</span>
-          </div>
+          <img src={logoUrl} alt="MACOM" className="h-8 w-8 shrink-0 object-contain" />
           {!collapsed && (
             <div className="flex flex-col leading-none">
-              <span className="font-extrabold text-[0.98rem] tracking-[0.02em] text-white">MACOM</span>
-              <span className="mt-1 text-[0.58rem] font-medium tracking-[0.2em] text-sidebar-foreground/80">INTRANET</span>
+              <span className="font-extrabold text-[0.98rem] tracking-tight text-white">MACOM</span>
+              <span className="mt-1 text-[0.58rem] font-medium tracking-[0.2em] text-sidebar-foreground/80">INTRANET MACOM</span>
             </div>
           )}
         </div>

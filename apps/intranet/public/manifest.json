@@ -7,10 +7,9 @@
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "src": "https://res.cloudinary.com/drevbr5eq/image/upload/v1778093853/icone_logo_macom_xb2y5l.png",
+      "sizes": "192x192",
+      "type": "image/png"
     }
   ]
 }

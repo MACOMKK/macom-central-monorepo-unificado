@@ -33,23 +33,32 @@ export default function BirthdaysPanel() {
     })
     .slice(0, 5);
 
+  const formatDisplayName = (name) => {
+    if (!name) return 'Sem nome';
+    return name.split(' ').slice(0, 2).join(' ');
+  };
+
   return (
-    <div className="bg-card rounded-2xl border border-border p-5 h-full">
-      <div className="flex items-center gap-2 mb-4">
-        <Gift className="w-5 h-5 text-muted-foreground" />
-        <h2 className="text-base font-semibold">Aniversariantes do Mes</h2>
+    <div className="h-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="flex items-center gap-2 border-b border-border/80 px-5 py-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+          <Gift className="h-4 w-4" />
+        </div>
+        <h2 className="text-base font-semibold text-foreground">
+          Aniversariantes do Mes
+        </h2>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground py-6">Carregando aniversariantes...</p>
+        <p className="px-5 py-8 text-sm text-muted-foreground">Carregando aniversariantes...</p>
       ) : birthdaysThisMonth.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
+        <div className="m-5 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-5 text-sm text-muted-foreground">
           Nenhum aniversariante encontrado para este mes.
           {' '}
           As datas exibidas aqui vem do perfil do colaborador.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-1 px-4 py-3">
           {birthdaysThisMonth.map((employee, index) => {
             const birthDate = new Date(employee.birth_date + 'T00:00:00');
             const employeeDayStr = employee.birth_date.slice(5);
@@ -57,30 +66,42 @@ export default function BirthdaysPanel() {
             const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
             return (
-              <div key={employee.id} className="flex items-center gap-3">
+              <div key={employee.id} className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/40">
                 <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-base shrink-0 relative"
-                  style={{ background: color }}
+                  className="relative h-12 w-12 shrink-0 rounded-full ring-2 ring-rose-500/90 ring-offset-2 ring-offset-background"
                 >
                   {employee.photo_url ? (
-                    <img src={employee.photo_url} alt={employee.name} className="w-full h-full rounded-full object-cover" />
+                    <img src={employee.photo_url} alt={employee.name} className="h-full w-full rounded-full object-cover" />
                   ) : (
-                    employee.name?.charAt(0)
+                    <div
+                      className="flex h-full w-full items-center justify-center rounded-full text-sm font-bold text-white"
+                      style={{ background: color }}
+                    >
+                      {employee.name?.charAt(0)}
+                    </div>
                   )}
-                  {isBirthday && <span className="absolute -top-1 -right-1 text-sm">B</span>}
+                  {isBirthday ? (
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white shadow-sm">
+                      <Gift className="h-3 w-3" />
+                    </span>
+                  ) : null}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{employee.name?.split(' ').slice(0, 2).join(' ')}</p>
-                  <p className="text-xs text-muted-foreground">{employee.department_name || employee.department || 'Sem departamento'}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold leading-tight text-foreground">
+                    {formatDisplayName(employee.name)}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {employee.department_name || employee.department || 'Sem departamento'}
+                  </p>
                 </div>
 
                 {isBirthday ? (
-                  <span className="text-xs font-bold text-white bg-primary px-2.5 py-1 rounded-full shrink-0">
+                  <span className="shrink-0 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-500">
                     Hoje!
                   </span>
                 ) : (
-                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap">
+                  <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                     {format(birthDate, "d 'de' MMM", { locale: ptBR })}
                   </span>
                 )}
@@ -92,7 +113,7 @@ export default function BirthdaysPanel() {
 
       <Link
         to="/colaboradores"
-        className="mt-4 flex items-center justify-center text-sm text-foreground font-medium hover:text-primary transition-colors pt-3 border-t border-border"
+        className="flex items-center justify-center border-t border-border/80 px-5 py-4 text-sm font-medium text-primary transition-colors hover:text-primary/80"
       >
         Ver todos aniversariantes
       </Link>
