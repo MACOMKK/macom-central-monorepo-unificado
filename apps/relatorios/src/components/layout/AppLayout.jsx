@@ -27,9 +27,14 @@ function PageContentFallback() {
 
 export default function AppLayout() {
   const { user } = useAuth();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMd, setIsMd] = useState(() => window.innerWidth >= 768);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('relatorios:sidebar-collapsed');
+    setCollapsed(saved === 'true');
+  }, []);
 
   useEffect(() => {
     const handler = () => setIsMd(window.innerWidth >= 768);
@@ -37,7 +42,15 @@ export default function AppLayout() {
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  const sidebarWidth = isMd ? (collapsed ? 68 : 240) : 0;
+  const handleToggleSidebar = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem('relatorios:sidebar-collapsed', String(next));
+      return next;
+    });
+  };
+
+  const sidebarWidth = isMd ? (collapsed ? 88 : 240) : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -57,7 +70,7 @@ export default function AppLayout() {
         <Sidebar
           user={user}
           collapsed={collapsed}
-          onToggle={() => setCollapsed(!collapsed)}
+          onToggle={handleToggleSidebar}
           onClose={() => setMobileOpen(false)}
         />
       </div>

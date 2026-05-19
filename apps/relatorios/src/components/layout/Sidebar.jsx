@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, ChevronLeft, ChevronRight, MessageCircle, Mail } from 'lucide-react';
+import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
@@ -107,16 +107,49 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
         </div>
       ) : null}
       <aside
-        className={`flex flex-col h-full transition-all duration-300 ${collapsed ? 'w-[68px]' : 'w-[240px]'}`}
+        className={`relative flex flex-col h-full transition-all duration-300 ${collapsed ? 'w-[88px]' : 'w-[240px]'}`}
         style={{ background: '#141414', borderRight: '1px solid #222' }}
       >
-        <div className={`flex items-center gap-3 h-16 border-b px-4 ${collapsed ? 'justify-center' : ''}`} style={{ borderColor: '#222' }}>
-          <img src={MACOM_LOGO_URL} alt="MACOM" className="w-10 h-9 object-cover flex-shrink-0" />
+        <div
+          className={`relative flex items-center h-16 border-b ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}
+          style={{ borderColor: '#222' }}
+        >
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <img src={MACOM_LOGO_URL} alt="MACOM" className="w-10 h-9 object-cover flex-shrink-0" />
+            {!collapsed && (
+              <div>
+                <span className="text-white font-black text-base tracking-widest uppercase">MACOM</span>
+                <p className="text-[10px] tracking-wider uppercase" style={{ color: '#E30613' }}>Portal BI</p>
+              </div>
+            )}
+          </div>
+
           {!collapsed && (
-            <div>
-              <span className="text-white font-black text-base tracking-widest uppercase">MACOM</span>
-              <p className="text-[10px] tracking-wider uppercase" style={{ color: '#E30613' }}>Portal BI</p>
-            </div>
+            <button
+              type="button"
+              onClick={onToggle}
+              className="rounded-md p-1.5 transition-colors"
+              style={{ color: '#777' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1b1b1b'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#777'; }}
+              title="Recolher sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
+
+          {collapsed && (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="absolute -right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border shadow-md transition-colors"
+              style={{ background: '#141414', borderColor: '#2b2b2b', color: '#777' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#1b1b1b'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#141414'; e.currentTarget.style.color = '#777'; }}
+              title="Expandir sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
           )}
         </div>
 
@@ -195,16 +228,6 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
               </div>
             </button>
           )}
-
-          <button
-            onClick={onToggle}
-            className="w-full flex items-center justify-center py-2 transition-colors"
-            style={{ color: '#555' }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
 
           {!collapsed && (
             <div className="px-2 py-1">
