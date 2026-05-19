@@ -39,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@macom/ui';
 import AdminGuard from '@/components/admin/AdminGuard';
 
 export default function Settings() {

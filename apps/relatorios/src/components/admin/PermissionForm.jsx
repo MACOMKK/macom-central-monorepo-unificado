@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { dataClient } from '@/api/dataClient';
-import { Button, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button, Checkbox, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
 import { Save } from 'lucide-react';
 
 export default function PermissionForm({ onSaved, onCancel }) {
