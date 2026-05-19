@@ -61,7 +61,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
       >
         <div className={`relative flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
           {!collapsed ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pl-1">
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />
               <div>
                 <h1 className="text-base font-extrabold leading-none tracking-tight text-foreground">MACOM</h1>
