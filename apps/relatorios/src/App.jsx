@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@macom/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';

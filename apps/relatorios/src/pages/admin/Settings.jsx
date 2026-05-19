@@ -17,7 +17,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  useToast,
+} from '@macom/ui';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useToast } from '@/components/ui/use-toast';
 import AdminGuard from '@/components/admin/AdminGuard';
 
 export default function Settings() {
