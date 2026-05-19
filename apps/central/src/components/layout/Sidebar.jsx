@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, ChevronLeft, ChevronRight, FileText, Home, KeyRound, Laptop, LogOut, Moon, Network, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Building2, FileText, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -30,7 +30,7 @@ const navItems = [
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText },
 ];
 
-export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen, theme, toggleTheme }) {
+export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen, theme, toggleTheme }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -55,11 +55,11 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         className={`
           fixed top-0 left-0 z-50 flex h-full flex-col border-r border-border bg-card
           transition-all duration-300 ease-in-out
-          ${collapsed ? 'w-[72px]' : 'w-64'}
+          ${collapsed ? 'w-[88px]' : 'w-64'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
+        <div className={`relative flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
           {!collapsed ? (
             <div className="flex items-center gap-2">
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />
@@ -72,12 +72,25 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
             <img src={logoUrl} alt="MACOM" className="mx-auto h-8 w-8 object-contain" />
           )}
 
-          <Button variant="ghost" size="icon" className="hidden h-7 w-7 lg:flex" onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
+          {!collapsed ? (
+            <Button variant="ghost" size="icon" className="hidden h-7 w-7 lg:flex" onClick={onToggle} title="Recolher sidebar">
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+          ) : null}
           <Button variant="ghost" size="icon" className="h-7 w-7 lg:hidden" onClick={() => setMobileOpen(false)}>
             <X className="h-4 w-4" />
           </Button>
+
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="absolute -right-3 top-1/2 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-md transition-colors hover:bg-accent hover:text-foreground lg:flex"
+              title="Expandir sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">

@@ -23,6 +23,11 @@ export default function AppLayout() {
   const [theme, setTheme] = useState('light');
 
   useEffect(() => {
+    const saved = window.localStorage.getItem('central:sidebar-collapsed');
+    setCollapsed(saved === 'true');
+  }, []);
+
+  useEffect(() => {
     const initial = getInitialTheme();
     setTheme(initial);
     applyTheme(initial);
@@ -36,18 +41,26 @@ export default function AppLayout() {
     });
   };
 
+  const handleToggleSidebar = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem('central:sidebar-collapsed', String(next));
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar
         collapsed={collapsed}
-        setCollapsed={setCollapsed}
+        onToggle={handleToggleSidebar}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
         theme={theme}
         toggleTheme={toggleTheme}
       />
 
-      <div className={`transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-64'}`}>
+      <div className={`transition-all duration-300 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-64'}`}>
         <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border bg-card px-4 lg:hidden">
           <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
