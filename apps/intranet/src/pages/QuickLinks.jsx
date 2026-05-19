@@ -157,7 +157,7 @@ export default function QuickLinks() {
   const hasAnyLinks = links.length > 0;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Links Uteis</h1>

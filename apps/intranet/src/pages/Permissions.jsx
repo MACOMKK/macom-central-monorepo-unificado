@@ -195,7 +195,7 @@ export default function Permissions() {
   const allRows = [...userRows, ...extraRows];
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="mx-auto max-w-7xl">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
           <UserCog className="w-5 h-5 text-primary" />

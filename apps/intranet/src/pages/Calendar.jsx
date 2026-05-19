@@ -56,7 +56,7 @@ export default function Calendar() {
   const selectedEvents = selectedDate ? getEventsForDay(selectedDate) : [];
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Calendário</h1>
