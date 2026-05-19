@@ -114,12 +114,12 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
           className={`relative flex items-center h-16 border-b ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}
           style={{ borderColor: '#222' }}
         >
-          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3 pl-1'}`}>
             <img src={MACOM_LOGO_URL} alt="MACOM" className="w-10 h-9 object-cover flex-shrink-0" />
             {!collapsed && (
-              <div>
+              <div className="flex flex-col leading-none">
                 <span className="text-white font-black text-base tracking-widest uppercase">MACOM</span>
-                <p className="text-[10px] tracking-wider uppercase" style={{ color: '#E30613' }}>Portal BI</p>
+                <p className="mt-1 text-[10px] tracking-wider uppercase" style={{ color: '#E30613' }}>Portal BI</p>
               </div>
             )}
           </div>

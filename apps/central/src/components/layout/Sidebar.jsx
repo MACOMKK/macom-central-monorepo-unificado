@@ -63,9 +63,9 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
           {!collapsed ? (
             <div className="flex items-center gap-2 pl-1">
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />
-              <div>
+              <div className="flex flex-col leading-none">
                 <h1 className="text-base font-extrabold leading-none tracking-tight text-foreground">MACOM</h1>
-                <p className="text-[10px] font-medium tracking-wider text-muted-foreground">CENTRAL MACOM</p>
+                <p className="mt-1 text-[10px] font-medium tracking-wider text-muted-foreground">CENTRAL MACOM</p>
               </div>
             </div>
           ) : (
