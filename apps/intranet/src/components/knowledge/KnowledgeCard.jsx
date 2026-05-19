@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { appClient } from '@/api/client';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge, Button } from '@macom/ui';
 import { ChevronDown, ChevronUp, Pin, Pencil, Trash2, ThumbsUp } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
