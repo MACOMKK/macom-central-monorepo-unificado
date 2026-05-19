@@ -13,6 +13,17 @@ const isInvalidSessionClaimError = (error) =>
   typeof error?.message === 'string' &&
   error.message.toLowerCase().includes('missing sub claim');
 
+const isUnauthenticatedSessionError = (error) => {
+  const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+  return (
+    error?.code === 'auth_required' ||
+    error?.status === 401 ||
+    message.includes('sessao expirada') ||
+    message.includes('nao autenticado') ||
+    message.includes('auth session missing')
+  );
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -45,6 +56,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         setIsAuthenticated(false);
         setAuthError({
+          source: 'bootstrap',
           type: 'auth_error',
           message: error.message || 'Failed to load authenticated session',
         });
@@ -140,15 +152,20 @@ export const AuthProvider = ({ children }) => {
         silent,
         timestamp: new Date().toISOString(),
       });
-      if (isIntranetAccessDenied(error) || isInvalidSessionClaimError(error)) {
+      if (isIntranetAccessDenied(error) || isInvalidSessionClaimError(error) || isUnauthenticatedSessionError(error)) {
         await clearIntranetSession();
       }
       setUser(null);
       setIsAuthenticated(false);
-      setAuthError({
-        type: 'auth_error',
-        message: error.message || 'Failed to load authenticated user',
-      });
+      setAuthError(
+        isUnauthenticatedSessionError(error)
+          ? null
+          : {
+              source: 'session_check',
+              type: 'auth_error',
+              message: error.message || 'Failed to load authenticated user',
+            }
+      );
       setAuthChecked(true);
       if (!silent) {
         setIsLoadingAuth(false);
@@ -174,6 +191,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setAuthChecked(true);
       setAuthError({
+        source: 'sign_in',
         type: 'auth_error',
         message: error.message || 'Failed to load authenticated user',
       });

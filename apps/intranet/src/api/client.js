@@ -16,6 +16,11 @@ function normalizeFunctionError(error, fallbackMessage) {
   return new Error(error.message || fallbackMessage);
 }
 
+function isMissingSessionError(error) {
+  const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('auth session missing');
+}
+
 async function uploadFile(file) {
   assertSupabaseConfigured();
 
@@ -81,7 +86,9 @@ export const appClient = {
     async logout(redirectTo) {
       assertSupabaseConfigured();
       const { error } = await supabase.auth.signOut();
-      if (error) throw normalizeFunctionError(error, 'Falha ao encerrar sessao.');
+      if (error && !isMissingSessionError(error)) {
+        throw normalizeFunctionError(error, 'Falha ao encerrar sessao.');
+      }
       if (redirectTo) {
         window.location.assign(redirectTo);
       }
@@ -90,7 +97,9 @@ export const appClient = {
     async clearSession() {
       assertSupabaseConfigured();
       const { error } = await supabase.auth.signOut();
-      if (error) throw normalizeFunctionError(error, 'Falha ao limpar sessao.');
+      if (error && !isMissingSessionError(error)) {
+        throw normalizeFunctionError(error, 'Falha ao limpar sessao.');
+      }
     },
 
     redirectToLogin(redirectTo) {
