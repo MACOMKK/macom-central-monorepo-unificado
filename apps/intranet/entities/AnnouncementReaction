@@ -1,0 +1,25 @@
+{
+  "name": "AnnouncementReaction",
+  "type": "object",
+  "properties": {
+    "announcement_id": {
+      "type": "string",
+      "description": "ID do aviso"
+    },
+    "emoji": {
+      "type": "string",
+      "description": "Emoji da rea\u00e7\u00e3o",
+      "enum": [
+        "\ud83d\udc4d",
+        "\u2764\ufe0f",
+        "\ud83d\ude2e",
+        "\ud83d\ude02",
+        "\ud83d\udc4f"
+      ]
+    }
+  },
+  "required": [
+    "announcement_id",
+    "emoji"
+  ]
+}

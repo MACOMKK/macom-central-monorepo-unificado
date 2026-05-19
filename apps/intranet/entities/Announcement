@@ -1,0 +1,52 @@
+{
+  "name": "Announcement",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do aviso"
+    },
+    "content": {
+      "type": "string",
+      "description": "Conte\u00fado do aviso"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "geral",
+        "rh",
+        "ti",
+        "financeiro",
+        "vendas",
+        "pos_vendas"
+      ],
+      "default": "geral",
+      "description": "Categoria do aviso"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "baixa",
+        "media",
+        "alta",
+        "urgente"
+      ],
+      "default": "media",
+      "description": "Prioridade do aviso"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o aviso est\u00e1 fixado"
+    },
+    "expiration_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de expira\u00e7\u00e3o do aviso"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}

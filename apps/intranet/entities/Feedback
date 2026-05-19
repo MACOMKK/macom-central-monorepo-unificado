@@ -1,0 +1,64 @@
+{
+  "name": "Feedback",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "sugestao",
+        "feedback",
+        "reclamacao",
+        "elogio"
+      ],
+      "default": "sugestao",
+      "description": "Tipo do feedback"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "geral",
+        "rh",
+        "ti",
+        "financeiro",
+        "vendas",
+        "pos_vendas",
+        "infraestrutura",
+        "gestao"
+      ],
+      "default": "geral",
+      "description": "Categoria do feedback"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do feedback"
+    },
+    "content": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada"
+    },
+    "anonymous": {
+      "type": "boolean",
+      "default": false,
+      "description": "Envio an\u00f4nimo"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pendente",
+        "em_analise",
+        "concluido",
+        "arquivado"
+      ],
+      "default": "pendente",
+      "description": "Status do feedback"
+    },
+    "admin_response": {
+      "type": "string",
+      "description": "Resposta do administrador"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}

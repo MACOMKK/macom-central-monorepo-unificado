@@ -1,0 +1,44 @@
+{
+  "name": "CalendarEvent",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do evento"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do evento"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do evento"
+    },
+    "time": {
+      "type": "string",
+      "description": "Hor\u00e1rio do evento"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "reuniao",
+        "treinamento",
+        "evento",
+        "feriado",
+        "aniversario",
+        "outro"
+      ],
+      "default": "evento",
+      "description": "Tipo do evento"
+    },
+    "location": {
+      "type": "string",
+      "description": "Local do evento"
+    }
+  },
+  "required": [
+    "title",
+    "date"
+  ]
+}

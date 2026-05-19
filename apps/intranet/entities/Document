@@ -1,0 +1,48 @@
+{
+  "name": "Document",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do documento"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do documento"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL do arquivo"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "politica",
+        "procedimento",
+        "formulario",
+        "manual",
+        "treinamento",
+        "outros"
+      ],
+      "default": "outros",
+      "description": "Categoria do documento"
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "geral",
+        "rh",
+        "ti",
+        "financeiro",
+        "vendas",
+        "pos_vendas",
+        "marketing"
+      ],
+      "default": "geral",
+      "description": "Departamento"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

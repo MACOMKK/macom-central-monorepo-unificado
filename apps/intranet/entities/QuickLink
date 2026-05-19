@@ -1,0 +1,39 @@
+{
+  "name": "QuickLink",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do sistema/link"
+    },
+    "url": {
+      "type": "string",
+      "description": "URL do sistema"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do sistema"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Nome do \u00edcone lucide-react"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "sistema",
+        "ferramenta",
+        "portal",
+        "comunicacao",
+        "financeiro",
+        "rh"
+      ],
+      "default": "sistema",
+      "description": "Categoria do link"
+    }
+  },
+  "required": [
+    "name",
+    "url"
+  ]
+}

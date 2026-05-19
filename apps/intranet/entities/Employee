@@ -1,0 +1,58 @@
+{
+  "name": "Employee",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome completo"
+    },
+    "email": {
+      "type": "string",
+      "description": "E-mail corporativo"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Telefone/ramal"
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "diretoria",
+        "rh",
+        "ti",
+        "financeiro",
+        "vendas",
+        "pos_vendas",
+        "marketing",
+        "administrativo"
+      ],
+      "description": "Departamento"
+    },
+    "position": {
+      "type": "string",
+      "description": "Cargo"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "URL da foto"
+    },
+    "birth_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de nascimento"
+    },
+    "unit": {
+      "type": "string",
+      "enum": [
+        "ananindeua",
+        "belem",
+        "paragominas"
+      ],
+      "description": "Unidade"
+    }
+  },
+  "required": [
+    "name",
+    "department"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "name": "KnowledgeBase",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo do artigo / pergunta"
+    },
+    "content": {
+      "type": "string",
+      "description": "Conte\u00fado / resposta detalhada"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "geral",
+        "rh",
+        "ti",
+        "financeiro",
+        "vendas",
+        "pos_vendas",
+        "beneficios",
+        "politicas"
+      ],
+      "default": "geral",
+      "description": "Categoria do artigo"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "faq",
+        "artigo",
+        "tutorial",
+        "politica"
+      ],
+      "default": "faq",
+      "description": "Tipo do conte\u00fado"
+    },
+    "tags": {
+      "type": "string",
+      "description": "Tags separadas por v\u00edrgula"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false,
+      "description": "Fixado no topo"
+    },
+    "helpful_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade de votos \u00fatil"
+    }
+  },
+  "required": [
+    "title",
+    "content"
+  ]
+}

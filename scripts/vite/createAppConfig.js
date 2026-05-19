@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 function createAliases(repoRoot, appRoot) {
   return [
-    { find: '@', replacement: path.resolve(appRoot, './src') },
+    { find: /^@\/(.*)$/, replacement: `${path.resolve(appRoot, './src')}/$1` },
     { find: /^@macom\/api-client$/, replacement: path.resolve(repoRoot, './packages/api-client/src/index.js') },
     { find: /^@macom\/api-client\/(.*)$/, replacement: `${path.resolve(repoRoot, './packages/api-client/src')}/$1` },
     { find: /^@macom\/auth$/, replacement: path.resolve(repoRoot, './packages/auth/src/index.js') },
