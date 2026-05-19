@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Megaphone, ArrowRight, Clock } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@macom/ui';
 
 const categoryLabels = {
   geral: 'Geral',

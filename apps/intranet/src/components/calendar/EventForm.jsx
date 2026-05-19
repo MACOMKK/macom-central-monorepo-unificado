@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
-import { Textarea } from '@/components/ui/textarea';
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@macom/ui';
 
 export default function EventForm({ onSubmit, isLoading }) {
   const [form, setForm] = useState({

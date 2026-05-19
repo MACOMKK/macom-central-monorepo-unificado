@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, FileText, Download, Trash2, Search, FolderOpen } from 'lucide-react';
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Input } from '@macom/ui';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Input, Skeleton } from '@macom/ui';
 import DocumentForm from '../components/documents/DocumentForm';
 import { usePermissions } from '@/lib/usePermissions';
 

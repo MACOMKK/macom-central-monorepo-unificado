@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { appClient } from '@/api/client';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
-import { Textarea } from '@/components/ui/textarea';
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@macom/ui';
 import { Upload, Loader2 } from 'lucide-react';
 
 export default function DocumentForm({ onSubmit, isLoading }) {

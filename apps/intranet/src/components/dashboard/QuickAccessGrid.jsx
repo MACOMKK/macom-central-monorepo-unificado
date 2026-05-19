@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Globe, Wrench, Building, MessageSquare, DollarSign, Users, Link2 } from 'lucide-react';
 import { appClient } from '@/api/client';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@macom/ui';
 
 const categoryConfig = {
   sistema: { icon: Globe, iconBg: 'bg-blue-100', iconColor: 'text-blue-500' },

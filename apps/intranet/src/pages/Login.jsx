@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2, LockKeyhole, Mail } from 'lucide-react';
-import { Button, Input, Label } from '@macom/ui';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, Button, Input, Label } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 

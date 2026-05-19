@@ -16,8 +16,7 @@ import {
   LayoutGrid,
   Trash2,
 } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@macom/ui';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Skeleton } from '@macom/ui';
 import QuickLinkForm from '../components/links/QuickLinkForm';
 import { usePermissions } from '@/lib/usePermissions';
 

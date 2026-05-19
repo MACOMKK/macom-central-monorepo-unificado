@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
-import { Textarea } from '@/components/ui/textarea';
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@macom/ui';
 
 export default function QuickLinkForm({ onSubmit, isLoading, initial = {} }) {
   const [form, setForm] = useState({
