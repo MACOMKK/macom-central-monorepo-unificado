@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { appClient } from '@/api/client';
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@macom/ui';
+import { hasExactDigits, normalizeDigits } from '@macom/validation';
 
 function normalizeDateInput(value) {
   if (!value) return '';
@@ -16,10 +17,11 @@ function normalizeDateInput(value) {
 
 export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode = 'edit' }) {
   const isEditMode = mode === 'edit';
+  const [validationMessage, setValidationMessage] = useState('');
   const [form, setForm] = useState({
     name: initial.name || '',
     email: initial.email || '',
-    phone: initial.phone || '',
+    phone: normalizeDigits(initial.phone || '').slice(0, 11),
     department: initial.department || '',
     position: initial.position || '',
     unit: initial.unit || '',
@@ -36,9 +38,23 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
     queryFn: () => appClient.catalogs.listUnits(),
   });
 
+  const handlePhoneChange = (value) => {
+    setValidationMessage('');
+    setForm({ ...form, phone: normalizeDigits(value).slice(0, 11) });
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
-    onSubmit(form);
+
+    if (form.phone && !hasExactDigits(form.phone, 11)) {
+      setValidationMessage('Telefone deve conter exatamente 11 digitos.');
+      return;
+    }
+
+    onSubmit({
+      ...form,
+      phone: form.phone ? normalizeDigits(form.phone) : '',
+    });
   };
 
   return (
@@ -60,7 +76,13 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
         </div>
         <div className="space-y-2">
           <Label>Telefone/Ramal</Label>
-          <Input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} placeholder="(91) 9999-9999" />
+          <Input
+            value={form.phone}
+            onChange={(event) => handlePhoneChange(event.target.value)}
+            placeholder="Ex.: 91999999999"
+            inputMode="numeric"
+            maxLength={11}
+          />
         </div>
       </div>
       <div className="space-y-2">
@@ -109,6 +131,7 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
         <Label>Data de Nascimento</Label>
         <Input type="date" value={form.birth_date} onChange={(event) => setForm({ ...form, birth_date: event.target.value })} disabled={isEditMode} />
       </div>
+      {validationMessage ? <p className="text-sm font-medium text-destructive">{validationMessage}</p> : null}
       <Button type="submit" disabled={isLoading} className="w-full">
         {isLoading ? 'Salvando...' : 'Salvar Colaborador'}
       </Button>

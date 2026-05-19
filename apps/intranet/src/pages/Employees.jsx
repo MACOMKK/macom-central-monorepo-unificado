@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Phone, Mail, MapPin, Users, Pencil } from 'lucide-react';
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skeleton } from '@macom/ui';
+import { Search, Mail, MapPin, Users, Pencil, Building } from 'lucide-react';
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skeleton } from '@macom/ui';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
@@ -58,6 +58,16 @@ export default function Employees() {
     setEditingEmployee(null);
   };
 
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('');
+  };
+
   const handleSubmit = (data) => {
     if (!editingEmployee) return;
     updateMutation.mutate({
@@ -77,11 +87,6 @@ export default function Employees() {
           <h1 className="text-2xl font-bold">Colaboradores</h1>
           <p className="text-sm text-muted-foreground mt-1">Diretorio de funcionarios da empresa</p>
         </div>
-        {canEdit && (
-          <div className="rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted-foreground">
-            O cadastro de novos colaboradores depende do provisionamento no Auth.
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -105,8 +110,8 @@ export default function Employees() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} className="h-44 rounded-xl" />)}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} className="h-[360px] rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
@@ -114,46 +119,66 @@ export default function Employees() {
           <p>Nenhum colaborador encontrado.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {filtered.map((employee) => (
-            <div key={employee.id} className="bg-card border border-border rounded-xl p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg shrink-0">
-                  {employee.name?.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-sm truncate">{employee.name}</h3>
-                  <p className="text-xs text-muted-foreground">{employee.position || employee.function_role}</p>
-                  {(employee.department_name || employee.department) && (
-                    <Badge className="mt-1 text-[10px] bg-gray-100 text-gray-700">
-                      {employee.department_name || employee.department}
-                    </Badge>
-                  )}
-                </div>
-                {canEdit && (
-                  <div className="flex shrink-0">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(employee)}>
-                      <Pencil className="w-3.5 h-3.5" />
+            <div
+              key={employee.id}
+              className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
+            >
+              <div className="relative border-b border-slate-100 p-6 text-center">
+                {employee.phone ? (
+                  <div className="absolute right-3 top-3 max-w-[132px] truncate rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold leading-none text-slate-500">
+                    {employee.phone}
+                  </div>
+                ) : null}
+
+                {canEdit ? (
+                  <div className="absolute left-4 top-4 flex shrink-0">
+                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => openEdit(employee)}>
+                      <Pencil className="h-4 w-4" />
                     </Button>
                   </div>
+                ) : null}
+
+                {employee.photo_url ? (
+                  <img
+                    src={employee.photo_url}
+                    alt={`Foto de ${employee.name}`}
+                    className="mx-auto mb-4 h-24 w-24 rounded-full border-4 border-slate-50 object-cover transition-colors group-hover:border-primary/20"
+                  />
+                ) : (
+                  <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-slate-50 bg-primary/10 text-2xl font-bold text-primary transition-colors group-hover:border-primary/20">
+                    {getInitials(employee.name)}
+                  </div>
                 )}
+
+                <h3 className="text-lg font-bold text-foreground">{employee.name}</h3>
+                <p className="mb-1 text-sm font-medium text-primary">{employee.position || employee.function_role || 'Sem cargo'}</p>
+                <p className="flex items-center justify-center gap-1 text-sm text-slate-500">
+                  <Building size={14} />
+                  {employee.department_name || employee.department || 'Sem departamento'}
+                </p>
               </div>
-              <div className="mt-4 space-y-1.5">
-                {employee.email && (
-                  <a href={`mailto:${employee.email}`} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-                    <Mail className="w-3.5 h-3.5" /> {employee.email}
+
+              <div className="space-y-3 bg-slate-50 p-4">
+                {employee.email ? (
+                  <a
+                    href={`mailto:${employee.email}`}
+                    className="flex items-center gap-3 text-sm text-slate-600 transition-colors hover:text-foreground"
+                  >
+                    <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
+                      <Mail size={16} />
+                    </div>
+                    <span className="truncate" title={employee.email}>{employee.email}</span>
                   </a>
-                )}
-                {employee.phone && (
-                  <a href={`tel:${employee.phone}`} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
-                    <Phone className="w-3.5 h-3.5" /> {employee.phone}
-                  </a>
-                )}
-                {employee.unit_name && (
-                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <MapPin className="w-3.5 h-3.5" /> {employee.unit_name}
-                  </span>
-                )}
+                ) : null}
+
+                <div className="flex items-center gap-3 text-sm text-slate-600">
+                  <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
+                    <MapPin size={16} />
+                  </div>
+                  <span>{employee.unit_name || 'Unidade nao informada'}</span>
+                </div>
               </div>
             </div>
           ))}
