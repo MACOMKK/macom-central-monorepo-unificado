@@ -45,7 +45,6 @@ export default function ManageReports() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeUnit, setActiveUnit] = useState('all');
-  const [activeProvider, setActiveProvider] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
   const queryClient = useQueryClient();
@@ -70,8 +69,6 @@ export default function ManageReports() {
         .filter((unitName) => unitName && unitName !== 'Todas as unidades')
     ),
   ];
-  const providers = ['all', ...new Set(reports.map((report) => report.provider).filter(Boolean))];
-
   const filteredReports = reports.filter((report) => {
     const matchSearch =
       report.title?.toLowerCase().includes(search.toLowerCase()) ||
@@ -82,8 +79,7 @@ export default function ManageReports() {
       (activeUnit === 'global'
         ? report.all_units === true
         : (report.unit_names || []).includes(activeUnit));
-    const matchProvider = activeProvider === 'all' || report.provider === activeProvider;
-    return matchSearch && matchCategory && matchUnit && matchProvider;
+    return matchSearch && matchCategory && matchUnit;
   });
 
   const handleEdit = (report) => {
@@ -116,9 +112,9 @@ export default function ManageReports() {
         </div>
 
         <div className="px-6 py-6 lg:px-10">
-          <div className="mb-4 flex flex-col gap-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative w-full lg:max-w-sm">
+          <div className="mb-4 rounded-sm bg-white p-4 shadow-sm">
+            <div className="grid gap-3 lg:grid-cols-[minmax(320px,1.6fr)_minmax(220px,1fr)_minmax(220px,1fr)_220px] lg:items-center">
+              <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#999' }} />
                 <Input
                   placeholder="Buscar relatorio..."
@@ -129,22 +125,6 @@ export default function ManageReports() {
                 />
               </div>
 
-              <button
-                onClick={handleCreate}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
-                style={{ background: '#E30613' }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = '#b80010';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = '#E30613';
-                }}
-              >
-                <Plus className="h-4 w-4" /> Novo Relatorio
-              </button>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3">
               <Select value={activeUnit} onValueChange={setActiveUnit}>
                 <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
                   <SelectValue placeholder="Filtrar unidade" />
@@ -171,18 +151,19 @@ export default function ManageReports() {
                 </SelectContent>
               </Select>
 
-              <Select value={activeProvider} onValueChange={setActiveProvider}>
-                <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
-                  <SelectValue placeholder="Filtrar origem" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((provider) => (
-                    <SelectItem key={provider} value={provider}>
-                      {provider === 'all' ? 'Todas as origens' : providerLabels[provider] || providerLabels.other}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <button
+                onClick={handleCreate}
+                className="flex w-full items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
+                style={{ background: '#E30613' }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = '#b80010';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = '#E30613';
+                }}
+              >
+                <Plus className="h-4 w-4" /> Novo Relatorio
+              </button>
             </div>
           </div>
 
