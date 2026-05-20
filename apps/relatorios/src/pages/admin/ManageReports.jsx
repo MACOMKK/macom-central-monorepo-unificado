@@ -61,7 +61,15 @@ export default function ManageReports() {
   });
 
   const categories = ['all', ...new Set(reports.map((report) => report.category).filter(Boolean))];
-  const units = ['all', 'Todas as unidades', ...new Set(reports.flatMap((report) => report.unit_names || []).filter(Boolean))];
+  const units = [
+    'all',
+    'global',
+    ...new Set(
+      reports
+        .flatMap((report) => report.unit_names || [])
+        .filter((unitName) => unitName && unitName !== 'Todas as unidades')
+    ),
+  ];
   const providers = ['all', ...new Set(reports.map((report) => report.provider).filter(Boolean))];
 
   const filteredReports = reports.filter((report) => {
@@ -71,7 +79,7 @@ export default function ManageReports() {
     const matchCategory = activeCategory === 'all' || report.category === activeCategory;
     const matchUnit =
       activeUnit === 'all' ||
-      (activeUnit === 'Todas as unidades'
+      (activeUnit === 'global'
         ? report.all_units === true
         : (report.unit_names || []).includes(activeUnit));
     const matchProvider = activeProvider === 'all' || report.provider === activeProvider;
@@ -144,7 +152,7 @@ export default function ManageReports() {
                 <SelectContent>
                   {units.map((unit) => (
                     <SelectItem key={unit} value={unit}>
-                      {unit === 'all' ? 'Todas as unidades' : unit}
+                      {unit === 'all' ? 'Todas as unidades' : unit === 'global' ? 'Relatórios globais' : unit}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -289,7 +297,7 @@ export default function ManageReports() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="text-sm font-black uppercase tracking-wider">
               {editingReport ? 'Editar Relatorio' : 'Novo Relatorio'}

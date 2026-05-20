@@ -115,119 +115,135 @@ export default function ReportForm({ report, onSaved, onCancel }) {
         event.preventDefault();
         saveMutation.mutate(form);
       }}
-      className="space-y-4"
+      className="space-y-3"
     >
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-black uppercase tracking-widest">Titulo *</Label>
-        <Input
-          value={form.title}
-          onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-          required
-          style={{ borderRadius: 2 }}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-black uppercase tracking-widest">Descricao</Label>
-        <Input
-          value={form.description}
-          onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-          style={{ borderRadius: 2 }}
-        />
-      </div>
-
-      <div className="space-y-3 rounded border p-4" style={{ borderColor: '#e5e5e5' }}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Label className="text-[10px] font-black uppercase tracking-widest">Escopo de unidades</Label>
-            <p className="mt-1 text-xs" style={{ color: '#666' }}>
-              Defina se o relatorio vale para todas as unidades ou para unidades especificas.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={form.all_units}
-              onCheckedChange={(value) =>
-                setForm((current) => ({
-                  ...current,
-                  all_units: value,
-                  unit_ids: value ? [] : current.unit_ids,
-                }))
-              }
+      <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest">Titulo *</Label>
+            <Input
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              required
+              style={{ borderRadius: 2 }}
             />
-            <Label className="text-xs font-semibold">Todas as unidades</Label>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest">Descricao</Label>
+            <Input
+              value={form.description}
+              onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              style={{ borderRadius: 2 }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest">Categoria</Label>
+            <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
+              <SelectTrigger style={{ borderRadius: 2 }}>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((category) => (
+                  <SelectItem key={category.value} value={category.value}>
+                    {category.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-3 rounded border p-3" style={{ borderColor: '#e5e5e5' }}>
+            <Switch checked={form.active} onCheckedChange={(value) => setForm((current) => ({ ...current, active: value }))} />
+            <Label className="text-xs font-semibold">Relatorio ativo</Label>
           </div>
         </div>
 
-        {!form.all_units ? (
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest">Unidades vinculadas *</Label>
-            <div className="grid max-h-56 gap-2 overflow-y-auto rounded border p-3 md:grid-cols-2" style={{ borderColor: '#e5e5e5' }}>
-              {units.map((unit) => (
-                <label key={unit.id} className="flex cursor-pointer items-center gap-3 rounded p-2 hover:bg-gray-50">
-                  <Checkbox
-                    checked={form.unit_ids.includes(unit.id)}
-                    onCheckedChange={() => toggleUnit(unit.id)}
-                  />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: '#141414' }}>{unit.name}</p>
-                    {unit.city ? <p className="text-xs" style={{ color: '#666' }}>{unit.city}</p> : null}
+        <div className="space-y-3">
+          <div className="space-y-3 rounded border p-3" style={{ borderColor: '#e5e5e5' }}>
+            <Label className="text-[10px] font-black uppercase tracking-widest">Unidades</Label>
+
+            {!form.all_units ? (
+              <div className="space-y-2">
+                <div className="space-y-2 rounded border bg-white p-2" style={{ borderColor: '#e5e5e5' }}>
+                  <label className="flex cursor-pointer items-center gap-3 rounded px-2 py-2 hover:bg-gray-50">
+                    <Switch
+                      checked={form.all_units}
+                      onCheckedChange={(value) =>
+                        setForm((current) => ({
+                          ...current,
+                          all_units: value,
+                          unit_ids: value ? [] : current.unit_ids,
+                        }))
+                      }
+                    />
+                    <span className="text-sm font-medium" style={{ color: '#141414' }}>Todas as unidades</span>
+                  </label>
+
+                  <div className="grid gap-2 border-t pt-2" style={{ borderColor: '#e5e5e5' }}>
+                    {units.map((unit) => (
+                      <label key={unit.id} className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-gray-50">
+                        <Checkbox
+                          checked={form.unit_ids.includes(unit.id)}
+                          onCheckedChange={() => toggleUnit(unit.id)}
+                        />
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: '#141414' }}>{unit.name}</p>
+                          {unit.city ? <p className="text-xs" style={{ color: '#666' }}>{unit.city}</p> : null}
+                        </div>
+                      </label>
+                    ))}
                   </div>
+                </div>
+                {selectedUnits.length ? (
+                  <p className="text-xs" style={{ color: '#666' }}>
+                    {selectedUnits.length} unidade(s) selecionada(s)
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="rounded border bg-white p-2" style={{ borderColor: '#e5e5e5' }}>
+                <label className="flex cursor-pointer items-center gap-3 rounded px-2 py-2 hover:bg-gray-50">
+                  <Switch
+                    checked={form.all_units}
+                    onCheckedChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        all_units: value,
+                        unit_ids: value ? [] : current.unit_ids,
+                      }))
+                    }
+                  />
+                  <span className="text-sm font-medium" style={{ color: '#141414' }}>Todas as unidades</span>
                 </label>
-              ))}
-            </div>
-            <p className="text-xs" style={{ color: '#666' }}>
-              {selectedUnits.length
-                ? `${selectedUnits.length} unidade(s) selecionada(s)`
-                : 'Selecione uma ou mais unidades.'}
-            </p>
+              </div>
+            )}
           </div>
-        ) : null}
-      </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-black uppercase tracking-widest">Categoria</Label>
-        <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
-          <SelectTrigger style={{ borderRadius: 2 }}>
-            <SelectValue placeholder="Selecione..." />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((category) => (
-              <SelectItem key={category.value} value={category.value}>
-                {category.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-black uppercase tracking-widest">Codigo embed *</Label>
-        <Textarea
-          value={form.embed_code}
-          onChange={(event) => setForm((current) => ({ ...current, embed_code: event.target.value }))}
-          placeholder='<iframe title="..." src="https://app.powerbi.com/..." frameborder="0" allowFullScreen></iframe>'
-          rows={4}
-          required
-          style={{ borderRadius: 2, fontFamily: 'monospace', fontSize: 12 }}
-        />
-        <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-wider" style={{ color: '#999' }}>
-          <p>Cole o iframe completo do Power BI ou Data Studio</p>
-          <span
-            className="px-2 py-0.5 font-black tracking-widest"
-            style={{
-              background: detectedProvider === 'power_bi' ? '#141414' : detectedProvider === 'data_studio' ? '#f2f2f2' : '#f7f7f7',
-              color: '#141414',
-            }}
-          >
-            {providerLabels[detectedProvider]}
-          </span>
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest">Codigo embed *</Label>
+            <Textarea
+              value={form.embed_code}
+              onChange={(event) => setForm((current) => ({ ...current, embed_code: event.target.value }))}
+              placeholder='<iframe title="..." src="https://app.powerbi.com/..." frameborder="0" allowFullScreen></iframe>'
+              rows={2}
+              required
+              style={{ borderRadius: 2, fontFamily: 'monospace', fontSize: 12 }}
+            />
+            <div className="flex items-center justify-end gap-3 text-[10px] uppercase tracking-wider" style={{ color: '#999' }}>
+              <span
+                className="px-2 py-0.5 font-black tracking-widest"
+                style={{
+                  background: detectedProvider === 'power_bi' ? '#141414' : detectedProvider === 'data_studio' ? '#f2f2f2' : '#f7f7f7',
+                  color: '#141414',
+                }}
+              >
+                {providerLabels[detectedProvider]}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Switch checked={form.active} onCheckedChange={(value) => setForm((current) => ({ ...current, active: value }))} />
-        <Label className="text-xs font-semibold">Relatorio ativo</Label>
       </div>
 
       {saveMutation.error ? (
