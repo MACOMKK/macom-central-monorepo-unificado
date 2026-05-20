@@ -156,11 +156,6 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
         </div>
 
         <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-          {isAdmin && !collapsed && (
-            <p className="text-[9px] uppercase tracking-widest font-bold px-3 mb-3 mt-1" style={{ color: '#555' }}>
-              Navegacao
-            </p>
-          )}
           {filteredItems.map(item => {
             const isActive = location.pathname === item.path;
             const linkContent = (
