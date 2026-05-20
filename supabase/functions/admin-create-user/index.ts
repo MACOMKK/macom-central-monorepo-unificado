@@ -31,7 +31,7 @@ function json(data: unknown, status = 200) {
 }
 
 function normalizePayload(payload: Record<string, unknown> = {}) {
-  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo', 'data_admissao', 'status', 'unidade_id'];
+  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo', 'data_nascimento', 'data_admissao', 'status', 'unidade_id'];
   const normalized = fields.reduce<Record<string, unknown>>((acc, field) => {
     if (field in payload) {
       acc[field] = payload[field];
@@ -336,6 +336,7 @@ Deno.serve(async (request) => {
         telefone: payload.telefone ?? null,
         departamento_id: payload.departamento_id ?? null,
         cargo: payload.cargo ?? null,
+        data_nascimento: payload.data_nascimento ?? null,
         data_admissao: payload.data_admissao ?? null,
         status: payload.status || 'ativo',
         unidade_id: payload.unidade_id ?? null,
@@ -352,11 +353,12 @@ Deno.serve(async (request) => {
             telefone,
             departamento_id,
             cargo,
+            data_nascimento,
             data_admissao,
             status,
             unidade_id
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
           on conflict (id) do update
           set
             nome = excluded.nome,
@@ -366,6 +368,7 @@ Deno.serve(async (request) => {
             telefone = excluded.telefone,
             departamento_id = excluded.departamento_id,
             cargo = excluded.cargo,
+            data_nascimento = excluded.data_nascimento,
             data_admissao = excluded.data_admissao,
             status = excluded.status,
             unidade_id = excluded.unidade_id,
@@ -381,6 +384,7 @@ Deno.serve(async (request) => {
           upsertPayload.telefone,
           upsertPayload.departamento_id,
           upsertPayload.cargo,
+          upsertPayload.data_nascimento,
           upsertPayload.data_admissao,
           upsertPayload.status,
           upsertPayload.unidade_id,

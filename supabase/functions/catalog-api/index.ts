@@ -32,6 +32,7 @@ const ENTITY_CONFIG = {
       'telefone',
       'departamento_id',
       'cargo',
+      'data_nascimento',
       'data_admissao',
       'status',
       'unidade_id',

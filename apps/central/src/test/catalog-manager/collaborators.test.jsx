@@ -209,6 +209,7 @@ describe('CatalogManager collaborators', () => {
     await user.type(screen.getByLabelText('CPF'), '12345678901');
     await user.type(screen.getByLabelText('Telefone'), '85999999999');
     await user.type(screen.getByLabelText('Cargo'), 'Analista de TI');
+    await user.type(screen.getByLabelText('Data de nascimento'), '1994-08-10');
     await user.type(screen.getByLabelText('Data de admissao'), '2026-05-11');
     await user.clear(screen.getByLabelText('Funcao'));
     await user.type(screen.getByLabelText('Funcao'), 'admin');
@@ -228,6 +229,7 @@ describe('CatalogManager collaborators', () => {
         telefone: '85999999999',
         departamento_id: 'dep-1',
         cargo: 'Analista de TI',
+        data_nascimento: '1994-08-10',
         data_admissao: '2026-05-11',
         status: 'inativo',
         unidade_id: 'unit-1',
@@ -249,6 +251,7 @@ describe('CatalogManager collaborators', () => {
         telefone: '85999999999',
         departamento_id: 'dep-1',
         cargo: 'Analista de TI',
+        data_nascimento: '1994-08-10',
         data_admissao: '2026-05-11',
         status: 'ativo',
         unidade_id: 'unit-1',
@@ -269,6 +272,7 @@ describe('CatalogManager collaborators', () => {
     expect(screen.getByLabelText('Funcao')).toHaveValue('admin');
     expect(screen.getByLabelText('Telefone')).toHaveValue('85999999999');
     expect(screen.getByLabelText('Departamento')).toHaveValue('dep-1');
+    expect(screen.getByLabelText('Data de nascimento')).toHaveValue('1994-08-10');
 
     await user.clear(screen.getByLabelText('Nome'));
     await user.type(screen.getByLabelText('Nome'), 'Maria Souza Atualizada');
@@ -276,6 +280,8 @@ describe('CatalogManager collaborators', () => {
     await user.type(screen.getByLabelText('Telefone'), '85988887777');
     await user.clear(screen.getByLabelText('Cargo'));
     await user.type(screen.getByLabelText('Cargo'), 'Coordenadora de TI');
+    await user.clear(screen.getByLabelText('Data de nascimento'));
+    await user.type(screen.getByLabelText('Data de nascimento'), '1995-09-11');
     await user.clear(screen.getByLabelText('Funcao'));
     await user.type(screen.getByLabelText('Funcao'), 'usuario');
     await user.clear(screen.getByLabelText('Status'));
@@ -291,6 +297,7 @@ describe('CatalogManager collaborators', () => {
         telefone: '85988887777',
         departamento_id: 'dep-1',
         cargo: 'Coordenadora de TI',
+        data_nascimento: '1995-09-11',
         data_admissao: '2026-05-11',
         status: 'inativo',
         unidade_id: 'unit-1',

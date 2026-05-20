@@ -580,6 +580,7 @@ export function buildCollaboratorsConfig({
         options: departmentOptions,
       },
       { key: 'cargo', label: 'Cargo', placeholder: 'Ex.: Analista de TI' },
+      { key: 'data_nascimento', label: 'Data de nascimento', type: 'date' },
       { key: 'data_admissao', label: 'Data de admissao', type: 'date' },
       {
         key: 'status',
