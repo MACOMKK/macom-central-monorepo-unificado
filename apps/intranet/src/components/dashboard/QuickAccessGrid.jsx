@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Globe, Wrench, Building, MessageSquare, DollarSign, Users, Link2 } from 'lucide-react';
 import { appClient } from '@/api/client';
@@ -12,6 +12,62 @@ const categoryConfig = {
   financeiro: { icon: DollarSign, iconBg: 'bg-red-100', iconColor: 'text-red-500' },
   rh: { icon: Users, iconBg: 'bg-pink-100', iconColor: 'text-pink-500' },
 };
+
+const MACOM_FAVICON_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/v1778093853/icone_logo_macom_xb2y5l.png';
+const INTERNAL_SYSTEM_HOSTS = new Set([
+  'macom-central.vercel.app',
+  'macom-relatorios.vercel.app',
+  'macom-intranet.vercel.app',
+]);
+
+function isMacomInternalUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    return INTERNAL_SYSTEM_HOSTS.has(hostname) || hostname.includes('macom') || hostname.includes('mitmacom');
+  } catch {
+    return false;
+  }
+}
+
+function getFaviconUrl(url) {
+  if (isMacomInternalUrl(url)) {
+    return MACOM_FAVICON_URL;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    return `${parsedUrl.origin}/favicon.ico`;
+  } catch {
+    return null;
+  }
+}
+
+function QuickAccessIcon({ linkUrl, config, Icon }) {
+  const faviconUrl = useMemo(() => getFaviconUrl(linkUrl), [linkUrl]);
+  const [hasError, setHasError] = useState(false);
+
+  if (!faviconUrl || hasError) {
+    return (
+      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${config.iconBg} transition-transform group-hover:scale-110`}>
+        <Icon className={`h-6 w-6 ${config.iconColor}`} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-transform group-hover:scale-110">
+      <img
+        src={faviconUrl}
+        alt=""
+        className="h-7 w-7 rounded-md object-contain"
+        loading="lazy"
+        onError={() => setHasError(true)}
+      />
+    </div>
+  );
+}
 
 export default function QuickAccessGrid() {
   const { data: links = [], isLoading } = useQuery({
@@ -51,9 +107,7 @@ export default function QuickAccessGrid() {
                 className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                 title={item.description || item.name}
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${config.iconBg} transition-transform group-hover:scale-110`}>
-                  <Icon className={`h-6 w-6 ${config.iconColor}`} />
-                </div>
+                <QuickAccessIcon linkUrl={item.url} config={config} Icon={Icon} />
                 <span className="text-center text-xs font-medium leading-tight text-muted-foreground transition-colors group-hover:text-foreground">
                   {item.name}
                 </span>

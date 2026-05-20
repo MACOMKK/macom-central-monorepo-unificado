@@ -65,7 +65,29 @@ const categoryConfig = {
   },
 };
 
+const MACOM_FAVICON_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/v1778093853/icone_logo_macom_xb2y5l.png';
+const INTERNAL_SYSTEM_HOSTS = new Set([
+  'macom-central.vercel.app',
+  'macom-relatorios.vercel.app',
+  'macom-intranet.vercel.app',
+]);
+
+function isMacomInternalUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    return INTERNAL_SYSTEM_HOSTS.has(hostname) || hostname.includes('macom') || hostname.includes('mitmacom');
+  } catch {
+    return false;
+  }
+}
+
 function getFaviconUrl(url) {
+  if (isMacomInternalUrl(url)) {
+    return MACOM_FAVICON_URL;
+  }
+
   try {
     const parsedUrl = new URL(url);
     return `${parsedUrl.origin}/favicon.ico`;
