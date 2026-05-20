@@ -1,12 +1,29 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
-import { FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ReportForm from '@/components/admin/ReportForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@macom/ui';
 
 const categoryLabels = {
   gerencial: 'Gerencial',
@@ -25,6 +42,10 @@ const providerLabels = {
 
 export default function ManageReports() {
   const { user } = useOutletContext();
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeUnit, setActiveUnit] = useState('all');
+  const [activeProvider, setActiveProvider] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
   const queryClient = useQueryClient();
@@ -37,6 +58,20 @@ export default function ManageReports() {
   const deleteMutation = useMutation({
     mutationFn: (id) => dataClient.entities.Report.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['all-reports'] }),
+  });
+
+  const categories = ['all', ...new Set(reports.map((report) => report.category).filter(Boolean))];
+  const units = ['all', ...new Set(reports.map((report) => report.unit_name).filter(Boolean))];
+  const providers = ['all', ...new Set(reports.map((report) => report.provider).filter(Boolean))];
+
+  const filteredReports = reports.filter((report) => {
+    const matchSearch =
+      report.title?.toLowerCase().includes(search.toLowerCase()) ||
+      report.unit_name?.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = activeCategory === 'all' || report.category === activeCategory;
+    const matchUnit = activeUnit === 'all' || report.unit_name === activeUnit;
+    const matchProvider = activeProvider === 'all' || report.provider === activeProvider;
+    return matchSearch && matchCategory && matchUnit && matchProvider;
   });
 
   const handleEdit = (report) => {
@@ -69,20 +104,74 @@ export default function ManageReports() {
         </div>
 
         <div className="px-6 py-6 lg:px-10">
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
-              style={{ background: '#E30613' }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = '#b80010';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = '#E30613';
-              }}
-            >
-              <Plus className="h-4 w-4" /> Novo Relatorio
-            </button>
+          <div className="mb-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-sm">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#999' }} />
+                <Input
+                  placeholder="Buscar relatorio..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="pl-9 bg-white"
+                  style={{ borderRadius: 2 }}
+                />
+              </div>
+
+              <button
+                onClick={handleCreate}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
+                style={{ background: '#E30613' }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = '#b80010';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = '#E30613';
+                }}
+              >
+                <Plus className="h-4 w-4" /> Novo Relatorio
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <Select value={activeUnit} onValueChange={setActiveUnit}>
+                <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
+                  <SelectValue placeholder="Filtrar unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((unit) => (
+                    <SelectItem key={unit} value={unit}>
+                      {unit === 'all' ? 'Todas as unidades' : unit}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={activeCategory} onValueChange={setActiveCategory}>
+                <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
+                  <SelectValue placeholder="Filtrar categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category === 'all' ? 'Todas as categorias' : categoryLabels[category] || category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={activeProvider} onValueChange={setActiveProvider}>
+                <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
+                  <SelectValue placeholder="Filtrar origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((provider) => (
+                    <SelectItem key={provider} value={provider}>
+                      {provider === 'all' ? 'Todas as origens' : providerLabels[provider] || providerLabels.other}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="overflow-hidden bg-white" style={{ borderTop: '3px solid #E30613' }}>
@@ -104,17 +193,17 @@ export default function ManageReports() {
                       Carregando...
                     </TableCell>
                   </TableRow>
-                ) : reports.length === 0 ? (
+                ) : filteredReports.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="py-16 text-center">
                       <FileText className="mx-auto mb-2 h-10 w-10" style={{ color: '#ddd' }} />
                       <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#bbb' }}>
-                        Nenhum relatorio cadastrado
+                        Nenhum relatorio encontrado
                       </p>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  reports.map((report) => (
+                  filteredReports.map((report) => (
                     <TableRow key={report.id} className="transition-colors hover:bg-gray-50">
                       <TableCell className="text-sm font-bold" style={{ color: '#141414' }}>
                         {report.title}
