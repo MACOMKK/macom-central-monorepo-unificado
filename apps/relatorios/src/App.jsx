@@ -118,17 +118,22 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/relatorio/:id" element={<ReportViewer />} />
-            <Route path="/admin/relatorios" element={<ManageReports />} />
-            <Route path="/admin/unidades" element={<ManageUnits />} />
-            <Route path="/admin/permissoes" element={<ManagePermissions />} />
-            <Route path="/admin/acessos" element={<Settings />} />
-            <Route path="/admin/logs" element={<AuditLogs />} />
+            <Route path="/relatorios" element={<ManageReports />} />
+            <Route path="/unidades" element={<ManageUnits />} />
+            <Route path="/permissoes" element={<ManagePermissions />} />
+            <Route path="/acessos" element={<Settings />} />
+            <Route path="/logs" element={<AuditLogs />} />
             <Route path="/report/:id" element={<ReportViewer />} />
-            <Route path="/admin/reports" element={<Navigate replace to="/admin/relatorios" />} />
-            <Route path="/admin/units" element={<Navigate replace to="/admin/unidades" />} />
-            <Route path="/admin/permissions" element={<Navigate replace to="/admin/permissoes" />} />
-            <Route path="/admin/settings" element={<Navigate replace to="/admin/acessos" />} />
-            <Route path="/admin/audit" element={<Navigate replace to="/admin/logs" />} />
+            <Route path="/admin/relatorios" element={<Navigate replace to="/relatorios" />} />
+            <Route path="/admin/unidades" element={<Navigate replace to="/unidades" />} />
+            <Route path="/admin/permissoes" element={<Navigate replace to="/permissoes" />} />
+            <Route path="/admin/acessos" element={<Navigate replace to="/acessos" />} />
+            <Route path="/admin/logs" element={<Navigate replace to="/logs" />} />
+            <Route path="/admin/reports" element={<Navigate replace to="/relatorios" />} />
+            <Route path="/admin/units" element={<Navigate replace to="/unidades" />} />
+            <Route path="/admin/permissions" element={<Navigate replace to="/permissoes" />} />
+            <Route path="/admin/settings" element={<Navigate replace to="/acessos" />} />
+            <Route path="/admin/audit" element={<Navigate replace to="/logs" />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </>

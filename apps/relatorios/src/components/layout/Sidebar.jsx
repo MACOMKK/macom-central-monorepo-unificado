@@ -9,20 +9,20 @@ const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/obje
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
-  { path: '/admin/relatorios', icon: FileText, label: 'Relatórios', adminOnly: true },
-  { path: '/admin/unidades', icon: Building2, label: 'Unidades', adminOnly: true },
-  { path: '/admin/permissoes', icon: Shield, label: 'Permissões', adminOnly: true },
-  { path: '/admin/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
-  { path: '/admin/logs', icon: History, label: 'Logs', adminOnly: true },
+  { path: '/relatorios', icon: FileText, label: 'Relatórios', adminOnly: true },
+  { path: '/unidades', icon: Building2, label: 'Unidades', adminOnly: true },
+  { path: '/permissoes', icon: Shield, label: 'Permissões', adminOnly: true },
+  { path: '/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
+  { path: '/logs', icon: History, label: 'Logs', adminOnly: true },
 ];
 
 const routePrefetchers = {
   '/': () => import('@/pages/Dashboard'),
-  '/admin/relatorios': () => import('@/pages/admin/ManageReports'),
-  '/admin/unidades': () => import('@/pages/admin/ManageUnits'),
-  '/admin/permissoes': () => import('@/pages/admin/ManagePermissions'),
-  '/admin/acessos': () => import('@/pages/admin/Settings'),
-  '/admin/logs': () => import('@/pages/admin/AuditLogs'),
+  '/relatorios': () => import('@/pages/admin/ManageReports'),
+  '/unidades': () => import('@/pages/admin/ManageUnits'),
+  '/permissoes': () => import('@/pages/admin/ManagePermissions'),
+  '/acessos': () => import('@/pages/admin/Settings'),
+  '/logs': () => import('@/pages/admin/AuditLogs'),
 };
 
 const prefetchLoginRoute = () => import('@/pages/Login');
