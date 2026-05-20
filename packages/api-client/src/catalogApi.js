@@ -293,4 +293,12 @@ export const catalogApi = {
       return true;
     },
   },
+  logs_auditoria_relatorios: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'logs_auditoria_relatorios', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+  },
 };

@@ -24,6 +24,19 @@ create table if not exists gestao_relatorio.permissoes_relatorios (
   unique (colaborador_id, relatorio_id)
 );
 
+create table if not exists gestao_relatorio.logs_auditoria (
+  id uuid primary key default gen_random_uuid(),
+  entidade text not null,
+  acao text not null,
+  registro_id uuid,
+  actor_colaborador_id uuid references public.colaboradores(id) on delete set null,
+  actor_email text,
+  antes jsonb,
+  depois jsonb,
+  metadados jsonb not null default '{}'::jsonb,
+  criado_em timestamptz not null default now()
+);
+
 create index if not exists relatorios_unidade_id_idx
   on gestao_relatorio.relatorios (unidade_id);
 
@@ -35,6 +48,15 @@ create index if not exists permissoes_relatorios_colaborador_id_idx
 
 create index if not exists permissoes_relatorios_relatorio_id_idx
   on gestao_relatorio.permissoes_relatorios (relatorio_id);
+
+create index if not exists logs_auditoria_entidade_idx
+  on gestao_relatorio.logs_auditoria (entidade);
+
+create index if not exists logs_auditoria_registro_id_idx
+  on gestao_relatorio.logs_auditoria (registro_id);
+
+create index if not exists logs_auditoria_criado_em_idx
+  on gestao_relatorio.logs_auditoria (criado_em desc);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -60,6 +82,7 @@ execute function public.set_updated_at();
 
 alter table gestao_relatorio.relatorios enable row level security;
 alter table gestao_relatorio.permissoes_relatorios enable row level security;
+alter table gestao_relatorio.logs_auditoria enable row level security;
 
 create or replace function public.current_colaborador_id()
 returns uuid
@@ -141,3 +164,10 @@ create policy "permissoes_relatorios_admin_manage"
   to authenticated
   using (public.relatorios_is_admin())
   with check (public.relatorios_is_admin());
+
+drop policy if exists "logs_auditoria_admin_select" on gestao_relatorio.logs_auditoria;
+create policy "logs_auditoria_admin_select"
+  on gestao_relatorio.logs_auditoria
+  for select
+  to authenticated
+  using (public.relatorios_is_admin());

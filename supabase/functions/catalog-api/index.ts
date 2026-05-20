@@ -137,6 +137,13 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['id', 'colaborador_id', 'relatorio_id'],
   },
+  logs_auditoria_relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'logs_auditoria',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['entidade', 'acao', 'registro_id', 'actor_colaborador_id'],
+  },
 } as const;
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
@@ -303,6 +310,115 @@ async function collaboratorHasSystemAccess(collaboratorId: string, systemSlug: s
   );
 
   return Boolean(rows[0]);
+}
+
+const REPORTS_AUDIT_ENTITIES = new Set([
+  'relatorios',
+  'permissoes_relatorios',
+]);
+const REPORTS_AUDIT_IGNORED_FIELDS = new Set([
+  'atualizado_em',
+]);
+
+function shouldAuditReportsEntity(entity: keyof typeof ENTITY_CONFIG) {
+  return REPORTS_AUDIT_ENTITIES.has(entity);
+}
+
+async function fetchRowById(schema: string, table: string, id: string) {
+  if (!sql) return null;
+
+  const rows = await sql.unsafe(
+    `select * from ${schema}.${table} where id = $1 limit 1;`,
+    [id],
+  );
+
+  return rows[0] || null;
+}
+
+function normalizeAuditValue(value: unknown) {
+  if (value == null) return null;
+  if (typeof value === 'string') return value.trim();
+  return JSON.stringify(value);
+}
+
+function getReportsAuditDiff(
+  before?: Record<string, unknown> | null,
+  after?: Record<string, unknown> | null,
+) {
+  const beforeObject = before && typeof before === 'object' ? before : {};
+  const afterObject = after && typeof after === 'object' ? after : {};
+  const keys = [...new Set([...Object.keys(beforeObject), ...Object.keys(afterObject)])]
+    .filter((key) => !REPORTS_AUDIT_IGNORED_FIELDS.has(key))
+    .sort();
+
+  const beforeDiff: Record<string, unknown> = {};
+  const afterDiff: Record<string, unknown> = {};
+
+  for (const key of keys) {
+    const beforeValue = beforeObject[key];
+    const afterValue = afterObject[key];
+
+    if (normalizeAuditValue(beforeValue) === normalizeAuditValue(afterValue)) {
+      continue;
+    }
+
+    beforeDiff[key] = beforeValue ?? null;
+    afterDiff[key] = afterValue ?? null;
+  }
+
+  return {
+    before: Object.keys(beforeDiff).length ? beforeDiff : null,
+    after: Object.keys(afterDiff).length ? afterDiff : null,
+    changedFields: Object.keys(afterDiff),
+  };
+}
+
+async function insertReportsAuditLog({
+  action,
+  entity,
+  recordId,
+  actorCollaboratorId,
+  actorEmail,
+  before,
+  after,
+  metadata = {},
+}: {
+  action: 'create' | 'update' | 'delete';
+  entity: string;
+  recordId?: string | null;
+  actorCollaboratorId?: string | null;
+  actorEmail?: string | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!sql) return;
+
+  await sql.unsafe(
+    `
+      insert into gestao_relatorio.logs_auditoria (
+        entidade,
+        acao,
+        registro_id,
+        actor_colaborador_id,
+        actor_email,
+        antes,
+        depois,
+        metadados
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb);
+    `,
+    [
+      entity,
+      action,
+      recordId ?? null,
+      actorCollaboratorId ?? null,
+      actorEmail ?? null,
+      before ? JSON.stringify(before) : null,
+      after ? JSON.stringify(after) : null,
+      JSON.stringify(metadata || {}),
+    ],
+  );
 }
 
 async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
@@ -1029,7 +1145,11 @@ Deno.serve(async (request) => {
       const hasReportsAccess = Boolean(reportsAccess);
       const isReportsAdmin = reportsAccess?.nivel_acesso === 'admin';
       const canManageReportsEntityAsAdmin =
-        isGlobalAdmin || (isReportsAdmin && (entity === 'relatorios' || entity === 'permissoes_relatorios'));
+        isGlobalAdmin || (isReportsAdmin && (
+          entity === 'relatorios' ||
+          entity === 'permissoes_relatorios' ||
+          entity === 'logs_auditoria_relatorios'
+        ));
 
     if (action === 'list' && entity === 'relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
@@ -1136,6 +1256,18 @@ Deno.serve(async (request) => {
           return json({ error: 'Acesso restrito ao sistema de relatorios.' }, 403);
         }
 
+        const existingRows = await sql.unsafe(
+          `
+            select *
+            from public.acessos_usuario_sistema
+            where colaborador_id = $1
+              and sistema_id = $2
+            limit 1;
+          `,
+          [colaboradorId, sistemaId],
+        );
+        const existingAccess = existingRows[0] || null;
+
         const rows = await sql.unsafe(
           `
             insert into public.acessos_usuario_sistema (
@@ -1159,6 +1291,20 @@ Deno.serve(async (request) => {
             sanitized.ativo ?? true,
           ],
         );
+
+        await insertReportsAuditLog({
+          action: existingAccess ? 'update' : 'create',
+          entity,
+          recordId: rows[0]?.id || null,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: existingAccess,
+          after: rows[0] || null,
+          metadata: {
+            system_slug: reportsSystemSlug,
+            access_scope: 'reports_admin',
+          },
+        });
 
         return json({ row: rows[0] || null });
       }
@@ -1186,6 +1332,19 @@ Deno.serve(async (request) => {
         }
 
         if (action === 'delete') {
+          await insertReportsAuditLog({
+            action: 'delete',
+            entity,
+            recordId: accessRow.id || id,
+            actorCollaboratorId: authenticatedCollaboratorId,
+            actorEmail: user.email ?? null,
+            before: accessRow,
+            after: null,
+            metadata: {
+              system_slug: reportsSystemSlug,
+              access_scope: 'reports_admin',
+            },
+          });
           await sql.unsafe('delete from public.acessos_usuario_sistema where id = $1;', [id]);
           return json({ success: true });
         }
@@ -1197,6 +1356,19 @@ Deno.serve(async (request) => {
 
         const query = buildUpdateQuery('public', 'acessos_usuario_sistema', id, sanitized);
         const rows = await sql.unsafe(query.text, query.values);
+        await insertReportsAuditLog({
+          action: 'update',
+          entity,
+          recordId: rows[0]?.id || id,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: accessRow,
+          after: rows[0] || null,
+          metadata: {
+            system_slug: reportsSystemSlug,
+            access_scope: 'reports_admin',
+          },
+        });
         return json({ row: rows[0] || null });
       }
 
@@ -1226,6 +1398,8 @@ Deno.serve(async (request) => {
           return json({ error: 'Colaborador sem acesso ao sistema de relatorios.' }, 403);
         }
 
+        const beforeRow = await fetchRowById('public', 'colaboradores', id);
+
         const rawPayload = payload || {};
         const sanitized = sanitizePayload(entity, rawPayload);
         const restrictedPayload: Record<string, unknown> = {};
@@ -1242,6 +1416,20 @@ Deno.serve(async (request) => {
         await validateColaboradoresUniqueFields(normalized, id);
         const query = buildUpdateQuery('public', 'colaboradores', id, normalized);
         const rows = await sql.unsafe(query.text, query.values);
+        await insertReportsAuditLog({
+          action: 'update',
+          entity,
+          recordId: rows[0]?.id || id,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: beforeRow,
+          after: rows[0] || null,
+          metadata: {
+            system_slug: reportsSystemSlug,
+            access_scope: 'reports_admin',
+            fields: Object.keys(normalized),
+          },
+        });
         return json({ row: rows[0] || null });
       }
 
@@ -1269,6 +1457,18 @@ Deno.serve(async (request) => {
         return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
       }
 
+      const existingRows = await sql.unsafe(
+        `
+          select *
+          from public.acessos_usuario_sistema
+          where colaborador_id = $1
+            and sistema_id = $2
+          limit 1;
+        `,
+        [colaboradorId, sistemaId],
+      );
+      const existingAccess = existingRows[0] || null;
+
       const rows = await sql.unsafe(
         `
           insert into public.acessos_usuario_sistema (
@@ -1292,6 +1492,23 @@ Deno.serve(async (request) => {
           sanitized.ativo ?? true,
         ],
       );
+
+      const relatedSystem = await fetchRowById('public', 'sistemas', sistemaId);
+      if (relatedSystem?.slug === 'relatorios') {
+        await insertReportsAuditLog({
+          action: existingAccess ? 'update' : 'create',
+          entity,
+          recordId: rows[0]?.id || null,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: existingAccess,
+          after: rows[0] || null,
+          metadata: {
+            system_slug: 'relatorios',
+            access_scope: 'global_admin',
+          },
+        });
+      }
 
       return json({ row: rows[0] || null });
     }
@@ -1338,11 +1555,30 @@ Deno.serve(async (request) => {
       }
       const query = buildInsertQuery(schema, table, normalized);
       const rows = await sql.unsafe(query.text, query.values);
+      if (shouldAuditReportsEntity(entity)) {
+        await insertReportsAuditLog({
+          action: 'create',
+          entity,
+          recordId: rows[0]?.id || null,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: null,
+          after: rows[0] || null,
+          metadata: {
+            system_slug: 'relatorios',
+            access_scope: isGlobalAdmin ? 'global_admin' : isReportsAdmin ? 'reports_admin' : 'unknown',
+          },
+        });
+      }
       return json({ row: rows[0] || null });
     }
 
     if (action === 'update') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+      const beforeRow =
+        shouldAuditReportsEntity(entity) || entity === 'acessos_usuario_sistema' || entity === 'colaboradores'
+          ? await fetchRowById(schema, table, id)
+          : null;
       const sanitized = sanitizePayload(entity, payload);
       if (entity === 'colaboradores') {
         delete sanitized.id;
@@ -1380,12 +1616,67 @@ Deno.serve(async (request) => {
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
       const rows = await sql.unsafe(query.text, query.values);
+      const auditDiff = getReportsAuditDiff(beforeRow, rows[0] || null);
+      const isReportsAccessEntity =
+        entity === 'acessos_usuario_sistema' &&
+        (beforeRow?.sistema_id
+          ? (await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id)))?.slug === 'relatorios'
+          : false);
+      const isReportsCollaboratorEntity =
+        entity === 'colaboradores' && await collaboratorHasSystemAccess(id, 'relatorios');
+
+      if (
+        (shouldAuditReportsEntity(entity) || isReportsAccessEntity || isReportsCollaboratorEntity) &&
+        auditDiff.changedFields.length
+      ) {
+        await insertReportsAuditLog({
+          action: 'update',
+          entity,
+          recordId: rows[0]?.id || id,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: auditDiff.before,
+          after: auditDiff.after,
+          metadata: {
+            system_slug: 'relatorios',
+            access_scope: isGlobalAdmin ? 'global_admin' : isReportsAdmin ? 'reports_admin' : 'unknown',
+            changed_fields: auditDiff.changedFields,
+            changed_fields_count: auditDiff.changedFields.length,
+          },
+        });
+      }
       return json({ row: rows[0] || null });
     }
 
     if (action === 'delete') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+      const beforeRow =
+        shouldAuditReportsEntity(entity) || entity === 'acessos_usuario_sistema' || entity === 'colaboradores'
+          ? await fetchRowById(schema, table, id)
+          : null;
+      const isReportsAccessEntity =
+        entity === 'acessos_usuario_sistema' &&
+        (beforeRow?.sistema_id
+          ? (await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id)))?.slug === 'relatorios'
+          : false);
+      const isReportsCollaboratorEntity =
+        entity === 'colaboradores' && await collaboratorHasSystemAccess(id, 'relatorios');
       await sql.unsafe(`delete from ${schema}.${table} where id = $1;`, [id]);
+      if (shouldAuditReportsEntity(entity) || isReportsAccessEntity || isReportsCollaboratorEntity) {
+        await insertReportsAuditLog({
+          action: 'delete',
+          entity,
+          recordId: id,
+          actorCollaboratorId: authenticatedCollaboratorId,
+          actorEmail: user.email ?? null,
+          before: beforeRow,
+          after: null,
+          metadata: {
+            system_slug: 'relatorios',
+            access_scope: isGlobalAdmin ? 'global_admin' : isReportsAdmin ? 'reports_admin' : 'unknown',
+          },
+        });
+      }
       return json({ success: true });
     }
 

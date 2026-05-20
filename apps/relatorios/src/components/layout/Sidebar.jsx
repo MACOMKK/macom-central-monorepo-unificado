@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, History } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/admin/unidades', icon: Building2, label: 'Unidades', adminOnly: true },
   { path: '/admin/permissoes', icon: Shield, label: 'Permissoes', adminOnly: true },
   { path: '/admin/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
+  { path: '/admin/logs', icon: History, label: 'Logs', adminOnly: true },
 ];
 
 const routePrefetchers = {
@@ -21,6 +22,7 @@ const routePrefetchers = {
   '/admin/unidades': () => import('@/pages/admin/ManageUnits'),
   '/admin/permissoes': () => import('@/pages/admin/ManagePermissions'),
   '/admin/acessos': () => import('@/pages/admin/Settings'),
+  '/admin/logs': () => import('@/pages/admin/AuditLogs'),
 };
 
 const prefetchLoginRoute = () => import('@/pages/Login');

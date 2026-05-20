@@ -189,6 +189,35 @@ const mapReportPermissionPayload = (payload = {}) => ({
   relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
 });
 
+const parseJsonField = (value) => {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return value;
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return value;
+};
+
+const mapAuditLogRow = (row = {}) => ({
+  id: row.id,
+  entity: row.entidade || '',
+  action: row.acao || '',
+  record_id: row.registro_id || null,
+  actor_collaborator_id: row.actor_colaborador_id || null,
+  actor_email: row.actor_email || '',
+  before: parseJsonField(row.antes),
+  after: parseJsonField(row.depois),
+  metadata: parseJsonField(row.metadados) || {},
+  created_at: row.criado_em || null,
+  raw: row,
+});
+
 const hydrateReports = async (rows = []) => {
   const rowsAlreadyContainUnitNames = rows.every(
     (row) => !row?.unidade_id || Boolean(row?.nome_unidade || row?.unidade_nome)
@@ -575,6 +604,24 @@ const createCatalogReportPermissionEntity = () => ({
   },
 });
 
+const createCatalogAuditLogEntity = () => ({
+  list: async (sort) => {
+    const rows = await catalogApi.logs_auditoria_relatorios.list();
+    return sortRows(rows.map(mapAuditLogRow), sort);
+  },
+  filter: async (filters = {}) => {
+    const payload = {};
+    if (filters.entity) payload.entidade = filters.entity;
+    if (filters.action) payload.acao = filters.action;
+    if (filters.record_id || filters.registro_id) payload.registro_id = filters.record_id || filters.registro_id;
+    if (filters.actor_collaborator_id || filters.colaborador_id) {
+      payload.actor_colaborador_id = filters.actor_collaborator_id || filters.colaborador_id;
+    }
+    const rows = await catalogApi.logs_auditoria_relatorios.list({ filters: payload });
+    return rows.map(mapAuditLogRow);
+  },
+});
+
 export const dataClient = {
   auth: {
     me: async (sessionOverride = null) => {
@@ -668,6 +715,7 @@ export const dataClient = {
     Report: createCatalogReportEntity(),
     Unit: createCentralUnitEntity(),
     ReportPermission: createCatalogReportPermissionEntity(),
-    User: createCentralUserEntity()
+    User: createCentralUserEntity(),
+    AuditLog: createCatalogAuditLogEntity()
   }
 };

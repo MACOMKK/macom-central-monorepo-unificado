@@ -18,6 +18,7 @@ const ManagePermissions = lazy(() => import('@/pages/admin/ManagePermissions'));
 const ManageReports = lazy(() => import('@/pages/admin/ManageReports'));
 const ManageUnits = lazy(() => import('@/pages/admin/ManageUnits'));
 const Settings = lazy(() => import('@/pages/admin/Settings'));
+const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
 
 const RouteFallback = () => (
   <div className="fixed inset-0 flex items-center justify-center">
@@ -121,11 +122,13 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
             <Route path="/admin/unidades" element={<ManageUnits />} />
             <Route path="/admin/permissoes" element={<ManagePermissions />} />
             <Route path="/admin/acessos" element={<Settings />} />
+            <Route path="/admin/logs" element={<AuditLogs />} />
             <Route path="/report/:id" element={<ReportViewer />} />
             <Route path="/admin/reports" element={<Navigate replace to="/admin/relatorios" />} />
             <Route path="/admin/units" element={<Navigate replace to="/admin/unidades" />} />
             <Route path="/admin/permissions" element={<Navigate replace to="/admin/permissoes" />} />
             <Route path="/admin/settings" element={<Navigate replace to="/admin/acessos" />} />
+            <Route path="/admin/audit" element={<Navigate replace to="/admin/logs" />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </>
