@@ -58,7 +58,7 @@ export default function PermissionForm({ onSaved, onCancel }) {
       </div>
 
       <div className="space-y-2">
-        <Label>Relatorios *</Label>
+        <Label>Relatórios *</Label>
         <div className="max-h-60 overflow-y-auto rounded-lg border p-3 space-y-2">
           {reports.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum relatorio cadastrado</p>

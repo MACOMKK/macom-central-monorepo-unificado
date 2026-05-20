@@ -39,8 +39,8 @@ export default function ManagePermissions() {
     <AdminGuard user={user}>
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administracao</p>
-          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Permissoes</h1>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administração</p>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Permissões</h1>
           <p className="text-xs mt-1" style={{ color: '#666' }}>Defina quem pode visualizar cada relatorio</p>
         </div>
 

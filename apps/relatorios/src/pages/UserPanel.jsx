@@ -117,7 +117,7 @@ export default function UserPanel() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#E30613' }}>
-              Seus Relatorios
+              Seus Relatórios
             </p>
             <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#141414' }}>
               Painel do Usuario

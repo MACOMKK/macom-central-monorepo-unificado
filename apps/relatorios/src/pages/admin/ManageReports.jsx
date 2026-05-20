@@ -107,9 +107,9 @@ export default function ManageReports() {
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div className="px-6 py-8 lg:px-10" style={{ background: '#141414' }}>
           <p className="mb-1 text-[10px] font-black uppercase tracking-widest" style={{ color: '#E30613' }}>
-            Administracao
+            Administração
           </p>
-          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Relatorios</h1>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">Relatórios</h1>
           <p className="mt-1 text-xs" style={{ color: '#666' }}>
             Cadastre e gerencie os relatorios Power BI
           </p>

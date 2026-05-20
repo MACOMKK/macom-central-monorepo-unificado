@@ -58,7 +58,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="mb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: '#E30613' }}>
-                Portal de Relatorios
+                Portal de Relatórios
               </p>
               <h1 className="text-2xl font-black uppercase leading-none tracking-tight text-white lg:text-4xl">
                 Ola, {user?.full_name?.split(' ')[0] || 'Usuario'}
@@ -73,7 +73,7 @@ export default function Dashboard() {
 
           <div className="mt-6 grid max-w-sm grid-cols-3 gap-3 sm:max-w-lg">
             {[
-              { icon: BarChart3, label: 'Relatorios', value: reports.length },
+              { icon: BarChart3, label: 'Relatórios', value: reports.length },
               { icon: Building2, label: 'Unidades', value: unitCount },
               { icon: TrendingUp, label: 'Categorias', value: categories.length - 1 },
             ].map((stat) => (

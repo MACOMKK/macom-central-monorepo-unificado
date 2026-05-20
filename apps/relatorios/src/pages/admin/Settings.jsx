@@ -178,7 +178,7 @@ export default function Settings() {
     <AdminGuard user={user}>
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administracao</p>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administração</p>
           <h1 className="text-2xl font-black uppercase tracking-tight text-white">Acessos do Sistema</h1>
           <p className="text-xs mt-1" style={{ color: '#666' }}>Gerencie acessos, niveis e unidade dos usuarios do relatorios</p>
         </div>
