@@ -123,21 +123,45 @@ const invalidateCollaboratorsCache = () => {
 
 const mapReportRow = (row = {}, unitsById = new Map()) => {
   const unit = unitsById.get(row.unidade_id) || null;
+  const embedCode = row.embed_code || '';
 
   return ({
   id: row.id,
   title: row.titulo || '',
   description: row.descricao || '',
-  embed_code: row.embed_code || '',
+  embed_code: embedCode,
   unit_id: row.unidade_id || null,
   unit_name: unit?.nome || row.nome_unidade || row.unidade_nome || '',
   category: row.categoria || '',
+  provider: detectReportProvider(embedCode),
   icon: row.icone || '',
   active: row.ativo !== false,
   created_at: row.criado_em || null,
   updated_at: row.atualizado_em || null,
   raw: row,
   });
+};
+
+const detectReportProvider = (embedCode = '') => {
+  const normalizedCode = String(embedCode).toLowerCase();
+
+  if (
+    normalizedCode.includes('app.powerbi.com') ||
+    normalizedCode.includes('powerbi')
+  ) {
+    return 'power_bi';
+  }
+
+  if (
+    normalizedCode.includes('datastudio.google.com') ||
+    normalizedCode.includes('lookerstudio.google.com') ||
+    normalizedCode.includes('data studio') ||
+    normalizedCode.includes('looker studio')
+  ) {
+    return 'data_studio';
+  }
+
+  return 'other';
 };
 
 const mapReportPayload = (payload = {}) => ({

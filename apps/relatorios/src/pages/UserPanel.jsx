@@ -14,6 +14,12 @@ const categoryLabels = {
   comercial: 'Comercial', rh: 'RH', outros: 'Outros',
 };
 
+const providerLabels = {
+  power_bi: 'Power BI',
+  data_studio: 'Data Studio',
+  other: 'Outro',
+};
+
 export default function UserPanel() {
   const { user, logout } = useAuth();
   const { toast } = useToast();
@@ -171,10 +177,15 @@ export default function UserPanel() {
               >
                 <div className="p-5">
                   {report.category && (
-                    <span className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 mb-3" style={{ background: '#E30613', color: '#fff' }}>
+                    <span className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 mb-3 mr-2" style={{ background: '#E30613', color: '#fff' }}>
                       {categoryLabels[report.category] || report.category}
                     </span>
                   )}
+                  {isAdmin && report.provider && report.provider !== 'other' ? (
+                    <span className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 mb-3" style={{ background: '#141414', color: '#fff' }}>
+                      {providerLabels[report.provider] || providerLabels.other}
+                    </span>
+                  ) : null}
                   <div className="flex items-start gap-3 mb-3">
                     <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center" style={{ background: '#f2f2f2' }}>
                       <BarChart3 className="w-4 h-4" style={{ color: '#E30613' }} />

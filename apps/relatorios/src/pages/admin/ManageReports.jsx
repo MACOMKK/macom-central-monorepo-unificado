@@ -17,6 +17,12 @@ const categoryLabels = {
   outros: 'Outros',
 };
 
+const providerLabels = {
+  power_bi: 'Power BI',
+  data_studio: 'Data Studio',
+  other: 'Outro',
+};
+
 export default function ManageReports() {
   const { user } = useOutletContext();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -86,6 +92,7 @@ export default function ManageReports() {
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Titulo</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Unidade</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Categoria</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Origem</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead>
                 </TableRow>
@@ -93,13 +100,13 @@ export default function ManageReports() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-sm" style={{ color: '#999' }}>
+                    <TableCell colSpan={6} className="py-10 text-center text-sm" style={{ color: '#999' }}>
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : reports.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-16 text-center">
+                    <TableCell colSpan={6} className="py-16 text-center">
                       <FileText className="mx-auto mb-2 h-10 w-10" style={{ color: '#ddd' }} />
                       <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#bbb' }}>
                         Nenhum relatorio cadastrado
@@ -126,6 +133,17 @@ export default function ManageReports() {
                         ) : (
                           '-'
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
+                          style={{
+                            background: report.provider === 'data_studio' ? '#f2f2f2' : '#141414',
+                            color: report.provider === 'data_studio' ? '#141414' : '#fff',
+                          }}
+                        >
+                          {providerLabels[report.provider] || providerLabels.other}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span

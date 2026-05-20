@@ -233,6 +233,78 @@ async function userHasActiveSystemAccessAny(userIds: string[], systemSlug: strin
   return Boolean(rows[0]);
 }
 
+async function getSystemBySlug(systemSlug: string) {
+  if (!sql) return null;
+
+  const rows = await sql.unsafe(
+    `
+      select *
+      from public.sistemas
+      where slug = $1
+      limit 1;
+    `,
+    [systemSlug],
+  );
+
+  return rows[0] || null;
+}
+
+async function getSystemAccessAny(
+  userIds: string[],
+  systemSlug: string,
+  { onlyActive = false }: { onlyActive?: boolean } = {},
+) {
+  if (!sql || !userIds.length) return null;
+
+  const accessClauses = [onlyActive ? 'and aus.ativo = true' : '', onlyActive ? 'and s.ativo = true' : '']
+    .filter(Boolean)
+    .join('\n        ');
+
+  const rows = await sql.unsafe(
+    `
+      select
+        aus.*,
+        row_to_json(s) as sistema
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      where aus.colaborador_id = any($1::uuid[])
+        and s.slug = $2
+        ${accessClauses}
+      order by
+        case aus.nivel_acesso
+          when 'admin' then 0
+          when 'gestor' then 1
+          else 2
+        end,
+        aus.ativo desc,
+        aus.atualizado_em desc nulls last,
+        aus.criado_em desc
+      limit 1;
+    `,
+    [userIds, systemSlug],
+  );
+
+  return rows[0] || null;
+}
+
+async function collaboratorHasSystemAccess(collaboratorId: string, systemSlug: string) {
+  if (!sql) return false;
+
+  const rows = await sql.unsafe(
+    `
+      select 1
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      where aus.colaborador_id = $1
+        and s.slug = $2
+      limit 1;
+    `,
+    [collaboratorId, systemSlug],
+  );
+
+  return Boolean(rows[0]);
+}
+
 async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
   if (!sql) return null;
 
@@ -950,16 +1022,21 @@ Deno.serve(async (request) => {
         return json({ row: rows[0] || null });
       }
 
+      const reportsSystemSlug = 'relatorios';
       const accessProfile = authenticatedCollaborator;
-      const isAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
+      const isGlobalAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
+      const reportsAccess = await getSystemAccessAny(authenticatedCollaboratorIds, reportsSystemSlug, { onlyActive: true });
+      const hasReportsAccess = Boolean(reportsAccess);
+      const isReportsAdmin = reportsAccess?.nivel_acesso === 'admin';
+      const canManageReportsEntityAsAdmin =
+        isGlobalAdmin || (isReportsAdmin && (entity === 'relatorios' || entity === 'permissoes_relatorios'));
 
     if (action === 'list' && entity === 'relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'r');
       const whereClauses = [...clauses];
 
-      if (!isAdmin) {
-        const hasReportsAccess = await userHasActiveSystemAccessAny(authenticatedCollaboratorIds, 'relatorios');
+      if (!canManageReportsEntityAsAdmin) {
         if (!hasReportsAccess) {
           return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
         }
@@ -997,8 +1074,7 @@ Deno.serve(async (request) => {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const permissionFilters = { ...sanitizedFilters };
 
-      if (!isAdmin) {
-        const hasReportsAccess = await userHasActiveSystemAccessAny(authenticatedCollaboratorIds, 'relatorios');
+      if (!canManageReportsEntityAsAdmin) {
         if (!hasReportsAccess) {
           return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
         }
@@ -1022,7 +1098,160 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
-    if (!isAdmin) {
+    if (!isGlobalAdmin && isReportsAdmin) {
+      const reportsSystem = await getSystemBySlug(reportsSystemSlug);
+      const reportsSystemId = typeof reportsSystem?.id === 'string' ? reportsSystem.id : null;
+
+      if (!reportsSystemId) {
+        return json({ error: 'Sistema de relatorios nao encontrado.' }, 404);
+      }
+
+      if (action === 'list' && entity === 'sistemas') {
+        return json({ rows: [reportsSystem] });
+      }
+
+      if (action === 'list' && entity === 'acessos_usuario_sistema') {
+        const rows = await sql.unsafe(
+          `
+            select *
+            from public.acessos_usuario_sistema
+            where sistema_id = $1
+            order by ${orderBy} ${orderDirection};
+          `,
+          [reportsSystemId],
+        );
+        return json({ rows });
+      }
+
+      if (action === 'save' && entity === 'acessos_usuario_sistema') {
+        const sanitized = sanitizePayload(entity, payload);
+        const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
+        const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
+
+        if (!colaboradorId || !sistemaId) {
+          return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
+        }
+
+        if (sistemaId !== reportsSystemId) {
+          return json({ error: 'Acesso restrito ao sistema de relatorios.' }, 403);
+        }
+
+        const rows = await sql.unsafe(
+          `
+            insert into public.acessos_usuario_sistema (
+              colaborador_id,
+              sistema_id,
+              nivel_acesso,
+              ativo
+            )
+            values ($1, $2, $3, $4)
+            on conflict (colaborador_id, sistema_id)
+            do update set
+              nivel_acesso = excluded.nivel_acesso,
+              ativo = excluded.ativo,
+              atualizado_em = now()
+            returning *;
+          `,
+          [
+            colaboradorId,
+            sistemaId,
+            sanitized.nivel_acesso ?? 'usuario',
+            sanitized.ativo ?? true,
+          ],
+        );
+
+        return json({ row: rows[0] || null });
+      }
+
+      if ((action === 'update' || action === 'delete') && entity === 'acessos_usuario_sistema') {
+        if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+        const accessRows = await sql.unsafe(
+          `
+            select *
+            from public.acessos_usuario_sistema
+            where id = $1
+            limit 1;
+          `,
+          [id],
+        );
+        const accessRow = accessRows[0] || null;
+
+        if (!accessRow) {
+          return json({ error: 'Registro nao encontrado.' }, 404);
+        }
+
+        if (accessRow.sistema_id !== reportsSystemId) {
+          return json({ error: 'Acesso restrito ao sistema de relatorios.' }, 403);
+        }
+
+        if (action === 'delete') {
+          await sql.unsafe('delete from public.acessos_usuario_sistema where id = $1;', [id]);
+          return json({ success: true });
+        }
+
+        const sanitized = sanitizePayload(entity, payload);
+        if (!Object.keys(sanitized).length) {
+          return json({ error: 'Nenhum campo para atualizar.' }, 400);
+        }
+
+        const query = buildUpdateQuery('public', 'acessos_usuario_sistema', id, sanitized);
+        const rows = await sql.unsafe(query.text, query.values);
+        return json({ row: rows[0] || null });
+      }
+
+      if (action === 'list' && entity === 'colaboradores') {
+        const rows = await sql.unsafe(
+          `
+            select c.*
+            from public.colaboradores c
+            where exists (
+              select 1
+              from public.acessos_usuario_sistema aus
+              where aus.colaborador_id = c.id
+                and aus.sistema_id = $1
+            )
+            order by c.${orderBy} ${orderDirection};
+          `,
+          [reportsSystemId],
+        );
+        return json({ rows });
+      }
+
+      if (action === 'update' && entity === 'colaboradores') {
+        if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+        const hasScopedAccess = await collaboratorHasSystemAccess(id, reportsSystemSlug);
+        if (!hasScopedAccess) {
+          return json({ error: 'Colaborador sem acesso ao sistema de relatorios.' }, 403);
+        }
+
+        const rawPayload = payload || {};
+        const sanitized = sanitizePayload(entity, rawPayload);
+        const restrictedPayload: Record<string, unknown> = {};
+
+        if ('nome' in sanitized) restrictedPayload.nome = sanitized.nome;
+        if ('unidade_id' in sanitized) restrictedPayload.unidade_id = sanitized.unidade_id;
+
+        if (!Object.keys(restrictedPayload).length) {
+          return json({ error: 'Nenhum campo permitido para atualizar.' }, 400);
+        }
+
+        const normalized = normalizeCollaboradoresPayload(restrictedPayload);
+        validateColaboradoresDocumentFields(normalized);
+        await validateColaboradoresUniqueFields(normalized, id);
+        const query = buildUpdateQuery('public', 'colaboradores', id, normalized);
+        const rows = await sql.unsafe(query.text, query.values);
+        return json({ row: rows[0] || null });
+      }
+
+      if (action === 'list' && entity === 'unidades') {
+        const rows = await sql.unsafe(`select * from public.unidades order by ${orderBy} ${orderDirection};`);
+        return json({ rows });
+      }
+    }
+
+    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin) {
       return json({ error: 'Acesso restrito a administradores.' }, 403);
     }
 

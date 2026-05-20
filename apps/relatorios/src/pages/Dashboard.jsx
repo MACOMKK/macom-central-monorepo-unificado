@@ -151,7 +151,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredReports.map((report) => (
-              <ReportCard key={report.id} report={report} />
+              <ReportCard key={report.id} report={report} showProviderTag={isAdmin} />
             ))}
           </div>
         )}

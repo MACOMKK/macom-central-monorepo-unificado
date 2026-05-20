@@ -12,7 +12,13 @@ const categoryLabels = {
   outros: 'Outros',
 };
 
-export default function ReportCard({ report }) {
+const providerLabels = {
+  power_bi: 'Power BI',
+  data_studio: 'Data Studio',
+  other: 'Outro',
+};
+
+export default function ReportCard({ report, showProviderTag = false }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -40,15 +46,24 @@ export default function ReportCard({ report }) {
         <div className="h-0.5 w-0 group-hover:w-full transition-all duration-300" style={{ background: '#E30613' }} />
 
         <div className="p-5">
-          {/* Category tag */}
-          {report.category && (
-            <span
-              className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 mb-3"
-              style={{ background: '#E30613', color: '#fff' }}
-            >
-              {categoryLabels[report.category] || report.category}
-            </span>
-          )}
+          <div className="mb-3 flex flex-wrap gap-2">
+            {report.category && (
+              <span
+                className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5"
+                style={{ background: '#E30613', color: '#fff' }}
+              >
+                {categoryLabels[report.category] || report.category}
+              </span>
+            )}
+            {showProviderTag && report.provider && report.provider !== 'other' ? (
+              <span
+                className="inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5"
+                style={{ background: '#141414', color: '#fff' }}
+              >
+                {providerLabels[report.provider] || providerLabels.other}
+              </span>
+            ) : null}
+          </div>
 
           {/* Icon + Title */}
           <div className="flex items-start gap-3 mb-3">
