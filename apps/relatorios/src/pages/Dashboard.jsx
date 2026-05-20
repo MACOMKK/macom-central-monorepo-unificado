@@ -30,13 +30,13 @@ export default function Dashboard() {
 
   const reports = allReports;
   const isLoading = loadingReports;
-  const unitCount = new Set(reports.map((report) => report.unit_name).filter(Boolean)).size;
+  const unitCount = new Set(reports.map((report) => report.unit_label).filter(Boolean)).size;
   const categories = ['all', ...new Set(reports.map((report) => report.category).filter(Boolean))];
 
   const filteredReports = reports.filter((report) => {
     const matchSearch =
       report.title?.toLowerCase().includes(search.toLowerCase()) ||
-      report.unit_name?.toLowerCase().includes(search.toLowerCase());
+      report.unit_label?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = activeCategory === 'all' || report.category === activeCategory;
     return matchSearch && matchCategory;
   });

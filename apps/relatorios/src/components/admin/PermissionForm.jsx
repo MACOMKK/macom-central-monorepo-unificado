@@ -71,7 +71,7 @@ export default function PermissionForm({ onSaved, onCancel }) {
                 />
                 <div>
                   <p className="text-sm font-medium">{report.title}</p>
-                  {report.unit_name ? <p className="text-xs text-muted-foreground">{report.unit_name}</p> : null}
+                  {report.unit_label ? <p className="text-xs text-muted-foreground">{report.unit_label}</p> : null}
                 </div>
               </label>
             ))

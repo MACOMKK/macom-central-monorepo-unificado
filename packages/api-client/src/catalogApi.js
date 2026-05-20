@@ -273,6 +273,22 @@ export const catalogApi = {
       return true;
     },
   },
+  relatorios_unidades: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'relatorios_unidades', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'relatorios_unidades', { payload });
+      return result.row || null;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'relatorios_unidades', { id });
+      return true;
+    },
+  },
   permissoes_relatorios: {
     async list(options = {}) {
       const result = await invokeCatalog('list', 'permissoes_relatorios', {

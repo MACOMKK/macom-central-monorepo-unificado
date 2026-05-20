@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { dataClient } from '@/api/dataClient';
-import { Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea } from '@macom/ui';
+import { Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea } from '@macom/ui';
 
 const CATEGORIES = [
   { value: 'gerencial', label: 'Gerencial' },
@@ -42,8 +42,8 @@ export default function ReportForm({ report, onSaved, onCancel }) {
     title: '',
     description: '',
     embed_code: '',
-    unit_id: '',
-    unit_name: '',
+    all_units: false,
+    unit_ids: [],
     category: '',
     active: true,
   });
@@ -61,22 +61,52 @@ export default function ReportForm({ report, onSaved, onCancel }) {
         title: report.title || '',
         description: report.description || '',
         embed_code: report.embed_code || '',
-        unit_id: report.unit_id || '',
-        unit_name: report.unit_name || '',
+        all_units: report.all_units === true,
+        unit_ids: Array.isArray(report.unit_ids) && report.unit_ids.length
+          ? report.unit_ids
+          : report.unit_id
+            ? [report.unit_id]
+            : [],
         category: report.category || '',
         active: report.active !== false,
       });
+      return;
     }
+
+    setForm({
+      title: '',
+      description: '',
+      embed_code: '',
+      all_units: false,
+      unit_ids: [],
+      category: '',
+      active: true,
+    });
   }, [report]);
 
+  const selectedUnits = useMemo(
+    () => units.filter((unit) => form.unit_ids.includes(unit.id)),
+    [form.unit_ids, units],
+  );
+
   const saveMutation = useMutation({
-    mutationFn: (data) => (report ? dataClient.entities.Report.update(report.id, data) : dataClient.entities.Report.create(data)),
+    mutationFn: (data) => {
+      if (!data.all_units && data.unit_ids.length === 0) {
+        throw new Error('Selecione ao menos uma unidade ou marque todas as unidades.');
+      }
+
+      return report ? dataClient.entities.Report.update(report.id, data) : dataClient.entities.Report.create(data);
+    },
     onSuccess: onSaved,
   });
 
-  const handleUnitChange = (unitId) => {
-    const unit = units.find((u) => u.id === unitId);
-    setForm((current) => ({ ...current, unit_id: unitId, unit_name: unit?.name || '' }));
+  const toggleUnit = (unitId) => {
+    setForm((current) => ({
+      ...current,
+      unit_ids: current.unit_ids.includes(unitId)
+        ? current.unit_ids.filter((id) => id !== unitId)
+        : [...current.unit_ids, unitId],
+    }));
   };
 
   return (
@@ -106,37 +136,69 @@ export default function ReportForm({ report, onSaved, onCancel }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-[10px] font-black uppercase tracking-widest">Unidade</Label>
-          <Select value={form.unit_id} onValueChange={handleUnitChange}>
-            <SelectTrigger style={{ borderRadius: 2 }}>
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
+      <div className="space-y-3 rounded border p-4" style={{ borderColor: '#e5e5e5' }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label className="text-[10px] font-black uppercase tracking-widest">Escopo de unidades</Label>
+            <p className="mt-1 text-xs" style={{ color: '#666' }}>
+              Defina se o relatorio vale para todas as unidades ou para unidades especificas.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={form.all_units}
+              onCheckedChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  all_units: value,
+                  unit_ids: value ? [] : current.unit_ids,
+                }))
+              }
+            />
+            <Label className="text-xs font-semibold">Todas as unidades</Label>
+          </div>
+        </div>
+
+        {!form.all_units ? (
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest">Unidades vinculadas *</Label>
+            <div className="grid max-h-56 gap-2 overflow-y-auto rounded border p-3 md:grid-cols-2" style={{ borderColor: '#e5e5e5' }}>
               {units.map((unit) => (
-                <SelectItem key={unit.id} value={unit.id}>
-                  {unit.name}
-                </SelectItem>
+                <label key={unit.id} className="flex cursor-pointer items-center gap-3 rounded p-2 hover:bg-gray-50">
+                  <Checkbox
+                    checked={form.unit_ids.includes(unit.id)}
+                    onCheckedChange={() => toggleUnit(unit.id)}
+                  />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: '#141414' }}>{unit.name}</p>
+                    {unit.city ? <p className="text-xs" style={{ color: '#666' }}>{unit.city}</p> : null}
+                  </div>
+                </label>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-[10px] font-black uppercase tracking-widest">Categoria</Label>
-          <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
-            <SelectTrigger style={{ borderRadius: 2 }}>
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((category) => (
-                <SelectItem key={category.value} value={category.value}>
-                  {category.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            </div>
+            <p className="text-xs" style={{ color: '#666' }}>
+              {selectedUnits.length
+                ? `${selectedUnits.length} unidade(s) selecionada(s)`
+                : 'Selecione uma ou mais unidades.'}
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-[10px] font-black uppercase tracking-widest">Categoria</Label>
+        <Select value={form.category} onValueChange={(value) => setForm((current) => ({ ...current, category: value }))}>
+          <SelectTrigger style={{ borderRadius: 2 }}>
+            <SelectValue placeholder="Selecione..." />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map((category) => (
+              <SelectItem key={category.value} value={category.value}>
+                {category.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">
@@ -167,6 +229,12 @@ export default function ReportForm({ report, onSaved, onCancel }) {
         <Switch checked={form.active} onCheckedChange={(value) => setForm((current) => ({ ...current, active: value }))} />
         <Label className="text-xs font-semibold">Relatorio ativo</Label>
       </div>
+
+      {saveMutation.error ? (
+        <p className="text-xs font-semibold" style={{ color: '#E30613' }}>
+          {saveMutation.error.message}
+        </p>
+      ) : null}
 
       <div className="flex justify-end gap-3 pt-2">
         <button

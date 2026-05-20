@@ -86,10 +86,10 @@ export default function ReportCard({ report, showProviderTag = false }) {
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid #f0f0f0' }}>
-            {report.unit_name ? (
+            {report.unit_label ? (
               <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#999' }}>
                 <Building2 className="w-3 h-3" />
-                {report.unit_name}
+                {report.unit_label}
               </span>
             ) : <span />}
             <span

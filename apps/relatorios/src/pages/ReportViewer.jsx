@@ -132,10 +132,10 @@ export default function ReportViewer() {
             {headerReport ? (
               <>
                 <h1 className="text-sm font-black uppercase tracking-widest text-white">{headerReport.title}</h1>
-                {headerReport.unit_name ? (
+                {headerReport.unit_label ? (
                   <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider" style={{ color: '#E30613' }}>
                     <Building2 className="h-3 w-3" />
-                    {headerReport.unit_name}
+                    {headerReport.unit_label}
                   </span>
                 ) : null}
               </>

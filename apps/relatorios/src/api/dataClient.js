@@ -124,14 +124,36 @@ const invalidateCollaboratorsCache = () => {
 const mapReportRow = (row = {}, unitsById = new Map()) => {
   const unit = unitsById.get(row.unidade_id) || null;
   const embedCode = row.embed_code || '';
+  const allUnits = row.todas_unidades === true;
+  const unitIds = Array.isArray(row.unidade_ids)
+    ? row.unidade_ids.filter(Boolean)
+    : row.unidade_id
+      ? [row.unidade_id]
+      : [];
+  const unitNames = Array.isArray(row.nomes_unidades)
+    ? row.nomes_unidades.filter(Boolean)
+    : [unit?.nome || row.nome_unidade || row.unidade_nome].filter(Boolean);
+  const fallbackUnitName = unit?.nome || row.nome_unidade || row.unidade_nome || '';
+  const normalizedUnitNames = allUnits
+    ? ['Todas as unidades']
+    : (unitNames.length ? unitNames : [fallbackUnitName].filter(Boolean));
+  const unitLabel = allUnits
+    ? 'Todas as unidades'
+    : normalizedUnitNames.length > 1
+      ? normalizedUnitNames.join(', ')
+      : normalizedUnitNames[0] || '';
 
   return ({
   id: row.id,
   title: row.titulo || '',
   description: row.descricao || '',
   embed_code: embedCode,
-  unit_id: row.unidade_id || null,
-  unit_name: unit?.nome || row.nome_unidade || row.unidade_nome || '',
+  unit_id: unitIds[0] || row.unidade_id || null,
+  unit_ids: unitIds,
+  unit_name: unitLabel,
+  unit_names: normalizedUnitNames,
+  unit_label: unitLabel,
+  all_units: allUnits,
   category: row.categoria || '',
   provider: detectReportProvider(embedCode),
   icon: row.icone || '',
@@ -169,9 +191,15 @@ const mapReportPayload = (payload = {}) => ({
   descricao: payload.description ?? payload.descricao ?? null,
   embed_code: payload.embed_code ?? payload.codigo_embed ?? '',
   unidade_id: payload.unit_id ?? payload.unidade_id ?? null,
+  todas_unidades: payload.all_units ?? payload.todas_unidades ?? false,
   categoria: payload.category ?? payload.categoria ?? null,
   icone: payload.icon ?? payload.icone ?? null,
   ativo: payload.active ?? payload.ativo ?? true,
+});
+
+const mapReportUnitPayload = (payload = {}) => ({
+  relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
+  unidade_id: payload.unit_id ?? payload.unidade_id ?? null,
 });
 
 const mapReportPermissionRow = (row = {}) => ({
@@ -219,11 +247,15 @@ const mapAuditLogRow = (row = {}) => ({
 });
 
 const hydrateReports = async (rows = []) => {
-  const rowsAlreadyContainUnitNames = rows.every(
-    (row) => !row?.unidade_id || Boolean(row?.nome_unidade || row?.unidade_nome)
+  const rowsAlreadyContainUnitData = rows.every(
+    (row) =>
+      row?.todas_unidades === true ||
+      Array.isArray(row?.nomes_unidades) ||
+      !row?.unidade_id ||
+      Boolean(row?.nome_unidade || row?.unidade_nome)
   );
 
-  if (rowsAlreadyContainUnitNames) {
+  if (rowsAlreadyContainUnitData) {
     return rows.map((row) => mapReportRow(row));
   }
 
@@ -542,19 +574,72 @@ const createCatalogReportEntity = () => ({
       filters: {
         id: filters.id,
         ativo: 'active' in filters ? filters.active : filters.ativo,
-        unidade_id: filters.unit_id ?? filters.unidade_id,
         categoria: filters.category ?? filters.categoria,
       },
     });
-    return hydrateReports(rows);
+    const reports = await hydrateReports(rows);
+    return reports.filter((report) => {
+      if (filters.unit_id || filters.unidade_id) {
+        const targetUnit = filters.unit_id ?? filters.unidade_id;
+        if (report.all_units !== true && !report.unit_ids.includes(targetUnit)) {
+          return false;
+        }
+      }
+      return true;
+    });
   },
   create: async (payload) => {
-    const row = await catalogApi.relatorios.create(mapReportPayload(payload));
-    return (await hydrateReports([row]))[0];
+    const unitIds = Array.isArray(payload.unit_ids)
+      ? [...new Set(payload.unit_ids.filter(Boolean))]
+      : [payload.unit_id ?? payload.unidade_id].filter(Boolean);
+    const allUnits = payload.all_units === true || payload.todas_unidades === true;
+    const row = await catalogApi.relatorios.create(
+      mapReportPayload({
+        ...payload,
+        unit_id: allUnits ? null : unitIds[0] || null,
+        all_units: allUnits,
+      }),
+    );
+
+    if (!allUnits && unitIds.length) {
+      await Promise.all(
+        unitIds.map((unitId) => catalogApi.relatorios_unidades.create(mapReportUnitPayload({
+          report_id: row.id,
+          unit_id: unitId,
+        }))),
+      );
+    }
+
+    const refreshedRows = await catalogApi.relatorios.list({ filters: { id: row.id } });
+    const refreshedRow = refreshedRows[0] || row;
+    return (await hydrateReports([refreshedRow]))[0];
   },
   update: async (id, payload) => {
-    const row = await catalogApi.relatorios.update(id, mapReportPayload(payload));
-    return (await hydrateReports([row]))[0];
+    const unitIds = Array.isArray(payload.unit_ids)
+      ? [...new Set(payload.unit_ids.filter(Boolean))]
+      : [payload.unit_id ?? payload.unidade_id].filter(Boolean);
+    const allUnits = payload.all_units === true || payload.todas_unidades === true;
+    const row = await catalogApi.relatorios.update(id, mapReportPayload({
+      ...payload,
+      unit_id: allUnits ? null : unitIds[0] || null,
+      all_units: allUnits,
+    }));
+
+    const existingRelations = await catalogApi.relatorios_unidades.list({ filters: { relatorio_id: id } });
+    await Promise.all(existingRelations.map((relation) => catalogApi.relatorios_unidades.remove(relation.id)));
+
+    if (!allUnits && unitIds.length) {
+      await Promise.all(
+        unitIds.map((unitId) => catalogApi.relatorios_unidades.create(mapReportUnitPayload({
+          report_id: id,
+          unit_id: unitId,
+        }))),
+      );
+    }
+
+    const refreshedRows = await catalogApi.relatorios.list({ filters: { id } });
+    const refreshedRow = refreshedRows[0] || row;
+    return (await hydrateReports([refreshedRow]))[0];
   },
   delete: async (id) => {
     await catalogApi.relatorios.remove(id);

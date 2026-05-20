@@ -61,15 +61,19 @@ export default function ManageReports() {
   });
 
   const categories = ['all', ...new Set(reports.map((report) => report.category).filter(Boolean))];
-  const units = ['all', ...new Set(reports.map((report) => report.unit_name).filter(Boolean))];
+  const units = ['all', 'Todas as unidades', ...new Set(reports.flatMap((report) => report.unit_names || []).filter(Boolean))];
   const providers = ['all', ...new Set(reports.map((report) => report.provider).filter(Boolean))];
 
   const filteredReports = reports.filter((report) => {
     const matchSearch =
       report.title?.toLowerCase().includes(search.toLowerCase()) ||
-      report.unit_name?.toLowerCase().includes(search.toLowerCase());
+      report.unit_label?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = activeCategory === 'all' || report.category === activeCategory;
-    const matchUnit = activeUnit === 'all' || report.unit_name === activeUnit;
+    const matchUnit =
+      activeUnit === 'all' ||
+      (activeUnit === 'Todas as unidades'
+        ? report.all_units === true
+        : (report.unit_names || []).includes(activeUnit));
     const matchProvider = activeProvider === 'all' || report.provider === activeProvider;
     return matchSearch && matchCategory && matchUnit && matchProvider;
   });
@@ -209,7 +213,7 @@ export default function ManageReports() {
                         {report.title}
                       </TableCell>
                       <TableCell className="text-xs" style={{ color: '#666' }}>
-                        {report.unit_name || '-'}
+                        {report.unit_label || '-'}
                       </TableCell>
                       <TableCell>
                         {report.category ? (

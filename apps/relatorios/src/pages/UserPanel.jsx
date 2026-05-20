@@ -40,7 +40,7 @@ export default function UserPanel() {
 
   const filtered = reports.filter(r =>
     r.title?.toLowerCase().includes(search.toLowerCase()) ||
-    r.unit_name?.toLowerCase().includes(search.toLowerCase())
+    r.unit_label?.toLowerCase().includes(search.toLowerCase())
   );
 
   const isLoading = loadingReports;
@@ -198,9 +198,9 @@ export default function UserPanel() {
                     <p className="text-xs line-clamp-2 mb-4" style={{ color: '#888' }}>{report.description}</p>
                   )}
                   <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid #f0f0f0' }}>
-                    {report.unit_name ? (
+                    {report.unit_label ? (
                       <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#999' }}>
-                        <Building2 className="w-3 h-3" />{report.unit_name}
+                        <Building2 className="w-3 h-3" />{report.unit_label}
                       </span>
                     ) : <span />}
                     <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#E30613' }}>

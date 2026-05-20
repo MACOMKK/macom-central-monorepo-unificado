@@ -128,7 +128,14 @@ const ENTITY_CONFIG = {
     table: 'relatorios',
     orderBy: 'criado_em',
     orderDirection: 'desc',
-    allowedFields: ['id', 'titulo', 'descricao', 'embed_code', 'unidade_id', 'categoria', 'icone', 'ativo'],
+    allowedFields: ['id', 'titulo', 'descricao', 'embed_code', 'unidade_id', 'todas_unidades', 'categoria', 'icone', 'ativo'],
+  },
+  relatorios_unidades: {
+    schema: 'gestao_relatorio',
+    table: 'relatorios_unidades',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['id', 'relatorio_id', 'unidade_id'],
   },
   permissoes_relatorios: {
     schema: 'gestao_relatorio',
@@ -314,6 +321,7 @@ async function collaboratorHasSystemAccess(collaboratorId: string, systemSlug: s
 
 const REPORTS_AUDIT_ENTITIES = new Set([
   'relatorios',
+  'relatorios_unidades',
   'permissoes_relatorios',
 ]);
 const REPORTS_AUDIT_IGNORED_FIELDS = new Set([
@@ -1147,6 +1155,7 @@ Deno.serve(async (request) => {
       const canManageReportsEntityAsAdmin =
         isGlobalAdmin || (isReportsAdmin && (
           entity === 'relatorios' ||
+          entity === 'relatorios_unidades' ||
           entity === 'permissoes_relatorios' ||
           entity === 'logs_auditoria_relatorios'
         ));
@@ -1179,16 +1188,62 @@ Deno.serve(async (request) => {
           `
             select
               r.*,
-              u.nome as nome_unidade
+              u.nome as nome_unidade,
+              coalesce(
+                array_agg(distinct ru.unidade_id) filter (where ru.unidade_id is not null),
+                '{}'::uuid[]
+              ) as unidade_ids,
+              coalesce(
+                array_agg(distinct uu.nome) filter (where uu.nome is not null),
+                '{}'::text[]
+              ) as nomes_unidades
             from gestao_relatorio.relatorios r
+            left join gestao_relatorio.relatorios_unidades ru on ru.relatorio_id = r.id
             left join public.unidades u on u.id = r.unidade_id
+            left join public.unidades uu on uu.id = ru.unidade_id
             ${whereSql}
+            group by r.id, u.nome
             order by r.${orderBy} ${orderDirection};
           `,
           values,
         );
         return json({ rows });
       }
+
+    if (action === 'list' && entity === 'relatorios_unidades') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const relationFilters = { ...sanitizedFilters };
+
+      if (!canManageReportsEntityAsAdmin) {
+        if (!hasReportsAccess) {
+          return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+        }
+        const { clauses, values } = buildSqlFilters(relationFilters, 1, 'ru');
+        clauses.push(
+          `exists (
+            select 1
+            from gestao_relatorio.permissoes_relatorios pr
+            where pr.relatorio_id = ru.relatorio_id
+              and pr.colaborador_id = any($${values.length + 1}::uuid[])
+          )`,
+        );
+        values.push(authenticatedCollaboratorIds);
+        const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+        const rows = await sql.unsafe(
+          `select * from gestao_relatorio.relatorios_unidades ru ${whereSql} order by ru.${orderBy} ${orderDirection};`,
+          values,
+        );
+        return json({ rows });
+      }
+
+      const { clauses, values } = buildSqlFilters(relationFilters, 1);
+      const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const rows = await sql.unsafe(
+        `select * from gestao_relatorio.relatorios_unidades ${whereSql} order by ${orderBy} ${orderDirection};`,
+        values,
+      );
+      return json({ rows });
+    }
 
     if (action === 'list' && entity === 'permissoes_relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
