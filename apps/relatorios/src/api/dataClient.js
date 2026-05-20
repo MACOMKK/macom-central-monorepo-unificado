@@ -691,8 +691,8 @@ const createCatalogReportPermissionEntity = () => ({
 
 const createCatalogAuditLogEntity = () => ({
   list: async (sort) => {
-    const rows = await catalogApi.logs_auditoria_relatorios.list();
-    return sortRows(rows.map(mapAuditLogRow), sort);
+    const result = await catalogApi.logs_auditoria_relatorios.list();
+    return sortRows(result.rows.map(mapAuditLogRow), sort);
   },
   filter: async (filters = {}) => {
     const payload = {};
@@ -702,8 +702,33 @@ const createCatalogAuditLogEntity = () => ({
     if (filters.actor_collaborator_id || filters.colaborador_id) {
       payload.actor_colaborador_id = filters.actor_collaborator_id || filters.colaborador_id;
     }
-    const rows = await catalogApi.logs_auditoria_relatorios.list({ filters: payload });
-    return rows.map(mapAuditLogRow);
+    const result = await catalogApi.logs_auditoria_relatorios.list({ filters: payload });
+    return result.rows.map(mapAuditLogRow);
+  },
+  listPage: async ({ sort = '-created_at', page = 1, pageSize = 50, filters = {} } = {}) => {
+    const payload = {};
+    if (filters.entity && filters.entity !== 'all') payload.entidade = filters.entity;
+    if (filters.action && filters.action !== 'all') payload.acao = filters.action;
+    if (filters.record_id || filters.registro_id) payload.registro_id = filters.record_id || filters.registro_id;
+    if (filters.actor_collaborator_id || filters.colaborador_id) {
+      payload.actor_colaborador_id = filters.actor_collaborator_id || filters.colaborador_id;
+    }
+
+    const offset = Math.max(0, (page - 1) * pageSize);
+    const result = await catalogApi.logs_auditoria_relatorios.list({
+      filters: payload,
+      limit: pageSize,
+      offset,
+    });
+    const rows = sortRows(result.rows.map(mapAuditLogRow), sort);
+
+    return {
+      rows,
+      total: result.total ?? rows.length,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil((result.total ?? rows.length) / pageSize)),
+    };
   },
 });
 

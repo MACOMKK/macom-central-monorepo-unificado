@@ -36,6 +36,7 @@ const actionLabels = {
   update: 'Edicao',
   delete: 'Exclusao',
 };
+const PAGE_SIZE = 50;
 
 const formatDateTime = (value) => {
   if (!value) return '-';
@@ -126,19 +127,32 @@ export default function AuditLogs() {
   const [activeEntity, setActiveEntity] = useState('all');
   const [activeAction, setActiveAction] = useState('all');
   const [selectedLog, setSelectedLog] = useState(null);
+  const [page, setPage] = useState(1);
 
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['audit-logs'],
-    queryFn: () => dataClient.entities.AuditLog.list('-created_at'),
+  const { data, isLoading } = useQuery({
+    queryKey: ['audit-logs', page, activeEntity, activeAction],
+    queryFn: () =>
+      dataClient.entities.AuditLog.listPage({
+        sort: '-created_at',
+        page,
+        pageSize: PAGE_SIZE,
+        filters: {
+          entity: activeEntity,
+          action: activeAction,
+        },
+      }),
   });
+  const logs = data?.rows || [];
+  const total = data?.total || 0;
+  const totalPages = data?.totalPages || 1;
 
   const entities = useMemo(
-    () => ['all', ...new Set(logs.map((log) => log.entity).filter(Boolean))],
-    [logs],
+    () => ['all', ...Object.keys(entityLabels)],
+    [],
   );
   const actions = useMemo(
-    () => ['all', ...new Set(logs.map((log) => log.action).filter(Boolean))],
-    [logs],
+    () => ['all', ...Object.keys(actionLabels)],
+    [],
   );
 
   const filteredLogs = logs.filter((log) => {
@@ -148,12 +162,12 @@ export default function AuditLogs() {
       log.actor_email?.toLowerCase().includes(normalizedSearch) ||
       log.record_id?.toLowerCase().includes(normalizedSearch) ||
       String(log.metadata?.system_slug || '').toLowerCase().includes(normalizedSearch);
-    const matchEntity = activeEntity === 'all' || log.entity === activeEntity;
-    const matchAction = activeAction === 'all' || log.action === activeAction;
-    return matchSearch && matchEntity && matchAction;
+    return matchSearch;
   });
 
   const selectedLogFields = selectedLog ? getVisibleFields(selectedLog) : [];
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
   return (
     <AdminGuard user={user}>
@@ -183,7 +197,13 @@ export default function AuditLogs() {
               </div>
 
               <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-2xl">
-                <Select value={activeEntity} onValueChange={setActiveEntity}>
+                <Select
+                  value={activeEntity}
+                  onValueChange={(value) => {
+                    setActiveEntity(value);
+                    setPage(1);
+                  }}
+                >
                   <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
                     <SelectValue placeholder="Filtrar entidade" />
                   </SelectTrigger>
@@ -196,7 +216,13 @@ export default function AuditLogs() {
                   </SelectContent>
                 </Select>
 
-                <Select value={activeAction} onValueChange={setActiveAction}>
+                <Select
+                  value={activeAction}
+                  onValueChange={(value) => {
+                    setActiveAction(value);
+                    setPage(1);
+                  }}
+                >
                   <SelectTrigger className="bg-white" style={{ borderRadius: 2 }}>
                     <SelectValue placeholder="Filtrar acao" />
                   </SelectTrigger>
@@ -291,6 +317,38 @@ export default function AuditLogs() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs" style={{ color: '#666' }}>
+              {total === 0
+                ? 'Nenhum registro nesta consulta.'
+                : `Mostrando ${pageStart}-${pageEnd} de ${total} logs`}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={page <= 1}
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+                style={{ border: '1px solid #ddd', background: '#fff', color: '#141414' }}
+              >
+                Anterior
+              </button>
+              <span className="text-xs font-semibold" style={{ color: '#141414' }}>
+                Pagina {page} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+                style={{ border: '1px solid #ddd', background: '#fff', color: '#141414' }}
+              >
+                Proxima
+              </button>
+            </div>
           </div>
         </div>
       </div>

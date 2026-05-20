@@ -1245,6 +1245,32 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
+    if (action === 'list' && entity === 'logs_auditoria_relatorios') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const { clauses, values } = buildSqlFilters(sanitizedFilters, 1);
+      const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const rawLimit = typeof body.limit === 'number' ? body.limit : Number(body.limit);
+      const rawOffset = typeof body.offset === 'number' ? body.offset : Number(body.offset);
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : null;
+      const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+      const totalRows = await sql.unsafe(
+        `select count(*)::int as total from gestao_relatorio.logs_auditoria ${whereSql};`,
+        values,
+      );
+      const paginatedSql = limit != null
+        ? `select * from gestao_relatorio.logs_auditoria ${whereSql} order by ${orderBy} ${orderDirection} limit ${limit} offset ${offset};`
+        : `select * from gestao_relatorio.logs_auditoria ${whereSql} order by ${orderBy} ${orderDirection};`;
+      const rows = await sql.unsafe(paginatedSql, values);
+
+      return json({
+        rows,
+        total: totalRows[0]?.total ?? rows.length,
+        limit,
+        offset,
+      });
+    }
+
     if (action === 'list' && entity === 'permissoes_relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const permissionFilters = { ...sanitizedFilters };

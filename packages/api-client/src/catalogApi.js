@@ -313,8 +313,15 @@ export const catalogApi = {
     async list(options = {}) {
       const result = await invokeCatalog('list', 'logs_auditoria_relatorios', {
         filters: options.filters || {},
+        limit: options.limit,
+        offset: options.offset,
       });
-      return result.rows || [];
+      return {
+        rows: result.rows || [],
+        total: result.total ?? (result.rows || []).length,
+        limit: result.limit ?? options.limit ?? null,
+        offset: result.offset ?? options.offset ?? 0,
+      };
     },
   },
 };
