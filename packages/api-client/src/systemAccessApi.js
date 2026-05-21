@@ -1,5 +1,14 @@
 import { assertSupabaseConfigured, supabase } from './supabaseClient';
 
+function toApiError(message, status = 500, code) {
+  const error = new Error(message || 'Falha ao consultar acessos dos sistemas.');
+  error.status = status;
+  if (code) {
+    error.code = code;
+  }
+  return error;
+}
+
 async function invokeCatalogFunction(action, payload = {}, accessTokenOverride) {
   assertSupabaseConfigured();
   const { data } = accessTokenOverride
@@ -24,7 +33,11 @@ async function invokeCatalogFunction(action, payload = {}, accessTokenOverride) 
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(result?.error || 'Falha ao consultar acessos dos sistemas.');
+    throw toApiError(
+      result?.error || 'Falha ao consultar acessos dos sistemas.',
+      response.status,
+      result?.code || (response.status === 401 ? 'auth_required' : undefined),
+    );
   }
 
   return result;

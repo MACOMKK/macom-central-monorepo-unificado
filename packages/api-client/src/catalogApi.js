@@ -1,5 +1,14 @@
 import { assertSupabaseConfigured, supabase } from './supabaseClient';
 
+function toApiError(message, status = 500, code) {
+  const error = new Error(message || 'Falha ao consultar o catalogo.');
+  error.status = status;
+  if (code) {
+    error.code = code;
+  }
+  return error;
+}
+
 function mapApiErrorMessage(message) {
   const text = String(message || '');
 
@@ -54,7 +63,11 @@ async function invokeSupabaseFunction(functionName, payload = {}, accessTokenOve
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(mapApiErrorMessage(result?.error));
+    throw toApiError(
+      mapApiErrorMessage(result?.error),
+      response.status,
+      result?.code || (response.status === 401 ? 'auth_required' : undefined),
+    );
   }
 
   return result;
