@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, isValid, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Plus, ChevronLeft, ChevronRight, Trash2, Clock, MapPin } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@macom/ui';
@@ -17,6 +17,11 @@ const typeLabels = {
   reuniao: 'Reunião', treinamento: 'Treinamento', evento: 'Evento',
   feriado: 'Feriado', aniversario: 'Aniversário', outro: 'Outro',
 };
+function parseEventDate(value) {
+  if (!value || typeof value !== 'string') return null;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : null;
+}
 
 export default function Calendar() {
   const { canEdit } = usePermissions('calendario');
@@ -49,8 +54,10 @@ export default function Calendar() {
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const getEventsForDay = (day) => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    return events.filter(e => e.date === dayStr);
+    return events.filter((event) => {
+      const eventDate = parseEventDate(event.date);
+      return eventDate ? isSameDay(eventDate, day) : false;
+    });
   };
 
   const selectedEvents = selectedDate ? getEventsForDay(selectedDate) : [];
