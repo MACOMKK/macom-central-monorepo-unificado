@@ -94,6 +94,7 @@ export default function ReportViewer() {
   });
 
   const acceptance = useMemo(() => acceptances[0] || null, [acceptances]);
+  const isAdminUser = user?.role === 'admin';
 
   const acceptNoticeMutation = useMutation({
     mutationFn: () =>
@@ -111,9 +112,12 @@ export default function ReportViewer() {
   const hasAcceptedCurrentVersion =
     (acceptance?.accepted_version || 0) >= (activeNotice?.version || 0);
   const isBlockingStateLoading =
-    !isLoading && !!report && (isNoticeLoading || (activeNotice && noticeRequiresAcceptance && isAcceptanceLoading));
+    !isLoading &&
+    !!report &&
+    !isAdminUser &&
+    (isNoticeLoading || (activeNotice && noticeRequiresAcceptance && isAcceptanceLoading));
   const shouldBlockForNotice = Boolean(
-    report && activeNotice && noticeRequiresAcceptance && !hasAcceptedCurrentVersion
+    report && activeNotice && !isAdminUser && noticeRequiresAcceptance && !hasAcceptedCurrentVersion
   );
 
   const iframeSrc = useMemo(() => {

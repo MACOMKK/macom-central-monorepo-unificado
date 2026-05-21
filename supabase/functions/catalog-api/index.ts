@@ -1423,8 +1423,8 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
-    if (action === 'create' && entity === 'avisos_relatorios_aceites' && !canManageReportsEntityAsAdmin) {
-      if (!hasReportsAccess) {
+    if (action === 'create' && entity === 'avisos_relatorios_aceites') {
+      if (!hasReportsAccess && !canManageReportsEntityAsAdmin) {
         return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
       }
 
@@ -1450,19 +1450,21 @@ Deno.serve(async (request) => {
         return json({ error: 'Aviso ativo nao encontrado.' }, 404);
       }
 
-      const allowedRows = await sql.unsafe(
-        `
-          select 1
-          from gestao_relatorio.permissoes_relatorios pr
-          where pr.relatorio_id = $1
-            and pr.colaborador_id = any($2::uuid[])
-          limit 1;
-        `,
-        [notice.relatorio_id, authenticatedCollaboratorIds],
-      );
+      if (!canManageReportsEntityAsAdmin) {
+        const allowedRows = await sql.unsafe(
+          `
+            select 1
+            from gestao_relatorio.permissoes_relatorios pr
+            where pr.relatorio_id = $1
+              and pr.colaborador_id = any($2::uuid[])
+            limit 1;
+          `,
+          [notice.relatorio_id, authenticatedCollaboratorIds],
+        );
 
-      if (!allowedRows[0]) {
-        return json({ error: 'Voce nao possui permissao para aceitar avisos deste relatorio.' }, 403);
+        if (!allowedRows[0]) {
+          return json({ error: 'Voce nao possui permissao para aceitar avisos deste relatorio.' }, 403);
+        }
       }
 
       const rows = await sql.unsafe(
