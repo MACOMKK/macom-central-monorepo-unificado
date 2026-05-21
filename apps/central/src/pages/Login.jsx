@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LockKeyhole, Mail } from 'lucide-react';
+import { Alert, AlertDescription, Button, Input, Label } from '@macom/ui';
 
 const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 const bgUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1779216591/fundo_mit_motors_in0y1d.webp';
@@ -31,83 +32,80 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
   };
 
   return (
-    <main className="min-h-screen relative flex items-center justify-center overflow-hidden px-4 py-8">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${bgUrl})` }}
-      />
-      <div className="absolute inset-0 bg-black/72" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(193,18,31,0.25),transparent_45%)]" />
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-6"
+      style={{
+        backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.22), rgba(15, 23, 42, 0.22)), url(${bgUrl})`,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'cover',
+      }}
+    >
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/80 bg-white/82 p-8 shadow-2xl shadow-slate-950/20 backdrop-blur-lg">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.08))]" />
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/85" />
 
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-[rgba(255,255,255,0.18)] bg-[rgba(255,255,255,0.04)] p-7 shadow-2xl backdrop-blur-[12px] sm:p-8">
-        <div className="mb-7 border-b border-white/30 pb-5 text-center">
-          <img src={logoUrl} alt="MACOM" className="mx-auto h-14 w-auto object-contain" />
-          <p className="mt-4 text-xs text-white/90 sm:text-[13px]">Acesse o painel administrativo.</p>
-        </div>
-
-        <form className="mx-auto w-full max-w-sm space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="email" className="mb-2 block text-[11px] font-semibold tracking-wide text-white/90">
-              EMAIL
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="voce@empresa.com"
-              required
-              disabled={isBusy}
-              className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="mb-2 block text-[11px] font-semibold tracking-wide text-white/90">
-              SENHA
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Sua senha"
-                required
-                disabled={isBusy}
-                className="h-11 w-full rounded-md border border-white/40 bg-white/85 px-3 pr-11 text-sm text-zinc-900 placeholder:text-sm placeholder:text-zinc-500 focus:border-white/70 focus:outline-none focus:ring-2 focus:ring-white/30"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-                disabled={isBusy}
-                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-zinc-500 transition hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+        <div className="relative">
+          <div className="mb-8 text-center">
+            <img src={logoUrl} alt="MACOM" className="mx-auto mb-4 h-14 w-14 object-contain" />
+            <h1 className="text-2xl font-bold text-white">Central Macom</h1>
+            <p className="mt-2 text-sm text-white/80">Acesse o painel administrativo da plataforma.</p>
           </div>
 
           {error ? (
-            <div className="rounded-md border border-red-300/70 bg-red-50/90 px-3 py-2 text-xs sm:text-sm text-red-700">
-              {error}
-            </div>
+            <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-900">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           ) : null}
 
-          <button type="button" className="text-[11px] text-white/90 underline underline-offset-2">
-            Esqueci minha senha
-          </button>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-white/90">E-mail</Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/70" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="border-white/65 bg-white/20 pl-10 text-white placeholder:text-white/55"
+                  required
+                  disabled={isBusy}
+                />
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={isBusy}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#c1121f] text-sm font-semibold text-white transition hover:bg-[#a30f19] disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
-          </button>
-        </form>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-white/90">Senha</Label>
+              <div className="relative">
+                <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/70" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="border-white/65 bg-white/20 pl-10 pr-11 text-white placeholder:text-white/55"
+                  required
+                  disabled={isBusy}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  disabled={isBusy}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-white/70 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isBusy}>
+              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
+            </Button>
+          </form>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
