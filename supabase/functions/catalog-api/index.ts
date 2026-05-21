@@ -320,6 +320,42 @@ async function collaboratorHasSystemAccess(collaboratorId: string, systemSlug: s
   return Boolean(rows[0]);
 }
 
+async function syncIntranetPermissionOnAccessChange(accessRow?: Record<string, unknown> | null) {
+  if (!sql || !accessRow?.colaborador_id || !accessRow?.sistema_id) return;
+
+  const relatedSystem = await fetchRowById('public', 'sistemas', String(accessRow.sistema_id));
+  if (relatedSystem?.slug !== 'intranet') return;
+
+  if (accessRow.ativo === true) {
+    await sql.unsafe(
+      `
+        insert into gestao_intranet.permissoes_usuario (
+          colaborador_id,
+          mod_avisos,
+          mod_links,
+          mod_colaboradores,
+          mod_documentos,
+          mod_calendario,
+          mod_conhecimento,
+          mod_feedback
+        )
+        values ($1, 'view', 'view', 'view', 'view', 'view', 'view', 'view')
+        on conflict (colaborador_id) do nothing;
+      `,
+      [String(accessRow.colaborador_id)],
+    );
+    return;
+  }
+
+  await sql.unsafe(
+    `
+      delete from gestao_intranet.permissoes_usuario
+      where colaborador_id = $1;
+    `,
+    [String(accessRow.colaborador_id)],
+  );
+}
+
 const REPORTS_AUDIT_ENTITIES = new Set([
   'relatorios',
   'relatorios_unidades',
@@ -1374,6 +1410,8 @@ Deno.serve(async (request) => {
           ],
         );
 
+        await syncIntranetPermissionOnAccessChange(rows[0] || null);
+
         await insertReportsAuditLog({
           action: existingAccess ? 'update' : 'create',
           entity,
@@ -1414,6 +1452,10 @@ Deno.serve(async (request) => {
         }
 
         if (action === 'delete') {
+          await syncIntranetPermissionOnAccessChange({
+            ...accessRow,
+            ativo: false,
+          });
           await insertReportsAuditLog({
             action: 'delete',
             entity,
@@ -1438,6 +1480,7 @@ Deno.serve(async (request) => {
 
         const query = buildUpdateQuery('public', 'acessos_usuario_sistema', id, sanitized);
         const rows = await sql.unsafe(query.text, query.values);
+        await syncIntranetPermissionOnAccessChange(rows[0] || null);
         await insertReportsAuditLog({
           action: 'update',
           entity,
@@ -1574,6 +1617,7 @@ Deno.serve(async (request) => {
           sanitized.ativo ?? true,
         ],
       );
+      await syncIntranetPermissionOnAccessChange(rows[0] || null);
 
       const relatedSystem = await fetchRowById('public', 'sistemas', sistemaId);
       if (relatedSystem?.slug === 'relatorios') {
@@ -1698,6 +1742,9 @@ Deno.serve(async (request) => {
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
       const rows = await sql.unsafe(query.text, query.values);
+      if (entity === 'acessos_usuario_sistema') {
+        await syncIntranetPermissionOnAccessChange(rows[0] || null);
+      }
       const auditDiff = getReportsAuditDiff(beforeRow, rows[0] || null);
       const isReportsAccessEntity =
         entity === 'acessos_usuario_sistema' &&
@@ -1743,6 +1790,12 @@ Deno.serve(async (request) => {
           : false);
       const isReportsCollaboratorEntity =
         entity === 'colaboradores' && await collaboratorHasSystemAccess(id, 'relatorios');
+      if (entity === 'acessos_usuario_sistema') {
+        await syncIntranetPermissionOnAccessChange({
+          ...(beforeRow || {}),
+          ativo: false,
+        });
+      }
       await sql.unsafe(`delete from ${schema}.${table} where id = $1;`, [id]);
       if (shouldAuditReportsEntity(entity) || isReportsAccessEntity || isReportsCollaboratorEntity) {
         await insertReportsAuditLog({

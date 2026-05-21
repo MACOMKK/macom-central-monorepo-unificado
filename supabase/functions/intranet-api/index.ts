@@ -505,33 +505,43 @@ function assertAdmin(user: Record<string, unknown>) {
   }
 }
 
+function createAccessError(message: string, code: string, status = 403) {
+  const error = new Error(message);
+  (error as Error & { code?: string; status?: number }).code = code;
+  (error as Error & { code?: string; status?: number }).status = status;
+  return error;
+}
+
 async function buildCurrentUser(authUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }) {
   const collaborators = await resolveAuthenticatedCollaborators(authUser);
   const collaborator = collaborators.find((row) => row.id === authUser.id) || collaborators[0] || null;
 
-  const fallbackUser = {
-    id: authUser.id,
-    collaborator_id: null,
-    email: authUser.email || null,
-    full_name: String(authUser.user_metadata?.full_name || authUser.email || 'Usuario'),
-    role: 'user',
-    access_level: null,
-    permissions: {},
-    backend_status: 'degraded',
-    backend_reason: 'Nao foi possivel carregar os dados internos da intranet.',
-  };
-
   if (!collaborator) {
-    return {
-      ...fallbackUser,
-      backend_reason: 'Seu login foi validado, mas o cadastro do colaborador nao foi encontrado na intranet.',
-    };
+    throw createAccessError(
+      'Seu usuario autenticado nao esta vinculado a um colaborador da intranet.',
+      'INTRANET_COLLABORATOR_NOT_FOUND',
+    );
+  }
+
+  if (collaborator.status !== 'ativo') {
+    throw createAccessError(
+      'Seu cadastro de colaborador esta inativo e o acesso a intranet foi bloqueado.',
+      'INTRANET_COLLABORATOR_INACTIVE',
+    );
   }
 
   const intranetSystem = await getIntranetSystem();
   const access = intranetSystem?.id ? await getAccessForCollaborator(String(collaborator.id), String(intranetSystem.id)) : null;
+
+  if (!access) {
+    throw createAccessError(
+      'Seu colaborador esta ativo, mas nao possui acesso liberado para a intranet.',
+      'INTRANET_SYSTEM_ACCESS_NOT_GRANTED',
+    );
+  }
+
   const permissionRow = await getPermissionRowForCollaborator(String(collaborator.id));
-  const permission = permissionRow ? mapPermissionRow(permissionRow).modules : {};
+  const permission = permissionRow ? mapPermissionRow(permissionRow).modules : defaultModulePermissions();
 
   return {
     id: authUser.id,
@@ -545,6 +555,19 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
     status: collaborator.status || null,
     permissions: permission,
     backend_status: 'ok',
+    backend_reason: null,
+  };
+}
+
+function defaultModulePermissions() {
+  return {
+    avisos: 'view',
+    links: 'view',
+    colaboradores: 'view',
+    documentos: 'view',
+    calendario: 'view',
+    conhecimento: 'view',
+    feedback: 'view',
   };
 }
 
@@ -1652,10 +1675,6 @@ Deno.serve(async (request) => {
       }
 
       return json({ error: 'Catalogo invalido.' }, 400);
-    }
-
-    if (!context.collaboratorId && action !== 'me') {
-      return json({ error: 'Seu login foi validado, mas o cadastro do colaborador nao foi encontrado na intranet.', code: 'user_not_registered' }, 403);
     }
 
     if (action === 'list') {
