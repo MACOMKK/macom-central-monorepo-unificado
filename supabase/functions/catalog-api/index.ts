@@ -145,6 +145,20 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['id', 'colaborador_id', 'relatorio_id'],
   },
+  avisos_relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'avisos_relatorios',
+    orderBy: 'atualizado_em',
+    orderDirection: 'desc',
+    allowedFields: ['id', 'relatorio_id', 'titulo', 'mensagem', 'versao', 'obrigatorio', 'ativo', 'criado_por'],
+  },
+  avisos_relatorios_aceites: {
+    schema: 'gestao_relatorio',
+    table: 'avisos_relatorios_aceites',
+    orderBy: 'aceito_em',
+    orderDirection: 'desc',
+    allowedFields: ['id', 'aviso_id', 'relatorio_id', 'colaborador_id', 'versao_aceita', 'aceito_em'],
+  },
   logs_auditoria_relatorios: {
     schema: 'gestao_relatorio',
     table: 'logs_auditoria',
@@ -360,6 +374,7 @@ const REPORTS_AUDIT_ENTITIES = new Set([
   'relatorios',
   'relatorios_unidades',
   'permissoes_relatorios',
+  'avisos_relatorios',
 ]);
 const REPORTS_AUDIT_IGNORED_FIELDS = new Set([
   'atualizado_em',
@@ -1194,6 +1209,8 @@ Deno.serve(async (request) => {
           entity === 'relatorios' ||
           entity === 'relatorios_unidades' ||
           entity === 'permissoes_relatorios' ||
+          entity === 'avisos_relatorios' ||
+          entity === 'avisos_relatorios_aceites' ||
           entity === 'logs_auditoria_relatorios'
         ));
 
@@ -1334,6 +1351,142 @@ Deno.serve(async (request) => {
         values,
       );
       return json({ rows });
+    }
+
+    if (action === 'list' && entity === 'avisos_relatorios') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'ar');
+      const whereClauses = [...clauses];
+
+      if (!canManageReportsEntityAsAdmin) {
+        if (!hasReportsAccess) {
+          return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+        }
+
+        whereClauses.push('ar.ativo = true');
+        whereClauses.push(
+          `exists (
+            select 1
+            from gestao_relatorio.permissoes_relatorios pr
+            where pr.relatorio_id = ar.relatorio_id
+              and pr.colaborador_id = any($${values.length + 1}::uuid[])
+          )`,
+        );
+        values.push(authenticatedCollaboratorIds);
+      }
+
+      const whereSql = whereClauses.length ? `where ${whereClauses.join(' and ')}` : '';
+      const rows = await sql.unsafe(
+        `
+          select
+            ar.*,
+            r.titulo as relatorio_titulo
+          from gestao_relatorio.avisos_relatorios ar
+          join gestao_relatorio.relatorios r on r.id = ar.relatorio_id
+          ${whereSql}
+          order by ar.${orderBy} ${orderDirection};
+        `,
+        values,
+      );
+      return json({ rows });
+    }
+
+    if (action === 'list' && entity === 'avisos_relatorios_aceites') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'ara');
+      const whereClauses = [...clauses];
+
+      if (!canManageReportsEntityAsAdmin) {
+        if (!hasReportsAccess) {
+          return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+        }
+
+        whereClauses.push(`ara.colaborador_id = any($${values.length + 1}::uuid[])`);
+        values.push(authenticatedCollaboratorIds);
+      }
+
+      const whereSql = whereClauses.length ? `where ${whereClauses.join(' and ')}` : '';
+      const rows = await sql.unsafe(
+        `
+          select
+            ara.*,
+            ar.titulo as aviso_titulo,
+            r.titulo as relatorio_titulo
+          from gestao_relatorio.avisos_relatorios_aceites ara
+          join gestao_relatorio.avisos_relatorios ar on ar.id = ara.aviso_id
+          join gestao_relatorio.relatorios r on r.id = ara.relatorio_id
+          ${whereSql}
+          order by ara.${orderBy} ${orderDirection};
+        `,
+        values,
+      );
+      return json({ rows });
+    }
+
+    if (action === 'create' && entity === 'avisos_relatorios_aceites' && !canManageReportsEntityAsAdmin) {
+      if (!hasReportsAccess) {
+        return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
+      }
+
+      const sanitized = sanitizePayload(entity, payload || {});
+      const avisoId = typeof sanitized.aviso_id === 'string' ? sanitized.aviso_id : null;
+      if (!avisoId) {
+        return json({ error: 'Aviso obrigatorio.' }, 400);
+      }
+
+      const noticeRows = await sql.unsafe(
+        `
+          select *
+          from gestao_relatorio.avisos_relatorios
+          where id = $1
+            and ativo = true
+          limit 1;
+        `,
+        [avisoId],
+      );
+      const notice = noticeRows[0] || null;
+
+      if (!notice) {
+        return json({ error: 'Aviso ativo nao encontrado.' }, 404);
+      }
+
+      const allowedRows = await sql.unsafe(
+        `
+          select 1
+          from gestao_relatorio.permissoes_relatorios pr
+          where pr.relatorio_id = $1
+            and pr.colaborador_id = any($2::uuid[])
+          limit 1;
+        `,
+        [notice.relatorio_id, authenticatedCollaboratorIds],
+      );
+
+      if (!allowedRows[0]) {
+        return json({ error: 'Voce nao possui permissao para aceitar avisos deste relatorio.' }, 403);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into gestao_relatorio.avisos_relatorios_aceites (
+            aviso_id,
+            relatorio_id,
+            colaborador_id,
+            versao_aceita,
+            aceito_em
+          )
+          values ($1, $2, $3, $4, now())
+          on conflict (aviso_id, colaborador_id)
+          do update set
+            relatorio_id = excluded.relatorio_id,
+            versao_aceita = excluded.versao_aceita,
+            aceito_em = now(),
+            atualizado_em = now()
+          returning *;
+        `,
+        [notice.id, notice.relatorio_id, authenticatedCollaboratorId, notice.versao],
+      );
+
+      return json({ row: rows[0] || null });
     }
 
     if (!isGlobalAdmin && isReportsAdmin) {

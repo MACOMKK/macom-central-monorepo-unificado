@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
-import { FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Bell, FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
 import AdminGuard from '@/components/admin/AdminGuard';
+import ReportNoticeForm from '@/components/admin/ReportNoticeForm';
 import ReportForm from '@/components/admin/ReportForm';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   Input,
@@ -47,6 +49,8 @@ export default function ManageReports() {
   const [activeUnit, setActiveUnit] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
+  const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
+  const [selectedReportForNotice, setSelectedReportForNotice] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: reports = [], isLoading } = useQuery({
@@ -96,6 +100,17 @@ export default function ManageReports() {
     setDialogOpen(false);
     setEditingReport(null);
     queryClient.invalidateQueries({ queryKey: ['all-reports'] });
+  };
+
+  const handleManageNotice = (report) => {
+    setSelectedReportForNotice(report);
+    setNoticeDialogOpen(true);
+  };
+
+  const handleNoticeSaved = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['report-notice', selectedReportForNotice?.id] });
+    setNoticeDialogOpen(false);
+    setSelectedReportForNotice(null);
   };
 
   return (
@@ -241,6 +256,20 @@ export default function ManageReports() {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <button
+                            onClick={() => handleManageNotice(report)}
+                            className="p-2 transition-colors"
+                            style={{ color: '#888' }}
+                            title="Gerenciar aviso"
+                            onMouseEnter={(event) => {
+                              event.currentTarget.style.color = '#E30613';
+                            }}
+                            onMouseLeave={(event) => {
+                              event.currentTarget.style.color = '#888';
+                            }}
+                          >
+                            <Bell className="h-4 w-4" />
+                          </button>
+                          <button
                             onClick={() => handleEdit(report)}
                             className="p-2 transition-colors"
                             style={{ color: '#888' }}
@@ -285,6 +314,33 @@ export default function ManageReports() {
             </DialogTitle>
           </DialogHeader>
           <ReportForm report={editingReport} onSaved={handleSaved} onCancel={() => setDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={noticeDialogOpen}
+        onOpenChange={(open) => {
+          setNoticeDialogOpen(open);
+          if (!open) {
+            setSelectedReportForNotice(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-wider">Aviso do Relatorio</DialogTitle>
+            <DialogDescription>
+              Configure a mensagem exibida antes da abertura do relatorio para usuarios com acesso.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedReportForNotice ? (
+            <ReportNoticeForm
+              report={selectedReportForNotice}
+              user={user}
+              onSaved={handleNoticeSaved}
+              onCancel={() => setNoticeDialogOpen(false)}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </AdminGuard>

@@ -217,6 +217,50 @@ const mapReportPermissionPayload = (payload = {}) => ({
   relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
 });
 
+const mapReportNoticeRow = (row = {}) => ({
+  id: row.id,
+  report_id: row.relatorio_id || null,
+  report_title: row.relatorio_titulo || '',
+  title: row.titulo || '',
+  message: row.mensagem || '',
+  version: Number(row.versao || 1),
+  required: row.obrigatorio !== false,
+  active: row.ativo !== false,
+  created_by: row.criado_por || null,
+  created_at: row.criado_em || null,
+  updated_at: row.atualizado_em || null,
+  raw: row,
+});
+
+const mapReportNoticePayload = (payload = {}) => ({
+  relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
+  titulo: payload.title ?? payload.titulo ?? '',
+  mensagem: payload.message ?? payload.mensagem ?? '',
+  versao: payload.version ?? payload.versao ?? 1,
+  obrigatorio: payload.required ?? payload.obrigatorio ?? true,
+  ativo: payload.active ?? payload.ativo ?? true,
+  criado_por: payload.created_by ?? payload.criado_por ?? null,
+});
+
+const mapReportNoticeAcceptanceRow = (row = {}) => ({
+  id: row.id,
+  notice_id: row.aviso_id || null,
+  report_id: row.relatorio_id || null,
+  collaborator_id: row.colaborador_id || null,
+  accepted_version: Number(row.versao_aceita || 0),
+  accepted_at: row.aceito_em || null,
+  notice_title: row.aviso_titulo || '',
+  report_title: row.relatorio_titulo || '',
+  raw: row,
+});
+
+const mapReportNoticeAcceptancePayload = (payload = {}) => ({
+  aviso_id: payload.notice_id ?? payload.aviso_id ?? null,
+  relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
+  colaborador_id: payload.collaborator_id ?? payload.colaborador_id ?? payload.user_id ?? null,
+  versao_aceita: payload.accepted_version ?? payload.versao_aceita ?? null,
+});
+
 const parseJsonField = (value) => {
   if (value == null || value === '') return null;
   if (typeof value === 'object') return value;
@@ -732,6 +776,55 @@ const createCatalogAuditLogEntity = () => ({
   },
 });
 
+const createCatalogReportNoticeEntity = () => ({
+  list: async (sort = '-updated_at') => {
+    const rows = await catalogApi.avisos_relatorios.list();
+    return sortRows(rows.map(mapReportNoticeRow), sort);
+  },
+  filter: async (filters = {}, sort = '-updated_at') => {
+    const payload = {};
+    if (filters.id) payload.id = filters.id;
+    if (filters.report_id || filters.relatorio_id) payload.relatorio_id = filters.report_id || filters.relatorio_id;
+    if (filters.active !== undefined || filters.ativo !== undefined) payload.ativo = filters.active ?? filters.ativo;
+    const rows = await catalogApi.avisos_relatorios.list({ filters: payload });
+    return sortRows(rows.map(mapReportNoticeRow), sort);
+  },
+  create: async (payload) => {
+    const row = await catalogApi.avisos_relatorios.create(mapReportNoticePayload(payload));
+    return mapReportNoticeRow(row);
+  },
+  update: async (id, payload) => {
+    const row = await catalogApi.avisos_relatorios.update(id, mapReportNoticePayload(payload));
+    return mapReportNoticeRow(row);
+  },
+  delete: async (id) => {
+    await catalogApi.avisos_relatorios.remove(id);
+    return { id };
+  },
+});
+
+const createCatalogReportNoticeAcceptanceEntity = () => ({
+  list: async (sort = '-accepted_at') => {
+    const rows = await catalogApi.avisos_relatorios_aceites.list();
+    return sortRows(rows.map(mapReportNoticeAcceptanceRow), sort);
+  },
+  filter: async (filters = {}, sort = '-accepted_at') => {
+    const payload = {};
+    if (filters.id) payload.id = filters.id;
+    if (filters.notice_id || filters.aviso_id) payload.aviso_id = filters.notice_id || filters.aviso_id;
+    if (filters.report_id || filters.relatorio_id) payload.relatorio_id = filters.report_id || filters.relatorio_id;
+    if (filters.collaborator_id || filters.colaborador_id || filters.user_id) {
+      payload.colaborador_id = filters.collaborator_id || filters.colaborador_id || filters.user_id;
+    }
+    const rows = await catalogApi.avisos_relatorios_aceites.list({ filters: payload });
+    return sortRows(rows.map(mapReportNoticeAcceptanceRow), sort);
+  },
+  create: async (payload) => {
+    const row = await catalogApi.avisos_relatorios_aceites.create(mapReportNoticeAcceptancePayload(payload));
+    return mapReportNoticeAcceptanceRow(row);
+  },
+});
+
 export const dataClient = {
   auth: {
     me: async (sessionOverride = null) => {
@@ -823,6 +916,8 @@ export const dataClient = {
   },
   entities: {
     Report: createCatalogReportEntity(),
+    ReportNotice: createCatalogReportNoticeEntity(),
+    ReportNoticeAcceptance: createCatalogReportNoticeAcceptanceEntity(),
     Unit: createCentralUnitEntity(),
     ReportPermission: createCatalogReportPermissionEntity(),
     User: createCentralUserEntity(),

@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
-import { Skeleton, toast } from '@macom/ui';
+import { Button, Skeleton, toast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 
 export default function ReportViewer() {
   const { user } = useAuth();
   const { id } = useParams();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [fullscreen, setFullscreen] = useState(false);
   const rotateToastRef = useRef(null);
   const previewReport = location.state?.reportPreview || null;
@@ -73,6 +74,47 @@ export default function ReportViewer() {
     },
     enabled: !!id && !!user?.id,
   });
+
+  const { data: notices = [], isLoading: isNoticeLoading } = useQuery({
+    queryKey: ['report-notice-active', id, user?.id],
+    queryFn: () => dataClient.entities.ReportNotice.filter({ report_id: id, active: true }),
+    enabled: !!report?.id && !!user?.id,
+  });
+
+  const activeNotice = useMemo(() => notices[0] || null, [notices]);
+
+  const { data: acceptances = [], isLoading: isAcceptanceLoading } = useQuery({
+    queryKey: ['report-notice-acceptance', activeNotice?.id, user?.id],
+    queryFn: () =>
+      dataClient.entities.ReportNoticeAcceptance.filter({
+        notice_id: activeNotice.id,
+        collaborator_id: user.id,
+      }),
+    enabled: !!activeNotice?.id && !!user?.id,
+  });
+
+  const acceptance = useMemo(() => acceptances[0] || null, [acceptances]);
+
+  const acceptNoticeMutation = useMutation({
+    mutationFn: () =>
+      dataClient.entities.ReportNoticeAcceptance.create({
+        notice_id: activeNotice.id,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['report-notice-acceptance', activeNotice?.id, user?.id],
+      });
+    },
+  });
+
+  const noticeRequiresAcceptance = activeNotice?.required !== false;
+  const hasAcceptedCurrentVersion =
+    (acceptance?.accepted_version || 0) >= (activeNotice?.version || 0);
+  const isBlockingStateLoading =
+    !isLoading && !!report && (isNoticeLoading || (activeNotice && noticeRequiresAcceptance && isAcceptanceLoading));
+  const shouldBlockForNotice = Boolean(
+    report && activeNotice && noticeRequiresAcceptance && !hasAcceptedCurrentVersion
+  );
 
   const iframeSrc = useMemo(() => {
     if (!report?.embed_code) return null;
@@ -166,9 +208,56 @@ export default function ReportViewer() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {isLoading ? (
+        {isLoading || isBlockingStateLoading ? (
           <div className="p-5 md:p-6" style={{ background: '#f2f2f2', minHeight: fullscreen ? 'calc(100vh - 56px)' : 'calc(100vh - 120px)' }}>
             <Skeleton className="h-full min-h-[70vh] w-full bg-black/10" />
+          </div>
+        ) : shouldBlockForNotice ? (
+          <div
+            className="flex items-center justify-center px-5 py-8 md:px-8"
+            style={{ background: '#f2f2f2', minHeight: fullscreen ? 'calc(100vh - 56px)' : 'calc(100vh - 120px)' }}
+          >
+            <div className="w-full max-w-3xl bg-white shadow-sm" style={{ borderTop: '4px solid #E30613' }}>
+              <div className="border-b border-slate-200 px-6 py-5">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-[#E30613]/10 p-3">
+                    <AlertTriangle className="h-5 w-5 text-[#E30613]" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: '#E30613' }}>
+                      Aviso de atualizacao
+                    </p>
+                    <h2 className="mt-1 text-xl font-black uppercase tracking-wide text-slate-900">
+                      {activeNotice.title}
+                    </h2>
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Leia e confirme antes de abrir este relatorio. Versao {activeNotice.version}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-6">
+                <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700">{activeNotice.message}</div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-slate-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-end">
+                <Link
+                  to="/"
+                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-600 transition-colors hover:text-slate-900"
+                >
+                  Voltar
+                </Link>
+                <Button
+                  type="button"
+                  onClick={() => acceptNoticeMutation.mutate()}
+                  disabled={acceptNoticeMutation.isPending}
+                  className="bg-[#E30613] text-white hover:bg-[#b80010]"
+                >
+                  {acceptNoticeMutation.isPending ? 'Confirmando...' : 'Li e estou ciente'}
+                </Button>
+              </div>
+            </div>
           </div>
         ) : iframeSrc ? (
           <iframe

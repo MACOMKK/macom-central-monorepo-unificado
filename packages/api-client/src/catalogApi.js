@@ -322,6 +322,38 @@ export const catalogApi = {
       return true;
     },
   },
+  avisos_relatorios: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'avisos_relatorios', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'avisos_relatorios', { payload });
+      return result.row || null;
+    },
+    async update(id, payload) {
+      const result = await invokeCatalog('update', 'avisos_relatorios', { id, payload });
+      return result.row || null;
+    },
+    async remove(id) {
+      await invokeCatalog('delete', 'avisos_relatorios', { id });
+      return true;
+    },
+  },
+  avisos_relatorios_aceites: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'avisos_relatorios_aceites', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async create(payload) {
+      const result = await invokeCatalog('create', 'avisos_relatorios_aceites', { payload });
+      return result.row || null;
+    },
+  },
   logs_auditoria_relatorios: {
     async list(options = {}) {
       const result = await invokeCatalog('list', 'logs_auditoria_relatorios', {
