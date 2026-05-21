@@ -68,7 +68,7 @@ function buildEntity(entity) {
         orderBy,
         limit,
       });
-      return result.data || [];
+      return result.rows || result.data || [];
     },
     async filter(filters, orderBy, limit) {
       const result = await invokeIntranet({
@@ -79,7 +79,7 @@ function buildEntity(entity) {
         orderBy,
         limit,
       });
-      return result.data || [];
+      return result.rows || result.data || [];
     },
     async create(payload) {
       const result = await invokeIntranet({
@@ -88,7 +88,7 @@ function buildEntity(entity) {
         entity,
         payload,
       });
-      return result.data || null;
+      return result.row || result.data || null;
     },
     async update(id, payload) {
       const result = await invokeIntranet({
@@ -98,7 +98,7 @@ function buildEntity(entity) {
         id,
         payload,
       });
-      return result.data || null;
+      return result.row || result.data || null;
     },
     async delete(id) {
       const result = await invokeIntranet({
@@ -107,7 +107,8 @@ function buildEntity(entity) {
         entity,
         id,
       });
-      return result.data?.success ? { id } : result.data;
+      const payload = result.data || result;
+      return payload?.success ? { id } : payload;
     },
   };
 }
@@ -119,7 +120,7 @@ export const intranetApi = {
         resource: 'auth',
         action: 'me',
       }, accessToken);
-      return result.data || null;
+      return result.user || result.data || null;
     },
   },
   catalogs: {
@@ -128,14 +129,14 @@ export const intranetApi = {
         resource: 'catalog',
         action: 'listDepartments',
       });
-      return result.data || [];
+      return result.rows || result.data || [];
     },
     async listUnits() {
       const result = await invokeIntranet({
         resource: 'catalog',
         action: 'listUnits',
       });
-      return result.data || [];
+      return result.rows || result.data || [];
     },
   },
   entities: new Proxy(

@@ -17,9 +17,16 @@ const DATE_BADGE_COLORS = [
 
 const CONFETTI = ['🎊', '🎉', '✨', '🎈', '🎁'];
 
+function parseBirthDate(value) {
+  if (!value) return null;
+  const normalized = typeof value === 'string' ? value.slice(0, 10) : String(value).slice(0, 10);
+  const parsed = new Date(`${normalized}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function Confetti() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-xl opacity-60">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl opacity-60">
       {[...Array(6)].map((_, i) => (
         <span
           key={i}
@@ -50,14 +57,13 @@ export default function MonthlyBirthdaysWidget() {
   const currentMonth = today.getMonth();
 
   const birthdaysThisMonth = employees
-    .filter(emp => {
-      if (!emp.birth_date) return false;
-      const birthDate = new Date(emp.birth_date + 'T00:00:00');
-      return birthDate.getMonth() === currentMonth;
+    .filter((employee) => {
+      const birthDate = parseBirthDate(employee.birth_date);
+      return birthDate ? birthDate.getMonth() === currentMonth : false;
     })
     .sort((a, b) => {
-      const dayA = new Date(a.birth_date + 'T00:00:00').getDate();
-      const dayB = new Date(b.birth_date + 'T00:00:00').getDate();
+      const dayA = parseBirthDate(a.birth_date)?.getDate() || 0;
+      const dayB = parseBirthDate(b.birth_date)?.getDate() || 0;
       return dayA - dayB;
     });
 
@@ -70,87 +76,83 @@ export default function MonthlyBirthdaysWidget() {
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: '#141414' }}>
+    <div className="overflow-hidden rounded-2xl" style={{ background: '#141414' }}>
       <div className="flex items-stretch">
-        {/* Left panel */}
-        <div className="flex flex-col justify-center px-6 py-8 min-w-[180px] shrink-0">
-          <h2 className="text-white font-bold text-2xl leading-tight mb-2">
-            Aniversariantes<br />do Mês
+        <div className="flex min-w-[180px] shrink-0 flex-col justify-center px-6 py-8">
+          <h2 className="mb-2 text-2xl font-bold leading-tight text-white">
+            Aniversariantes
+            <br />
+            do Mês
           </h2>
-          <p className="text-gray-400 text-sm capitalize">
+          <p className="text-sm capitalize text-gray-400">
             {format(today, "MMMM 'de' yyyy", { locale: ptBR })}
           </p>
-          <p className="text-gray-500 text-xs mt-1">
+          <p className="mt-1 text-xs text-gray-500">
             {birthdaysThisMonth.length} {birthdaysThisMonth.length === 1 ? 'aniversariante' : 'aniversariantes'}
           </p>
         </div>
 
-        {/* Scroll left button */}
         <button
           onClick={() => scroll(-1)}
-          className="flex items-center justify-center w-8 shrink-0 text-gray-500 hover:text-white transition-colors"
+          className="flex w-8 shrink-0 items-center justify-center text-gray-500 transition-colors hover:text-white"
         >
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="h-5 w-5" />
         </button>
 
-        {/* Cards carousel */}
         <div
           ref={scrollRef}
-          className="flex gap-3 overflow-x-auto py-5 pr-4 scrollbar-hide flex-1"
+          className="flex flex-1 gap-3 overflow-x-auto py-5 pr-4 scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {birthdaysThisMonth.map((emp, idx) => {
-            const birthDate = new Date(emp.birth_date + 'T00:00:00');
+          {birthdaysThisMonth.map((employee, index) => {
+            const birthDate = parseBirthDate(employee.birth_date);
+            if (!birthDate) return null;
+
             const isToday =
               birthDate.getDate() === today.getDate() &&
               birthDate.getMonth() === today.getMonth();
-            const colorIdx = idx % AVATAR_COLORS.length;
+            const colorIndex = index % AVATAR_COLORS.length;
 
             return (
               <div
-                key={emp.id}
-                className="relative flex flex-col items-center gap-2 rounded-xl p-4 shrink-0 w-[148px]"
+                key={employee.id}
+                className="relative flex w-[148px] shrink-0 flex-col items-center gap-2 rounded-xl p-4"
                 style={{ background: '#1e1e1e' }}
               >
                 <Confetti />
 
-                {/* Avatar */}
-                <div className={`w-16 h-16 rounded-full ${AVATAR_COLORS[colorIdx]} flex items-center justify-center text-white font-bold text-2xl shrink-0 z-10`}>
-                  {emp.photo_url ? (
-                    <img src={emp.photo_url} alt={emp.name} className="w-full h-full rounded-full object-cover" />
+                <div className={`z-10 flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${AVATAR_COLORS[colorIndex]} text-2xl font-bold text-white`}>
+                  {employee.photo_url ? (
+                    <img src={employee.photo_url} alt={employee.name} className="h-full w-full rounded-full object-cover" />
                   ) : (
-                    emp.name?.charAt(0)
+                    employee.name?.charAt(0)
                   )}
                 </div>
 
-                {/* Name */}
-                <p className="text-white font-bold text-sm text-center leading-tight z-10">
-                  {emp.name}{isToday ? ' 🎂' : ''}
+                <p className="z-10 text-center text-sm font-bold leading-tight text-white">
+                  {employee.name}
+                  {isToday ? ' 🎂' : ''}
                 </p>
 
-                {/* Date badge */}
-                <span className={`${DATE_BADGE_COLORS[colorIdx]} text-white text-xs font-semibold px-3 py-0.5 rounded-full z-10`}>
+                <span className={`${DATE_BADGE_COLORS[colorIndex]} z-10 rounded-full px-3 py-0.5 text-xs font-semibold text-white`}>
                   {format(birthDate, "dd 'de' MMM", { locale: ptBR })}
                 </span>
 
-                {/* Position */}
-                {emp.position && (
-                  <p className="text-gray-400 text-xs text-center truncate w-full z-10">{emp.position}</p>
-                )}
+                {employee.position ? (
+                  <p className="z-10 w-full truncate text-center text-xs text-gray-400">{employee.position}</p>
+                ) : null}
               </div>
             );
           })}
         </div>
 
-        {/* Scroll right button */}
         <button
           onClick={() => scroll(1)}
-          className="flex items-center justify-center w-8 shrink-0 text-gray-500 hover:text-white transition-colors pr-2"
+          className="flex w-8 shrink-0 items-center justify-center pr-2 text-gray-500 transition-colors hover:text-white"
         >
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight className="h-5 w-5" />
         </button>
       </div>
     </div>
   );
 }
-

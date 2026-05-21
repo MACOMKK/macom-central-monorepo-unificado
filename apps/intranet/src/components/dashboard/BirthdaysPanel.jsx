@@ -11,6 +11,13 @@ const AVATAR_COLORS = [
   '#8b5cf6', '#eab308', '#14b8a6', '#ef4444',
 ];
 
+function parseBirthDate(value) {
+  if (!value) return null;
+  const normalized = typeof value === 'string' ? value.slice(0, 10) : String(value).slice(0, 10);
+  const parsed = new Date(`${normalized}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export default function BirthdaysPanel() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees'],
@@ -23,12 +30,12 @@ export default function BirthdaysPanel() {
 
   const birthdaysThisMonth = employees
     .filter((employee) => {
-      if (!employee.birth_date) return false;
-      return new Date(employee.birth_date + 'T00:00:00').getMonth() === currentMonth;
+      const birthDate = parseBirthDate(employee.birth_date);
+      return birthDate ? birthDate.getMonth() === currentMonth : false;
     })
     .sort((a, b) => {
-      const dayA = new Date(a.birth_date + 'T00:00:00').getDate();
-      const dayB = new Date(b.birth_date + 'T00:00:00').getDate();
+      const dayA = parseBirthDate(a.birth_date)?.getDate() || 0;
+      const dayB = parseBirthDate(b.birth_date)?.getDate() || 0;
       return dayA - dayB;
     })
     .slice(0, 5);
@@ -60,8 +67,9 @@ export default function BirthdaysPanel() {
       ) : (
         <div className="space-y-1 px-4 py-3">
           {birthdaysThisMonth.map((employee, index) => {
-            const birthDate = new Date(employee.birth_date + 'T00:00:00');
-            const employeeDayStr = employee.birth_date.slice(5);
+            const birthDate = parseBirthDate(employee.birth_date);
+            if (!birthDate) return null;
+            const employeeDayStr = format(birthDate, 'MM-dd');
             const isBirthday = employeeDayStr === todayStr;
             const color = AVATAR_COLORS[index % AVATAR_COLORS.length];
 

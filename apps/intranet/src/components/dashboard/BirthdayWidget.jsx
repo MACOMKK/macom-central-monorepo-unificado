@@ -4,6 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Cake } from 'lucide-react';
 
+function normalizeBirthDateKey(value) {
+  if (!value) return null;
+  const normalized = typeof value === 'string' ? value.slice(0, 10) : String(value).slice(0, 10);
+  const parsed = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, 'MM-dd');
+}
+
 export default function BirthdayWidget() {
   const { data: employees = [] } = useQuery({
     queryKey: ['employees-birthdays'],
@@ -12,8 +20,7 @@ export default function BirthdayWidget() {
 
   const today = format(new Date(), 'MM-dd');
   const birthdays = employees.filter((employee) => {
-    if (!employee.birth_date) return false;
-    return employee.birth_date.slice(5) === today;
+    return normalizeBirthDateKey(employee.birth_date) === today;
   });
 
   if (birthdays.length === 0) return null;

@@ -162,7 +162,8 @@ const ENTITY_CONFIG = {
       id: 'id',
       category: 'categoria',
     },
-    createFields: ['name', 'url', 'description', 'icon', 'category', 'order'],
+    createFields: ['name', 'url', 'description', 'icon', 'category', 'order', 'show_on_dashboard'],
+    updateFields: ['name', 'url', 'description', 'icon', 'category', 'order', 'show_on_dashboard'],
   },
   UserPermission: {
     schema: INTRANET_SCHEMA,
@@ -671,6 +672,7 @@ function mapQuickLink(row: Record<string, unknown>, creatorMap = new Map<string,
     icon: row.icone,
     category: row.categoria,
     order: row.ordem,
+    show_on_dashboard: row.mostrar_na_dashboard,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -758,7 +760,7 @@ function mapEmployee(
     unit_name: unit?.city || unit?.name || null,
     unit_id: row.unidade_id,
     photo_url: profileRow?.foto_url || null,
-    birth_date: profileRow?.data_nascimento || null,
+    birth_date: row.data_nascimento || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
   };
@@ -850,14 +852,14 @@ async function listEmployees() {
   const [employees, profiles, departments, units, accessRows, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
       `
-        select id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, status, criado_em, atualizado_em
+        select id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, data_nascimento, status, criado_em, atualizado_em
         from public.colaboradores
         order by nome asc;
       `,
     ),
     runSql<Record<string, unknown>>(
       `
-        select colaborador_id, foto_url, data_nascimento
+        select colaborador_id, foto_url
         from gestao_intranet.perfis_colaboradores;
       `,
     ),
@@ -1119,8 +1121,8 @@ async function createQuickLink(payload: Record<string, unknown>, collaboratorId:
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.links_uteis (
-        nome, url, descricao, icone, categoria, ordem, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7)
+        nome, url, descricao, icone, categoria, ordem, mostrar_na_dashboard, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8)
       returning *;
     `,
     [
@@ -1130,8 +1132,34 @@ async function createQuickLink(payload: Record<string, unknown>, collaboratorId:
       payload.icon || null,
       payload.category || 'sistema',
       payload.order || 0,
+      payload.show_on_dashboard || false,
       collaboratorId,
     ],
+  );
+  const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  return mapQuickLink(rows[0], creators);
+}
+
+async function updateQuickLink(id: string, payload: Record<string, unknown>) {
+  const updates: string[] = [];
+  const values: unknown[] = [id];
+  const assign = (column: string, value: unknown) => {
+    values.push(value);
+    updates.push(`"${column}" = $${values.length}`);
+  };
+
+  if ('name' in payload) assign('nome', payload.name);
+  if ('url' in payload) assign('url', payload.url);
+  if ('description' in payload) assign('descricao', payload.description);
+  if ('icon' in payload) assign('icone', payload.icon);
+  if ('category' in payload) assign('categoria', payload.category);
+  if ('order' in payload) assign('ordem', payload.order);
+  if ('show_on_dashboard' in payload) assign('mostrar_na_dashboard', payload.show_on_dashboard);
+  assign('atualizado_em', new Date().toISOString());
+
+  const rows = await runSql<Record<string, unknown>>(
+    `update gestao_intranet.links_uteis set ${updates.join(', ')} where id = $1 returning *;`,
+    values,
   );
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
   return mapQuickLink(rows[0], creators);
@@ -1279,20 +1307,31 @@ async function updateEmployee(id: string, payload: Record<string, unknown>) {
 
   await runSql(
     `
-      insert into gestao_intranet.perfis_colaboradores (colaborador_id, foto_url, data_nascimento, atualizado_em)
-      values ($1,$2,$3,now())
+      insert into gestao_intranet.perfis_colaboradores (colaborador_id, foto_url, atualizado_em)
+      values ($1,$2,now())
       on conflict (colaborador_id) do update
       set foto_url = excluded.foto_url,
-          data_nascimento = excluded.data_nascimento,
           atualizado_em = now();
     `,
-    [id, payload.photo_url || null, payload.birth_date || null],
+    [id, payload.photo_url || null],
   );
+
+  if ('birth_date' in payload) {
+    await runSql(
+      `
+        update public.colaboradores
+        set data_nascimento = $2,
+            atualizado_em = now()
+        where id = $1;
+      `,
+      [id, payload.birth_date || null],
+    );
+  }
 
   const [profiles, departments, units, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
       `
-        select colaborador_id, foto_url, data_nascimento
+        select colaborador_id, foto_url
         from gestao_intranet.perfis_colaboradores
         where colaborador_id = $1
         limit 1;
@@ -1519,6 +1558,8 @@ async function updateEntity(entity: string, id: string, payload: Record<string, 
       return updateFeedback(id, payload);
     case 'KnowledgeBase':
       return updateKnowledgeBase(id, payload);
+    case 'QuickLink':
+      return updateQuickLink(id, payload);
     case 'UserPermission':
       return updateUserPermission(id, payload);
     default:
