@@ -322,7 +322,7 @@ export default function QuickLinks() {
                         {link.show_on_dashboard && !canEdit && (
                           <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#FF8C00]/10 px-2.5 py-1 text-[11px] font-medium text-[#C96C00]">
                             <LayoutGrid className="h-3 w-3" />
-                            Dashboard
+                            Home
                           </div>
                         )}
                       </a>

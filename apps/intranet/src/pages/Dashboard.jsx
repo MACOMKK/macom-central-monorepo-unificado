@@ -20,7 +20,7 @@ export default function Dashboard() {
 
       {isBackendDegraded ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-          O login foi liberado apenas com o Supabase Auth. Os dados da intranet estao temporariamente indisponiveis, entao a dashboard carregou em modo reduzido para evitar novas requisicoes com erro.
+          O login foi liberado apenas com o Supabase Auth. Os dados da intranet estao temporariamente indisponiveis, entao a Home carregou em modo reduzido para evitar novas requisicoes com erro.
         </div>
       ) : (
         <>
