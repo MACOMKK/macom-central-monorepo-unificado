@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -7,7 +7,6 @@ import {
   Users,
   FileText,
   CalendarDays,
-  Menu,
   X,
   LogOut
 } from 'lucide-react';
@@ -23,42 +22,35 @@ const navItems = [
   { path: '/calendario', label: 'Calend\u00e1rio', icon: CalendarDays },
 ];
 
-export default function MobileNav() {
-  const [open, setOpen] = useState(false);
+export default function MobileNav({ open = false, onClose }) {
   const location = useLocation();
 
   return (
     <>
-      <div className="fixed top-0 left-0 right-0 h-14 bg-sidebar text-white flex items-center justify-between px-4 z-50 lg:hidden">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-xs">I</span>
-          </div>
-          <span className="font-bold text-sm">Intranet</span>
-        </div>
-        <button onClick={() => setOpen(!open)}>
-          {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
       {open && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />
       )}
 
       <div
         className={cn(
-          'fixed top-14 left-0 right-0 bg-sidebar text-sidebar-foreground z-50 transition-all duration-300 lg:hidden overflow-hidden',
+          'fixed left-0 right-0 top-16 z-50 overflow-hidden bg-sidebar text-sidebar-foreground transition-all duration-300 lg:hidden',
           open ? 'max-h-[80vh] border-b border-sidebar-border' : 'max-h-0'
         )}
       >
         <nav className="p-3 space-y-1">
+          <div className="mb-2 flex items-center justify-between px-2 py-1 text-white/80">
+            <span className="text-xs font-bold uppercase tracking-[0.24em]">Menu</span>
+            <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-white/10">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={() => setOpen(false)}
+                onClick={onClose}
                 className={cn(
                   'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors',
                   isActive

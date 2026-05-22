@@ -1,0 +1,255 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+
+import { appClient } from '@/api/client';
+import { Skeleton } from '@macom/ui';
+
+const categoryLabels = {
+  geral: 'Comunicado',
+  rh: 'RH',
+  ti: 'TI',
+  financeiro: 'Financeiro',
+  vendas: 'Vendas',
+  pos_vendas: 'Pos-vendas',
+};
+
+const priorityStyles = {
+  urgente: {
+    tag: 'Urgente',
+    accent: '#E30613',
+    background:
+      'linear-gradient(104deg, #1B1F28 0%, #2B3140 34%, #4B5563 72%, #C7CDD6 100%)',
+  },
+  alta: {
+    tag: 'Importante',
+    accent: '#E30613',
+    background:
+      'linear-gradient(104deg, #1E232D 0%, #303746 34%, #566170 72%, #D5DAE2 100%)',
+  },
+  media: {
+    tag: 'Aviso',
+    accent: '#E30613',
+    background:
+      'linear-gradient(104deg, #202530 0%, #353D4D 34%, #5C6675 72%, #DDE2E8 100%)',
+  },
+  baixa: {
+    tag: 'Atualizacao',
+    accent: '#E30613',
+    background:
+      'linear-gradient(104deg, #252A34 0%, #3A4252 34%, #68717E 72%, #E3E7EC 100%)',
+  },
+};
+
+function getSlides(announcements) {
+  return [...announcements]
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_date || 0).getTime() - new Date(a.created_date || 0).getTime();
+    })
+    .slice(0, 5);
+}
+
+function extractSummary(content) {
+  if (!content) return '';
+  return String(content).replace(/\s+/g, ' ').trim();
+}
+
+function truncateText(text, maxLength) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}...`;
+}
+
+function EmptyHighlightState({ title, description, dark = false }) {
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div
+        className="relative min-h-[320px] overflow-hidden px-8 py-10 sm:px-12"
+        style={{
+          background: dark
+            ? 'linear-gradient(104deg, #1E232D 0%, #303746 34%, #566170 72%, #D5DAE2 100%)'
+            : 'linear-gradient(104deg, #F7F8FB 0%, #FFFFFF 54%, #EEF2F7 100%)',
+        }}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_24%),radial-gradient(circle_at_78%_46%,rgba(227,6,19,0.12),transparent_20%),radial-gradient(circle_at_bottom_left,rgba(227,6,19,0.08),transparent_22%)]" />
+        <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-gradient-to-l from-white/8 via-white/4 to-transparent lg:block" />
+        <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
+        <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
+
+        <div className="relative grid min-h-[320px] items-center gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+          <div className="max-w-2xl">
+              <span className="inline-flex rounded-full bg-[#E30613] px-4 py-1 text-xs font-bold text-white">
+                Intranet
+              </span>
+            <h1
+              className={`mt-6 max-w-[650px] text-3xl font-black leading-[1.02] sm:text-5xl ${
+                dark ? 'text-white' : 'text-[#0B1B3D]'
+              }`}
+            >
+              {title}
+            </h1>
+            <p
+              className={`mt-4 max-w-[620px] text-sm leading-7 sm:text-lg ${
+                dark ? 'text-white/80' : 'text-slate-500'
+              }`}
+            >
+              {description}
+            </p>
+            {!dark ? (
+              <div className="mt-8">
+                <Link
+                  to="/avisos"
+                  className="inline-flex items-center rounded-2xl bg-[#0B1B3D] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#102754]"
+                >
+                  Ir para Mural de Avisos
+                </Link>
+              </div>
+            ) : null}
+          </div>
+          <div className="hidden h-full min-h-[240px] lg:block" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function HomeHighlightsCarousel({ disabled = false }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const { data: announcements = [], isLoading } = useQuery({
+    queryKey: ['home-highlights'],
+    queryFn: () => appClient.entities.Announcement.list('-created_date', 10),
+    enabled: !disabled,
+  });
+
+  const slides = useMemo(() => getSlides(announcements), [announcements]);
+
+  useEffect(() => {
+    if (slides.length <= 1) return undefined;
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % slides.length);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (activeIndex >= slides.length) {
+      setActiveIndex(0);
+    }
+  }, [activeIndex, slides.length]);
+
+  if (disabled) {
+    return (
+      <EmptyHighlightState
+        dark
+        title="Comunicacao interna em destaque"
+        description="Assim que os dados da intranet estiverem disponiveis novamente, os avisos publicados aparecerao aqui em formato de destaque."
+      />
+    );
+  }
+
+  if (isLoading) {
+    return <Skeleton className="h-[352px] w-full rounded-[28px]" />;
+  }
+
+  if (slides.length === 0) {
+    return (
+      <EmptyHighlightState
+        title="Bem-vindo a Home da intranet"
+        description="Quando novos avisos forem publicados, eles aparecerao aqui em destaque para facilitar a leitura do time."
+      />
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <div className="relative min-h-[348px] overflow-hidden">
+        {slides.map((item, index) => {
+          const style = priorityStyles[item.priority] || priorityStyles.media;
+          const isActive = index === activeIndex;
+          const categoryLabel = categoryLabels[item.category] || categoryLabels.geral;
+          const summary = truncateText(extractSummary(item.content), 180);
+          const title = truncateText(item.title || '', 78);
+
+          return (
+            <div
+              key={item.id}
+              className={`absolute inset-0 transition-opacity duration-500 ${isActive ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+              style={{ background: style.background }}
+              aria-hidden={!isActive}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_22%),radial-gradient(circle_at_78%_50%,rgba(255,255,255,0.12),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(227,6,19,0.14),transparent_22%)]" />
+              <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-gradient-to-l from-white/8 via-white/4 to-transparent lg:block" />
+              <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
+              <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
+
+              <div className="relative grid min-h-[348px] items-center gap-8 px-8 pb-16 pt-10 sm:px-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+                <div className="max-w-2xl self-center">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span
+                      className="inline-flex rounded-full px-4 py-1 text-xs font-bold text-white shadow-sm"
+                      style={{ backgroundColor: style.accent }}
+                    >
+                      {item.pinned ? `${style.tag} · ${categoryLabel}` : categoryLabel}
+                    </span>
+                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-white/55">
+                      Destaque interno
+                    </span>
+                  </div>
+
+                  <h1 className="mt-7 max-w-[650px] text-4xl font-black leading-[1.02] text-white sm:text-5xl">
+                    <span className="line-clamp-3 block">{title}</span>
+                  </h1>
+
+                  <p className="mt-5 max-w-[620px] text-sm leading-7 text-white/80 sm:text-lg">
+                    <span className="line-clamp-3 block">
+                    {summary}
+                    </span>
+                  </p>
+
+                  <div className="mt-8">
+                    <Link
+                      to="/avisos"
+                      className="inline-flex items-center rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#0B1B3D] transition-colors hover:bg-slate-100"
+                    >
+                      Ler materia completa
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="hidden h-full min-h-[240px] lg:block" />
+              </div>
+            </div>
+          );
+        })}
+        {slides.length > 1 ? (
+          <div className="absolute bottom-7 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-3">
+            {slides.map((slide, index) => {
+              const style = priorityStyles[slide.priority] || priorityStyles.media;
+
+              return (
+                <button
+                  key={slide.id}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  className="rounded-full transition-all"
+                  style={{
+                    width: index === activeIndex ? 24 : 12,
+                    height: 12,
+                    backgroundColor: index === activeIndex ? style.accent : 'rgba(226,232,240,0.9)',
+                    opacity: index === activeIndex ? 1 : 0.9,
+                    boxShadow: index === activeIndex ? '0 4px 12px rgba(0,0,0,0.14)' : 'none',
+                  }}
+                  aria-label={`Abrir destaque ${index + 1}`}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import Header from './Header';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('intranet:sidebar-collapsed');
@@ -25,9 +27,10 @@ export default function AppLayout() {
         <Sidebar collapsed={collapsed} onToggle={handleToggleSidebar} />
       </div>
 
-      <MobileNav />
+      <MobileNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
 
-      <main className={`pt-14 lg:pt-0 min-h-screen transition-[margin] duration-200 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[240px]'}`}>
+      <main className={`min-h-screen transition-[margin] duration-200 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[240px]'}`}>
+        <Header onMenuClick={() => setMobileMenuOpen((current) => !current)} />
         <div className="p-4 md:p-6 lg:p-8">
           <Outlet />
         </div>

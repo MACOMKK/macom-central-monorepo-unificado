@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import WelcomeCard from '../components/dashboard/WelcomeCard';
+import HomeHighlightsCarousel from '../components/dashboard/HomeHighlightsCarousel';
 import QuickAccessGrid from '../components/dashboard/QuickAccessGrid';
 import RecentAnnouncements from '../components/dashboard/RecentAnnouncements';
 import UpcomingEvents from '../components/dashboard/UpcomingEvents';
@@ -12,8 +12,8 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header + Welcome banner */}
-      <WelcomeCard user={user} />
+      {/* Highlights carousel */}
+      <HomeHighlightsCarousel disabled={isBackendDegraded} />
 
       {/* Quick access */}
       <QuickAccessGrid />
