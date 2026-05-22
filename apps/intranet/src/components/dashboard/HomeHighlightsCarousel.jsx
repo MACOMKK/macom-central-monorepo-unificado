@@ -152,7 +152,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
   }
 
   if (isLoading) {
-    return <Skeleton className="h-[352px] w-full rounded-[28px]" />;
+    return <Skeleton className="h-[360px] w-full rounded-[28px]" />;
   }
 
   if (slides.length === 0) {
@@ -166,13 +166,13 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div className="relative min-h-[348px] overflow-hidden">
+      <div className="relative min-h-[360px] overflow-hidden">
         {slides.map((item, index) => {
           const style = priorityStyles[item.priority] || priorityStyles.media;
           const isActive = index === activeIndex;
           const categoryLabel = categoryLabels[item.category] || categoryLabels.geral;
-          const summary = truncateText(extractSummary(item.content), 180);
-          const title = truncateText(item.title || '', 78);
+          const summary = truncateText(extractSummary(item.content), 150);
+          const title = truncateText(item.title || '', 62);
 
           return (
             <div
@@ -186,8 +186,8 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
               <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
               <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
 
-              <div className="relative grid min-h-[348px] items-center gap-8 px-8 pb-16 pt-10 sm:px-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
-                <div className="max-w-2xl self-center">
+              <div className="relative grid min-h-[360px] items-center gap-8 px-8 pb-20 pt-9 sm:px-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+                <div className="grid min-h-[260px] max-w-2xl grid-rows-[auto_auto_1fr_auto] self-center">
                   <div className="flex flex-wrap items-center gap-3">
                     <span
                       className="inline-flex rounded-full px-4 py-1 text-xs font-bold text-white shadow-sm"
@@ -195,22 +195,19 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
                     >
                       {item.pinned ? `${style.tag} · ${categoryLabel}` : categoryLabel}
                     </span>
-                    <span className="text-xs font-medium uppercase tracking-[0.2em] text-white/55">
-                      Destaque interno
-                    </span>
                   </div>
 
-                  <h1 className="mt-7 max-w-[650px] text-4xl font-black leading-[1.02] text-white sm:text-5xl">
-                    <span className="line-clamp-3 block">{title}</span>
+                  <h1 className="mt-5 max-w-[650px] text-[2.5rem] font-black leading-[0.98] text-white sm:text-[3.15rem]">
+                    <span className="block line-clamp-3 sm:line-clamp-2">{title}</span>
                   </h1>
 
-                  <p className="mt-5 max-w-[620px] text-sm leading-7 text-white/80 sm:text-lg">
-                    <span className="line-clamp-3 block">
-                    {summary}
+                  <p className="mt-4 max-w-[620px] text-sm leading-6 text-white/80 sm:text-[0.98rem]">
+                    <span className="block line-clamp-3 sm:line-clamp-2">
+                      {summary}
                     </span>
                   </p>
 
-                  <div className="mt-8">
+                  <div className="pt-6">
                     <Link
                       to="/avisos"
                       className="inline-flex items-center rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#0B1B3D] transition-colors hover:bg-slate-100"
@@ -226,7 +223,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
           );
         })}
         {slides.length > 1 ? (
-          <div className="absolute bottom-7 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-3">
+          <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-3">
             {slides.map((slide, index) => {
               const style = priorityStyles[slide.priority] || priorityStyles.media;
 
