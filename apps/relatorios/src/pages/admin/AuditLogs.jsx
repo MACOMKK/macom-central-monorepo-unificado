@@ -153,6 +153,12 @@ const getAffectedLabel = (log, collaboratorsById = new Map(), reportsById = new 
   return '-';
 };
 
+const getAffectedName = (log, collaboratorsById = new Map()) => {
+  const collaboratorId = getLogCollaboratorId(log);
+  const collaborator = collaboratorId ? collaboratorsById.get(collaboratorId) : null;
+  return log.metadata?.colaborador_nome_afetado || collaborator?.full_name || null;
+};
+
 const getContextLabel = (log, _collaboratorsById = new Map(), reportsById = new Map()) => {
   if (log.entity === 'acessos_usuario_sistema') {
     const systemName = log.metadata?.system_name;
@@ -473,7 +479,7 @@ export default function AuditLogs() {
       </div>
 
       <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto max-w-5xl">
           <DialogHeader>
             <DialogTitle className="text-sm font-black uppercase tracking-wider">Detalhes do Log</DialogTitle>
           </DialogHeader>
@@ -485,6 +491,7 @@ export default function AuditLogs() {
                   <p><strong>Data:</strong> {formatDateTime(selectedLog.created_at)}</p>
                   <p><strong>Responsavel:</strong> {selectedLog.actor_email || '-'}</p>
                   <p><strong>Afetado:</strong> {getAffectedLabel(selectedLog, collaboratorsById, reportsById)}</p>
+                  <p><strong>Nome do afetado:</strong> {getAffectedName(selectedLog, collaboratorsById) || '-'}</p>
                   <p><strong>Entidade:</strong> {entityLabels[selectedLog.entity] || selectedLog.entity}</p>
                   <p><strong>Acao:</strong> {actionLabels[selectedLog.action] || selectedLog.action}</p>
                 </div>

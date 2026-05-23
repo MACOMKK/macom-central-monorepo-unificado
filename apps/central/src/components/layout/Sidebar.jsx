@@ -95,7 +95,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
           ) : null}
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 overflow-y-auto space-y-0.5 px-2 py-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (

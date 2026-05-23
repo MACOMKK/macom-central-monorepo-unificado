@@ -45,6 +45,10 @@ function getAffectedLabel(log) {
   return '-';
 }
 
+function getAffectedName(log) {
+  return log.colaborador_nome_afetado || log.metadados?.colaborador_nome_afetado || null;
+}
+
 function getContextLabel(log) {
   if (log.entidade === 'acessos_usuario_sistema') {
     const systemName = log.metadados?.sistema_nome;
@@ -94,6 +98,10 @@ function formatValue(value) {
   if (typeof value === 'number') return String(value);
   if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatJson(value) {
+  return JSON.stringify(value ?? {}, null, 2);
 }
 
 function getChangedFields(before, after) {
@@ -380,73 +388,85 @@ export default function AuditLogs() {
       </div>
 
       <Dialog open={Boolean(selectedLog)} onOpenChange={(open) => !open && setSelectedLog(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Detalhes do log</DialogTitle>
+            <DialogTitle className="text-sm font-black uppercase tracking-wider">Detalhes do Log</DialogTitle>
           </DialogHeader>
 
           {selectedLog ? (
-            <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsavel</p>
-                  <p className="text-sm text-foreground">{selectedLog.responsavel_email || '-'}</p>
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded border bg-slate-50 p-3 text-sm">
+                  <p><strong>Data:</strong> {formatDateTime(selectedLog.criado_em)}</p>
+                  <p><strong>Responsavel:</strong> {selectedLog.responsavel_email || '-'}</p>
+                  <p><strong>Afetado:</strong> {getAffectedLabel(selectedLog)}</p>
+                  <p><strong>Nome do afetado:</strong> {getAffectedName(selectedLog) || '-'}</p>
+                  <p><strong>Entidade:</strong> {entityLabels[selectedLog.entidade] || selectedLog.entidade}</p>
+                  <p><strong>Acao:</strong> {actionLabels[selectedLog.acao] || selectedLog.acao}</p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Afetado</p>
-                  <p className="text-sm text-foreground">{getAffectedLabel(selectedLog)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data</p>
-                  <p className="text-sm text-foreground">{formatDateTime(selectedLog.criado_em)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acao</p>
-                  <p className="text-sm text-foreground">{actionLabels[selectedLog.acao] || selectedLog.acao}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entidade</p>
-                  <p className="text-sm text-foreground">{entityLabels[selectedLog.entidade] || selectedLog.entidade}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contexto</p>
-                  <p className="text-sm text-foreground">{getContextLabel(selectedLog)}</p>
+                <div className="rounded border bg-slate-50 p-3 text-sm">
+                  <p><strong>Contexto:</strong> {getContextLabel(selectedLog)}</p>
+                  <p><strong>Sistema:</strong> {selectedLog.metadados?.sistema_nome || selectedLog.metadados?.sistema_slug || '-'}</p>
+                  <p><strong>Escopo:</strong> {selectedLog.metadados?.scope || '-'}</p>
+                  <p><strong>Responsavel ID:</strong> {selectedLog.responsavel_colaborador_id || '-'}</p>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">Campos registrados</h3>
+              <div className="rounded border bg-white">
+                <div className="border-b px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    O que mudou
+                  </p>
+                  <p className="mt-1 text-sm text-foreground">
+                    {getLogSummary(selectedLog)}
+                  </p>
+                </div>
+
                 {selectedLogFields.length ? (
-                  <div className="overflow-hidden rounded-lg border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Campo</TableHead>
-                          <TableHead>Antes</TableHead>
-                          <TableHead>Depois</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest">Campo</th>
+                          <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest">Antes</th>
+                          <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest">Depois</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {selectedLogFields.map((item) => (
-                          <TableRow key={item.field}>
-                            <TableCell className="font-medium">{item.field}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatValue(item.before)}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatValue(item.after)}</TableCell>
-                          </TableRow>
+                          <tr key={item.field} className="border-t align-top">
+                            <td className="px-4 py-3 font-mono text-xs text-foreground">{item.field}</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{formatValue(item.before)}</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{formatValue(item.after)}</td>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nenhum campo detalhado foi registrado.</p>
+                  <div className="px-4 py-5 text-sm text-muted-foreground">
+                    Nenhuma diferenca estruturada foi encontrada para este registro.
+                  </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-foreground">Metadados</h3>
-                <pre className="overflow-x-auto rounded-lg bg-muted p-3 text-xs text-foreground">
-                  {JSON.stringify(selectedLog.metadados || {}, null, 2)}
-                </pre>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    JSON antes
+                  </p>
+                  <pre className="max-h-72 overflow-auto rounded border bg-slate-950 p-3 text-xs text-slate-100">
+                    {formatJson(selectedLog.antes)}
+                  </pre>
+                </div>
+                <div>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    JSON depois
+                  </p>
+                  <pre className="max-h-72 overflow-auto rounded border bg-slate-950 p-3 text-xs text-slate-100">
+                    {formatJson(selectedLog.depois)}
+                  </pre>
+                </div>
               </div>
             </div>
           ) : null}
