@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, FileText, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -14,6 +14,7 @@ const routePrefetchers = {
   '/linhas-corporativas': () => import('@/pages/CorporateLines'),
   '/infraestrutura': () => import('@/pages/Infrastructure'),
   '/acessos-sistemas': () => import('@/pages/SystemAccess'),
+  '/logs-auditoria': () => import('@/pages/AuditLogs'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
 };
 
@@ -27,6 +28,7 @@ const navItems = [
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network },
   { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound },
+  { path: '/logs-auditoria', label: 'Logs Auditoria', icon: History },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText },
 ];
 

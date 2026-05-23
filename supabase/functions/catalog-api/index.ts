@@ -166,6 +166,13 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['entidade', 'acao', 'registro_id', 'actor_colaborador_id'],
   },
+  logs_auditoria: {
+    schema: 'gestao_ativos',
+    table: 'logs_auditoria',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: ['entidade', 'acao', 'registro_id', 'responsavel_colaborador_id'],
+  },
 } as const;
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
@@ -479,6 +486,76 @@ async function insertReportsAuditLog({
       JSON.stringify(metadata || {}),
     ],
   );
+}
+
+async function insertCentralAuditLog({
+  action,
+  entity,
+  recordId,
+  responsibleCollaboratorId,
+  responsibleEmail,
+  before,
+  after,
+  metadata = {},
+}: {
+  action: 'criar' | 'atualizar' | 'excluir' | 'redefinir_senha' | 'desvincular' | 'importar';
+  entity: string;
+  recordId?: string | null;
+  responsibleCollaboratorId?: string | null;
+  responsibleEmail?: string | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!sql) return;
+
+  await sql.unsafe(
+    `
+      insert into gestao_ativos.logs_auditoria (
+        entidade,
+        acao,
+        registro_id,
+        responsavel_colaborador_id,
+        responsavel_email,
+        antes,
+        depois,
+        metadados
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb);
+    `,
+    [
+      entity,
+      action,
+      recordId ?? null,
+      responsibleCollaboratorId ?? null,
+      responsibleEmail ?? null,
+      before ? JSON.stringify(before) : null,
+      after ? JSON.stringify(after) : null,
+      JSON.stringify(metadata || {}),
+    ],
+  );
+}
+
+function buildCentralSystemAccessAuditMetadata({
+  before,
+  after,
+  relatedSystem,
+}: {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  relatedSystem?: Record<string, unknown> | null;
+}) {
+  return {
+    origem: 'central',
+    sistema_id: after?.sistema_id ?? before?.sistema_id ?? null,
+    sistema_slug: typeof relatedSystem?.slug === 'string' ? relatedSystem.slug : null,
+    sistema_nome: typeof relatedSystem?.nome === 'string' ? relatedSystem.nome : null,
+    colaborador_id_afetado: after?.colaborador_id ?? before?.colaborador_id ?? null,
+    nivel_acesso_anterior: before?.nivel_acesso ?? null,
+    nivel_acesso_novo: after?.nivel_acesso ?? null,
+    status_anterior: before?.ativo ?? null,
+    status_novo: after?.ativo ?? null,
+  };
 }
 
 async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
@@ -1325,6 +1402,53 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (action === 'list' && entity === 'logs_auditoria') {
+      const sanitizedFilters = sanitizePayload(entity, filters || {});
+      const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'l');
+      const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const rawLimit = typeof body.limit === 'number' ? body.limit : Number(body.limit);
+      const rawOffset = typeof body.offset === 'number' ? body.offset : Number(body.offset);
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : null;
+      const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+      const totalRows = await sql.unsafe(
+        `select count(*)::int as total from gestao_ativos.logs_auditoria ${whereSql};`,
+        values,
+      );
+      const paginatedSql = limit != null
+        ? `
+            select
+              l.*,
+              c.nome as colaborador_nome_afetado,
+              c.email as colaborador_email_afetado
+            from gestao_ativos.logs_auditoria l
+            left join public.colaboradores c
+              on c.id = nullif(l.metadados->>'colaborador_id_afetado', '')::uuid
+            ${whereSql}
+            order by l.${orderBy} ${orderDirection}
+            limit ${limit} offset ${offset};
+          `
+        : `
+            select
+              l.*,
+              c.nome as colaborador_nome_afetado,
+              c.email as colaborador_email_afetado
+            from gestao_ativos.logs_auditoria l
+            left join public.colaboradores c
+              on c.id = nullif(l.metadados->>'colaborador_id_afetado', '')::uuid
+            ${whereSql}
+            order by l.${orderBy} ${orderDirection};
+          `;
+      const rows = await sql.unsafe(paginatedSql, values);
+
+      return json({
+        rows,
+        total: totalRows[0]?.total ?? rows.length,
+        limit,
+        offset,
+      });
+    }
+
     if (action === 'list' && entity === 'permissoes_relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const permissionFilters = { ...sanitizedFilters };
@@ -1775,6 +1899,20 @@ Deno.serve(async (request) => {
       await syncIntranetPermissionOnAccessChange(rows[0] || null);
 
       const relatedSystem = await fetchRowById('public', 'sistemas', sistemaId);
+      await insertCentralAuditLog({
+        action: existingAccess ? 'atualizar' : 'criar',
+        entity,
+        recordId: rows[0]?.id || null,
+        responsibleCollaboratorId: authenticatedCollaboratorId,
+        responsibleEmail: user.email ?? null,
+        before: existingAccess,
+        after: rows[0] || null,
+        metadata: buildCentralSystemAccessAuditMetadata({
+          before: existingAccess,
+          after: rows[0] || null,
+          relatedSystem,
+        }),
+      });
       if (relatedSystem?.slug === 'relatorios') {
         await insertReportsAuditLog({
           action: existingAccess ? 'update' : 'create',
@@ -1899,6 +2037,25 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(query.text, query.values);
       if (entity === 'acessos_usuario_sistema') {
         await syncIntranetPermissionOnAccessChange(rows[0] || null);
+        const relatedSystem = beforeRow?.sistema_id
+          ? await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id))
+          : rows[0]?.sistema_id
+            ? await fetchRowById('public', 'sistemas', String(rows[0].sistema_id))
+            : null;
+        await insertCentralAuditLog({
+          action: 'atualizar',
+          entity,
+          recordId: rows[0]?.id || id,
+          responsibleCollaboratorId: authenticatedCollaboratorId,
+          responsibleEmail: user.email ?? null,
+          before: beforeRow,
+          after: rows[0] || null,
+          metadata: buildCentralSystemAccessAuditMetadata({
+            before: beforeRow,
+            after: rows[0] || null,
+            relatedSystem,
+          }),
+        });
       }
       const auditDiff = getReportsAuditDiff(beforeRow, rows[0] || null);
       const isReportsAccessEntity =
@@ -1946,9 +2103,26 @@ Deno.serve(async (request) => {
       const isReportsCollaboratorEntity =
         entity === 'colaboradores' && await collaboratorHasSystemAccess(id, 'relatorios');
       if (entity === 'acessos_usuario_sistema') {
+        const relatedSystem = beforeRow?.sistema_id
+          ? await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id))
+          : null;
         await syncIntranetPermissionOnAccessChange({
           ...(beforeRow || {}),
           ativo: false,
+        });
+        await insertCentralAuditLog({
+          action: 'excluir',
+          entity,
+          recordId: id,
+          responsibleCollaboratorId: authenticatedCollaboratorId,
+          responsibleEmail: user.email ?? null,
+          before: beforeRow,
+          after: null,
+          metadata: buildCentralSystemAccessAuditMetadata({
+            before: beforeRow,
+            after: null,
+            relatedSystem,
+          }),
         });
       }
       await sql.unsafe(`delete from ${schema}.${table} where id = $1;`, [id]);

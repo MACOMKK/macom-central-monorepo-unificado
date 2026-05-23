@@ -1,0 +1,457 @@
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { FileSearch, History, ShieldAlert } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { catalogApi } from '@macom/api-client';
+
+const PAGE_SIZE = 25;
+
+const entityLabels = {
+  colaboradores: 'Colaboradores',
+  acessos_usuario_sistema: 'Acessos Sistemas',
+  departamentos: 'Departamentos',
+  unidades: 'Unidades',
+  ativos: 'Ativos',
+  contatos: 'Contatos',
+  linhas_corporativas: 'Linhas Corporativas',
+  infra_estrutura: 'Infraestrutura',
+  termos_posse: 'Termos de Posse',
+};
+
+const actionLabels = {
+  criar: 'Criar',
+  atualizar: 'Atualizar',
+  excluir: 'Excluir',
+  redefinir_senha: 'Redefinir senha',
+  desvincular: 'Desvincular',
+  importar: 'Importar',
+};
+
+const hiddenLogFields = new Set(['atualizado_em']);
+
+function getAffectedLabel(log) {
+  const affectedEmail = log.colaborador_email_afetado || log.metadados?.colaborador_email_afetado;
+  const affectedId = log.metadados?.colaborador_id_afetado;
+
+  if (affectedEmail) return affectedEmail;
+  if (affectedId) return String(affectedId);
+
+  return '-';
+}
+
+function getContextLabel(log) {
+  if (log.entidade === 'acessos_usuario_sistema') {
+    const systemName = log.metadados?.sistema_nome;
+    const systemSlug = log.metadados?.sistema_slug;
+    const previousStatus = log.metadados?.status_anterior;
+    const nextStatus = log.metadados?.status_novo;
+    const statusChanged = previousStatus !== null && previousStatus !== undefined && nextStatus !== null && nextStatus !== undefined;
+
+    if (statusChanged) {
+      const fromLabel = previousStatus ? 'Liberado' : 'Bloqueado';
+      const toLabel = nextStatus ? 'Liberado' : 'Bloqueado';
+      return `${systemName || systemSlug || 'Sistema'}: ${fromLabel} -> ${toLabel}`;
+    }
+
+    if (systemName || systemSlug) {
+      return systemName || systemSlug;
+    }
+  }
+
+  return getLogSummary(log);
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function normalizeValue(value) {
+  if (value == null) return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatValue(value) {
+  if (value == null || value === '') return 'Vazio';
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Nao';
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function getChangedFields(before, after) {
+  const left = before && typeof before === 'object' ? before : {};
+  const right = after && typeof after === 'object' ? after : {};
+  const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
+
+  return keys
+    .filter((key) => !hiddenLogFields.has(key))
+    .filter((key) => normalizeValue(left[key]) !== normalizeValue(right[key]))
+    .map((key) => ({
+      field: key,
+      before: left[key],
+      after: right[key],
+    }));
+}
+
+function getVisibleFields(log) {
+  if (log.acao === 'atualizar') {
+    return getChangedFields(log.antes, log.depois);
+  }
+
+  const source = log.acao === 'excluir' ? log.antes : log.depois;
+  const payload = source && typeof source === 'object' ? source : {};
+
+  return Object.keys(payload)
+    .filter((key) => !hiddenLogFields.has(key))
+    .sort()
+    .map((key) => ({
+      field: key,
+      before: log.acao === 'excluir' ? payload[key] : null,
+      after: log.acao === 'criar' ? payload[key] : null,
+    }));
+}
+
+function getLogSummary(log) {
+  const fields = getVisibleFields(log);
+
+  if (log.acao === 'atualizar') {
+    if (!fields.length) return 'Sem alteracoes detectadas';
+    const preview = fields.slice(0, 3).map((item) => item.field).join(', ');
+    return `${fields.length} campo(s): ${preview}${fields.length > 3 ? '...' : ''}`;
+  }
+
+  if (log.acao === 'criar') {
+    return `${fields.length} campo(s) definidos`;
+  }
+
+  if (log.acao === 'excluir') {
+    return `${fields.length} campo(s) removidos`;
+  }
+
+  if (log.acao === 'desvincular') {
+    return 'Acao de desvinculacao registrada';
+  }
+
+  if (log.acao === 'redefinir_senha') {
+    return 'Senha redefinida';
+  }
+
+  if (log.acao === 'importar') {
+    return 'Importacao registrada';
+  }
+
+  return '-';
+}
+
+export default function AuditLogs() {
+  const [search, setSearch] = useState('');
+  const [activeEntity, setActiveEntity] = useState('all');
+  const [activeAction, setActiveAction] = useState('all');
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['logs_auditoria', page, activeEntity, activeAction],
+    queryFn: () =>
+      catalogApi.logs_auditoria.list({
+        filters: {
+          entidade: activeEntity === 'all' ? undefined : activeEntity,
+          acao: activeAction === 'all' ? undefined : activeAction,
+        },
+        limit: PAGE_SIZE,
+        offset: Math.max(0, (page - 1) * PAGE_SIZE),
+      }),
+  });
+  const logs = data?.rows || [];
+  const total = data?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const { data: collaborators = [] } = useQuery({
+    queryKey: ['colaboradores', 'logs_lookup'],
+    queryFn: catalogApi.colaboradores.list,
+  });
+
+  const collaboratorsById = useMemo(
+    () => new Map(collaborators.map((collaborator) => [collaborator.id, collaborator])),
+    [collaborators],
+  );
+
+  const hydratedLogs = useMemo(
+    () =>
+      logs.map((log) => {
+        const affectedId = log.metadados?.colaborador_id_afetado;
+        const affectedCollaborator = affectedId ? collaboratorsById.get(affectedId) : null;
+
+        return {
+          ...log,
+          colaborador_nome_afetado: log.colaborador_nome_afetado || affectedCollaborator?.nome || null,
+          colaborador_email_afetado: log.colaborador_email_afetado || affectedCollaborator?.email || null,
+        };
+      }),
+    [collaboratorsById, logs],
+  );
+
+  const entityOptions = useMemo(() => ['all', ...Object.keys(entityLabels)], []);
+  const actionOptions = useMemo(() => ['all', ...Object.keys(actionLabels)], []);
+
+  const normalizedSearch = search.trim().toLowerCase();
+
+  const filteredLogs = useMemo(() => (
+    hydratedLogs.filter((log) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        String(log.responsavel_email || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.colaborador_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.colaborador_email_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.colaborador_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.colaborador_email_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.entidade || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.sistema_slug || '').toLowerCase().includes(normalizedSearch);
+
+      return matchesSearch;
+    })
+  ), [hydratedLogs, normalizedSearch]);
+
+  const selectedLogFields = selectedLog ? getVisibleFields(selectedLog) : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">Governanca</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Logs de Auditoria</h1>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Consulte as alteracoes administrativas registradas na central.
+        </p>
+      </div>
+
+      <Card className="space-y-4 p-5">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="h-5 w-5 text-primary" />
+          <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-foreground">Filtros</h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Input
+            placeholder="Buscar por responsavel, afetado, entidade ou sistema..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+
+          <Select value={activeEntity} onValueChange={(value) => {
+            setActiveEntity(value);
+            setPage(1);
+          }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filtrar entidade" />
+            </SelectTrigger>
+            <SelectContent>
+              {entityOptions.map((entity) => (
+                <SelectItem key={entity} value={entity}>
+                  {entity === 'all' ? 'Todas as entidades' : entityLabels[entity] || entity}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={activeAction} onValueChange={(value) => {
+            setActiveAction(value);
+            setPage(1);
+          }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filtrar acao" />
+            </SelectTrigger>
+            <SelectContent>
+              {actionOptions.map((action) => (
+                <SelectItem key={action} value={action}>
+                  {action === 'all' ? 'Todas as acoes' : actionLabels[action] || action}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>Responsavel</TableHead>
+              <TableHead>Afetado</TableHead>
+              <TableHead>Entidade</TableHead>
+              <TableHead>Acao</TableHead>
+              <TableHead>Contexto</TableHead>
+              <TableHead className="text-right">Detalhes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  Carregando logs...
+                </TableCell>
+              </TableRow>
+            ) : filteredLogs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-16 text-center">
+                  <History className="mx-auto mb-2 h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm font-medium text-muted-foreground">Nenhum log encontrado.</p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredLogs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatDateTime(log.criado_em)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {log.responsavel_email || '-'}
+                  </TableCell>
+                  <TableCell className="max-w-[260px] text-xs text-muted-foreground">
+                    <span className="line-clamp-2">{getAffectedLabel(log)}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="rounded bg-accent px-2 py-1 text-[11px] font-semibold text-foreground">
+                      {entityLabels[log.entidade] || log.entidade}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="rounded border px-2 py-1 text-[11px] font-semibold text-foreground">
+                      {actionLabels[log.acao] || log.acao}
+                    </span>
+                  </TableCell>
+                  <TableCell className="max-w-xs text-xs text-muted-foreground">
+                    {getContextLabel(log)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)}>
+                      <FileSearch className="h-4 w-4" />
+                      Ver
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <p className="text-sm text-muted-foreground">
+          {total > 0
+            ? `Mostrando ${Math.max(1, (page - 1) * PAGE_SIZE + 1)}-${Math.min(page * PAGE_SIZE, total)} de ${total} log(s)`
+            : 'Nenhum log encontrado'}
+        </p>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Pagina {page} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+          >
+            Proxima
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={Boolean(selectedLog)} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do log</DialogTitle>
+          </DialogHeader>
+
+          {selectedLog ? (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Responsavel</p>
+                  <p className="text-sm text-foreground">{selectedLog.responsavel_email || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Afetado</p>
+                  <p className="text-sm text-foreground">{getAffectedLabel(selectedLog)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data</p>
+                  <p className="text-sm text-foreground">{formatDateTime(selectedLog.criado_em)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acao</p>
+                  <p className="text-sm text-foreground">{actionLabels[selectedLog.acao] || selectedLog.acao}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entidade</p>
+                  <p className="text-sm text-foreground">{entityLabels[selectedLog.entidade] || selectedLog.entidade}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contexto</p>
+                  <p className="text-sm text-foreground">{getContextLabel(selectedLog)}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Campos registrados</h3>
+                {selectedLogFields.length ? (
+                  <div className="overflow-hidden rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Campo</TableHead>
+                          <TableHead>Antes</TableHead>
+                          <TableHead>Depois</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedLogFields.map((item) => (
+                          <TableRow key={item.field}>
+                            <TableCell className="font-medium">{item.field}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{formatValue(item.before)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{formatValue(item.after)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nenhum campo detalhado foi registrado.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-foreground">Metadados</h3>
+                <pre className="overflow-x-auto rounded-lg bg-muted p-3 text-xs text-foreground">
+                  {JSON.stringify(selectedLog.metadados || {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

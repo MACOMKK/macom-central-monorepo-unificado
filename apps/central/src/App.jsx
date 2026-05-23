@@ -9,6 +9,7 @@ import PageNotFound from '@/lib/PageNotFound';
 import { queryClientInstance } from '@/lib/query-client';
 
 const Assets = lazy(() => import('@/pages/Assets'));
+const AuditLogs = lazy(() => import('@/pages/AuditLogs'));
 const Collaborators = lazy(() => import('@/pages/Collaborators'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
 const CorporateLines = lazy(() => import('@/pages/CorporateLines'));
@@ -70,6 +71,7 @@ export default function App() {
                 <Route path="/unidades" element={<Units />} />
                 <Route path="/infraestrutura" element={<Infrastructure />} />
                 <Route path="/acessos-sistemas" element={<SystemAccess />} />
+                <Route path="/logs-auditoria" element={<AuditLogs />} />
                 <Route path="/termos-posse" element={<TermsPossession />} />
                 <Route path="*" element={<PageNotFound />} />
               </Route>

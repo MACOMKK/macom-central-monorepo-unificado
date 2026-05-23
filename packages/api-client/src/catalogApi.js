@@ -41,6 +41,17 @@ function mapApiErrorMessage(message) {
   return text || 'Falha ao consultar o catalogo.';
 }
 
+function parseJsonField(value) {
+  if (value == null) return null;
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 async function invokeSupabaseFunction(functionName, payload = {}, accessTokenOverride) {
   assertSupabaseConfigured();
   const { data } = accessTokenOverride ? { data: { session: { access_token: accessTokenOverride } } } : await supabase.auth.getSession();
@@ -367,6 +378,35 @@ export const catalogApi = {
         limit: result.limit ?? options.limit ?? null,
         offset: result.offset ?? options.offset ?? 0,
       };
+    },
+  },
+  logs_auditoria: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'logs_auditoria', {
+        filters: options.filters || {},
+        limit: options.limit,
+        offset: options.offset,
+      });
+      return {
+        rows: (result.rows || []).map((row) => ({
+          ...row,
+          antes: parseJsonField(row.antes),
+          depois: parseJsonField(row.depois),
+          metadados: parseJsonField(row.metadados) || {},
+        })),
+        total: result.total ?? (result.rows || []).length,
+        limit: result.limit ?? options.limit ?? null,
+        offset: result.offset ?? options.offset ?? 0,
+      };
+    },
+    async listAll() {
+      const result = await invokeCatalog('list', 'logs_auditoria');
+      return (result.rows || []).map((row) => ({
+        ...row,
+        antes: parseJsonField(row.antes),
+        depois: parseJsonField(row.depois),
+        metadados: parseJsonField(row.metadados) || {},
+      }));
     },
   },
 };
