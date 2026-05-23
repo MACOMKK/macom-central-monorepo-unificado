@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { FileSearch, History, Search } from 'lucide-react';
@@ -31,11 +31,23 @@ const entityLabels = {
   colaboradores: 'Colaboradores',
 };
 
+entityLabels.relatorios_unidades = 'Unidades do relatorio';
+entityLabels.avisos_relatorios = 'Avisos';
+
 const actionLabels = {
   create: 'Criacao',
   update: 'Edicao',
   delete: 'Exclusao',
 };
+
+const filterableEntities = [
+  'relatorios',
+  'relatorios_unidades',
+  'permissoes_relatorios',
+  'avisos_relatorios',
+];
+
+const hiddenLogFields = new Set(['updated_at', 'created_at', 'criado_em', 'atualizado_em']);
 const PAGE_SIZE = 50;
 
 const formatDateTime = (value) => {
@@ -76,6 +88,7 @@ const getChangedFields = (before, after) => {
   const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
 
   return keys
+    .filter((key) => !hiddenLogFields.has(key))
     .filter((key) => normalizeValue(left[key]) !== normalizeValue(right[key]))
     .map((key) => ({
       field: key,
@@ -93,12 +106,92 @@ const getVisibleFields = (log) => {
   const payload = source && typeof source === 'object' ? source : {};
 
   return Object.keys(payload)
+    .filter((key) => !hiddenLogFields.has(key))
     .sort()
     .map((key) => ({
       field: key,
       before: log.action === 'delete' ? payload[key] : null,
       after: log.action === 'create' ? payload[key] : null,
     }));
+};
+
+const getLogCollaboratorId = (log) => {
+  if (log.metadata?.colaborador_id_afetado) return log.metadata.colaborador_id_afetado;
+  if (log.after?.colaborador_id || log.before?.colaborador_id) {
+    return log.after?.colaborador_id || log.before?.colaborador_id;
+  }
+  if (log.entity === 'colaboradores') {
+    return log.after?.id || log.before?.id || null;
+  }
+  return null;
+};
+
+const getLogReportId = (log) =>
+  log.metadata?.relatorio_id ||
+  log.after?.relatorio_id ||
+  log.before?.relatorio_id ||
+  log.after?.id ||
+  log.before?.id ||
+  null;
+
+const getAffectedLabel = (log, collaboratorsById = new Map(), reportsById = new Map()) => {
+  const collaboratorId = getLogCollaboratorId(log);
+  const collaborator = collaboratorId ? collaboratorsById.get(collaboratorId) : null;
+  const reportId = getLogReportId(log);
+  const report = reportId ? reportsById.get(reportId) : null;
+  const affectedName = log.metadata?.colaborador_nome_afetado || collaborator?.full_name;
+  const affectedEmail = log.metadata?.colaborador_email_afetado || collaborator?.email;
+  const reportTitle = log.metadata?.relatorio_titulo || report?.title;
+  const noticeTitle = log.metadata?.aviso_titulo;
+
+  if (affectedEmail) return affectedEmail;
+  if (affectedName) return affectedName;
+  if (reportTitle) return reportTitle;
+  if (noticeTitle) return noticeTitle;
+  if (collaboratorId) return String(collaboratorId);
+  if (reportId) return String(reportId);
+  return '-';
+};
+
+const getContextLabel = (log, _collaboratorsById = new Map(), reportsById = new Map()) => {
+  if (log.entity === 'acessos_usuario_sistema') {
+    const systemName = log.metadata?.system_name;
+    const systemSlug = log.metadata?.system_slug;
+    const previousStatus = log.metadata?.status_anterior;
+    const nextStatus = log.metadata?.status_novo;
+    const fromLevel = log.metadata?.nivel_acesso_anterior;
+    const toLevel = log.metadata?.nivel_acesso_novo;
+
+    if (previousStatus !== null && previousStatus !== undefined && nextStatus !== null && nextStatus !== undefined) {
+      const fromLabel = previousStatus ? 'Liberado' : 'Bloqueado';
+      const toLabel = nextStatus ? 'Liberado' : 'Bloqueado';
+      return `${systemName || systemSlug || 'Sistema'}: ${fromLabel} -> ${toLabel}`;
+    }
+
+    if (fromLevel || toLevel) {
+      return `${systemName || systemSlug || 'Sistema'}: ${fromLevel || '-'} -> ${toLevel || '-'}`;
+    }
+
+    return systemName || systemSlug || '-';
+  }
+
+  if (log.entity === 'permissoes_relatorios') {
+    const reportId = getLogReportId(log);
+    const report = reportId ? reportsById.get(reportId) : null;
+    return log.metadata?.relatorio_titulo || report?.title || 'Permissao de relatorio';
+  }
+
+  if (log.entity === 'relatorios') {
+    const reportId = getLogReportId(log);
+    const report = reportId ? reportsById.get(reportId) : null;
+    return log.metadata?.relatorio_titulo || report?.title || getLogSummary(log);
+  }
+
+  if (log.entity === 'avisos_relatorios') {
+    return log.metadata?.aviso_titulo || log.metadata?.relatorio_titulo || getLogSummary(log);
+  }
+
+  return getLogSummary(log);
 };
 
 const getLogSummary = (log) => {
@@ -142,12 +235,29 @@ export default function AuditLogs() {
         },
       }),
   });
+  const { data: lookupData } = useQuery({
+    queryKey: ['audit-logs-lookups'],
+    queryFn: async () => {
+      const [collaborators, reports] = await Promise.all([
+        dataClient.entities.User.list(),
+        dataClient.entities.Report.list(),
+      ]);
+
+      return {
+        collaboratorsById: new Map(collaborators.map((item) => [item.id, item])),
+        reportsById: new Map(reports.map((item) => [item.id, item])),
+      };
+    },
+    staleTime: 60_000,
+  });
   const logs = data?.rows || [];
   const total = data?.total || 0;
   const totalPages = data?.totalPages || 1;
+  const collaboratorsById = lookupData?.collaboratorsById || new Map();
+  const reportsById = lookupData?.reportsById || new Map();
 
   const entities = useMemo(
-    () => ['all', ...Object.keys(entityLabels)],
+    () => ['all', ...filterableEntities],
     [],
   );
   const actions = useMemo(
@@ -155,12 +265,21 @@ export default function AuditLogs() {
     [],
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeEntity, activeAction]);
+
   const filteredLogs = logs.filter((log) => {
     const normalizedSearch = search.toLowerCase();
     const matchSearch =
       !normalizedSearch ||
       log.actor_email?.toLowerCase().includes(normalizedSearch) ||
-      log.record_id?.toLowerCase().includes(normalizedSearch) ||
+      getAffectedLabel(log, collaboratorsById, reportsById).toLowerCase().includes(normalizedSearch) ||
+      getContextLabel(log, collaboratorsById, reportsById).toLowerCase().includes(normalizedSearch) ||
+      String(log.metadata?.colaborador_email_afetado || '').toLowerCase().includes(normalizedSearch) ||
+      String(log.metadata?.colaborador_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
+      String(log.metadata?.relatorio_titulo || '').toLowerCase().includes(normalizedSearch) ||
+      String(log.metadata?.aviso_titulo || '').toLowerCase().includes(normalizedSearch) ||
       String(log.metadata?.system_slug || '').toLowerCase().includes(normalizedSearch);
     return matchSearch;
   });
@@ -188,7 +307,7 @@ export default function AuditLogs() {
               <div className="relative w-full lg:max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: '#999' }} />
                 <Input
-                  placeholder="Buscar por usuario, registro ou sistema..."
+                  placeholder="Buscar por responsavel, afetado ou sistema..."
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   className="pl-9 bg-white"
@@ -243,11 +362,11 @@ export default function AuditLogs() {
               <TableHeader>
                 <TableRow style={{ background: '#fafafa' }}>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Data</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Usuario</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Responsavel</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Afetado</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Entidade</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Acao</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Registro</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Alterado</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Contexto</TableHead>
                   <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Detalhes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -276,6 +395,9 @@ export default function AuditLogs() {
                       <TableCell className="text-xs" style={{ color: '#666' }}>
                         {log.actor_email || '-'}
                       </TableCell>
+                      <TableCell className="max-w-[260px] text-xs" style={{ color: '#666' }}>
+                        <span className="line-clamp-2">{getAffectedLabel(log, collaboratorsById, reportsById)}</span>
+                      </TableCell>
                       <TableCell>
                         <span
                           className="px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
@@ -295,11 +417,8 @@ export default function AuditLogs() {
                           {actionLabels[log.action] || log.action}
                         </span>
                       </TableCell>
-                      <TableCell className="text-xs font-mono" style={{ color: '#666' }}>
-                        {log.record_id || '-'}
-                      </TableCell>
                       <TableCell className="max-w-xs text-xs" style={{ color: '#666' }}>
-                        {getLogSummary(log)}
+                        {getContextLabel(log, collaboratorsById, reportsById)}
                       </TableCell>
                       <TableCell className="text-right">
                         <button
@@ -364,13 +483,14 @@ export default function AuditLogs() {
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded border bg-slate-50 p-3 text-sm">
                   <p><strong>Data:</strong> {formatDateTime(selectedLog.created_at)}</p>
-                  <p><strong>Usuario:</strong> {selectedLog.actor_email || '-'}</p>
+                  <p><strong>Responsavel:</strong> {selectedLog.actor_email || '-'}</p>
+                  <p><strong>Afetado:</strong> {getAffectedLabel(selectedLog, collaboratorsById, reportsById)}</p>
                   <p><strong>Entidade:</strong> {entityLabels[selectedLog.entity] || selectedLog.entity}</p>
                   <p><strong>Acao:</strong> {actionLabels[selectedLog.action] || selectedLog.action}</p>
                 </div>
                 <div className="rounded border bg-slate-50 p-3 text-sm">
-                  <p><strong>Registro:</strong> {selectedLog.record_id || '-'}</p>
-                  <p><strong>Sistema:</strong> {selectedLog.metadata?.system_slug || '-'}</p>
+                  <p><strong>Contexto:</strong> {getContextLabel(selectedLog, collaboratorsById, reportsById)}</p>
+                  <p><strong>Sistema:</strong> {selectedLog.metadata?.system_name || selectedLog.metadata?.system_slug || '-'}</p>
                   <p><strong>Escopo:</strong> {selectedLog.metadata?.access_scope || '-'}</p>
                   <p><strong>Actor ID:</strong> {selectedLog.actor_collaborator_id || '-'}</p>
                 </div>
