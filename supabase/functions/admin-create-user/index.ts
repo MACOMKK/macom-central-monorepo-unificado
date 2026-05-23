@@ -150,6 +150,112 @@ function getErrorStatus(error: unknown) {
   return 500;
 }
 
+async function fetchRowById(schema: string, table: string, id: string) {
+  if (!sql) return null;
+
+  const rows = await sql.unsafe(
+    `select * from ${schema}.${table} where id = $1 limit 1;`,
+    [id],
+  );
+
+  return rows[0] || null;
+}
+
+async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
+  if (!sql) return null;
+
+  const byIdRows = await sql.unsafe('select * from public.colaboradores where id = $1 limit 1;', [authUser.id]);
+  if (byIdRows[0]) {
+    return byIdRows[0];
+  }
+
+  const normalizedEmail = typeof authUser.email === 'string' ? authUser.email.trim().toLowerCase() : null;
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmailRows = await sql.unsafe(
+    'select * from public.colaboradores where lower(trim(email)) = lower(trim($1)) limit 1;',
+    [normalizedEmail],
+  );
+
+  return byEmailRows[0] || null;
+}
+
+function buildCentralCollaboratorAuditMetadata({
+  before,
+  after,
+  baseMetadata = {},
+}: {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  baseMetadata?: Record<string, unknown>;
+}) {
+  return {
+    origem: 'central',
+    colaborador_id_afetado: after?.id ?? before?.id ?? null,
+    colaborador_nome_afetado: typeof (after?.nome ?? before?.nome) === 'string' ? after?.nome ?? before?.nome : null,
+    colaborador_email_afetado: typeof (after?.email ?? before?.email) === 'string' ? after?.email ?? before?.email : null,
+    funcao_anterior: before?.funcao ?? null,
+    funcao_nova: after?.funcao ?? null,
+    status_anterior: before?.status ?? null,
+    status_novo: after?.status ?? null,
+    unidade_id_anterior: before?.unidade_id ?? null,
+    unidade_id_nova: after?.unidade_id ?? null,
+    departamento_id_anterior: before?.departamento_id ?? null,
+    departamento_id_novo: after?.departamento_id ?? null,
+    ...baseMetadata,
+  };
+}
+
+async function insertCentralAuditLog({
+  action,
+  entity,
+  recordId,
+  responsibleCollaboratorId,
+  responsibleEmail,
+  before,
+  after,
+  metadata = {},
+}: {
+  action: 'criar' | 'atualizar' | 'excluir' | 'redefinir_senha' | 'desvincular' | 'importar';
+  entity: string;
+  recordId?: string | null;
+  responsibleCollaboratorId?: string | null;
+  responsibleEmail?: string | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}) {
+  if (!sql) return;
+
+  await sql.unsafe(
+    `
+      insert into gestao_ativos.logs_auditoria (
+        entidade,
+        acao,
+        registro_id,
+        responsavel_colaborador_id,
+        responsavel_email,
+        antes,
+        depois,
+        metadados
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb);
+    `,
+    [
+      entity,
+      action,
+      recordId ?? null,
+      responsibleCollaboratorId ?? null,
+      responsibleEmail ?? null,
+      before ? JSON.stringify(before) : null,
+      after ? JSON.stringify(after) : null,
+      JSON.stringify(metadata || {}),
+    ],
+  );
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -190,6 +296,9 @@ Deno.serve(async (request) => {
       'select funcao from public.colaboradores where id = $1 limit 1;',
       [user.id],
     );
+    const responsibleCollaborator = await resolveAuthenticatedCollaborator(user);
+    const responsibleCollaboratorId = responsibleCollaborator?.id || user.id;
+    const responsibleEmail = responsibleCollaborator?.email || user.email || null;
 
     if ((adminRole[0]?.funcao || 'usuario') !== 'admin') {
       return json({ error: 'Apenas administradores podem gerenciar colaboradores.' }, 403);
@@ -204,12 +313,28 @@ Deno.serve(async (request) => {
         return json({ error: 'Voce nao pode excluir seu proprio usuario por aqui.' }, 400);
       }
 
+      const beforeRow = await fetchRowById('public', 'colaboradores', collaboratorId);
+
       await sql.unsafe('delete from public.colaboradores where id = $1;', [collaboratorId]);
 
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(collaboratorId);
       if (deleteError) {
         return json({ error: deleteError.message || 'Falha ao excluir usuario no Auth.' }, 400);
       }
+
+      await insertCentralAuditLog({
+        action: 'excluir',
+        entity: 'colaboradores',
+        recordId: collaboratorId,
+        responsibleCollaboratorId,
+        responsibleEmail,
+        before: beforeRow,
+        after: null,
+        metadata: buildCentralCollaboratorAuditMetadata({
+          before: beforeRow,
+          after: null,
+        }),
+      });
 
       return json({ success: true });
     }
@@ -231,6 +356,24 @@ Deno.serve(async (request) => {
         return json({ error: updatePasswordError.message || 'Falha ao atualizar senha no Auth.' }, 400);
       }
 
+      const collaboratorRow = await fetchRowById('public', 'colaboradores', collaboratorId);
+      await insertCentralAuditLog({
+        action: 'redefinir_senha',
+        entity: 'colaboradores',
+        recordId: collaboratorId,
+        responsibleCollaboratorId,
+        responsibleEmail,
+        before: collaboratorRow,
+        after: collaboratorRow,
+        metadata: buildCentralCollaboratorAuditMetadata({
+          before: collaboratorRow,
+          after: collaboratorRow,
+          baseMetadata: {
+            tipo: 'reset_manual',
+          },
+        }),
+      });
+
       return json({ success: true });
     }
 
@@ -240,7 +383,7 @@ Deno.serve(async (request) => {
       }
 
       const collaboratorRows = await sql.unsafe(
-        'select status from public.colaboradores where id = $1 limit 1;',
+        'select * from public.colaboradores where id = $1 limit 1;',
         [collaboratorId],
       );
 
@@ -288,6 +431,26 @@ Deno.serve(async (request) => {
         `,
         [collaboratorId],
       );
+
+      await insertCentralAuditLog({
+        action: 'desvincular',
+        entity: 'colaboradores',
+        recordId: collaboratorId,
+        responsibleCollaboratorId,
+        responsibleEmail,
+        before: collaborator,
+        after: collaborator,
+        metadata: buildCentralCollaboratorAuditMetadata({
+          before: collaborator,
+          after: collaborator,
+          baseMetadata: {
+            ativos_count: updatedAssets.length,
+            linhas_count: updatedLines.length,
+            sistemas_count: removedSystemAccesses.length,
+            total_count: updatedAssets.length + updatedLines.length + removedSystemAccesses.length,
+          },
+        }),
+      });
 
       return json({
         success: true,
@@ -390,6 +553,20 @@ Deno.serve(async (request) => {
           upsertPayload.unidade_id,
         ],
       );
+
+      await insertCentralAuditLog({
+        action: 'criar',
+        entity: 'colaboradores',
+        recordId: rows[0]?.id || createdUser.user.id,
+        responsibleCollaboratorId,
+        responsibleEmail,
+        before: null,
+        after: rows[0] || null,
+        metadata: buildCentralCollaboratorAuditMetadata({
+          before: null,
+          after: rows[0] || null,
+        }),
+      });
 
       return json({ row: rows[0] || null });
     } catch (dbError) {
