@@ -21,6 +21,7 @@ const sql = databaseUrl
 
 const INTRANET_SCHEMA = 'gestao_intranet';
 const INTRANET_SYSTEM_SLUG = 'intranet';
+const DOCUMENTS_STORAGE_BUCKET = 'documents';
 
 const ENTITY_CONFIG = {
   Announcement: {
@@ -105,8 +106,8 @@ const ENTITY_CONFIG = {
       category: 'categoria',
       department_id: 'departamento_id',
     },
-    createFields: ['title', 'description', 'file_url', 'category', 'department', 'department_id'],
-    updateFields: ['title', 'description', 'file_url', 'category', 'department', 'department_id'],
+    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'category', 'department', 'department_id'],
+    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'category', 'department', 'department_id'],
   },
   Feedback: {
     schema: INTRANET_SCHEMA,
@@ -747,6 +748,10 @@ function mapDocument(
     title: row.titulo,
     description: row.descricao,
     file_url: row.arquivo_url,
+    file_path: row.arquivo_path || null,
+    file_name: row.arquivo_nome || null,
+    file_type: row.arquivo_tipo || null,
+    file_size: row.arquivo_tamanho || null,
     category: row.categoria,
     department_id: row.departamento_id,
     department: department?.key || null,
@@ -1254,17 +1259,24 @@ async function updateCalendarEvent(id: string, payload: Record<string, unknown>)
 
 async function createDocument(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  if (!payload.file_url || !payload.file_path || !payload.file_name) {
+    throw new Error('Arquivo obrigatorio para criar documento.');
+  }
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
-        titulo, descricao, arquivo_url, categoria, departamento_id, criado_por
-      ) values ($1,$2,$3,$4,$5,$6)
+        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, categoria, departamento_id, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       returning *;
     `,
     [
       payload.title,
       payload.description || null,
-      payload.file_url || null,
+      payload.file_url,
+      payload.file_path,
+      payload.file_name,
+      payload.file_type || null,
+      payload.file_size || null,
       payload.category || 'outros',
       department?.id || null,
       collaboratorId,
@@ -1274,8 +1286,23 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
-async function updateDocument(id: string, payload: Record<string, unknown>) {
+async function deleteStorageFile(authClient: ReturnType<typeof createClient>, filePath: unknown) {
+  const normalizedPath = typeof filePath === 'string' ? filePath.trim() : '';
+  if (!normalizedPath) return;
+
+  const { error } = await authClient.storage.from(DOCUMENTS_STORAGE_BUCKET).remove([normalizedPath]);
+  if (error) {
+    throw new Error(error.message || 'Falha ao remover arquivo do storage.');
+  }
+}
+
+async function updateDocument(authClient: ReturnType<typeof createClient>, id: string, payload: Record<string, unknown>) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  const previousRows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.documentos where id = $1 limit 1;',
+    [id],
+  );
+  const previousDocument = previousRows[0];
   const updates: string[] = [];
   const values: unknown[] = [id];
   const assign = (column: string, value: unknown) => {
@@ -1286,6 +1313,10 @@ async function updateDocument(id: string, payload: Record<string, unknown>) {
   if ('title' in payload) assign('titulo', payload.title);
   if ('description' in payload) assign('descricao', payload.description);
   if ('file_url' in payload) assign('arquivo_url', payload.file_url);
+  if ('file_path' in payload) assign('arquivo_path', payload.file_path);
+  if ('file_name' in payload) assign('arquivo_nome', payload.file_name);
+  if ('file_type' in payload) assign('arquivo_tipo', payload.file_type);
+  if ('file_size' in payload) assign('arquivo_tamanho', payload.file_size);
   if ('category' in payload) assign('categoria', payload.category);
   if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
   assign('atualizado_em', new Date().toISOString());
@@ -1294,6 +1325,14 @@ async function updateDocument(id: string, payload: Record<string, unknown>) {
     `update gestao_intranet.documentos set ${updates.join(', ')} where id = $1 returning *;`,
     values,
   );
+  const nextDocument = rows[0];
+  if (
+    previousDocument?.arquivo_path &&
+    nextDocument?.arquivo_path &&
+    previousDocument.arquivo_path !== nextDocument.arquivo_path
+  ) {
+    await deleteStorageFile(authClient, previousDocument.arquivo_path);
+  }
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
   return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
@@ -1474,6 +1513,22 @@ async function deleteBaseEntity(entityName: keyof typeof ENTITY_CONFIG, id: stri
   return { success: true };
 }
 
+async function deleteDocument(authClient: ReturnType<typeof createClient>, id: string) {
+  const rows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.documentos where id = $1 limit 1;',
+    [id],
+  );
+  const document = rows[0];
+
+  await deleteBaseEntity('Document', id);
+
+  if (document?.arquivo_path) {
+    await deleteStorageFile(authClient, document.arquivo_path);
+  }
+
+  return { success: true };
+}
+
 async function listEntity(entity: string, orderBy?: string, limit?: number) {
   switch (entity) {
     case 'Announcement':
@@ -1567,14 +1622,14 @@ async function createEntity(entity: string, payload: Record<string, unknown>, co
   }
 }
 
-async function updateEntity(entity: string, id: string, payload: Record<string, unknown>) {
+async function updateEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string, payload: Record<string, unknown>) {
   switch (entity) {
     case 'Announcement':
       return updateAnnouncement(id, payload);
     case 'CalendarEvent':
       return updateCalendarEvent(id, payload);
     case 'Document':
-      return updateDocument(id, payload);
+      return updateDocument(authClient, id, payload);
     case 'Employee':
       return updateEmployee(id, payload);
     case 'Feedback':
@@ -1590,7 +1645,7 @@ async function updateEntity(entity: string, id: string, payload: Record<string, 
   }
 }
 
-async function deleteEntity(entity: string, id: string) {
+async function deleteEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string) {
   switch (entity) {
     case 'Announcement':
       return deleteBaseEntity('Announcement', id);
@@ -1601,7 +1656,7 @@ async function deleteEntity(entity: string, id: string) {
     case 'CalendarEvent':
       return deleteBaseEntity('CalendarEvent', id);
     case 'Document':
-      return deleteBaseEntity('Document', id);
+      return deleteDocument(authClient, id);
     case 'Employee':
       return deleteEmployee(id);
     case 'Feedback':
@@ -1719,7 +1774,7 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleEdit(context.user as Record<string, unknown>, moduleKey);
       }
-      return json({ row: await updateEntity(entity, id, payload as Record<string, unknown>) });
+      return json({ row: await updateEntity(authClient, entity, id, payload as Record<string, unknown>) });
     }
 
     if (action === 'delete') {
@@ -1732,7 +1787,7 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleEdit(context.user as Record<string, unknown>, moduleKey);
       }
-      return json(await deleteEntity(entity, id));
+      return json(await deleteEntity(authClient, entity, id));
     }
 
     return json({ error: 'Acao invalida.' }, 400);

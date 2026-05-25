@@ -11,6 +11,10 @@ export default function DocumentForm({ onSubmit, isLoading }) {
     category: 'outros',
     department: '',
     file_url: '',
+    file_path: '',
+    file_name: '',
+    file_type: '',
+    file_size: null,
   });
   const [uploading, setUploading] = useState(false);
 
@@ -23,9 +27,12 @@ export default function DocumentForm({ onSubmit, isLoading }) {
     const file = event.target.files[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await appClient.storage.uploadFile(file);
-    setForm((prev) => ({ ...prev, file_url }));
-    setUploading(false);
+    try {
+      const uploadResult = await appClient.storage.uploadFile(file);
+      setForm((prev) => ({ ...prev, ...uploadResult }));
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = (event) => {
@@ -78,12 +85,19 @@ export default function DocumentForm({ onSubmit, isLoading }) {
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:bg-muted transition-colors text-sm">
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'Enviando...' : form.file_url ? 'Arquivo enviado' : 'Selecionar arquivo'}
+            {uploading ? 'Enviando...' : form.file_name ? 'Arquivo enviado' : 'Selecionar arquivo'}
             <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
           </label>
         </div>
+        {form.file_name ? (
+          <p className="text-xs text-muted-foreground">
+            {form.file_name}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Envie um arquivo obrigatorio para criar o documento.</p>
+        )}
       </div>
-      <Button type="submit" disabled={isLoading || uploading} className="w-full">
+      <Button type="submit" disabled={isLoading || uploading || !form.file_url || !form.file_path || !form.file_name} className="w-full">
         {isLoading ? 'Salvando...' : 'Salvar Documento'}
       </Button>
     </form>

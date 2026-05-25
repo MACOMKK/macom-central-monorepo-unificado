@@ -36,7 +36,13 @@ async function uploadFile(file) {
   }
 
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-  return { file_url: data.publicUrl, file_path: filePath };
+  return {
+    file_url: data.publicUrl,
+    file_path: filePath,
+    file_name: file.name,
+    file_type: file.type || null,
+    file_size: Number.isFinite(file.size) ? file.size : null,
+  };
 }
 
 function buildEntityApi(entityName) {

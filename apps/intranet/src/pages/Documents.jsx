@@ -41,10 +41,23 @@ export default function Documents() {
   });
 
   const filtered = documents.filter((document) => {
-    const matchSearch = !search || document.title?.toLowerCase().includes(search.toLowerCase());
+    const normalizedSearch = search.toLowerCase();
+    const matchSearch =
+      !normalizedSearch ||
+      document.title?.toLowerCase().includes(normalizedSearch) ||
+      document.description?.toLowerCase().includes(normalizedSearch) ||
+      document.file_name?.toLowerCase().includes(normalizedSearch);
     const matchCat = catFilter === 'all' || document.category === catFilter;
     return matchSearch && matchCat;
   });
+
+  const formatFileSize = (value) => {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes <= 0) return null;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -103,6 +116,11 @@ export default function Documents() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-sm truncate">{document.title}</h3>
                 {document.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{document.description}</p>}
+                {document.file_name && (
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">
+                    {document.file_name}{formatFileSize(document.file_size) ? ` • ${formatFileSize(document.file_size)}` : ''}
+                  </p>
+                )}
                 <div className="flex gap-2 mt-1">
                   <Badge variant="secondary" className="text-[10px]">{categoryLabels[document.category] || document.category}</Badge>
                   {document.department_name && (
