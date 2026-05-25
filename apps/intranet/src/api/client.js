@@ -2,7 +2,8 @@ import { intranetApi } from '@macom/api-client/intranetApi';
 
 import { assertSupabaseConfigured, supabase } from '@/api/supabaseClient';
 
-const STORAGE_BUCKET = 'documents';
+const STORAGE_BUCKET = 'documentos';
+const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
 
 function normalizeFunctionError(error, fallbackMessage) {
   if (!error) {
@@ -23,6 +24,10 @@ function isMissingSessionError(error) {
 
 async function uploadFile(file) {
   assertSupabaseConfigured();
+
+  if (Number.isFinite(file?.size) && file.size > MAX_DOCUMENT_FILE_SIZE) {
+    throw new Error('O arquivo deve ter no maximo 5 MB.');
+  }
 
   const fileExt = file.name.split('.').pop();
   const filePath = `${Date.now()}-${crypto.randomUUID()}.${fileExt}`;

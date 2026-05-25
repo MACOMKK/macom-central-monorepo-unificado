@@ -13,7 +13,7 @@ const categoryConfig = {
   rh: { icon: Users, iconBg: 'bg-pink-100', iconColor: 'text-pink-500' },
 };
 
-const MACOM_FAVICON_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/v1778093853/icone_logo_macom_xb2y5l.png';
+const MACOM_FAVICON_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1779409501/favicon_macom_kzu6sd.png';
 const INTERNAL_SYSTEM_HOSTS = new Set([
   'macom-central.vercel.app',
   'macom-relatorios.vercel.app',

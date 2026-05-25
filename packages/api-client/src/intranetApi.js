@@ -126,15 +126,15 @@ export const intranetApi = {
   catalogs: {
     async listDepartments() {
       const result = await invokeIntranet({
-        resource: 'catalog',
-        action: 'listDepartments',
+        action: 'catalog',
+        catalog: 'departments',
       });
       return result.rows || result.data || [];
     },
     async listUnits() {
       const result = await invokeIntranet({
-        resource: 'catalog',
-        action: 'listUnits',
+        action: 'catalog',
+        catalog: 'units',
       });
       return result.rows || result.data || [];
     },

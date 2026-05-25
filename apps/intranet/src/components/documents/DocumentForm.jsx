@@ -5,6 +5,7 @@ import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger,
 import { Upload, Loader2 } from 'lucide-react';
 
 export default function DocumentForm({ onSubmit, isLoading }) {
+  const [uploadError, setUploadError] = useState('');
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -26,10 +27,22 @@ export default function DocumentForm({ onSubmit, isLoading }) {
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
+    setUploadError('');
     setUploading(true);
     try {
       const uploadResult = await appClient.storage.uploadFile(file);
       setForm((prev) => ({ ...prev, ...uploadResult }));
+    } catch (error) {
+      setForm((prev) => ({
+        ...prev,
+        file_url: '',
+        file_path: '',
+        file_name: '',
+        file_type: '',
+        file_size: null,
+      }));
+      setUploadError(error instanceof Error ? error.message : 'Falha ao enviar arquivo.');
+      event.target.value = '';
     } finally {
       setUploading(false);
     }
@@ -94,8 +107,11 @@ export default function DocumentForm({ onSubmit, isLoading }) {
             {form.file_name}
           </p>
         ) : (
-          <p className="text-xs text-muted-foreground">Envie um arquivo obrigatorio para criar o documento.</p>
+          <p className="text-xs text-muted-foreground">Envie um arquivo obrigatorio para criar o documento. Limite de 5 MB.</p>
         )}
+        {uploadError ? (
+          <p className="text-xs text-destructive">{uploadError}</p>
+        ) : null}
       </div>
       <Button type="submit" disabled={isLoading || uploading || !form.file_url || !form.file_path || !form.file_name} className="w-full">
         {isLoading ? 'Salvando...' : 'Salvar Documento'}

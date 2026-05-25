@@ -50,7 +50,7 @@ Esse script cria:
 - acesso por sistema em `public.acessos_usuario_sistema`
 - permissoes por modulo em `gestao_intranet.permissoes_usuario`
 - conteudo da intranet no schema `gestao_intranet`
-- bucket `documents` para upload de arquivos
+- bucket `documentos` para upload de arquivos
 - politicas RLS iniciais
 
 ## Function intranet-api

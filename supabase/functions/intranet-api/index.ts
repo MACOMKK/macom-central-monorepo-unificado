@@ -21,7 +21,8 @@ const sql = databaseUrl
 
 const INTRANET_SCHEMA = 'gestao_intranet';
 const INTRANET_SYSTEM_SLUG = 'intranet';
-const DOCUMENTS_STORAGE_BUCKET = 'documents';
+const DOCUMENTS_STORAGE_BUCKET = 'documentos';
+const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
 
 const ENTITY_CONFIG = {
   Announcement: {
@@ -503,6 +504,19 @@ function assertAdmin(user: Record<string, unknown>) {
     const error = new Error('Apenas administradores podem executar esta operacao.');
     (error as Error & { status?: number }).status = 403;
     throw error;
+  }
+}
+
+function validateDocumentFileSize(fileSize: unknown) {
+  if (fileSize === null || fileSize === undefined || fileSize === '') return;
+
+  const numericSize = Number(fileSize);
+  if (!Number.isFinite(numericSize) || numericSize < 0) {
+    throw new Error('Tamanho de arquivo invalido.');
+  }
+
+  if (numericSize > MAX_DOCUMENT_FILE_SIZE) {
+    throw new Error('O arquivo deve ter no maximo 5 MB.');
   }
 }
 
@@ -1262,6 +1276,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   if (!payload.file_url || !payload.file_path || !payload.file_name) {
     throw new Error('Arquivo obrigatorio para criar documento.');
   }
+  validateDocumentFileSize(payload.file_size);
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
@@ -1286,11 +1301,24 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
-async function deleteStorageFile(authClient: ReturnType<typeof createClient>, filePath: unknown) {
+function resolveDocumentStorageBucket(document: Record<string, unknown> | null | undefined) {
+  const fileUrl = typeof document?.arquivo_url === 'string' ? document.arquivo_url : '';
+  if (fileUrl.includes('/object/public/documents/')) {
+    return 'documents';
+  }
+
+  return DOCUMENTS_STORAGE_BUCKET;
+}
+
+async function deleteStorageFile(
+  authClient: ReturnType<typeof createClient>,
+  filePath: unknown,
+  bucket = DOCUMENTS_STORAGE_BUCKET,
+) {
   const normalizedPath = typeof filePath === 'string' ? filePath.trim() : '';
   if (!normalizedPath) return;
 
-  const { error } = await authClient.storage.from(DOCUMENTS_STORAGE_BUCKET).remove([normalizedPath]);
+  const { error } = await authClient.storage.from(bucket).remove([normalizedPath]);
   if (error) {
     throw new Error(error.message || 'Falha ao remover arquivo do storage.');
   }
@@ -1298,6 +1326,9 @@ async function deleteStorageFile(authClient: ReturnType<typeof createClient>, fi
 
 async function updateDocument(authClient: ReturnType<typeof createClient>, id: string, payload: Record<string, unknown>) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  if ('file_size' in payload) {
+    validateDocumentFileSize(payload.file_size);
+  }
   const previousRows = await runSql<Record<string, unknown>>(
     'select * from gestao_intranet.documentos where id = $1 limit 1;',
     [id],
@@ -1331,7 +1362,11 @@ async function updateDocument(authClient: ReturnType<typeof createClient>, id: s
     nextDocument?.arquivo_path &&
     previousDocument.arquivo_path !== nextDocument.arquivo_path
   ) {
-    await deleteStorageFile(authClient, previousDocument.arquivo_path);
+    await deleteStorageFile(
+      authClient,
+      previousDocument.arquivo_path,
+      resolveDocumentStorageBucket(previousDocument),
+    );
   }
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
   return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
@@ -1523,7 +1558,11 @@ async function deleteDocument(authClient: ReturnType<typeof createClient>, id: s
   await deleteBaseEntity('Document', id);
 
   if (document?.arquivo_path) {
-    await deleteStorageFile(authClient, document.arquivo_path);
+    await deleteStorageFile(
+      authClient,
+      document.arquivo_path,
+      resolveDocumentStorageBucket(document),
+    );
   }
 
   return { success: true };

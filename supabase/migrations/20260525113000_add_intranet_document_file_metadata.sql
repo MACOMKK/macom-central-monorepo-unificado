@@ -11,7 +11,7 @@ set
     nullif(
       regexp_replace(
         coalesce(arquivo_url, ''),
-        '^.*?/object/public/documents/',
+        '^.*?/object/public/(documents|documentos)/',
         ''
       ),
       ''
