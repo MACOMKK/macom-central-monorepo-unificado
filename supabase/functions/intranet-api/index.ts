@@ -750,6 +750,29 @@ function mapQuickLink(row: Record<string, unknown>, creatorMap = new Map<string,
   };
 }
 
+function normalizeDateOnly(value: unknown) {
+  if (!value) return null;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, '0')}-${String(parsed.getUTCDate()).padStart(2, '0')}`;
+    }
+
+    return trimmed || null;
+  }
+
+  if (value instanceof Date) {
+    return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  return String(value);
+}
+
 function mapCalendarEvent(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
@@ -764,7 +787,7 @@ function mapCalendarEvent(
     id: row.id,
     title: row.titulo,
     description: row.descricao,
-    date: row.data_evento,
+    date: normalizeDateOnly(row.data_evento),
     time: row.horario,
     type: row.tipo,
     location: row.local,
@@ -834,7 +857,7 @@ function mapEmployee(
     unit_name: unit?.city || unit?.name || null,
     unit_id: row.unidade_id,
     photo_url: profileRow?.foto_url || null,
-    birth_date: row.data_nascimento || null,
+    birth_date: normalizeDateOnly(row.data_nascimento),
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
   };

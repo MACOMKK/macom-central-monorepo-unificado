@@ -89,23 +89,25 @@ export default function Employees() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="mb-6 flex flex-col gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar por nome ou e-mail..." value={search} onChange={(event) => setSearch(event.target.value)} className="pl-10" />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {departmentOptions.map((department) => (
-            <button
-              key={department}
-              onClick={() => setDeptFilter(department)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                deptFilter === department ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              {department === 'all' ? 'Todos' : department}
-            </button>
-          ))}
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="flex min-w-max gap-2 pb-1 sm:min-w-0 sm:flex-wrap">
+            {departmentOptions.map((department) => (
+              <button
+                key={department}
+                onClick={() => setDeptFilter(department)}
+                className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition-colors ${
+                  deptFilter === department ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                {department === 'all' ? 'Todos' : department}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -125,7 +127,7 @@ export default function Employees() {
               key={employee.id}
               className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
             >
-              <div className="relative border-b border-slate-100 p-6 text-center">
+              <div className="relative border-b border-slate-100 px-4 pb-5 pt-6 text-center sm:p-6">
                 {employee.phone ? (
                   <div className="absolute right-3 top-3 max-w-[132px] truncate rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold leading-none text-slate-500">
                     {employee.phone}
@@ -133,7 +135,7 @@ export default function Employees() {
                 ) : null}
 
                 {canEdit ? (
-                  <div className="absolute left-4 top-4 flex shrink-0">
+                  <div className="absolute left-3 top-3 flex shrink-0 sm:left-4 sm:top-4">
                     <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => openEdit(employee)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -152,7 +154,7 @@ export default function Employees() {
                   </div>
                 )}
 
-                <h3 className="text-lg font-bold text-foreground">{employee.name}</h3>
+                <h3 className="text-lg font-bold leading-tight text-foreground">{employee.name}</h3>
                 <p className="mb-1 text-sm font-medium text-primary">{employee.position || employee.function_role || 'Sem cargo'}</p>
                 <p className="flex items-center justify-center gap-1 text-sm text-slate-500">
                   <Building size={14} />
@@ -186,7 +188,7 @@ export default function Employees() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Colaborador</DialogTitle>
           </DialogHeader>

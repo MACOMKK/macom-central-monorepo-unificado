@@ -42,37 +42,37 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
 
   if (user.role === 'admin') {
     return (
-      <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-medium text-sm">{user.full_name || user.email}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <Badge className="bg-primary/10 text-primary">Admin - acesso total</Badge>
+        <Badge className="bg-primary/10 text-primary sm:self-auto self-start">Admin - acesso total</Badge>
       </div>
     );
   }
 
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-medium text-sm">{user.full_name || user.email}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-2">
+        <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 sm:w-auto">
           {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
           Salvar
         </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {MODULES.map((mod) => (
-          <div key={mod.key} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded-lg">
+          <div key={mod.key} className="flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-xs font-medium">{mod.label}</span>
             <Select
               value={modules[mod.key] || 'view'}
               onValueChange={(value) => setModules((prev) => ({ ...prev, [mod.key]: value }))}
             >
-              <SelectTrigger className="w-28 h-7 text-xs">
+              <SelectTrigger className="h-9 w-full text-xs sm:h-7 sm:w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -182,15 +182,15 @@ export default function Permissions() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="mb-6 flex flex-col gap-2 sm:flex-row">
         <Input
           placeholder="Adicionar permissao por e-mail..."
           value={newEmail}
           onChange={(event) => setNewEmail(event.target.value)}
           onKeyDown={(event) => event.key === 'Enter' && handleAddEmail()}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
-        <Button onClick={handleAddEmail} className="gap-2">
+        <Button onClick={handleAddEmail} className="w-full gap-2 sm:w-auto">
           <Plus className="w-4 h-4" /> Adicionar
         </Button>
       </div>

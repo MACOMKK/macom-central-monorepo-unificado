@@ -63,7 +63,7 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
         <Label>Nome Completo</Label>
         <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required placeholder="Nome do colaborador" />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>E-mail</Label>
           <Input
@@ -89,7 +89,7 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
         <Label>Cargo</Label>
         <Input value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} placeholder="Cargo do colaborador" />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Departamento</Label>
           <Select

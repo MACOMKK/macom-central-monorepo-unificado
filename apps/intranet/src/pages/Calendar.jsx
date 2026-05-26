@@ -11,13 +11,23 @@ import { usePermissions } from '@/lib/usePermissions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const typeColors = {
-  reuniao: 'bg-blue-500', treinamento: 'bg-green-500', evento: 'bg-purple-500',
-  feriado: 'bg-red-500', aniversario: 'bg-pink-500', outro: 'bg-gray-500',
+  reuniao: 'bg-blue-500',
+  treinamento: 'bg-green-500',
+  evento: 'bg-purple-500',
+  feriado: 'bg-red-500',
+  aniversario: 'bg-pink-500',
+  outro: 'bg-gray-500',
 };
+
 const typeLabels = {
-  reuniao: 'Reunião', treinamento: 'Treinamento', evento: 'Evento',
-  feriado: 'Feriado', aniversario: 'Aniversário', outro: 'Outro',
+  reuniao: 'Reuniao',
+  treinamento: 'Treinamento',
+  evento: 'Evento',
+  feriado: 'Feriado',
+  aniversario: 'Aniversario',
+  outro: 'Outro',
 };
+
 function parseEventDate(value) {
   if (!value || typeof value !== 'string') return null;
   const parsed = parseISO(value);
@@ -55,12 +65,12 @@ export default function Calendar() {
   const startDay = monthStart.getDay();
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  const getEventsForDay = (day) => {
-    return events.filter((event) => {
+  const getEventsForDay = (day) => (
+    events.filter((event) => {
       const eventDate = parseEventDate(event.date);
       return eventDate ? isSameDay(eventDate, day) : false;
-    });
-  };
+    })
+  );
 
   const selectedEvents = selectedDate ? getEventsForDay(selectedDate) : [];
 
@@ -72,97 +82,148 @@ export default function Calendar() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold">Calendário</h1>
-          <p className="text-sm text-muted-foreground mt-1">Eventos e datas importantes</p>
+          <h1 className="text-2xl font-bold">Calendario</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Eventos e datas importantes</p>
         </div>
-        {canEdit && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Evento</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Novo Evento</DialogTitle></DialogHeader>
-            <EventForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
-          </DialogContent>
-        </Dialog>}
+
+        {canEdit ? (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full gap-2 sm:w-auto">
+                <Plus className="h-4 w-4" />
+                Novo Evento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo Evento</DialogTitle>
+              </DialogHeader>
+              <EventForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar Grid */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-6">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-              <ChevronLeft className="w-5 h-5" />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5 lg:col-span-2">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl"
+              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+            >
+              <ChevronLeft className="h-5 w-5" />
             </Button>
-            <h2 className="text-lg font-semibold capitalize">
+
+            <h2 className="text-center text-base font-semibold capitalize sm:text-lg">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </h2>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-              <ChevronRight className="w-5 h-5" />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            >
+              <ChevronRight className="h-5 w-5" />
             </Button>
           </div>
 
           <div className="grid grid-cols-7 gap-px">
-            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-              <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-2">{d}</div>
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map((dayLabel) => (
+              <div key={dayLabel} className="py-2 text-center text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                {dayLabel}
+              </div>
             ))}
-            {Array(startDay).fill(null).map((_, i) => <div key={`empty-${i}`} />)}
-            {days.map(day => {
+
+            {Array(startDay).fill(null).map((_, index) => <div key={`empty-${index}`} />)}
+
+            {days.map((day) => {
               const dayEvents = getEventsForDay(day);
               const selected = selectedDate && isSameDay(day, selectedDate);
+
               return (
                 <button
                   key={day.toISOString()}
+                  type="button"
                   onClick={() => setSelectedDate(day)}
                   className={cn(
-                    "relative h-12 md:h-16 rounded-lg flex flex-col items-center justify-start pt-1 transition-all text-sm",
-                    isToday(day) && "bg-primary/10 font-bold",
-                    selected && "ring-2 ring-primary bg-primary/5",
-                    !selected && "hover:bg-muted"
+                    'relative flex h-11 flex-col items-center justify-start rounded-lg pt-1 text-sm transition-all sm:h-14 md:h-16',
+                    isToday(day) && 'bg-primary/10 font-bold',
+                    selected && 'bg-primary/5 ring-2 ring-primary',
+                    !selected && 'hover:bg-muted'
                   )}
                 >
-                  <span className={cn(isToday(day) && "text-primary")}>{format(day, 'd')}</span>
-                  {dayEvents.length > 0 && (
-                    <div className="flex gap-0.5 mt-1">
-                      {dayEvents.slice(0, 3).map(e => (
-                        <div key={e.id} className={`w-1.5 h-1.5 rounded-full ${typeColors[e.type] || typeColors.outro}`} />
+                  <span className={cn(isToday(day) && 'text-primary')}>{format(day, 'd')}</span>
+                  {dayEvents.length > 0 ? (
+                    <div className="mt-1 flex gap-0.5">
+                      {dayEvents.slice(0, 3).map((event) => (
+                        <div key={event.id} className={`h-1.5 w-1.5 rounded-full ${typeColors[event.type] || typeColors.outro}`} />
                       ))}
                     </div>
-                  )}
+                  ) : null}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Day Details */}
-        <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold mb-4">
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+          <h3 className="mb-4 font-semibold">
             {selectedDate
               ? format(selectedDate, "d 'de' MMMM", { locale: ptBR })
               : 'Selecione um dia'}
           </h3>
-          {selectedDate && selectedEvents.length === 0 && (
+
+          {selectedDate && selectedEvents.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum evento neste dia.</p>
-          )}
+          ) : null}
+
           <div className="space-y-3">
-            {selectedEvents.map(e => (
-              <div key={e.id} className="p-3 rounded-lg border border-border">
-                <div className="flex items-start justify-between">
+            {selectedEvents.map((event) => (
+              <div key={event.id} className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${typeColors[e.type] || typeColors.outro}`} />
-                    <h4 className="font-medium text-sm">{e.title}</h4>
+                    <div className={`h-2 w-2 rounded-full ${typeColors[event.type] || typeColors.outro}`} />
+                    <h4 className="text-sm font-medium leading-tight">{event.title}</h4>
                   </div>
-                  {canEdit && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setEventToDelete(e)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>}
+
+                  {canEdit ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => setEventToDelete(event)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
                 </div>
-                <Badge variant="secondary" className="text-[10px] mt-1">{typeLabels[e.type] || e.type}</Badge>
-                {e.description && <p className="text-xs text-muted-foreground mt-2">{e.description}</p>}
-                <div className="flex gap-3 mt-2">
-                  {e.time && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> {e.time}</span>}
-                  {e.location && <span className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" /> {e.location}</span>}
+
+                <Badge variant="secondary" className="mt-1 text-[10px]">
+                  {typeLabels[event.type] || event.type}
+                </Badge>
+
+                {event.description ? (
+                  <p className="mt-2 text-xs text-muted-foreground">{event.description}</p>
+                ) : null}
+
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {event.time ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {event.time}
+                    </span>
+                  ) : null}
+                  {event.location ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {event.location}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -184,4 +245,3 @@ export default function Calendar() {
     </div>
   );
 }
-
