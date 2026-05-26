@@ -196,12 +196,12 @@ export default function Documents() {
           {canEdit && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="h-10 rounded-xl px-4 text-sm font-medium">
+                <Button className="h-10 w-full rounded-xl px-4 text-sm font-medium sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Novo
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Novo Documento</DialogTitle>
                 </DialogHeader>
@@ -214,7 +214,7 @@ export default function Documents() {
 
       {isLoading ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-60 rounded-[24px]" />)}
           </div>
           <Skeleton className="h-96 rounded-[28px]" />
@@ -245,7 +245,7 @@ export default function Documents() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {categoryCards.map((category) => {
                 const Icon = category.config.icon;
                 const isActive = catFilter === category.key;
@@ -274,7 +274,7 @@ export default function Documents() {
                         <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{category.config.helper}</p>
                       </div>
 
-                      <div className="flex items-end gap-3 text-[10px] text-muted-foreground">
+                      <div className="flex flex-wrap items-end gap-3 text-[10px] text-muted-foreground">
                         <div>
                           <p className="font-medium">{category.count}</p>
                           <p>{category.count === 1 ? 'arquivo' : 'arquivos'}</p>
@@ -292,7 +292,7 @@ export default function Documents() {
           </section>
 
           <section className="overflow-hidden rounded-[28px] border border-border bg-card shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-6 py-5">
+            <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
                   {catFilter === 'all' ? 'Arquivos Recentes' : `Arquivos de ${activeCategoryLabel}`}
@@ -307,7 +307,7 @@ export default function Documents() {
                 <button
                   type="button"
                   onClick={() => setCatFilter('all')}
-                  className="text-sm font-medium text-primary transition-colors hover:text-primary/80"
+                  className="text-left text-sm font-medium text-primary transition-colors hover:text-primary/80"
                 >
                   Ver todos
                 </button>
@@ -323,7 +323,7 @@ export default function Documents() {
                 return (
                   <div
                     key={document.id}
-                    className="flex flex-col gap-3 px-6 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center"
+                    className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:px-6"
                   >
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${config.iconWrap}`}>
                       <Icon className="h-5 w-5" />
@@ -335,7 +335,7 @@ export default function Documents() {
                           <button
                             type="button"
                             onClick={() => setPreviewDocument(document)}
-                            className="truncate text-left text-[15px] font-semibold text-foreground transition-colors hover:text-primary"
+                            className="line-clamp-2 text-left text-[15px] font-semibold leading-tight text-foreground transition-colors hover:text-primary sm:truncate"
                           >
                             {document.title}
                           </button>
@@ -346,7 +346,7 @@ export default function Documents() {
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
                           <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[9px] font-medium">
                             {config.label}
                           </Badge>
@@ -402,7 +402,7 @@ export default function Documents() {
       )}
 
       <Dialog open={Boolean(previewDocument)} onOpenChange={(open) => !open && setPreviewDocument(null)}>
-        <DialogContent className="max-h-[88vh] max-w-5xl overflow-y-auto">
+        <DialogContent className="max-h-[88vh] max-w-5xl overflow-y-auto p-4 sm:p-6">
           {previewDocument && (
             <>
               <DialogHeader className="border-b border-border pb-4">
@@ -415,7 +415,7 @@ export default function Documents() {
                     <iframe
                       title={previewDocument.title}
                       src={previewDocument.file_url}
-                      className="h-[70vh] w-full"
+                      className="h-[58vh] w-full sm:h-[70vh]"
                     />
                   ) : null}
 

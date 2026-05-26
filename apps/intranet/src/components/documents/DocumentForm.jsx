@@ -63,7 +63,7 @@ export default function DocumentForm({ onSubmit, isLoading }) {
         <Label>Descricao</Label>
         <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={2} placeholder="Breve descricao..." />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Categoria</Label>
           <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
@@ -95,8 +95,8 @@ export default function DocumentForm({ onSubmit, isLoading }) {
       </div>
       <div className="space-y-2">
         <Label>Arquivo</Label>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:bg-muted transition-colors text-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm transition-colors hover:bg-muted sm:w-auto sm:justify-start sm:py-2">
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Enviando...' : form.file_name ? 'Arquivo enviado' : 'Selecionar arquivo'}
             <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
