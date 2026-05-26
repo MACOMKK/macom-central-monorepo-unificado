@@ -15,10 +15,8 @@ begin
   end if;
 end
 $$;
-
 alter index if exists public.perfis_pkey rename to colaboradores_pkey;
 alter index if exists public.perfis_cpf_key rename to colaboradores_cpf_key;
-
 do $$
 begin
   if exists (
@@ -49,7 +47,6 @@ begin
   end if;
 end
 $$;
-
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql

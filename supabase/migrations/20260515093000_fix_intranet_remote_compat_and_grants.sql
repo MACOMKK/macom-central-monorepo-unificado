@@ -1,15 +1,11 @@
 grant usage on schema public to authenticator;
 grant usage on schema gestao_intranet to authenticator, anon;
-
 grant select on all tables in schema public to authenticator;
 grant select on all tables in schema gestao_intranet to authenticator, anon;
-
 alter default privileges in schema public
 grant select on tables to authenticator;
-
 alter default privileges in schema gestao_intranet
 grant select on tables to authenticator;
-
 create or replace function public.has_system_access(system_slug text)
 returns boolean
 language sql
@@ -27,7 +23,6 @@ as $$
       and s.slug = system_slug
   );
 $$;
-
 create or replace function public.system_access_level(system_slug text)
 returns text
 language sql
@@ -44,7 +39,6 @@ as $$
     and s.slug = system_slug
   limit 1;
 $$;
-
 create or replace function public.is_intranet_admin()
 returns boolean
 language sql
@@ -54,7 +48,6 @@ set search_path = public
 as $$
   select public.intranet_is_admin();
 $$;
-
 create or replace function public.grant_intranet_access(
   p_email text,
   p_nivel_acesso text default 'user'
@@ -119,7 +112,6 @@ begin
   return v_colaborador_id;
 end;
 $$;
-
 create or replace function public.sync_auth_user_to_colaborador()
 returns trigger
 language plpgsql
@@ -180,16 +172,13 @@ begin
   return new;
 end;
 $$;
-
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.sync_auth_user_to_colaborador();
-
 drop trigger if exists on_auth_user_updated on auth.users;
 create trigger on_auth_user_updated
 after update of email, raw_user_meta_data on auth.users
 for each row execute procedure public.sync_auth_user_to_colaborador();
-
 notify pgrst, 'reload schema';
 notify pgrst, 'reload config';

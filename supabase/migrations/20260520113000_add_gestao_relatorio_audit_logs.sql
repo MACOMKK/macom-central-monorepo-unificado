@@ -10,18 +10,13 @@ create table if not exists gestao_relatorio.logs_auditoria (
   metadados jsonb not null default '{}'::jsonb,
   criado_em timestamptz not null default now()
 );
-
 create index if not exists logs_auditoria_entidade_idx
   on gestao_relatorio.logs_auditoria (entidade);
-
 create index if not exists logs_auditoria_registro_id_idx
   on gestao_relatorio.logs_auditoria (registro_id);
-
 create index if not exists logs_auditoria_criado_em_idx
   on gestao_relatorio.logs_auditoria (criado_em desc);
-
 alter table gestao_relatorio.logs_auditoria enable row level security;
-
 drop policy if exists "logs_auditoria_admin_select" on gestao_relatorio.logs_auditoria;
 create policy "logs_auditoria_admin_select"
   on gestao_relatorio.logs_auditoria

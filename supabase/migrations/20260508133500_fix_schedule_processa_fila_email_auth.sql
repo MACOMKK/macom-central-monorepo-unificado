@@ -13,7 +13,6 @@ begin
   end if;
 end
 $$;
-
 select cron.schedule(
   'processa-fila-email-every-minute',
   '* * * * *',

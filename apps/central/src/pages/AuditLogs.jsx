@@ -44,11 +44,17 @@ const fieldLabels = {
   ativo: 'Ativo',
   descricao: 'Descricao',
   categoria: 'Categoria',
+  tipo: 'Tipo',
+  numero: 'Numero',
+  operadora: 'Operadora',
+  plano: 'Plano',
+  iccid: 'ICCID',
   marca: 'Marca',
   modelo: 'Modelo',
   patrimonio: 'Patrimonio',
   estado: 'Estado',
   numero_serie: 'Numero de serie',
+  observacao: 'Observacao',
   observacoes: 'Observacoes',
   colaborador_nome: 'Colaborador',
   responsavel_colaborador_id: 'Responsavel',
@@ -73,11 +79,20 @@ function getAffectedLabel(log) {
   const affectedId = log.metadados?.colaborador_id_afetado;
   const affectedAssetName = log.metadados?.ativo_nome_afetado;
   const affectedAssetId = log.metadados?.ativo_id_afetado;
+  const affectedCorporateLineName = log.metadados?.linha_corporativa_nome_afetada;
+  const affectedCorporateLineNumber = log.metadados?.linha_corporativa_numero_afetado;
+  const affectedCorporateLineId = log.metadados?.linha_corporativa_id_afetada;
 
   if (affectedEmail) return affectedEmail;
   if (affectedAssetName) return String(affectedAssetName);
+  if (affectedCorporateLineName && affectedCorporateLineNumber) {
+    return `${affectedCorporateLineName} (${affectedCorporateLineNumber})`;
+  }
+  if (affectedCorporateLineName) return String(affectedCorporateLineName);
+  if (affectedCorporateLineNumber) return String(affectedCorporateLineNumber);
   if (affectedId) return String(affectedId);
   if (affectedAssetId) return String(affectedAssetId);
+  if (affectedCorporateLineId) return String(affectedCorporateLineId);
 
   return '-';
 }
@@ -104,6 +119,30 @@ function getContextLabel(log) {
 
     if (assetName) {
       return String(assetName);
+    }
+  }
+
+  if (log.entidade === 'linhas_corporativas') {
+    const lineName = log.metadados?.linha_corporativa_nome_afetada;
+    const lineNumber = log.metadados?.linha_corporativa_numero_afetado;
+    const previousStatus = log.metadados?.status_anterior;
+    const nextStatus = log.metadados?.status_novo;
+    const statusChanged = previousStatus !== null && previousStatus !== undefined && nextStatus !== null && nextStatus !== undefined;
+
+    if (statusChanged && previousStatus !== nextStatus) {
+      return `${lineName || lineNumber || 'Linha'}: ${previousStatus} -> ${nextStatus}`;
+    }
+
+    if (lineName && lineNumber) {
+      return `${lineName} (${lineNumber})`;
+    }
+
+    if (lineNumber) {
+      return String(lineNumber);
+    }
+
+    if (lineName) {
+      return String(lineName);
     }
   }
 
@@ -370,7 +409,9 @@ export default function AuditLogs() {
         String(log.entidade || '').toLowerCase().includes(normalizedSearch) ||
         String(log.metadados?.sistema_slug || '').toLowerCase().includes(normalizedSearch) ||
         String(log.metadados?.ativo_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
-        String(log.metadados?.patrimonio_afetado || '').toLowerCase().includes(normalizedSearch);
+        String(log.metadados?.patrimonio_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.linha_corporativa_nome_afetada || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.linha_corporativa_numero_afetado || '').toLowerCase().includes(normalizedSearch);
 
       return matchesSearch;
     })

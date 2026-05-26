@@ -10,7 +10,6 @@ as $$
   where lower(c.email) = lower(auth.email())
   limit 1;
 $$;
-
 create or replace function public.relatorios_access_level()
 returns text
 language sql
@@ -27,7 +26,6 @@ as $$
     and s.ativo = true
   limit 1;
 $$;
-
 drop policy if exists "relatorios_select_admin_or_permitted" on gestao_relatorio.relatorios;
 create policy "relatorios_select_admin_or_permitted"
   on gestao_relatorio.relatorios
@@ -42,7 +40,6 @@ create policy "relatorios_select_admin_or_permitted"
         and pr.relatorio_id = relatorios.id
     )
   );
-
 drop policy if exists "permissoes_relatorios_select_admin_or_own" on gestao_relatorio.permissoes_relatorios;
 create policy "permissoes_relatorios_select_admin_or_own"
   on gestao_relatorio.permissoes_relatorios

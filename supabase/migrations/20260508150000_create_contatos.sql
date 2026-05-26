@@ -11,21 +11,15 @@ create table if not exists public.contatos (
   atualizado_em timestamptz not null default now(),
   constraint contatos_tipo_check check (tipo in ('fornecedor', 'suporte', 'parceiro', 'comercial', 'outro'))
 );
-
 create index if not exists idx_contatos_tipo
   on public.contatos (tipo);
-
 create index if not exists idx_contatos_nome
   on public.contatos (nome);
-
 create index if not exists idx_contatos_empresa
   on public.contatos (empresa);
-
 create index if not exists idx_contatos_unidade_id
   on public.contatos (unidade_id);
-
 drop trigger if exists trg_contatos_set_atualizado_em on public.contatos;
-
 create trigger trg_contatos_set_atualizado_em
 before update on public.contatos
 for each row
