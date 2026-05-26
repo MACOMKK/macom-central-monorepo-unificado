@@ -21,8 +21,11 @@ const sql = databaseUrl
 
 const INTRANET_SCHEMA = 'gestao_intranet';
 const INTRANET_SYSTEM_SLUG = 'intranet';
+const ANNOUNCEMENT_IMAGES_STORAGE_BUCKET = 'avisos';
 const DOCUMENTS_STORAGE_BUCKET = 'documentos';
+const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_ANNOUNCEMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const ENTITY_CONFIG = {
   Announcement: {
@@ -43,8 +46,32 @@ const ENTITY_CONFIG = {
       priority: 'prioridade',
       pinned: 'fixado',
     },
-    createFields: ['title', 'content', 'category', 'priority', 'pinned', 'expiration_date'],
-    updateFields: ['title', 'content', 'category', 'priority', 'pinned', 'expiration_date'],
+    createFields: [
+      'title',
+      'content',
+      'category',
+      'priority',
+      'pinned',
+      'expiration_date',
+      'image_url',
+      'image_path',
+      'image_name',
+      'image_type',
+      'image_size',
+    ],
+    updateFields: [
+      'title',
+      'content',
+      'category',
+      'priority',
+      'pinned',
+      'expiration_date',
+      'image_url',
+      'image_path',
+      'image_name',
+      'image_type',
+      'image_size',
+    ],
   },
   AnnouncementComment: {
     schema: INTRANET_SCHEMA,
@@ -630,6 +657,11 @@ function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<stri
     priority: row.prioridade,
     pinned: row.fixado,
     expiration_date: row.expira_em,
+    image_url: row.imagem_url || null,
+    image_path: row.imagem_path || null,
+    image_name: row.imagem_nome || null,
+    image_type: row.imagem_tipo || null,
+    image_size: row.imagem_tamanho || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -974,11 +1006,13 @@ async function filterUserPermissions(filters: Record<string, unknown>, orderBy?:
 
 async function createAnnouncement(payload: Record<string, unknown>, collaboratorId: string | null) {
   const sanitized = sanitizePayload(payload, ENTITY_CONFIG.Announcement.createFields);
+  validateAnnouncementImage(sanitized);
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.avisos (
-        titulo, conteudo, categoria, prioridade, fixado, expira_em, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7)
+        titulo, conteudo, categoria, prioridade, fixado, expira_em,
+        imagem_url, imagem_path, imagem_nome, imagem_tipo, imagem_tamanho, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       returning *;
     `,
     [
@@ -988,6 +1022,11 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
       sanitized.priority || 'media',
       sanitized.pinned || false,
       sanitized.expiration_date || null,
+      sanitized.image_url || null,
+      sanitized.image_path || null,
+      sanitized.image_name || null,
+      sanitized.image_type || null,
+      sanitized.image_size || null,
       collaboratorId,
     ],
   );
@@ -996,8 +1035,65 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
   return mapAnnouncement(rows[0], creators);
 }
 
-async function updateAnnouncement(id: string, payload: Record<string, unknown>) {
+function validateAnnouncementImage(payload: Record<string, unknown>) {
+  const hasImagePayload =
+    'image_url' in payload ||
+    'image_path' in payload ||
+    'image_name' in payload ||
+    'image_type' in payload ||
+    'image_size' in payload;
+
+  if (!hasImagePayload) return;
+
+  const imageUrl = typeof payload.image_url === 'string' ? payload.image_url.trim() : '';
+  const imagePath = typeof payload.image_path === 'string' ? payload.image_path.trim() : '';
+  const imageName = typeof payload.image_name === 'string' ? payload.image_name.trim() : '';
+  const imageType = typeof payload.image_type === 'string' ? payload.image_type.trim() : '';
+  const imageSize = payload.image_size;
+
+  const hasAnyImageValue = Boolean(imageUrl || imagePath || imageName || imageType || imageSize);
+  if (!hasAnyImageValue) return;
+
+  if (!imageUrl || !imagePath || !imageName) {
+    throw new Error('A imagem do aviso precisa conter URL, caminho e nome do arquivo.');
+  }
+
+  if (imageType && !ALLOWED_ANNOUNCEMENT_IMAGE_TYPES.has(imageType)) {
+    throw new Error('Formato de imagem nao suportado. Use JPG, PNG ou WebP.');
+  }
+
+  if (imageSize != null) {
+    const normalizedSize = Number(imageSize);
+    if (!Number.isFinite(normalizedSize) || normalizedSize <= 0) {
+      throw new Error('Tamanho da imagem invalido.');
+    }
+    if (normalizedSize > MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE) {
+      throw new Error('A imagem deve ter no maximo 2 MB.');
+    }
+  }
+}
+
+function resolveAnnouncementStorageBucket(announcement: Record<string, unknown> | null | undefined) {
+  const imageUrl = typeof announcement?.imagem_url === 'string' ? announcement.imagem_url : '';
+  if (imageUrl.includes('/object/public/announcements/')) {
+    return 'announcements';
+  }
+
+  return ANNOUNCEMENT_IMAGES_STORAGE_BUCKET;
+}
+
+async function updateAnnouncement(
+  authClient: ReturnType<typeof createClient>,
+  id: string,
+  payload: Record<string, unknown>,
+) {
   const sanitized = sanitizePayload(payload, ENTITY_CONFIG.Announcement.updateFields);
+  validateAnnouncementImage(sanitized);
+  const previousRows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.avisos where id = $1 limit 1;',
+    [id],
+  );
+  const previousAnnouncement = previousRows[0];
   const updates: string[] = [];
   const values: unknown[] = [id];
 
@@ -1012,12 +1108,28 @@ async function updateAnnouncement(id: string, payload: Record<string, unknown>) 
   if ('priority' in sanitized) assign('prioridade', sanitized.priority);
   if ('pinned' in sanitized) assign('fixado', sanitized.pinned);
   if ('expiration_date' in sanitized) assign('expira_em', sanitized.expiration_date);
+  if ('image_url' in sanitized) assign('imagem_url', sanitized.image_url);
+  if ('image_path' in sanitized) assign('imagem_path', sanitized.image_path);
+  if ('image_name' in sanitized) assign('imagem_nome', sanitized.image_name);
+  if ('image_type' in sanitized) assign('imagem_tipo', sanitized.image_type);
+  if ('image_size' in sanitized) assign('imagem_tamanho', sanitized.image_size);
   assign('atualizado_em', new Date().toISOString());
 
   const rows = await runSql<Record<string, unknown>>(
     `update gestao_intranet.avisos set ${updates.join(', ')} where id = $1 returning *;`,
     values,
   );
+  const nextAnnouncement = rows[0];
+  if (
+    previousAnnouncement?.imagem_path &&
+    previousAnnouncement.imagem_path !== nextAnnouncement?.imagem_path
+  ) {
+    await deleteStorageFile(
+      authClient,
+      previousAnnouncement.imagem_path,
+      resolveAnnouncementStorageBucket(previousAnnouncement),
+    );
+  }
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
   return mapAnnouncement(rows[0], creators);
 }
@@ -1568,6 +1680,26 @@ async function deleteDocument(authClient: ReturnType<typeof createClient>, id: s
   return { success: true };
 }
 
+async function deleteAnnouncement(authClient: ReturnType<typeof createClient>, id: string) {
+  const rows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.avisos where id = $1 limit 1;',
+    [id],
+  );
+  const announcement = rows[0];
+
+  await deleteBaseEntity('Announcement', id);
+
+  if (announcement?.imagem_path) {
+    await deleteStorageFile(
+      authClient,
+      announcement.imagem_path,
+      resolveAnnouncementStorageBucket(announcement),
+    );
+  }
+
+  return { success: true };
+}
+
 async function listEntity(entity: string, orderBy?: string, limit?: number) {
   switch (entity) {
     case 'Announcement':
@@ -1664,7 +1796,7 @@ async function createEntity(entity: string, payload: Record<string, unknown>, co
 async function updateEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string, payload: Record<string, unknown>) {
   switch (entity) {
     case 'Announcement':
-      return updateAnnouncement(id, payload);
+      return updateAnnouncement(authClient, id, payload);
     case 'CalendarEvent':
       return updateCalendarEvent(id, payload);
     case 'Document':
@@ -1687,7 +1819,7 @@ async function updateEntity(authClient: ReturnType<typeof createClient>, entity:
 async function deleteEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string) {
   switch (entity) {
     case 'Announcement':
-      return deleteBaseEntity('Announcement', id);
+      return deleteAnnouncement(authClient, id);
     case 'AnnouncementComment':
       return deleteBaseEntity('AnnouncementComment', id);
     case 'AnnouncementReaction':

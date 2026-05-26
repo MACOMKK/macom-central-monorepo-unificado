@@ -79,9 +79,9 @@ function EmptyHighlightState({ title, description, dark = false }) {
 
         <div className="relative grid min-h-[320px] items-center gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
           <div className="max-w-2xl">
-              <span className="inline-flex rounded-full bg-[#E30613] px-4 py-1 text-xs font-bold text-white">
-                Intranet
-              </span>
+            <span className="inline-flex rounded-full bg-[#E30613] px-4 py-1 text-xs font-bold text-white">
+              Intranet
+            </span>
             <h1
               className={`mt-6 max-w-[650px] text-3xl font-black leading-[1.02] sm:text-5xl ${
                 dark ? 'text-white' : 'text-[#0B1B3D]'
@@ -181,6 +181,16 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
               style={{ background: style.background }}
               aria-hidden={!isActive}
             >
+              {item.image_url ? (
+                <>
+                  <img
+                    src={item.image_url}
+                    alt={item.title}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(11,27,61,0.88)_0%,rgba(11,27,61,0.74)_42%,rgba(11,27,61,0.4)_72%,rgba(11,27,61,0.22)_100%)]" />
+                </>
+              ) : null}
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_22%),radial-gradient(circle_at_78%_50%,rgba(255,255,255,0.12),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(227,6,19,0.14),transparent_22%)]" />
               <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-gradient-to-l from-white/8 via-white/4 to-transparent lg:block" />
               <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
@@ -222,6 +232,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
             </div>
           );
         })}
+
         {slides.length > 1 ? (
           <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-3">
             {slides.map((slide, index) => {

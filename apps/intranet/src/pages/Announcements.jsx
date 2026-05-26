@@ -1,14 +1,24 @@
 import React, { useState } from 'react';
-import { appClient } from '@/api/client';
-import { useAuth } from '@/lib/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Pin, Trash2, AlertTriangle, Info, Bell } from 'lucide-react';
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Skeleton } from '@macom/ui';
+import { AlertTriangle, Bell, Info, Pin, Plus, Trash2 } from 'lucide-react';
+
+import { appClient } from '@/api/client';
+import { useAuth } from '@/lib/AuthContext';
+import { usePermissions } from '@/lib/usePermissions';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  Skeleton,
+} from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
 import AnnouncementInteractions from '../components/announcements/AnnouncementInteractions';
-import { usePermissions } from '@/lib/usePermissions';
 
 const priorityConfig = {
   urgente: { icon: AlertTriangle, class: 'bg-red-100 text-red-700 border-red-200' },
@@ -18,7 +28,12 @@ const priorityConfig = {
 };
 
 const categoryLabels = {
-  geral: 'Geral', rh: 'RH', ti: 'TI', financeiro: 'Financeiro', vendas: 'Vendas', pos_vendas: 'Pós-Vendas'
+  geral: 'Geral',
+  rh: 'RH',
+  ti: 'TI',
+  financeiro: 'Financeiro',
+  vendas: 'Vendas',
+  pos_vendas: 'Pos-Vendas',
 };
 
 export default function Announcements() {
@@ -37,97 +52,144 @@ export default function Announcements() {
     mutationFn: (data) => appClient.entities.Announcement.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
+      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
       setDialogOpen(false);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.Announcement.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['announcements'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
+      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+    },
   });
 
   const togglePin = useMutation({
-    mutationFn: (a) => appClient.entities.Announcement.update(a.id, { pinned: !a.pinned }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['announcements'] }),
+    mutationFn: (announcement) => appClient.entities.Announcement.update(announcement.id, { pinned: !announcement.pinned }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
+      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+    },
   });
 
-  const filtered = filter === 'all' ? announcements : announcements.filter(a => a.category === filter);
+  const filtered = filter === 'all' ? announcements : announcements.filter((announcement) => announcement.category === filter);
   const sorted = [...filtered].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold">Mural de Avisos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Comunicados e informações importantes</p>
+          <p className="mt-1 text-sm text-muted-foreground">Comunicados e informacoes importantes</p>
         </div>
-        {canEdit && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Aviso</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Novo Aviso</DialogTitle>
-            </DialogHeader>
-            <AnnouncementForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
-          </DialogContent>
-        </Dialog>}
+
+        {canEdit ? (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" /> Novo Aviso</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Novo Aviso</DialogTitle>
+              </DialogHeader>
+              <AnnouncementForm
+                onSubmit={(data) => createMutation.mutateAsync(data)}
+                isLoading={createMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap mb-6">
-        {['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas'].map(cat => (
+      <div className="mb-6 flex flex-wrap gap-2">
+        {['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas'].map((category) => (
           <button
-            key={cat}
-            onClick={() => setFilter(cat)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              filter === cat ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            key={category}
+            type="button"
+            onClick={() => setFilter(category)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              filter === category ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            {cat === 'all' ? 'Todos' : categoryLabels[cat]}
+            {category === 'all' ? 'Todos' : categoryLabels[category]}
           </button>
         ))}
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
+        <div className="space-y-3">{[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-24 w-full rounded-xl" />)}</div>
       ) : sorted.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+        <div className="py-20 text-center text-muted-foreground">
+          <Bell className="mx-auto mb-3 h-12 w-12 opacity-30" />
           <p>Nenhum aviso encontrado.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map(a => {
-            const config = priorityConfig[a.priority] || priorityConfig.media;
+        <div className="space-y-4">
+          {sorted.map((announcement) => {
+            const config = priorityConfig[announcement.priority] || priorityConfig.media;
+
             return (
-              <div key={a.id} className={`bg-card border rounded-xl p-5 transition-all hover:shadow-md ${a.pinned ? 'border-primary/30 bg-primary/[0.02]' : 'border-border'}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {a.pinned && <Pin className="w-4 h-4 text-primary shrink-0" />}
-                      <h3 className="font-semibold">{a.title}</h3>
-                      <Badge variant="outline" className={`text-[10px] ${config.class}`}>{a.priority}</Badge>
-                      <Badge variant="secondary" className="text-[10px]">{categoryLabels[a.category] || a.category}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{a.content}</p>
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Publicado em {format(new Date(a.created_date), "d 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
-                      {a.created_by && ` · por ${a.created_by}`}
-                    </p>
-                    <AnnouncementInteractions
-                      announcementId={a.id}
-                      currentUserId={currentUser?.collaborator_id || currentUser?.id}
+              <div
+                key={announcement.id}
+                className={`overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md ${
+                  announcement.pinned ? 'border-primary/30 bg-primary/[0.02]' : 'border-border'
+                }`}
+              >
+                {announcement.image_url ? (
+                  <div className="border-b border-border bg-muted/20">
+                    <img
+                      src={announcement.image_url}
+                      alt={announcement.title}
+                      className="h-52 w-full object-cover sm:h-64"
                     />
                   </div>
-                  {canEdit && <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(a)} className="h-8 w-8">
-                      <Pin className={`w-4 h-4 ${a.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(a.id)} className="h-8 w-8 text-destructive hover:text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>}
+                ) : null}
+
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {announcement.pinned ? <Pin className="h-4 w-4 shrink-0 text-primary" /> : null}
+                        <h3 className="font-semibold">{announcement.title}</h3>
+                        <Badge variant="outline" className={`text-[10px] ${config.class}`}>{announcement.priority}</Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {categoryLabels[announcement.category] || announcement.category}
+                        </Badge>
+                      </div>
+
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.content}</p>
+
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Publicado em {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
+                        {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
+                      </p>
+
+                      <AnnouncementInteractions
+                        announcementId={announcement.id}
+                        currentUserId={currentUser?.collaborator_id || currentUser?.id}
+                      />
+                    </div>
+
+                    {canEdit ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
+                          <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(announcement.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             );
@@ -137,4 +199,3 @@ export default function Announcements() {
     </div>
   );
 }
-
