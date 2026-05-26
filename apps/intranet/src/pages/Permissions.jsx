@@ -5,6 +5,7 @@ import { Shield, Save, Loader2, UserCog, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const MODULES = [
   { key: 'avisos', label: 'Mural de Avisos' },
@@ -103,6 +104,7 @@ export default function Permissions() {
   const queryClient = useQueryClient();
   const [savingUser, setSavingUser] = useState(null);
   const [newEmail, setNewEmail] = useState('');
+  const [permissionToDelete, setPermissionToDelete] = useState(null);
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
@@ -144,7 +146,13 @@ export default function Permissions() {
   };
 
   const handleDelete = (_email, permId) => {
-    deleteMutation.mutate({ permId });
+    setPermissionToDelete({ permId });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!permissionToDelete) return;
+    deleteMutation.mutate({ permId: permissionToDelete.permId });
+    setPermissionToDelete(null);
   };
 
   const handleAddEmail = () => {
@@ -235,6 +243,14 @@ export default function Permissions() {
           ))}
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(permissionToDelete)}
+        onOpenChange={(open) => !open && setPermissionToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir permissao"
+        description="Essa acao nao pode ser desfeita. Deseja remover esta permissao de acesso?"
+      />
     </div>
   );
 }

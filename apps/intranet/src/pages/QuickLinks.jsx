@@ -19,6 +19,7 @@ import {
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Skeleton } from '@macom/ui';
 import QuickLinkForm from '../components/links/QuickLinkForm';
 import { usePermissions } from '@/lib/usePermissions';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const categoryConfig = {
   sistema: {
@@ -125,6 +126,7 @@ export default function QuickLinks() {
   const { canEdit } = usePermissions('links');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState(null);
+  const [linkToDelete, setLinkToDelete] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: links = [], isLoading } = useQuery({
@@ -177,6 +179,12 @@ export default function QuickLinks() {
     .filter((category) => category.links.length > 0);
 
   const hasAnyLinks = links.length > 0;
+
+  const handleConfirmDelete = () => {
+    if (!linkToDelete) return;
+    deleteMutation.mutate(linkToDelete.id);
+    setLinkToDelete(null);
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -297,7 +305,7 @@ export default function QuickLinks() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600"
-                              onClick={() => deleteMutation.mutate(link.id)}
+                              onClick={() => setLinkToDelete(link)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -344,6 +352,18 @@ export default function QuickLinks() {
           </p>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(linkToDelete)}
+        onOpenChange={(open) => !open && setLinkToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir link"
+        description={
+          linkToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o link "${linkToDelete.name}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

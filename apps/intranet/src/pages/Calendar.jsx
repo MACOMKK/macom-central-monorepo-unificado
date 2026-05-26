@@ -8,6 +8,7 @@ import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Dialog
 import EventForm from '../components/calendar/EventForm';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/lib/usePermissions';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const typeColors = {
   reuniao: 'bg-blue-500', treinamento: 'bg-green-500', evento: 'bg-purple-500',
@@ -28,6 +29,7 @@ export default function Calendar() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [eventToDelete, setEventToDelete] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: events = [] } = useQuery({
@@ -61,6 +63,12 @@ export default function Calendar() {
   };
 
   const selectedEvents = selectedDate ? getEventsForDay(selectedDate) : [];
+
+  const handleConfirmDelete = () => {
+    if (!eventToDelete) return;
+    deleteMutation.mutate(eventToDelete.id);
+    setEventToDelete(null);
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -146,7 +154,7 @@ export default function Calendar() {
                     <div className={`w-2 h-2 rounded-full ${typeColors[e.type] || typeColors.outro}`} />
                     <h4 className="font-medium text-sm">{e.title}</h4>
                   </div>
-                  {canEdit && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(e.id)}>
+                  {canEdit && <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setEventToDelete(e)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>}
                 </div>
@@ -161,6 +169,18 @@ export default function Calendar() {
           </div>
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={Boolean(eventToDelete)}
+        onOpenChange={(open) => !open && setEventToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir evento"
+        description={
+          eventToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o evento "${eventToDelete.title}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

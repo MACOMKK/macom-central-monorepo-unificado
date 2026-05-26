@@ -5,6 +5,7 @@ import { KeyRound, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Button } from '@/components/ui/button';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -27,6 +28,7 @@ export default function SystemAccess() {
   const [search, setSearch] = useState('');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [feedback, setFeedback] = useState(null);
+  const [accessToDelete, setAccessToDelete] = useState(null);
   const [form, setForm] = useState({
     colaborador_id: '',
     sistema_id: '',
@@ -158,6 +160,12 @@ export default function SystemAccess() {
   }, [hydratedAccesses, normalizedSearch]);
 
   const isLoading = loadingCollaborators || loadingSystems || loadingAccesses;
+
+  const handleConfirmDelete = () => {
+    if (!accessToDelete) return;
+    removeMutation.mutate(accessToDelete.id);
+    setAccessToDelete(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -336,7 +344,7 @@ export default function SystemAccess() {
                           size="sm"
                           variant="outline"
                           disabled={removeMutation.isPending}
-                          onClick={() => removeMutation.mutate(entry.id)}
+                          onClick={() => setAccessToDelete(entry)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -351,6 +359,18 @@ export default function SystemAccess() {
       </Card>
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
+
+      <ConfirmDeleteDialog
+        open={Boolean(accessToDelete)}
+        onOpenChange={(open) => !open && setAccessToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir acesso ao sistema"
+        description={
+          accessToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja remover o acesso de ${accessToDelete.colaborador?.nome || accessToDelete.colaborador?.email || 'este colaborador'} para ${accessToDelete.sistema?.nome || 'este sistema'}?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

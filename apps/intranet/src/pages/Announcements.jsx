@@ -19,6 +19,7 @@ import {
 } from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
 import AnnouncementInteractions from '../components/announcements/AnnouncementInteractions';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const priorityConfig = {
   urgente: { icon: AlertTriangle, class: 'bg-red-100 text-red-700 border-red-200' },
@@ -40,6 +41,7 @@ export default function Announcements() {
   const { canEdit } = usePermissions('avisos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [announcementToDelete, setAnnouncementToDelete] = useState(null);
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 
@@ -78,6 +80,12 @@ export default function Announcements() {
 
   const filtered = filter === 'all' ? announcements : announcements.filter((announcement) => announcement.category === filter);
   const sorted = [...filtered].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+  const handleConfirmDelete = () => {
+    if (!announcementToDelete) return;
+    deleteMutation.mutate(announcementToDelete.id);
+    setAnnouncementToDelete(null);
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -182,7 +190,7 @@ export default function Announcements() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteMutation.mutate(announcement.id)}
+                          onClick={() => setAnnouncementToDelete(announcement)}
                           className="h-8 w-8 text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -196,6 +204,18 @@ export default function Announcements() {
           })}
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={Boolean(announcementToDelete)}
+        onOpenChange={(open) => !open && setAnnouncementToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir aviso"
+        description={
+          announcementToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o aviso "${announcementToDelete.title}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

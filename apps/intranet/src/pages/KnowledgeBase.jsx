@@ -7,6 +7,7 @@ import KnowledgeForm from '../components/knowledge/KnowledgeForm';
 import KnowledgeCard from '../components/knowledge/KnowledgeCard';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const CATEGORIES = ['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas', 'beneficios', 'politicas'];
 const CATEGORY_LABELS = {
@@ -21,6 +22,7 @@ export default function KnowledgeBase() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -67,6 +69,11 @@ export default function KnowledgeBase() {
 
   const openEdit = (item) => { setEditing(item); setDialogOpen(true); };
   const openCreate = () => { setEditing(null); setDialogOpen(true); };
+  const handleConfirmDelete = () => {
+    if (!itemToDelete) return;
+    deleteMutation.mutate(itemToDelete.id);
+    setItemToDelete(null);
+  };
 
   const filtered = items
     .filter(item => {
@@ -164,7 +171,7 @@ export default function KnowledgeBase() {
               item={item}
               canEdit={canEdit}
               onEdit={openEdit}
-              onDelete={(id) => deleteMutation.mutate(id)}
+              onDelete={setItemToDelete}
             />
           ))}
         </div>
@@ -184,6 +191,18 @@ export default function KnowledgeBase() {
           />
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={Boolean(itemToDelete)}
+        onOpenChange={(open) => !open && setItemToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir artigo"
+        description={
+          itemToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o artigo "${itemToDelete.title}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

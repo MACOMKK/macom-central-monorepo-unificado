@@ -173,6 +173,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
           const categoryLabel = categoryLabels[item.category] || categoryLabels.geral;
           const summary = truncateText(extractSummary(item.content), 150);
           const title = truncateText(item.title || '', 62);
+          const hasImage = Boolean(item.image_url);
 
           return (
             <div
@@ -192,9 +193,13 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
                 </>
               ) : null}
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_22%),radial-gradient(circle_at_78%_50%,rgba(255,255,255,0.12),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(227,6,19,0.14),transparent_22%)]" />
-              <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-gradient-to-l from-white/8 via-white/4 to-transparent lg:block" />
-              <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
-              <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
+              {!hasImage ? (
+                <>
+                  <div className="absolute inset-y-0 right-0 hidden w-[38%] bg-gradient-to-l from-white/8 via-white/4 to-transparent lg:block" />
+                  <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
+                  <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
+                </>
+              ) : null}
 
               <div className="relative grid min-h-[360px] items-center gap-8 px-8 pb-20 pt-9 sm:px-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
                 <div className="grid min-h-[260px] max-w-2xl grid-rows-[auto_auto_1fr_auto] self-center">

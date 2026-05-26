@@ -6,11 +6,13 @@ import { Plus, Trash2, Shield, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
 import PermissionForm from '@/components/admin/PermissionForm';
 import AdminGuard from '@/components/admin/AdminGuard';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 
 export default function ManagePermissions() {
   const { user } = useOutletContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [permissionToDelete, setPermissionToDelete] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: permissions = [], isLoading } = useQuery({
@@ -26,6 +28,12 @@ export default function ManagePermissions() {
   const handleSaved = () => {
     setDialogOpen(false);
     queryClient.invalidateQueries({ queryKey: ['all-permissions'] });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!permissionToDelete) return;
+    deleteMutation.mutate(permissionToDelete.id);
+    setPermissionToDelete(null);
   };
 
   const filtered = permissions.filter((permission) =>
@@ -100,7 +108,7 @@ export default function ManagePermissions() {
                     <TableCell className="text-xs" style={{ color: '#666' }}>{permission.unit_name || '—'}</TableCell>
                     <TableCell className="text-right">
                       <button
-                        onClick={() => deleteMutation.mutate(permission.id)}
+                        onClick={() => setPermissionToDelete(permission)}
                         className="p-2 transition-colors"
                         style={{ color: '#888' }}
                         onMouseEnter={(e) => { e.currentTarget.style.color = '#E30613'; }}
@@ -125,6 +133,19 @@ export default function ManagePermissions() {
           <PermissionForm onSaved={handleSaved} onCancel={() => setDialogOpen(false)} />
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={Boolean(permissionToDelete)}
+        onOpenChange={(open) => !open && setPermissionToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir permissao"
+        description={
+          permissionToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir a permissao de ${permissionToDelete.user_name || permissionToDelete.user_email || 'este usuario'} para ${permissionToDelete.report_title || 'este relatorio'}?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+        isLoading={deleteMutation.isPending}
+      />
     </AdminGuard>
   );
 }

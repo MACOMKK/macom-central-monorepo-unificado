@@ -12,6 +12,7 @@ export function useCatalogActionHandlers({
   openAssetAssignment,
   openCorporateLineAssignment,
   openPasswordReset,
+  requestConfirmation,
   systemAccesses,
   runWithClosedMenu,
   setFeedback,
@@ -27,14 +28,13 @@ export function useCatalogActionHandlers({
     closeMenu();
   };
 
-  const confirmMenuDeletion = (rowId, message) => {
-    const confirmed = window.confirm(message);
-    if (!confirmed) {
-      closeMenu();
-      return;
-    }
-
-    runWithClosedMenu(() => deleteRecord(rowId));
+  const confirmMenuDeletion = (rowId, title, description) => {
+    requestConfirmation({
+      title,
+      description,
+      onConfirm: () => runWithClosedMenu(() => deleteRecord(rowId)),
+    });
+    closeMenu();
   };
 
   const openMenuAssignment = (openAssignment, menu) => {
@@ -63,7 +63,8 @@ export function useCatalogActionHandlers({
 
       confirmMenuDeletion(
         assetMenu.row.id,
-        `Deseja realmente excluir ${assetMenu?.row?.nome || assetMenu?.row?.patrimonio || 'este ativo'}?`
+        'Excluir ativo',
+        `Essa acao nao pode ser desfeita. Deseja excluir ${assetMenu?.row?.nome || assetMenu?.row?.patrimonio || 'este ativo'}?`
       );
     },
     onEdit: () => openRecordEditor(assetMenu),
@@ -73,7 +74,8 @@ export function useCatalogActionHandlers({
     onDelete: () => {
       confirmMenuDeletion(
         contactMenu.row.id,
-        `Deseja realmente excluir ${contactMenu?.row?.nome || 'este contato'}?`
+        'Excluir contato',
+        `Essa acao nao pode ser desfeita. Deseja excluir ${contactMenu?.row?.nome || 'este contato'}?`
       );
     },
     onEdit: () => openRecordEditor(contactMenu),
@@ -89,7 +91,8 @@ export function useCatalogActionHandlers({
 
       confirmMenuDeletion(
         corporateLineMenu.row.id,
-        `Deseja realmente excluir ${corporateLineMenu?.row?.nome || corporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
+        'Excluir linha corporativa',
+        `Essa acao nao pode ser desfeita. Deseja excluir ${corporateLineMenu?.row?.nome || corporateLineMenu?.row?.numero || 'esta linha corporativa'}?`
       );
     },
     onEdit: () => openRecordEditor(corporateLineMenu),
@@ -99,7 +102,8 @@ export function useCatalogActionHandlers({
     onDelete: () => {
       confirmMenuDeletion(
         infrastructureMenu.row.id,
-        `Deseja realmente excluir ${infrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
+        'Excluir registro de infraestrutura',
+        `Essa acao nao pode ser desfeita. Deseja excluir ${infrastructureMenu?.row?.nome || 'este registro de infraestrutura'}?`
       );
     },
     onEdit: () => openRecordEditor(infrastructureMenu),
@@ -114,7 +118,8 @@ export function useCatalogActionHandlers({
 
       confirmMenuDeletion(
         collaboratorMenu.row.id,
-        `Deseja realmente excluir o usuario ${collaboratorMenu?.row?.nome || collaboratorMenu?.row?.email || ''}?`
+        'Excluir colaborador',
+        `Essa acao nao pode ser desfeita. Deseja excluir o usuario ${collaboratorMenu?.row?.nome || collaboratorMenu?.row?.email || ''}?`
       );
     },
     onEdit: () => openRecordEditor(collaboratorMenu),
@@ -123,12 +128,12 @@ export function useCatalogActionHandlers({
       closeMenu();
     },
     onUnlinkAll: () => {
-      const confirmed = window.confirm(
-        `Deseja realmente desvincular todos os ativos, linhas corporativas e sistemas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`
-      );
-      if (confirmed) {
-        unlinkAssignments(collaboratorMenu.row.id);
-      }
+      requestConfirmation({
+        title: 'Desvincular colaborador',
+        description: `Deseja realmente desvincular todos os ativos, linhas corporativas e sistemas de ${collaboratorMenu?.row?.nome || 'este colaborador'}?`,
+        confirmLabel: 'Desvincular',
+        onConfirm: () => unlinkAssignments(collaboratorMenu.row.id),
+      });
       closeMenu();
     },
   };

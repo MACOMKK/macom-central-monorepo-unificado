@@ -18,6 +18,7 @@ import {
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Input, Skeleton } from '@macom/ui';
 import DocumentForm from '../components/documents/DocumentForm';
 import { usePermissions } from '@/lib/usePermissions';
+import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const categoryConfig = {
   politica: {
@@ -103,6 +104,7 @@ export default function Documents() {
   const { canEdit } = usePermissions('documentos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewDocument, setPreviewDocument] = useState(null);
+  const [documentToDelete, setDocumentToDelete] = useState(null);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const queryClient = useQueryClient();
@@ -164,6 +166,12 @@ export default function Documents() {
   const recentDocuments = filtered.slice(0, catFilter === 'all' ? 8 : 12);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
+
+  const handleConfirmDelete = () => {
+    if (!documentToDelete) return;
+    deleteMutation.mutate(documentToDelete.id);
+    setDocumentToDelete(null);
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -379,7 +387,7 @@ export default function Documents() {
                           variant="ghost"
                           size="icon"
                           className="h-10 w-10 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => deleteMutation.mutate(document.id)}
+                          onClick={() => setDocumentToDelete(document)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -442,6 +450,18 @@ export default function Documents() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={Boolean(documentToDelete)}
+        onOpenChange={(open) => !open && setDocumentToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir documento"
+        description={
+          documentToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o documento "${documentToDelete.title}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+      />
     </div>
   );
 }

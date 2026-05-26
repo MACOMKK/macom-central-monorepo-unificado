@@ -5,6 +5,7 @@ import { Bell, FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 
 import { dataClient } from '@/api/dataClient';
 import AdminGuard from '@/components/admin/AdminGuard';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import ReportNoticeForm from '@/components/admin/ReportNoticeForm';
 import ReportForm from '@/components/admin/ReportForm';
 import {
@@ -49,6 +50,7 @@ export default function ManageReports() {
   const [activeUnit, setActiveUnit] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingReport, setEditingReport] = useState(null);
+  const [reportToDelete, setReportToDelete] = useState(null);
   const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
   const [selectedReportForNotice, setSelectedReportForNotice] = useState(null);
   const queryClient = useQueryClient();
@@ -111,6 +113,12 @@ export default function ManageReports() {
     await queryClient.invalidateQueries({ queryKey: ['report-notice', selectedReportForNotice?.id] });
     setNoticeDialogOpen(false);
     setSelectedReportForNotice(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!reportToDelete) return;
+    deleteMutation.mutate(reportToDelete.id);
+    setReportToDelete(null);
   };
 
   return (
@@ -283,7 +291,7 @@ export default function ManageReports() {
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => deleteMutation.mutate(report.id)}
+                            onClick={() => setReportToDelete(report)}
                             className="p-2 transition-colors"
                             style={{ color: '#888' }}
                             onMouseEnter={(event) => {
@@ -343,6 +351,19 @@ export default function ManageReports() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={Boolean(reportToDelete)}
+        onOpenChange={(open) => !open && setReportToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Excluir relatorio"
+        description={
+          reportToDelete
+            ? `Essa acao nao pode ser desfeita. Deseja excluir o relatorio "${reportToDelete.title}"?`
+            : 'Essa acao nao pode ser desfeita.'
+        }
+        isLoading={deleteMutation.isPending}
+      />
     </AdminGuard>
   );
 }

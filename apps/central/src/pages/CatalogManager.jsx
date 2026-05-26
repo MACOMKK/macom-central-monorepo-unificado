@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import FeedbackToast from '@/components/ui/feedback-toast';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import CatalogAuxDialogs from '@/pages/catalog-manager/components/CatalogAuxDialogs';
 import CatalogActionMenus from '@/pages/catalog-manager/components/CatalogActionMenus';
 import AssetsToolbar from '@/pages/catalog-manager/components/AssetsToolbar';
@@ -132,6 +133,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
   const [selectedBulkIds, setSelectedBulkIds] = useState([]);
   const [feedback, setFeedback] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const { closeMenu, getMenu, runWithClosedMenu, toggleRowMenu } = useActionMenu();
   const assetMenu = getMenu('asset');
@@ -429,10 +431,11 @@ export default function CatalogManager({ lockedEntityKey }) {
       return;
     }
 
-    const confirmed = window.confirm('Deseja realmente excluir este departamento?');
-    if (!confirmed) return;
-
-    deleteMutation.mutate(departmentId);
+    setConfirmDialog({
+      title: 'Excluir departamento',
+      description: 'Essa acao nao pode ser desfeita. Deseja realmente excluir este departamento?',
+      onConfirm: () => deleteMutation.mutate(departmentId),
+    });
   };
 
   const handleDeleteUnit = (unitId) => {
@@ -443,10 +446,11 @@ export default function CatalogManager({ lockedEntityKey }) {
       return;
     }
 
-    const confirmed = window.confirm('Deseja realmente excluir esta unidade?');
-    if (!confirmed) return;
-
-    deleteMutation.mutate(unitId);
+    setConfirmDialog({
+      title: 'Excluir unidade',
+      description: 'Essa acao nao pode ser desfeita. Deseja realmente excluir esta unidade?',
+      onConfirm: () => deleteMutation.mutate(unitId),
+    });
   };
 
   const {
@@ -519,6 +523,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     openCorporateLineAssignment: setAssigningCorporateLine,
     openPasswordReset: setPasswordRecord,
     openRecord: setEditingRecord,
+    requestConfirmation: setConfirmDialog,
     systemAccesses,
     runWithClosedMenu,
     setFeedback,
@@ -678,18 +683,33 @@ export default function CatalogManager({ lockedEntityKey }) {
             ? 'linha(s) corporativa(s)'
             : 'registro(s) de infraestrutura';
 
-    const confirmed = window.confirm(
-      `Deseja realmente excluir ${selectedBulkIds.length} ${selectionLabel} selecionado(s)?`
-    );
+    setConfirmDialog({
+      title: 'Excluir itens selecionados',
+      description: `Essa acao nao pode ser desfeita. Deseja realmente excluir ${selectedBulkIds.length} ${selectionLabel} selecionado(s)?`,
+      onConfirm: async () => {
+        const result = await deleteManyMutation.mutateAsync(selectedBulkIds);
+        if (result?.removedIds?.length) {
+          setSelectedBulkIds((currentSelection) =>
+            currentSelection.filter((selectedId) => !result.removedIds.includes(selectedId))
+          );
+        }
+      },
+    });
+  };
 
-    if (!confirmed) return;
+  const handleDeleteRow = (row) => {
+    const rowLabel = row?.nome || row?.titulo || row?.numero || row?.email || row?.id || 'este registro';
+    setConfirmDialog({
+      title: 'Excluir registro',
+      description: `Essa acao nao pode ser desfeita. Deseja realmente excluir ${rowLabel}?`,
+      onConfirm: () => deleteMutation.mutate(row.id),
+    });
+  };
 
-    const result = await deleteManyMutation.mutateAsync(selectedBulkIds);
-    if (result?.removedIds?.length) {
-      setSelectedBulkIds((currentSelection) =>
-        currentSelection.filter((selectedId) => !result.removedIds.includes(selectedId))
-      );
-    }
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog?.onConfirm) return;
+    await confirmDialog.onConfirm();
+    setConfirmDialog(null);
   };
 
   return (
@@ -822,7 +842,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           columns={current.columns}
           entityKey={lockedEntityKey}
           isLoading={isLoading}
-          onDelete={(rowId) => deleteMutation.mutate(rowId)}
+          onDelete={handleDeleteRow}
           onEdit={setEditingRecord}
           onRowClick={setViewingCollaboratorLinks}
           onToggleAllRows={handleToggleAllBulkRows}
@@ -1013,6 +1033,15 @@ export default function CatalogManager({ lockedEntityKey }) {
       />
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
+
+      <ConfirmDeleteDialog
+        open={Boolean(confirmDialog)}
+        onOpenChange={(open) => !open && setConfirmDialog(null)}
+        onConfirm={handleConfirmDialog}
+        title={confirmDialog?.title || 'Confirmar exclusao'}
+        description={confirmDialog?.description || 'Essa acao nao pode ser desfeita.'}
+        confirmLabel={confirmDialog?.confirmLabel || 'Excluir'}
+      />
     </div>
   );
 }
