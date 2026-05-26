@@ -624,6 +624,34 @@ function buildCentralCollaboratorAuditMetadata({
   };
 }
 
+function buildCentralAssetAuditMetadata({
+  before,
+  after,
+  baseMetadata = {},
+}: {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  baseMetadata?: Record<string, unknown>;
+}) {
+  return {
+    origem: 'central',
+    ativo_id_afetado: after?.id ?? before?.id ?? null,
+    ativo_nome_afetado: typeof (after?.nome ?? before?.nome) === 'string' ? after?.nome ?? before?.nome : null,
+    patrimonio_afetado: typeof (after?.patrimonio ?? before?.patrimonio) === 'string' ? after?.patrimonio ?? before?.patrimonio : null,
+    categoria_anterior: before?.categoria ?? null,
+    categoria_nova: after?.categoria ?? null,
+    status_anterior: before?.status ?? null,
+    status_novo: after?.status ?? null,
+    estado_anterior: before?.estado ?? null,
+    estado_novo: after?.estado ?? null,
+    unidade_id_anterior: before?.unidade_id ?? null,
+    unidade_id_nova: after?.unidade_id ?? null,
+    usuario_id_anterior: before?.usuario_id ?? null,
+    usuario_id_novo: after?.usuario_id ?? null,
+    ...baseMetadata,
+  };
+}
+
 async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
   if (!sql) return null;
 
@@ -1970,6 +1998,21 @@ Deno.serve(async (request) => {
       }
       const query = buildInsertQuery(schema, table, normalized);
       const rows = await sql.unsafe(query.text, query.values);
+      if (entity === 'ativos') {
+        await insertCentralAuditLog({
+          action: 'criar',
+          entity,
+          recordId: rows[0]?.id || null,
+          responsibleCollaboratorId: authenticatedCollaboratorId,
+          responsibleEmail: user.email ?? null,
+          before: null,
+          after: rows[0] || null,
+          metadata: buildCentralAssetAuditMetadata({
+            before: null,
+            after: rows[0] || null,
+          }),
+        });
+      }
       if (entity === 'colaboradores') {
         await insertCentralAuditLog({
           action: 'criar',
@@ -2010,7 +2053,7 @@ Deno.serve(async (request) => {
 
     if (action === 'update') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema'
+      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema' || entity === 'ativos'
         ? await fetchRowById(schema, table, id)
         : null;
       const sanitized = sanitizePayload(entity, payload);
@@ -2050,6 +2093,24 @@ Deno.serve(async (request) => {
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
       const rows = await sql.unsafe(query.text, query.values);
+      if (entity === 'ativos') {
+        await insertCentralAuditLog({
+          action: 'atualizar',
+          entity,
+          recordId: rows[0]?.id || id,
+          responsibleCollaboratorId: authenticatedCollaboratorId,
+          responsibleEmail: user.email ?? null,
+          before: beforeRow,
+          after: rows[0] || null,
+          metadata: buildCentralAssetAuditMetadata({
+            before: beforeRow,
+            after: rows[0] || null,
+            baseMetadata: {
+              campos_alterados: Object.keys(normalized),
+            },
+          }),
+        });
+      }
       if (entity === 'colaboradores') {
         await insertCentralAuditLog({
           action: 'atualizar',
@@ -2119,9 +2180,24 @@ Deno.serve(async (request) => {
 
     if (action === 'delete') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema'
+      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema' || entity === 'ativos'
         ? await fetchRowById(schema, table, id)
         : null;
+      if (entity === 'ativos') {
+        await insertCentralAuditLog({
+          action: 'excluir',
+          entity,
+          recordId: id,
+          responsibleCollaboratorId: authenticatedCollaboratorId,
+          responsibleEmail: user.email ?? null,
+          before: beforeRow,
+          after: null,
+          metadata: buildCentralAssetAuditMetadata({
+            before: beforeRow,
+            after: null,
+          }),
+        });
+      }
       if (entity === 'colaboradores') {
         await insertCentralAuditLog({
           action: 'excluir',

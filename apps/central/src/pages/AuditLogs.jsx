@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { catalogApi } from '@macom/api-client';
+import { catalogApi, systemAccessApi } from '@macom/api-client';
 
 const PAGE_SIZE = 25;
 
@@ -34,13 +34,50 @@ const actionLabels = {
 };
 
 const hiddenLogFields = new Set(['atualizado_em']);
+const fieldLabels = {
+  nome: 'Nome',
+  funcao: 'Funcao',
+  status: 'Status',
+  email: 'Email',
+  telefone: 'Telefone',
+  cpf: 'CPF',
+  ativo: 'Ativo',
+  descricao: 'Descricao',
+  categoria: 'Categoria',
+  marca: 'Marca',
+  modelo: 'Modelo',
+  patrimonio: 'Patrimonio',
+  estado: 'Estado',
+  numero_serie: 'Numero de serie',
+  observacoes: 'Observacoes',
+  colaborador_nome: 'Colaborador',
+  responsavel_colaborador_id: 'Responsavel',
+  usuario_id: 'Usuario',
+  colaborador_id: 'Colaborador',
+  departamento_id: 'Departamento',
+  unidade_id: 'Unidade',
+  sistema_id: 'Sistema',
+  ativo_id: 'Ativo',
+};
+
+function humanizeFieldName(field) {
+  return String(field || '')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 function getAffectedLabel(log) {
   const affectedEmail = log.colaborador_email_afetado || log.metadados?.colaborador_email_afetado;
   const affectedId = log.metadados?.colaborador_id_afetado;
+  const affectedAssetName = log.metadados?.ativo_nome_afetado;
+  const affectedAssetId = log.metadados?.ativo_id_afetado;
 
   if (affectedEmail) return affectedEmail;
+  if (affectedAssetName) return String(affectedAssetName);
   if (affectedId) return String(affectedId);
+  if (affectedAssetId) return String(affectedAssetId);
 
   return '-';
 }
@@ -50,6 +87,26 @@ function getAffectedName(log) {
 }
 
 function getContextLabel(log) {
+  if (log.entidade === 'ativos') {
+    const assetName = log.metadados?.ativo_nome_afetado;
+    const assetPatrimony = log.metadados?.patrimonio_afetado;
+    const previousStatus = log.metadados?.status_anterior;
+    const nextStatus = log.metadados?.status_novo;
+    const statusChanged = previousStatus !== null && previousStatus !== undefined && nextStatus !== null && nextStatus !== undefined;
+
+    if (statusChanged && previousStatus !== nextStatus) {
+      return `${assetName || 'Ativo'}: ${previousStatus} -> ${nextStatus}`;
+    }
+
+    if (assetName && assetPatrimony) {
+      return `${assetName} (${assetPatrimony})`;
+    }
+
+    if (assetName) {
+      return String(assetName);
+    }
+  }
+
   if (log.entidade === 'acessos_usuario_sistema') {
     const systemName = log.metadados?.sistema_nome;
     const systemSlug = log.metadados?.sistema_slug;
@@ -100,6 +157,53 @@ function formatValue(value) {
   return String(value);
 }
 
+function getFieldLabel(field) {
+  return fieldLabels[field] || humanizeFieldName(field);
+}
+
+function resolveForeignKeyValue(field, value, lookups, log) {
+  if (value == null || value === '') return value;
+
+  if (field === 'usuario_id' || field === 'colaborador_id') {
+    const collaborator = lookups.collaboratorsById.get(String(value));
+    return collaborator?.nome || collaborator?.email || value;
+  }
+
+  if (field === 'departamento_id') {
+    const department = lookups.departmentsById.get(String(value));
+    return department?.nome || value;
+  }
+
+  if (field === 'unidade_id') {
+    const unit = lookups.unitsById.get(String(value));
+    return unit?.nome || value;
+  }
+
+  if (field === 'ativo_id') {
+    const asset = lookups.assetsById.get(String(value));
+    if (!asset) return value;
+    if (asset.nome && asset.patrimonio) {
+      return `${asset.nome} (${asset.patrimonio})`;
+    }
+
+    return asset.nome || asset.patrimonio || value;
+  }
+
+  if (field === 'sistema_id') {
+    if (
+      log?.metadados?.sistema_id &&
+      String(log.metadados.sistema_id) === String(value)
+    ) {
+      return log.metadados?.sistema_nome || log.metadados?.sistema_slug || value;
+    }
+
+    const system = lookups.systemsById.get(String(value));
+    return system?.nome || system?.slug || value;
+  }
+
+  return value;
+}
+
 function formatJson(value) {
   return JSON.stringify(value ?? {}, null, 2);
 }
@@ -142,7 +246,7 @@ function getLogSummary(log) {
 
   if (log.acao === 'atualizar') {
     if (!fields.length) return 'Sem alteracoes detectadas';
-    const preview = fields.slice(0, 3).map((item) => item.field).join(', ');
+    const preview = fields.slice(0, 3).map((item) => getFieldLabel(item.field)).join(', ');
     return `${fields.length} campo(s): ${preview}${fields.length > 3 ? '...' : ''}`;
   }
 
@@ -196,10 +300,42 @@ export default function AuditLogs() {
     queryKey: ['colaboradores', 'logs_lookup'],
     queryFn: catalogApi.colaboradores.list,
   });
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departamentos', 'logs_lookup'],
+    queryFn: catalogApi.departamentos.list,
+  });
+  const { data: units = [] } = useQuery({
+    queryKey: ['unidades', 'logs_lookup'],
+    queryFn: catalogApi.unidades.list,
+  });
+  const { data: assets = [] } = useQuery({
+    queryKey: ['ativos', 'logs_lookup'],
+    queryFn: catalogApi.ativos.list,
+  });
+  const { data: systems = [] } = useQuery({
+    queryKey: ['sistemas', 'logs_lookup'],
+    queryFn: systemAccessApi.systems.list,
+  });
 
   const collaboratorsById = useMemo(
     () => new Map(collaborators.map((collaborator) => [collaborator.id, collaborator])),
     [collaborators],
+  );
+  const departmentsById = useMemo(
+    () => new Map(departments.map((department) => [department.id, department])),
+    [departments],
+  );
+  const unitsById = useMemo(
+    () => new Map(units.map((unit) => [unit.id, unit])),
+    [units],
+  );
+  const assetsById = useMemo(
+    () => new Map(assets.map((asset) => [asset.id, asset])),
+    [assets],
+  );
+  const systemsById = useMemo(
+    () => new Map(systems.map((system) => [system.id, system])),
+    [systems],
   );
 
   const hydratedLogs = useMemo(
@@ -232,13 +368,32 @@ export default function AuditLogs() {
         String(log.colaborador_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
         String(log.colaborador_email_afetado || '').toLowerCase().includes(normalizedSearch) ||
         String(log.entidade || '').toLowerCase().includes(normalizedSearch) ||
-        String(log.metadados?.sistema_slug || '').toLowerCase().includes(normalizedSearch);
+        String(log.metadados?.sistema_slug || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.ativo_nome_afetado || '').toLowerCase().includes(normalizedSearch) ||
+        String(log.metadados?.patrimonio_afetado || '').toLowerCase().includes(normalizedSearch);
 
       return matchesSearch;
     })
   ), [hydratedLogs, normalizedSearch]);
 
-  const selectedLogFields = selectedLog ? getVisibleFields(selectedLog) : [];
+  const selectedLogFields = useMemo(() => {
+    if (!selectedLog) return [];
+
+    const lookups = {
+      collaboratorsById,
+      departmentsById,
+      unitsById,
+      assetsById,
+      systemsById,
+    };
+
+    return getVisibleFields(selectedLog).map((item) => ({
+      ...item,
+      fieldLabel: getFieldLabel(item.field),
+      beforeDisplay: formatValue(resolveForeignKeyValue(item.field, item.before, lookups, selectedLog)),
+      afterDisplay: formatValue(resolveForeignKeyValue(item.field, item.after, lookups, selectedLog)),
+    }));
+  }, [assetsById, collaboratorsById, departmentsById, selectedLog, systemsById, unitsById]);
 
   return (
     <div className="space-y-6">
@@ -435,9 +590,9 @@ export default function AuditLogs() {
                       <tbody>
                         {selectedLogFields.map((item) => (
                           <tr key={item.field} className="border-t align-top">
-                            <td className="px-4 py-3 font-mono text-xs text-foreground">{item.field}</td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{formatValue(item.before)}</td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{formatValue(item.after)}</td>
+                            <td className="px-4 py-3 text-xs font-semibold text-foreground">{item.fieldLabel}</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{item.beforeDisplay}</td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{item.afterDisplay}</td>
                           </tr>
                         ))}
                       </tbody>
