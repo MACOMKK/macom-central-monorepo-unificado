@@ -74,8 +74,8 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
   const totalComments = comments.length;
 
   return (
-    <div className="mt-3 pt-3 border-t border-border/60">
-      <div className="flex items-center gap-1 flex-wrap">
+    <div className="mt-3 border-t border-border/60 pt-3">
+      <div className="flex flex-wrap items-center gap-1.5">
         {reactionGroups.map(({ emoji, count, reacted }) => (
           <button
             key={emoji}
@@ -96,7 +96,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
         <button
           type="button"
           onClick={() => setShowComments((value) => !value)}
-          className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground border border-transparent transition-all ml-auto"
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-full border border-transparent bg-muted/50 px-3 py-2 text-xs text-muted-foreground transition-all hover:bg-muted hover:text-foreground sm:ml-auto sm:mt-0 sm:w-auto"
         >
           <MessageCircle className="w-3.5 h-3.5" />
           <span>{totalComments > 0 ? totalComments : ''} Comentarios</span>
@@ -125,15 +125,15 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
             </div>
           ))}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               placeholder="Escreva um comentario..."
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && handleSendComment()}
-              className="text-sm h-8"
+              className="h-9 text-sm"
             />
-            <Button size="sm" onClick={handleSendComment} disabled={sending || !commentText.trim()} className="h-8 px-3">
+            <Button size="sm" onClick={handleSendComment} disabled={sending || !commentText.trim()} className="h-9 px-3 sm:h-8">
               {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
             </Button>
           </div>

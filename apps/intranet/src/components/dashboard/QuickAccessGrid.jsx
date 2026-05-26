@@ -86,7 +86,7 @@ export default function QuickAccessGrid() {
         <h2 className="text-base font-semibold text-foreground">Acesso Rápido</h2>
       </div>
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
           {[1, 2, 3, 4, 5, 6].map((item) => <Skeleton key={item} className="h-[120px] rounded-2xl" />)}
         </div>
       ) : shortcuts.length === 0 ? (
@@ -94,7 +94,7 @@ export default function QuickAccessGrid() {
           Nenhum link foi marcado para aparecer no Acesso Rápido. Use a tela de Links Úteis para escolher manualmente quais links devem aparecer aqui.
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6">
           {shortcuts.map((item) => {
             const config = categoryConfig[item.category] || categoryConfig.sistema;
             const Icon = config.icon || Link2;
@@ -104,11 +104,11 @@ export default function QuickAccessGrid() {
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-md"
+                className="group flex min-h-[124px] flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-md sm:min-h-0"
                 title={item.description || item.name}
               >
                 <QuickAccessIcon linkUrl={item.url} config={config} Icon={Icon} />
-                <span className="text-center text-xs font-medium leading-tight text-muted-foreground transition-colors group-hover:text-foreground">
+                <span className="text-center text-xs font-medium leading-tight text-muted-foreground transition-colors group-hover:text-foreground sm:text-[0.78rem]">
                   {item.name}
                 </span>
               </a>

@@ -85,7 +85,7 @@ export default function UpcomingEvents() {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 p-5">
+      <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
           <Calendar className="text-foreground" size={20} />
           Proximos Eventos
@@ -93,7 +93,7 @@ export default function UpcomingEvents() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 md:grid-cols-2">
           {[1, 2].map((item) => (
             <Skeleton key={item} className="h-[208px] rounded-xl" />
           ))}
@@ -101,7 +101,7 @@ export default function UpcomingEvents() {
       ) : events.length === 0 ? (
         <p className="p-8 text-center text-sm text-slate-500">Nenhum evento proximo.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 md:grid-cols-2">
           {events.map((event, index) => (
             <EventCard
               key={event.id}

@@ -97,7 +97,7 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Categoria</Label>
           <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
@@ -129,8 +129,8 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
 
       <div className="space-y-2">
         <Label>Imagem de destaque</Label>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm transition-colors hover:bg-muted">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm transition-colors hover:bg-muted sm:w-auto sm:justify-start sm:py-2">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
             {uploading ? 'Enviando...' : form.image_name ? 'Trocar imagem' : 'Selecionar imagem'}
             <input
@@ -143,7 +143,7 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
           </label>
 
           {form.image_name ? (
-            <Button type="button" variant="ghost" className="gap-2 px-3" onClick={clearImage}>
+            <Button type="button" variant="ghost" className="w-full gap-2 px-3 sm:w-auto" onClick={clearImage}>
               <X className="h-4 w-4" />
               Remover
             </Button>

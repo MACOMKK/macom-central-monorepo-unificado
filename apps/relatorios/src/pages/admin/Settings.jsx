@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { dataClient } from '@/api/dataClient';
-import { Pencil, Trash2, UserX, UserCheck, MoreHorizontal } from 'lucide-react';
+import { Pencil, UserX, UserCheck, MoreHorizontal } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -78,20 +78,16 @@ export default function Settings() {
       queryClient.invalidateQueries({ queryKey: ['settings-users'] });
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
       const titles = {
-        delete: 'Acesso removido com sucesso!',
         deactivate: 'Acesso inativado com sucesso!',
         activate: 'Acesso reativado com sucesso!',
       };
       toast({ title: titles[variables.action] || 'Usuario atualizado!' });
       setConfirmAction(null);
     },
-    onError: (error, variables) => {
-      const isDeleteBlocked = variables.action === 'delete' && error?.status === 409;
-      const description = isDeleteBlocked
-        ? 'Nao e possivel excluir este usuario porque ele possui relatorios vinculados.'
-        : error?.message || 'Nao foi possivel concluir a operacao.';
+    onError: (error) => {
+      const description = error?.message || 'Nao foi possivel concluir a operacao.';
       toast({
-        title: isDeleteBlocked ? 'Exclusao nao permitida' : 'Falha ao atualizar usuario',
+        title: 'Falha ao atualizar usuario',
         description
       });
     }
@@ -146,14 +142,6 @@ export default function Settings() {
     const action = confirmAction?.action;
     const targetUser = confirmAction?.user;
     if (!action || !targetUser) return {};
-
-    if (action === 'delete') {
-      return {
-        title: 'Remover acesso',
-        description: `Deseja remover o acesso de ${targetUser.full_name || targetUser.email} ao sistema de relatorios? O cadastro no Central sera mantido.`,
-        confirmLabel: 'Remover acesso'
-      };
-    }
 
     if (action === 'deactivate') {
       return {
@@ -276,13 +264,6 @@ export default function Settings() {
                               <UserX className="w-3.5 h-3.5" /> Inativar acesso
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            onClick={() => openConfirmAction(u, 'delete')}
-                            disabled={manageUserMutation.isPending}
-                            className="gap-2 text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Remover acesso
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

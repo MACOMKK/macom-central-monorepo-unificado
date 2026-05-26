@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { appClient } from '@/api/client';
-import { Skeleton } from '@macom/ui';
+import { Button, Skeleton } from '@macom/ui';
+import AnnouncementDetailsDialog from '@/components/announcements/AnnouncementDetailsDialog';
 
 const categoryLabels = {
   geral: 'Comunicado',
@@ -65,7 +66,7 @@ function EmptyHighlightState({ title, description, dark = false }) {
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div
-        className="relative min-h-[320px] overflow-hidden px-8 py-10 sm:px-12"
+        className="relative min-h-[280px] overflow-hidden px-5 py-8 sm:min-h-[320px] sm:px-12 sm:py-10"
         style={{
           background: dark
             ? 'linear-gradient(104deg, #1E232D 0%, #303746 34%, #566170 72%, #D5DAE2 100%)'
@@ -77,30 +78,30 @@ function EmptyHighlightState({ title, description, dark = false }) {
         <div className="absolute right-[10%] top-[16%] hidden h-32 w-32 rounded-full border border-white/12 bg-white/6 backdrop-blur-sm lg:block" />
         <div className="absolute bottom-[20%] right-[18%] hidden h-20 w-20 rounded-full border border-[#E30613]/15 bg-[#E30613]/8 lg:block" />
 
-        <div className="relative grid min-h-[320px] items-center gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+        <div className="relative grid min-h-[280px] items-center gap-6 sm:min-h-[320px] sm:gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
           <div className="max-w-2xl">
             <span className="inline-flex rounded-full bg-[#E30613] px-4 py-1 text-xs font-bold text-white">
               Intranet
             </span>
             <h1
-              className={`mt-6 max-w-[650px] text-3xl font-black leading-[1.02] sm:text-5xl ${
+              className={`mt-5 max-w-[650px] text-[1.9rem] font-black leading-[1.02] sm:mt-6 sm:text-5xl ${
                 dark ? 'text-white' : 'text-[#0B1B3D]'
               }`}
             >
               {title}
             </h1>
             <p
-              className={`mt-4 max-w-[620px] text-sm leading-7 sm:text-lg ${
+              className={`mt-3 max-w-[620px] text-sm leading-6 sm:mt-4 sm:leading-7 sm:text-lg ${
                 dark ? 'text-white/80' : 'text-slate-500'
               }`}
             >
               {description}
             </p>
             {!dark ? (
-              <div className="mt-8">
+              <div className="mt-6 sm:mt-8">
                 <Link
                   to="/avisos"
-                  className="inline-flex items-center rounded-2xl bg-[#0B1B3D] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#102754]"
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-[#0B1B3D] px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-[#102754] sm:w-auto"
                 >
                   Ir para Mural de Avisos
                 </Link>
@@ -116,6 +117,7 @@ function EmptyHighlightState({ title, description, dark = false }) {
 
 export default function HomeHighlightsCarousel({ disabled = false }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['home-highlights'],
@@ -152,7 +154,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
   }
 
   if (isLoading) {
-    return <Skeleton className="h-[360px] w-full rounded-[28px]" />;
+    return <Skeleton className="h-[320px] w-full rounded-[28px] sm:h-[360px]" />;
   }
 
   if (slides.length === 0) {
@@ -166,7 +168,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div className="relative min-h-[360px] overflow-hidden">
+      <div className="relative min-h-[320px] overflow-hidden sm:min-h-[360px]">
         {slides.map((item, index) => {
           const style = priorityStyles[item.priority] || priorityStyles.media;
           const isActive = index === activeIndex;
@@ -201,34 +203,35 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
                 </>
               ) : null}
 
-              <div className="relative grid min-h-[360px] items-center gap-8 px-8 pb-20 pt-9 sm:px-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
-                <div className="grid min-h-[260px] max-w-2xl grid-rows-[auto_auto_1fr_auto] self-center">
+              <div className="relative grid min-h-[320px] items-center gap-6 px-5 pb-16 pt-6 sm:min-h-[360px] sm:gap-8 sm:px-12 sm:pb-20 sm:pt-9 lg:grid-cols-[minmax(0,1.12fr)_minmax(260px,0.88fr)]">
+                <div className="grid min-h-[240px] max-w-2xl grid-rows-[auto_auto_1fr_auto] self-center sm:min-h-[260px]">
                   <div className="flex flex-wrap items-center gap-3">
                     <span
-                      className="inline-flex rounded-full px-4 py-1 text-xs font-bold text-white shadow-sm"
+                      className="inline-flex rounded-full px-3 py-1 text-[11px] font-bold text-white shadow-sm sm:px-4 sm:text-xs"
                       style={{ backgroundColor: style.accent }}
                     >
                       {item.pinned ? `${style.tag} · ${categoryLabel}` : categoryLabel}
                     </span>
                   </div>
 
-                  <h1 className="mt-5 max-w-[650px] text-[2.5rem] font-black leading-[0.98] text-white sm:text-[3.15rem]">
+                  <h1 className="mt-4 max-w-[650px] text-[1.85rem] font-black leading-[0.96] text-white sm:mt-5 sm:text-[3.15rem]">
                     <span className="block line-clamp-3 sm:line-clamp-2">{title}</span>
                   </h1>
 
-                  <p className="mt-4 max-w-[620px] text-sm leading-6 text-white/80 sm:text-[0.98rem]">
-                    <span className="block line-clamp-3 sm:line-clamp-2">
+                  <p className="mt-3 max-w-[620px] text-sm leading-6 text-white/80 sm:mt-4 sm:text-[0.98rem]">
+                    <span className="block line-clamp-4 sm:line-clamp-2">
                       {summary}
                     </span>
                   </p>
 
-                  <div className="pt-6">
-                    <Link
-                      to="/avisos"
-                      className="inline-flex items-center rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#0B1B3D] transition-colors hover:bg-slate-100"
+                  <div className="pt-5 sm:pt-6">
+                    <Button
+                      type="button"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-6 py-3 text-sm font-bold text-[#0B1B3D] transition-colors hover:bg-slate-100 sm:w-auto"
+                      onClick={() => setSelectedAnnouncement(item)}
                     >
                       Ler materia completa
-                    </Link>
+                    </Button>
                   </div>
                 </div>
 
@@ -239,7 +242,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
         })}
 
         {slides.length > 1 ? (
-          <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-3">
+          <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center justify-center gap-2.5 sm:bottom-6 sm:gap-3">
             {slides.map((slide, index) => {
               const style = priorityStyles[slide.priority] || priorityStyles.media;
 
@@ -263,6 +266,12 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
           </div>
         ) : null}
       </div>
+
+      <AnnouncementDetailsDialog
+        announcement={selectedAnnouncement}
+        open={Boolean(selectedAnnouncement)}
+        onOpenChange={(open) => !open && setSelectedAnnouncement(null)}
+      />
     </div>
   );
 }

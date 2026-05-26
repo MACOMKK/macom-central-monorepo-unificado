@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Save, Loader2, UserCog, Plus, Trash2 } from 'lucide-react';
+import { Shield, Save, Loader2, UserCog, Plus } from 'lucide-react';
 import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
-import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
 const MODULES = [
   { key: 'avisos', label: 'Mural de Avisos' },
@@ -27,7 +26,7 @@ const DEFAULT_MODULES = {
   feedback: 'view',
 };
 
-function PermissionRow({ user, existingPerm, onSave, onDelete, isSaving }) {
+function PermissionRow({ user, existingPerm, onSave, isSaving }) {
   const [modules, setModules] = useState(existingPerm?.modules || DEFAULT_MODULES);
 
   useEffect(() => {
@@ -60,20 +59,10 @@ function PermissionRow({ user, existingPerm, onSave, onDelete, isSaving }) {
           <p className="font-medium text-sm">{user.full_name || user.email}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive hover:text-destructive h-8 w-8 p-0"
-            onClick={() => onDelete(user.email, existingPerm?.id)}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-2">
-            {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-            Salvar
-          </Button>
-        </div>
+        <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-2">
+          {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+          Salvar
+        </Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {MODULES.map((mod) => (
@@ -104,7 +93,6 @@ export default function Permissions() {
   const queryClient = useQueryClient();
   const [savingUser, setSavingUser] = useState(null);
   const [newEmail, setNewEmail] = useState('');
-  const [permissionToDelete, setPermissionToDelete] = useState(null);
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
@@ -130,29 +118,9 @@ export default function Permissions() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async ({ permId }) => {
-      if (permId) await appClient.entities.UserPermission.delete(permId);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
-      toast.success('Permissao removida!');
-    },
-  });
-
   const handleSave = (data) => {
     setSavingUser(data.user_email);
     saveMutation.mutate(data);
-  };
-
-  const handleDelete = (_email, permId) => {
-    setPermissionToDelete({ permId });
-  };
-
-  const handleConfirmDelete = () => {
-    if (!permissionToDelete) return;
-    deleteMutation.mutate({ permId: permissionToDelete.permId });
-    setPermissionToDelete(null);
   };
 
   const handleAddEmail = () => {
@@ -237,20 +205,11 @@ export default function Permissions() {
               user={user}
               existingPerm={perms.find((perm) => perm.user_email === user.email)}
               onSave={handleSave}
-              onDelete={handleDelete}
               isSaving={savingUser === user.email}
             />
           ))}
         </div>
       )}
-
-      <ConfirmDeleteDialog
-        open={Boolean(permissionToDelete)}
-        onOpenChange={(open) => !open && setPermissionToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="Excluir permissao"
-        description="Essa acao nao pode ser desfeita. Deseja remover esta permissao de acesso?"
-      />
     </div>
   );
 }

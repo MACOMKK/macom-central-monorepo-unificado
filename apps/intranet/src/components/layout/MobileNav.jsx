@@ -7,11 +7,17 @@ import {
   Users,
   FileText,
   CalendarDays,
+  ShieldCheck,
+  MessageSquarePlus,
+  BookOpen,
   X,
   LogOut
 } from 'lucide-react';
 import { appClient } from '@/api/client';
+import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
+
+const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
 const navItems = [
   { path: '/', label: 'Home', icon: LayoutDashboard },
@@ -20,10 +26,14 @@ const navItems = [
   { path: '/colaboradores', label: 'Colaboradores', icon: Users },
   { path: '/documentos', label: 'Documentos', icon: FileText },
   { path: '/calendario', label: 'Calend\u00e1rio', icon: CalendarDays },
+  { path: '/feedback', label: 'Feedback', icon: MessageSquarePlus },
+  { path: '/conhecimento', label: 'Base de Conhecimento', icon: BookOpen },
 ];
 
 export default function MobileNav({ open = false, onClose }) {
   const location = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   return (
     <>
@@ -33,17 +43,34 @@ export default function MobileNav({ open = false, onClose }) {
 
       <div
         className={cn(
-          'fixed left-0 right-0 top-16 z-50 overflow-hidden bg-sidebar text-sidebar-foreground transition-all duration-300 lg:hidden',
-          open ? 'max-h-[80vh] border-b border-sidebar-border' : 'max-h-0'
+          'fixed inset-y-0 left-0 z-50 flex w-[88vw] max-w-[360px] flex-col bg-sidebar text-sidebar-foreground shadow-2xl transition-transform duration-300 lg:hidden',
+          open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <nav className="p-3 space-y-1">
-          <div className="mb-2 flex items-center justify-between px-2 py-1 text-white/80">
-            <span className="text-xs font-bold uppercase tracking-[0.24em]">Menu</span>
-            <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-white/10">
+        <div className="border-b border-sidebar-border px-4 pb-4 pt-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white">
+                <img src={LOGO_URL} alt="MACOM" className="h-7 w-7 object-contain" />
+              </div>
+              <div>
+                <p className="text-sm font-extrabold tracking-tight text-white">MACOM</p>
+                <p className="text-[0.65rem] font-medium uppercase tracking-[0.22em] text-white/55">Intranet</p>
+              </div>
+            </div>
+
+            <button type="button" onClick={onClose} className="rounded-xl p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+            <p className="truncate text-sm font-semibold text-white">{user?.full_name || 'Usuario'}</p>
+            <p className="truncate text-xs text-white/55">{user?.email || ''}</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -63,14 +90,34 @@ export default function MobileNav({ open = false, onClose }) {
               </Link>
             );
           })}
+
+          {isAdmin ? (
+            <Link
+              to="/permissoes"
+              onClick={onClose}
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors',
+                location.pathname === '/permissoes'
+                  ? 'bg-sidebar-primary text-white'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
+              )}
+            >
+              <ShieldCheck className="h-5 w-5" />
+              <span>Permissoes</span>
+            </Link>
+          ) : null}
+        </nav>
+
+        <div className="border-t border-sidebar-border p-3">
           <button
+            type="button"
             onClick={() => appClient.auth.logout('/login')}
-            className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent w-full"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <LogOut className="w-5 h-5" />
             <span>Sair</span>
           </button>
-        </nav>
+        </div>
       </div>
     </>
   );

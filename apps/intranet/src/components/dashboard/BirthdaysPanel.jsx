@@ -104,15 +104,17 @@ export default function BirthdaysPanel() {
                   </p>
                 </div>
 
-                {isBirthday ? (
-                  <span className="shrink-0 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-500">
-                    Hoje!
-                  </span>
-                ) : (
-                  <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                    {format(birthDate, "d 'de' MMM", { locale: ptBR })}
-                  </span>
-                )}
+                <div className="shrink-0 self-start sm:self-center">
+                  {isBirthday ? (
+                    <span className="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-500">
+                      Hoje!
+                    </span>
+                  ) : (
+                    <span className="inline-flex whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                      {format(birthDate, "d 'de' MMM", { locale: ptBR })}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}

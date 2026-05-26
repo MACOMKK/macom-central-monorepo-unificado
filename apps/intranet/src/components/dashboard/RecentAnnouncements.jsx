@@ -13,7 +13,7 @@ const categoryLabels = {
   ti: 'TI',
   financeiro: 'Financeiro',
   vendas: 'Vendas',
-  pos_vendas: 'Pós-Vendas',
+  pos_vendas: 'Pos-Vendas',
 };
 
 const priorityConfig = {
@@ -24,12 +24,14 @@ const priorityConfig = {
 };
 
 function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  if (isToday(d)) {
-    return `Hoje, ${format(d, 'HH:mm')}`;
+  const date = new Date(dateStr);
+  if (isToday(date)) {
+    return `Hoje, ${format(date, 'HH:mm')}`;
   }
-  if (isYesterday(d)) return 'Ontem, ' + format(d, 'HH:mm');
-  return format(d, "d 'de' MMMM", { locale: ptBR });
+  if (isYesterday(date)) {
+    return `Ontem, ${format(date, 'HH:mm')}`;
+  }
+  return format(date, "d 'de' MMMM", { locale: ptBR });
 }
 
 export default function RecentAnnouncements() {
@@ -39,40 +41,49 @@ export default function RecentAnnouncements() {
   });
 
   return (
-    <div className="bg-card rounded-2xl border border-border p-5 h-full">
-      <div className="flex items-center justify-between mb-4">
+    <div className="h-full rounded-2xl border border-border bg-card p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Megaphone className="w-5 h-5 text-muted-foreground" />
-          <h2 className="text-base font-semibold">Últimos Avisos</h2>
+          <Megaphone className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-base font-semibold">Ultimos Avisos</h2>
         </div>
-        <Link to="/avisos" className="text-sm text-primary hover:text-primary/80 flex items-center gap-1 font-medium">
-          Ver todos <ArrowRight className="w-3.5 h-3.5" />
+        <Link to="/avisos" className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80">
+          Ver todos <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+          {[1, 2, 3].map((item) => <Skeleton key={item} className="h-16 w-full rounded-xl" />)}
         </div>
       ) : announcements.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">Nenhum aviso publicado.</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">Nenhum aviso publicado.</p>
       ) : (
         <div className="space-y-1">
-          {announcements.map(a => {
-            const pConfig = priorityConfig[a.priority] || priorityConfig.media;
+          {announcements.map((announcement) => {
+            const priority = priorityConfig[announcement.priority] || priorityConfig.media;
+
             return (
-              <div key={a.id} className="p-3 rounded-xl hover:bg-muted/40 transition-colors cursor-pointer">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    {categoryLabels[a.category] || 'Geral'}
+              <div
+                key={announcement.id}
+                className="cursor-pointer rounded-xl p-3 transition-colors hover:bg-muted/40"
+              >
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    {categoryLabels[announcement.category] || 'Geral'}
                   </span>
-                  <span className={`text-xs font-semibold flex items-center gap-1 ${pConfig.color} px-2 py-0.5 rounded-full`}>
-                    🔔 {pConfig.label}
+                  <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${priority.color}`}>
+                    {priority.label}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-foreground leading-tight">{a.title}</p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                  <Clock className="w-3 h-3" /> {formatDate(a.created_date)}
+
+                <p className="text-sm font-semibold leading-tight text-foreground">
+                  {announcement.title}
+                </p>
+
+                <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {formatDate(announcement.created_date)}
                 </p>
               </div>
             );
@@ -82,4 +93,3 @@ export default function RecentAnnouncements() {
     </div>
   );
 }
-

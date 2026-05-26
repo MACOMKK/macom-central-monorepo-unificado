@@ -18,11 +18,13 @@ import Feedback from './pages/Feedback';
 import KnowledgeBase from './pages/KnowledgeBase';
 import Login from './pages/Login';
 
+const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
+
 const FullScreenLoader = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-background">
     <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-        <span className="text-white font-bold text-lg">M</span>
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-sm">
+        <img src={MACOM_LOGO_URL} alt="MACOM" className="h-10 w-10 object-contain" />
       </div>
       <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
     </div>

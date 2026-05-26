@@ -18,6 +18,7 @@ import {
   Skeleton,
 } from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
+import AnnouncementDetailsDialog from '../components/announcements/AnnouncementDetailsDialog';
 import AnnouncementInteractions from '../components/announcements/AnnouncementInteractions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
@@ -37,11 +38,19 @@ const categoryLabels = {
   pos_vendas: 'Pos-Vendas',
 };
 
+function getAnnouncementPreview(content, maxLength = 280) {
+  if (!content) return '';
+  const normalized = String(content).replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
 export default function Announcements() {
   const { canEdit } = usePermissions('avisos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [announcementToDelete, setAnnouncementToDelete] = useState(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 
@@ -98,9 +107,9 @@ export default function Announcements() {
         {canEdit ? (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="h-4 w-4" /> Novo Aviso</Button>
+              <Button className="w-full gap-2 sm:w-auto"><Plus className="h-4 w-4" /> Novo Aviso</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Novo Aviso</DialogTitle>
               </DialogHeader>
@@ -113,19 +122,21 @@ export default function Announcements() {
         ) : null}
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas'].map((category) => (
-          <button
-            key={category}
-            type="button"
-            onClick={() => setFilter(category)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === category ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {category === 'all' ? 'Todos' : categoryLabels[category]}
-          </button>
-        ))}
+      <div className="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="flex min-w-max gap-2 pb-1 sm:min-w-0 sm:flex-wrap">
+          {['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas'].map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setFilter(category)}
+              className={`whitespace-nowrap rounded-full px-3 py-2 text-xs font-medium transition-colors ${
+                filter === category ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {category === 'all' ? 'Todos' : categoryLabels[category]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -139,6 +150,7 @@ export default function Announcements() {
         <div className="space-y-4">
           {sorted.map((announcement) => {
             const config = priorityConfig[announcement.priority] || priorityConfig.media;
+            const preview = getAnnouncementPreview(announcement.content);
 
             return (
               <div
@@ -157,21 +169,30 @@ export default function Announcements() {
                   </div>
                 ) : null}
 
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {announcement.pinned ? <Pin className="h-4 w-4 shrink-0 text-primary" /> : null}
-                        <h3 className="font-semibold">{announcement.title}</h3>
+                        <h3 className="text-base font-semibold leading-tight">{announcement.title}</h3>
                         <Badge variant="outline" className={`text-[10px] ${config.class}`}>{announcement.priority}</Badge>
                         <Badge variant="secondary" className="text-[10px]">
                           {categoryLabels[announcement.category] || announcement.category}
                         </Badge>
                       </div>
 
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{announcement.content}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{preview}</p>
 
-                      <p className="mt-3 text-xs text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="mt-2 h-auto px-0 text-sm font-semibold"
+                        onClick={() => setSelectedAnnouncement(announcement)}
+                      >
+                        Ler aviso completo
+                      </Button>
+
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
                         Publicado em {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
                         {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
                       </p>
@@ -183,7 +204,7 @@ export default function Announcements() {
                     </div>
 
                     {canEdit ? (
-                      <div className="flex shrink-0 items-center gap-1">
+                      <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
                         <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
                           <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
                         </Button>
@@ -215,6 +236,12 @@ export default function Announcements() {
             ? `Essa acao nao pode ser desfeita. Deseja excluir o aviso "${announcementToDelete.title}"?`
             : 'Essa acao nao pode ser desfeita.'
         }
+      />
+
+      <AnnouncementDetailsDialog
+        announcement={selectedAnnouncement}
+        open={Boolean(selectedAnnouncement)}
+        onOpenChange={(open) => !open && setSelectedAnnouncement(null)}
       />
     </div>
   );
