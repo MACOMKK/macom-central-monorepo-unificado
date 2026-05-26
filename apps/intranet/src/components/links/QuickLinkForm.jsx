@@ -9,8 +9,8 @@ export default function QuickLinkForm({ onSubmit, isLoading, initial = {} }) {
     category: initial.category || 'sistema',
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event) => {
+    event.preventDefault();
     onSubmit(form);
   };
 
@@ -18,34 +18,53 @@ export default function QuickLinkForm({ onSubmit, isLoading, initial = {} }) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label>Nome do Sistema</Label>
-        <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="Ex: SAP, Jira, etc." />
+        <Input
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+          required
+          placeholder="Ex: SAP, Jira, etc."
+        />
       </div>
+
       <div className="space-y-2">
         <Label>URL</Label>
-        <Input value={form.url} onChange={e => setForm({ ...form, url: e.target.value })} required placeholder="https://..." type="url" />
+        <Input
+          value={form.url}
+          onChange={(event) => setForm({ ...form, url: event.target.value })}
+          required
+          placeholder="https://..."
+          type="url"
+        />
       </div>
+
       <div className="space-y-2">
-        <Label>Descrição</Label>
-        <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Breve descrição..." />
+        <Label>Descricao</Label>
+        <Textarea
+          value={form.description}
+          onChange={(event) => setForm({ ...form, description: event.target.value })}
+          rows={2}
+          placeholder="Breve descricao..."
+        />
       </div>
+
       <div className="space-y-2">
         <Label>Categoria</Label>
-        <Select value={form.category} onValueChange={v => setForm({ ...form, category: v })}>
+        <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="sistema">Sistema</SelectItem>
             <SelectItem value="ferramenta">Ferramenta</SelectItem>
             <SelectItem value="portal">Portal</SelectItem>
-            <SelectItem value="comunicacao">Comunicação</SelectItem>
+            <SelectItem value="comunicacao">Comunicacao</SelectItem>
             <SelectItem value="financeiro">Financeiro</SelectItem>
             <SelectItem value="rh">RH</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
       <Button type="submit" disabled={isLoading} className="w-full">
         {isLoading ? 'Salvando...' : 'Salvar Link'}
       </Button>
     </form>
   );
 }
-

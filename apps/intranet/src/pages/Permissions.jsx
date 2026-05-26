@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, Save, Loader2, UserCog, Plus } from 'lucide-react';
-import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton } from '@macom/ui';
+import { Badge, Button, Input, Skeleton } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
 
@@ -25,6 +25,12 @@ const DEFAULT_MODULES = {
   conhecimento: 'view',
   feedback: 'view',
 };
+
+const PERMISSION_OPTIONS = [
+  { value: 'none', label: 'Sem' },
+  { value: 'view', label: 'Ver' },
+  { value: 'edit', label: 'Editar' },
+];
 
 function PermissionRow({ user, existingPerm, onSave, isSaving }) {
   const [modules, setModules] = useState(existingPerm?.modules || DEFAULT_MODULES);
@@ -53,34 +59,49 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-medium text-sm">{user.full_name || user.email}</p>
-          <p className="text-xs text-muted-foreground">{user.email}</p>
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{user.full_name || user.email}</p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 sm:w-auto">
+        <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 rounded-xl sm:w-auto">
           {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
           Salvar
         </Button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {MODULES.map((mod) => (
-          <div key={mod.key} className="flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-xs font-medium">{mod.label}</span>
-            <Select
-              value={modules[mod.key] || 'view'}
-              onValueChange={(value) => setModules((prev) => ({ ...prev, [mod.key]: value }))}
-            >
-              <SelectTrigger className="h-9 w-full text-xs sm:h-7 sm:w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sem acesso</SelectItem>
-                <SelectItem value="view">Visualizar</SelectItem>
-                <SelectItem value="edit">Editar</SelectItem>
-              </SelectContent>
-            </Select>
+          <div key={mod.key} className="rounded-xl border border-border/60 bg-background p-3">
+            <div className="flex flex-col gap-2 sm:gap-2.5">
+              <p className="text-[11px] font-medium text-foreground">
+              {mod.label}
+              </p>
+              <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/40 p-1">
+                {PERMISSION_OPTIONS.map((option) => {
+                  const active = (modules[mod.key] || 'view') === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setModules((prev) => ({ ...prev, [mod.key]: option.value }))}
+                      className={`min-h-8 rounded-lg px-1.5 py-1 text-[11px] font-medium transition-colors ${
+                        active
+                          ? option.value === 'edit'
+                            ? 'bg-primary/10 text-primary'
+                            : option.value === 'view'
+                              ? 'bg-background text-slate-700 shadow-sm'
+                              : 'bg-transparent text-muted-foreground'
+                          : 'text-muted-foreground hover:bg-background/80'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         ))}
       </div>

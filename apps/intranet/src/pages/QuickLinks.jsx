@@ -198,12 +198,12 @@ export default function QuickLinks() {
         {canEdit && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => setEditingLink(null)}>
+              <Button className="w-full gap-2 sm:w-auto" onClick={() => setEditingLink(null)}>
                 <Plus className="h-4 w-4" />
                 Novo Link
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingLink ? 'Editar Link' : 'Novo Link'}</DialogTitle>
               </DialogHeader>
@@ -222,7 +222,7 @@ export default function QuickLinks() {
           {[1, 2, 3].map((section) => (
             <div key={section} className="space-y-4">
               <Skeleton className="h-8 w-64 rounded-xl" />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[1, 2, 3, 4].map((item) => (
                   <Skeleton key={item} className="h-56 rounded-2xl" />
                 ))}
@@ -259,7 +259,7 @@ export default function QuickLinks() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {categoryLinks.map((link) => (
                     <div
                       key={link.id}
@@ -269,7 +269,7 @@ export default function QuickLinks() {
                         <LinkCardIcon linkUrl={link.url} config={config} Icon={CategoryIcon} />
 
                         {canEdit ? (
-                          <div className="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                          <div className="flex flex-wrap items-center justify-end gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -323,7 +323,7 @@ export default function QuickLinks() {
                           <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-300 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-hover:text-[#FF8C00]" />
                         </div>
 
-                        <p className="mt-2 line-clamp-3 text-sm text-slate-500">
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
                           {link.description || 'Acesso rapido para uma ferramenta importante da rotina da empresa.'}
                         </p>
 
