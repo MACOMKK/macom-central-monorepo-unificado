@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skelet
 import EmployeeForm from '../components/employees/EmployeeForm';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 export default function Employees() {
   const { canEdit } = usePermissions('colaboradores');
@@ -47,6 +48,13 @@ export default function Employees() {
     const matchDept = deptFilter === 'all' || employeeDepartment === deptFilter;
     return matchSearch && matchDept;
   });
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedEmployees,
+  } = usePaginatedItems(filtered, 12, [search, deptFilter]);
 
   const openEdit = (employee) => {
     setEditingEmployee(employee);
@@ -121,70 +129,81 @@ export default function Employees() {
           <p>Nenhum colaborador encontrado.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {filtered.map((employee) => (
-            <div
-              key={employee.id}
-              className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-            >
-              <div className="relative border-b border-slate-100 px-4 pb-5 pt-6 text-center sm:p-6">
-                {employee.phone ? (
-                  <div className="absolute right-3 top-3 max-w-[132px] truncate rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold leading-none text-slate-500">
-                    {employee.phone}
-                  </div>
-                ) : null}
-
-                {canEdit ? (
-                  <div className="absolute left-3 top-3 flex shrink-0 sm:left-4 sm:top-4">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => openEdit(employee)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : null}
-
-                {employee.photo_url ? (
-                  <img
-                    src={employee.photo_url}
-                    alt={`Foto de ${employee.name}`}
-                    className="mx-auto mb-4 h-24 w-24 rounded-full border-4 border-slate-50 object-cover transition-colors group-hover:border-primary/20"
-                  />
-                ) : (
-                  <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-slate-50 bg-primary/10 text-2xl font-bold text-primary transition-colors group-hover:border-primary/20">
-                    {getInitials(employee.name)}
-                  </div>
-                )}
-
-                <h3 className="text-lg font-bold leading-tight text-foreground">{employee.name}</h3>
-                <p className="mb-1 text-sm font-medium text-primary">{employee.position || employee.function_role || 'Sem cargo'}</p>
-                <p className="flex items-center justify-center gap-1 text-sm text-slate-500">
-                  <Building size={14} />
-                  {employee.department_name || employee.department || 'Sem departamento'}
-                </p>
-              </div>
-
-              <div className="space-y-3 bg-slate-50 p-4">
-                {employee.email ? (
-                  <a
-                    href={`mailto:${employee.email}`}
-                    className="flex items-center gap-3 text-sm text-slate-600 transition-colors hover:text-foreground"
-                  >
-                    <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
-                      <Mail size={16} />
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {paginatedEmployees.map((employee) => (
+              <div
+                key={employee.id}
+                className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
+              >
+                <div className="relative border-b border-slate-100 px-4 pb-5 pt-6 text-center sm:p-6">
+                  {employee.phone ? (
+                    <div className="absolute right-3 top-3 max-w-[132px] truncate rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold leading-none text-slate-500">
+                      {employee.phone}
                     </div>
-                    <span className="truncate" title={employee.email}>{employee.email}</span>
-                  </a>
-                ) : null}
+                  ) : null}
 
-                <div className="flex items-center gap-3 text-sm text-slate-600">
-                  <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
-                    <MapPin size={16} />
+                  {canEdit ? (
+                    <div className="absolute left-3 top-3 flex shrink-0 sm:left-4 sm:top-4">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => openEdit(employee)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {employee.photo_url ? (
+                    <img
+                      src={employee.photo_url}
+                      alt={`Foto de ${employee.name}`}
+                      className="mx-auto mb-4 h-24 w-24 rounded-full border-4 border-slate-50 object-cover transition-colors group-hover:border-primary/20"
+                    />
+                  ) : (
+                    <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-slate-50 bg-primary/10 text-2xl font-bold text-primary transition-colors group-hover:border-primary/20">
+                      {getInitials(employee.name)}
+                    </div>
+                  )}
+
+                  <h3 className="text-lg font-bold leading-tight text-foreground">{employee.name}</h3>
+                  <p className="mb-1 text-sm font-medium text-primary">{employee.position || employee.function_role || 'Sem cargo'}</p>
+                  <p className="flex items-center justify-center gap-1 text-sm text-slate-500">
+                    <Building size={14} />
+                    {employee.department_name || employee.department || 'Sem departamento'}
+                  </p>
+                </div>
+
+                <div className="space-y-3 bg-slate-50 p-4">
+                  {employee.email ? (
+                    <a
+                      href={`mailto:${employee.email}`}
+                      className="flex items-center gap-3 text-sm text-slate-600 transition-colors hover:text-foreground"
+                    >
+                      <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
+                        <Mail size={16} />
+                      </div>
+                      <span className="truncate" title={employee.email}>{employee.email}</span>
+                    </a>
+                  ) : null}
+
+                  <div className="flex items-center gap-3 text-sm text-slate-600">
+                    <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
+                      <MapPin size={16} />
+                    </div>
+                    <span>{employee.unit_name || 'Unidade nao informada'}</span>
                   </div>
-                  <span>{employee.unit_name || 'Unidade nao informada'}</span>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={12}
+            onPageChange={setPage}
+            itemLabel="colaboradores"
+          />
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={closeDialog}>

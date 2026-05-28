@@ -20,6 +20,7 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger
 import QuickLinkForm from '../components/links/QuickLinkForm';
 import { usePermissions } from '@/lib/usePermissions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const categoryConfig = {
   sistema: {
@@ -170,11 +171,19 @@ export default function QuickLinks() {
     },
   });
 
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedLinks,
+  } = usePaginatedItems(links, 24, [links.length]);
+
   const groupedCategories = Object.entries(categoryConfig)
     .map(([key, config]) => ({
       key,
       config,
-      links: links.filter((link) => link.category === key),
+      links: paginatedLinks.filter((link) => link.category === key),
     }))
     .filter((category) => category.links.length > 0);
 
@@ -241,6 +250,7 @@ export default function QuickLinks() {
           </p>
         </div>
       ) : groupedCategories.length > 0 ? (
+        <>
         <div className="space-y-10">
           {groupedCategories.map(({ key, config, links: categoryLinks }) => {
             const CategoryIcon = config.icon;
@@ -341,6 +351,16 @@ export default function QuickLinks() {
             );
           })}
         </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={24}
+          onPageChange={setPage}
+          itemLabel="links"
+        />
+        </>
       ) : (
         <div className="rounded-[28px] border border-slate-200 bg-white p-12 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">

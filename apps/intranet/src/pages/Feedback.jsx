@@ -7,6 +7,7 @@ import { usePermissions } from '@/lib/usePermissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const typeConfig = {
   sugestao:   { label: 'Sugestão',   class: 'bg-blue-100 text-blue-700' },
@@ -158,6 +159,13 @@ export default function Feedback() {
     const matchSearch = !search || f.title?.toLowerCase().includes(search.toLowerCase());
     return matchType && matchStatus && matchSearch;
   });
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedFeedbacks,
+  } = usePaginatedItems(filtered, 10, [search, filterType, filterStatus]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -277,17 +285,28 @@ export default function Feedback() {
             <p>Nenhum feedback encontrado.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filtered.map(item => (
-              <FeedbackCard
-                key={item.id}
-                item={item}
-                isAdmin={isAdmin}
-                onStatusChange={handleStatusChange}
-                onRespond={handleRespond}
-              />
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {paginatedFeedbacks.map(item => (
+                <FeedbackCard
+                  key={item.id}
+                  item={item}
+                  isAdmin={isAdmin}
+                  onStatusChange={handleStatusChange}
+                  onRespond={handleRespond}
+                />
+              ))}
+            </div>
+
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={10}
+              onPageChange={setPage}
+              itemLabel="feedbacks"
+            />
+          </>
         )}
       </div>
     </div>

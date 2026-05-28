@@ -5,6 +5,7 @@ import { Shield, Save, Loader2, UserCog, Plus } from 'lucide-react';
 import { Badge, Button, Input, Skeleton } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const MODULES = [
   { key: 'avisos', label: 'Mural de Avisos' },
@@ -27,9 +28,9 @@ const DEFAULT_MODULES = {
 };
 
 const PERMISSION_OPTIONS = [
-  { value: 'none', label: 'Sem' },
-  { value: 'view', label: 'Ver' },
-  { value: 'edit', label: 'Editar' },
+  { value: 'none', label: 'Sem', activeClass: 'bg-slate-200 text-slate-700' },
+  { value: 'view', label: 'Ver', activeClass: 'bg-[#141414]/8 text-[#141414]' },
+  { value: 'edit', label: 'Editar', activeClass: 'bg-[#E30613]/12 text-[#B0000F]' },
 ];
 
 function PermissionRow({ user, existingPerm, onSave, isSaving }) {
@@ -88,11 +89,7 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
                       onClick={() => setModules((prev) => ({ ...prev, [mod.key]: option.value }))}
                       className={`min-h-8 rounded-lg px-1.5 py-1 text-[11px] font-medium transition-colors ${
                         active
-                          ? option.value === 'edit'
-                            ? 'bg-primary/10 text-primary'
-                            : option.value === 'view'
-                              ? 'bg-background text-slate-700 shadow-sm'
-                              : 'bg-transparent text-muted-foreground'
+                          ? `${option.activeClass} shadow-sm`
                           : 'text-muted-foreground hover:bg-background/80'
                       }`}
                     >
@@ -171,16 +168,6 @@ export default function Permissions() {
   };
 
   const isLoading = permLoading || usersLoading || permsLoading;
-
-  if (!permLoading && role !== 'admin') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
-        <Shield className="w-12 h-12 mb-3 opacity-30" />
-        <p>Apenas administradores podem acessar esta pagina.</p>
-      </div>
-    );
-  }
-
   const userRows = [...users];
   const extraPerms = perms.filter((perm) => !users.some((user) => user.email === perm.user_email));
   const extraRows = extraPerms.map((perm) => ({
@@ -190,6 +177,22 @@ export default function Permissions() {
     role: 'user',
   }));
   const allRows = [...userRows, ...extraRows];
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedRows,
+  } = usePaginatedItems(allRows, 8, [allRows.length]);
+
+  if (!permLoading && role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-muted-foreground">
+        <Shield className="w-12 h-12 mb-3 opacity-30" />
+        <p>Apenas administradores podem acessar esta pagina.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -219,17 +222,28 @@ export default function Permissions() {
       {isLoading ? (
         <div className="space-y-4">{[1, 2, 3].map((item) => <Skeleton key={item} className="h-40 rounded-xl" />)}</div>
       ) : (
-        <div className="space-y-4">
-          {allRows.map((user) => (
-            <PermissionRow
-              key={user.email}
-              user={user}
-              existingPerm={perms.find((perm) => perm.user_email === user.email)}
-              onSave={handleSave}
-              isSaving={savingUser === user.email}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {paginatedRows.map((user) => (
+              <PermissionRow
+                key={user.email}
+                user={user}
+                existingPerm={perms.find((perm) => perm.user_email === user.email)}
+                onSave={handleSave}
+                isSaving={savingUser === user.email}
+              />
+            ))}
+          </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={8}
+            onPageChange={setPage}
+            itemLabel="usuarios"
+          />
+        </>
       )}
     </div>
   );

@@ -21,6 +21,7 @@ import AnnouncementForm from '../components/announcements/AnnouncementForm';
 import AnnouncementDetailsDialog from '../components/announcements/AnnouncementDetailsDialog';
 import AnnouncementInteractions from '../components/announcements/AnnouncementInteractions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const priorityConfig = {
   urgente: { icon: AlertTriangle, class: 'bg-red-100 text-red-700 border-red-200' },
@@ -89,6 +90,13 @@ export default function Announcements() {
 
   const filtered = filter === 'all' ? announcements : announcements.filter((announcement) => announcement.category === filter);
   const sorted = [...filtered].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedAnnouncements,
+  } = usePaginatedItems(sorted, 8, [filter]);
 
   const handleConfirmDelete = () => {
     if (!announcementToDelete) return;
@@ -147,8 +155,9 @@ export default function Announcements() {
           <p>Nenhum aviso encontrado.</p>
         </div>
       ) : (
+        <>
         <div className="space-y-4">
-          {sorted.map((announcement) => {
+          {paginatedAnnouncements.map((announcement) => {
             const config = priorityConfig[announcement.priority] || priorityConfig.media;
             const preview = getAnnouncementPreview(announcement.content);
 
@@ -224,6 +233,16 @@ export default function Announcements() {
             );
           })}
         </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={8}
+          onPageChange={setPage}
+          itemLabel="avisos"
+        />
+        </>
       )}
 
       <ConfirmDeleteDialog

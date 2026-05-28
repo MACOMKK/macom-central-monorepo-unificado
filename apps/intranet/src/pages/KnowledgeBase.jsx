@@ -8,6 +8,7 @@ import KnowledgeCard from '../components/knowledge/KnowledgeCard';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const CATEGORIES = ['all', 'geral', 'rh', 'ti', 'financeiro', 'vendas', 'pos_vendas', 'beneficios', 'politicas'];
 const CATEGORY_LABELS = {
@@ -86,6 +87,13 @@ export default function KnowledgeBase() {
       return matchCat && matchType && matchSearch;
     })
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedItems,
+  } = usePaginatedItems(filtered, 10, [search, categoryFilter, typeFilter]);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -164,17 +172,28 @@ export default function KnowledgeBase() {
           <p>Nenhum artigo encontrado.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(item => (
-            <KnowledgeCard
-              key={item.id}
-              item={item}
-              canEdit={canEdit}
-              onEdit={openEdit}
-              onDelete={setItemToDelete}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {paginatedItems.map(item => (
+              <KnowledgeCard
+                key={item.id}
+                item={item}
+                canEdit={canEdit}
+                onEdit={openEdit}
+                onDelete={setItemToDelete}
+              />
+            ))}
+          </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={10}
+            onPageChange={setPage}
+            itemLabel="artigos"
+          />
+        </>
       )}
 
       {/* Dialog */}

@@ -19,6 +19,7 @@ import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Dialog
 import DocumentForm from '../components/documents/DocumentForm';
 import { usePermissions } from '@/lib/usePermissions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
+import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const categoryConfig = {
   politica: {
@@ -163,7 +164,14 @@ export default function Documents() {
     })
     .filter(Boolean);
 
-  const recentDocuments = filtered.slice(0, catFilter === 'all' ? 8 : 12);
+  const pageSize = catFilter === 'all' ? 8 : 12;
+  const {
+    page,
+    setPage,
+    totalItems,
+    totalPages,
+    paginatedItems: paginatedDocuments,
+  } = usePaginatedItems(filtered, pageSize, [search, catFilter]);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
 
@@ -315,7 +323,7 @@ export default function Documents() {
             </div>
 
             <div className="divide-y divide-border/70">
-              {recentDocuments.map((document) => {
+              {paginatedDocuments.map((document) => {
                 const config = categoryConfig[document.category] || categoryConfig.outros;
                 const Icon = config.icon;
                 const size = formatFileSize(document.file_size);
@@ -396,6 +404,17 @@ export default function Documents() {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="px-4 pb-4 sm:px-6 sm:pb-5">
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                itemLabel="documentos"
+              />
             </div>
           </section>
         </div>
