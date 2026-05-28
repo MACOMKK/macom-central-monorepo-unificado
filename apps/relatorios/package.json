@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
+    "prebuild": "node ../../scripts/syncFavicons.js",
     "build": "vite build --configLoader runner",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
