@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Save, Loader2, UserCog, Plus } from 'lucide-react';
+import { Shield, Save, Loader2, UserCog, Search } from 'lucide-react';
 import { Badge, Button, Input, Skeleton } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
@@ -110,7 +110,7 @@ export default function Permissions() {
   const { isLoading: permLoading, role } = usePermissions(null);
   const queryClient = useQueryClient();
   const [savingUser, setSavingUser] = useState(null);
-  const [newEmail, setNewEmail] = useState('');
+  const [search, setSearch] = useState('');
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
@@ -141,32 +141,6 @@ export default function Permissions() {
     saveMutation.mutate(data);
   };
 
-  const handleAddEmail = () => {
-    const email = newEmail.trim().toLowerCase();
-    if (!email) return;
-
-    const existingUser = users.find((user) => user.email === email);
-    const alreadyInPerms = perms.some((perm) => perm.user_email === email);
-
-    if (!existingUser) {
-      toast.error('Nao existe colaborador com esse e-mail no banco atual.');
-      return;
-    }
-
-    if (alreadyInPerms) {
-      toast.info('Usuario ja esta na lista.');
-      setNewEmail('');
-      return;
-    }
-
-    saveMutation.mutate({
-      collaborator_id: existingUser.id,
-      user_email: existingUser.email,
-      modules: DEFAULT_MODULES,
-    });
-    setNewEmail('');
-  };
-
   const isLoading = permLoading || usersLoading || permsLoading;
   const userRows = [...users];
   const extraPerms = perms.filter((perm) => !users.some((user) => user.email === perm.user_email));
@@ -177,13 +151,21 @@ export default function Permissions() {
     role: 'user',
   }));
   const allRows = [...userRows, ...extraRows];
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredRows = allRows.filter((user) => {
+    if (!normalizedSearch) return true;
+    return (
+      user.full_name?.toLowerCase().includes(normalizedSearch) ||
+      user.email?.toLowerCase().includes(normalizedSearch)
+    );
+  });
   const {
     page,
     setPage,
     totalItems,
     totalPages,
     paginatedItems: paginatedRows,
-  } = usePaginatedItems(allRows, 8, [allRows.length]);
+  } = usePaginatedItems(filteredRows, 8, [search, allRows.length]);
 
   if (!permLoading && role !== 'admin') {
     return (
@@ -206,21 +188,23 @@ export default function Permissions() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row">
+      <div className="relative mb-6 max-w-xl">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Adicionar permissao por e-mail..."
-          value={newEmail}
-          onChange={(event) => setNewEmail(event.target.value)}
-          onKeyDown={(event) => event.key === 'Enter' && handleAddEmail()}
-          className="w-full sm:max-w-sm"
+          placeholder="Pesquisar colaborador por nome ou e-mail..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="pl-10"
         />
-        <Button onClick={handleAddEmail} className="w-full gap-2 sm:w-auto">
-          <Plus className="w-4 h-4" /> Adicionar
-        </Button>
       </div>
 
       {isLoading ? (
         <div className="space-y-4">{[1, 2, 3].map((item) => <Skeleton key={item} className="h-40 rounded-xl" />)}</div>
+      ) : filteredRows.length === 0 ? (
+        <div className="py-20 text-center text-muted-foreground">
+          <UserCog className="mx-auto mb-3 h-12 w-12 opacity-30" />
+          <p>Nenhum colaborador encontrado.</p>
+        </div>
       ) : (
         <>
           <div className="space-y-4">

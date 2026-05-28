@@ -14,6 +14,7 @@ import {
   BookOpen,
   GraduationCap,
   EllipsisVertical,
+  DollarSign,
 } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Input, Skeleton } from '@macom/ui';
 import DocumentForm from '../components/documents/DocumentForm';
@@ -56,6 +57,13 @@ const categoryConfig = {
     icon: GraduationCap,
     iconWrap: 'bg-amber-100 text-amber-500',
     accent: 'border-amber-100 hover:border-amber-200',
+  },
+  vendas: {
+    label: 'Vendas',
+    helper: 'Materiais comerciais e apoio ao time de vendas',
+    icon: DollarSign,
+    iconWrap: 'bg-emerald-100 text-emerald-500',
+    accent: 'border-emerald-100 hover:border-emerald-200',
   },
   outros: {
     label: 'Outros',

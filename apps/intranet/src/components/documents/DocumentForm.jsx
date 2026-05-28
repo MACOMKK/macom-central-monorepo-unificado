@@ -74,6 +74,7 @@ export default function DocumentForm({ onSubmit, isLoading }) {
               <SelectItem value="formulario">Formulario</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
               <SelectItem value="treinamento">Treinamento</SelectItem>
+              <SelectItem value="vendas">Vendas</SelectItem>
               <SelectItem value="outros">Outros</SelectItem>
             </SelectContent>
           </Select>
