@@ -238,8 +238,8 @@ export default function Calendar() {
         title="Excluir evento"
         description={
           eventToDelete
-            ? `Essa acao nao pode ser desfeita. Deseja excluir o evento "${eventToDelete.title}"?`
-            : 'Essa acao nao pode ser desfeita.'
+            ? `Essa ação não pode ser desfeita. Deseja excluir o evento "${eventToDelete.title}"?`
+            : 'Essa ação não pode ser desfeita.'
         }
       />
     </div>

@@ -19,11 +19,11 @@ function getSignInErrorMessage(error) {
   }
 
   if (typeof error?.message === 'string' && error.message.toLowerCase().includes('missing sub claim')) {
-    return 'Sua sessao esta invalida ou expirada. Faça login novamente.';
+    return 'Sua sessão está inválida ou expirada. Faça login novamente.';
   }
 
   if (error?.code === 'INTRANET_COLLABORATOR_NOT_FOUND') {
-    return 'Seu usuario autenticado nao esta vinculado a um colaborador da intranet.';
+    return 'Seu usuário autenticado não está vinculado a um colaborador da intranet.';
   }
 
   if (error?.code === 'INTRANET_COLLABORATOR_INACTIVE') {
@@ -31,10 +31,10 @@ function getSignInErrorMessage(error) {
   }
 
   if (error?.code === 'INTRANET_SYSTEM_ACCESS_NOT_GRANTED') {
-    return 'Seu colaborador esta ativo, mas ainda nao possui acesso liberado para a intranet.';
+    return 'Seu colaborador está ativo, mas ainda não possui acesso liberado para a intranet.';
   }
 
-  return error?.message || 'Nao foi possivel entrar.';
+  return error?.message || 'Não foi possível entrar.';
 }
 
 export default function Login() {

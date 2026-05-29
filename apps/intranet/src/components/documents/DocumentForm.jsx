@@ -56,12 +56,12 @@ export default function DocumentForm({ onSubmit, isLoading }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label>Titulo</Label>
+        <Label>Título</Label>
         <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required placeholder="Nome do documento" />
       </div>
       <div className="space-y-2">
-        <Label>Descricao</Label>
-        <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={2} placeholder="Breve descricao..." />
+        <Label>Descrição</Label>
+        <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={2} placeholder="Breve descrição..." />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -69,9 +69,9 @@ export default function DocumentForm({ onSubmit, isLoading }) {
           <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="politica">Politica</SelectItem>
+              <SelectItem value="politica">Política</SelectItem>
               <SelectItem value="procedimento">Procedimento</SelectItem>
-              <SelectItem value="formulario">Formulario</SelectItem>
+              <SelectItem value="formulario">Formulário</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
               <SelectItem value="treinamento">Treinamento</SelectItem>
               <SelectItem value="vendas">Vendas</SelectItem>
@@ -108,7 +108,7 @@ export default function DocumentForm({ onSubmit, isLoading }) {
             {form.file_name}
           </p>
         ) : (
-          <p className="text-xs text-muted-foreground">Envie um arquivo obrigatorio para criar o documento. Limite de 5 MB.</p>
+          <p className="text-xs text-muted-foreground">Envie um arquivo obrigatório para criar o documento. Limite de 5 MB.</p>
         )}
         {uploadError ? (
           <p className="text-xs text-destructive">{uploadError}</p>

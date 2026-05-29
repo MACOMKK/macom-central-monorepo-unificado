@@ -188,7 +188,7 @@ export default function Employees() {
                     <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
                       <MapPin size={16} />
                     </div>
-                    <span>{employee.unit_name || 'Unidade nao informada'}</span>
+                    <span>{employee.unit_name || 'Unidade não informada'}</span>
                   </div>
                 </div>
               </div>

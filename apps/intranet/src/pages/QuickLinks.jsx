@@ -380,8 +380,8 @@ export default function QuickLinks() {
         title="Excluir link"
         description={
           linkToDelete
-            ? `Essa acao nao pode ser desfeita. Deseja excluir o link "${linkToDelete.name}"?`
-            : 'Essa acao nao pode ser desfeita.'
+            ? `Essa ação não pode ser desfeita. Deseja excluir o link "${linkToDelete.name}"?`
+            : 'Essa ação não pode ser desfeita.'
         }
       />
     </div>

@@ -77,17 +77,17 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label>Titulo</Label>
+        <Label>Título</Label>
         <Input
           value={form.title}
           onChange={(event) => setForm({ ...form, title: event.target.value })}
           required
-          placeholder="Titulo do aviso"
+          placeholder="Título do aviso"
         />
       </div>
 
       <div className="space-y-2">
-        <Label>Conteudo</Label>
+        <Label>Conteúdo</Label>
         <Textarea
           value={form.content}
           onChange={(event) => setForm({ ...form, content: event.target.value })}
@@ -119,7 +119,7 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="baixa">Baixa</SelectItem>
-              <SelectItem value="media">Media</SelectItem>
+              <SelectItem value="media">Média</SelectItem>
               <SelectItem value="alta">Alta</SelectItem>
               <SelectItem value="urgente">Urgente</SelectItem>
             </SelectContent>
@@ -160,7 +160,7 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Opcional. Use JPG, PNG ou WebP com ate 2 MB.
+            Opcional. Use JPG, PNG ou WebP com até 2 MB.
           </p>
         )}
 

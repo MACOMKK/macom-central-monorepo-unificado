@@ -67,7 +67,7 @@ async function uploadFile(file) {
 
 async function uploadAnnouncementImage(file) {
   if (file?.type && !ALLOWED_ANNOUNCEMENT_IMAGE_TYPES.has(file.type)) {
-    throw new Error('Formato de imagem nao suportado. Use JPG, PNG ou WebP.');
+    throw new Error('Formato de imagem não suportado. Use JPG, PNG ou WebP.');
   }
 
   const { publicUrl, filePath } = await uploadToBucket(
@@ -124,7 +124,7 @@ export const appClient = {
     async getSession() {
       assertSupabaseConfigured();
       const { data, error } = await supabase.auth.getSession();
-      if (error) throw normalizeFunctionError(error, 'Falha ao obter sessao.');
+      if (error) throw normalizeFunctionError(error, 'Falha ao obter sessão.');
       return data?.session ?? null;
     },
 
@@ -132,7 +132,7 @@ export const appClient = {
       assertSupabaseConfigured();
       const { error } = await supabase.auth.signOut();
       if (error && !isMissingSessionError(error)) {
-        throw normalizeFunctionError(error, 'Falha ao encerrar sessao.');
+        throw normalizeFunctionError(error, 'Falha ao encerrar sessão.');
       }
       if (redirectTo) {
         window.location.assign(redirectTo);
@@ -143,7 +143,7 @@ export const appClient = {
       assertSupabaseConfigured();
       const { error } = await supabase.auth.signOut();
       if (error && !isMissingSessionError(error)) {
-        throw normalizeFunctionError(error, 'Falha ao limpar sessao.');
+        throw normalizeFunctionError(error, 'Falha ao limpar sessão.');
       }
     },
 

@@ -8,6 +8,9 @@ import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
 import { usePermissions } from '@/lib/usePermissions';
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Badge,
   Button,
   Dialog,
@@ -15,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  FeedbackToast,
   Skeleton,
 } from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
@@ -46,16 +50,29 @@ function getAnnouncementPreview(content, maxLength = 280) {
   return `${normalized.slice(0, maxLength).trimEnd()}...`;
 }
 
+function getErrorMessage(error, fallback) {
+  if (!error) return fallback;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function Announcements() {
   const { canEdit } = usePermissions('avisos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [announcementToDelete, setAnnouncementToDelete] = useState(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [feedback, setFeedback] = useState(null);
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: announcements = [], isLoading } = useQuery({
+  const {
+    data: announcements = [],
+    error: announcementsError,
+    isError: isAnnouncementsError,
+    isFetching,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['announcements'],
     queryFn: () => appClient.entities.Announcement.list('-created_date', 50),
   });
@@ -67,6 +84,13 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
       setDialogOpen(false);
+      setFeedback({ type: 'success', message: 'Aviso publicado com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível publicar o aviso.'),
+      });
     },
   });
 
@@ -76,6 +100,14 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+      setAnnouncementToDelete(null);
+      setFeedback({ type: 'success', message: 'Aviso excluído com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível excluir o aviso.'),
+      });
     },
   });
 
@@ -85,6 +117,12 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível atualizar o aviso.'),
+      });
     },
   });
 
@@ -101,7 +139,6 @@ export default function Announcements() {
   const handleConfirmDelete = () => {
     if (!announcementToDelete) return;
     deleteMutation.mutate(announcementToDelete.id);
-    setAnnouncementToDelete(null);
   };
 
   return (
@@ -109,7 +146,7 @@ export default function Announcements() {
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold">Mural de Avisos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Comunicados e informacoes importantes</p>
+          <p className="mt-1 text-sm text-muted-foreground">Comunicados e informações importantes</p>
         </div>
 
         {canEdit ? (
@@ -149,6 +186,22 @@ export default function Announcements() {
 
       {isLoading ? (
         <div className="space-y-3">{[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-24 w-full rounded-xl" />)}</div>
+      ) : isAnnouncementsError ? (
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/5">
+          <AlertTitle>Não foi possível carregar os avisos</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{getErrorMessage(announcementsError, 'Tente novamente em alguns instantes.')}</span>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full shrink-0 sm:w-auto"
+              disabled={isFetching}
+              onClick={() => refetch()}
+            >
+              {isFetching ? 'Tentando...' : 'Tentar novamente'}
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : sorted.length === 0 ? (
         <div className="py-20 text-center text-muted-foreground">
           <Bell className="mx-auto mb-3 h-12 w-12 opacity-30" />
@@ -156,92 +209,92 @@ export default function Announcements() {
         </div>
       ) : (
         <>
-        <div className="space-y-4">
-          {paginatedAnnouncements.map((announcement) => {
-            const config = priorityConfig[announcement.priority] || priorityConfig.media;
-            const preview = getAnnouncementPreview(announcement.content);
+          <div className="space-y-4">
+            {paginatedAnnouncements.map((announcement) => {
+              const config = priorityConfig[announcement.priority] || priorityConfig.media;
+              const preview = getAnnouncementPreview(announcement.content);
 
-            return (
-              <div
-                key={announcement.id}
-                className={`overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md ${
-                  announcement.pinned ? 'border-primary/30 bg-primary/[0.02]' : 'border-border'
-                }`}
-              >
-                {announcement.image_url ? (
-                  <div className="border-b border-border bg-muted/20">
-                    <img
-                      src={announcement.image_url}
-                      alt={announcement.title}
-                      className="h-52 w-full object-cover sm:h-64"
-                    />
-                  </div>
-                ) : null}
-
-                <div className="p-4 sm:p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {announcement.pinned ? <Pin className="h-4 w-4 shrink-0 text-primary" /> : null}
-                        <h3 className="text-base font-semibold leading-tight">{announcement.title}</h3>
-                        <Badge variant="outline" className={`text-[10px] ${config.class}`}>{announcement.priority}</Badge>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {categoryLabels[announcement.category] || announcement.category}
-                        </Badge>
-                      </div>
-
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{preview}</p>
-
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="mt-2 h-auto px-0 text-sm font-semibold"
-                        onClick={() => setSelectedAnnouncement(announcement)}
-                      >
-                        Ler aviso completo
-                      </Button>
-
-                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        Publicado em {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
-                        {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
-                      </p>
-
-                      <AnnouncementInteractions
-                        announcementId={announcement.id}
-                        currentUserId={currentUser?.collaborator_id || currentUser?.id}
+              return (
+                <div
+                  key={announcement.id}
+                  className={`overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md ${
+                    announcement.pinned ? 'border-primary/30 bg-primary/[0.02]' : 'border-border'
+                  }`}
+                >
+                  {announcement.image_url ? (
+                    <div className="border-b border-border bg-muted/20">
+                      <img
+                        src={announcement.image_url}
+                        alt={announcement.title}
+                        className="h-52 w-full object-cover sm:h-64"
                       />
                     </div>
+                  ) : null}
 
-                    {canEdit ? (
-                      <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
-                        <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
-                          <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
-                        </Button>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {announcement.pinned ? <Pin className="h-4 w-4 shrink-0 text-primary" /> : null}
+                          <h3 className="text-base font-semibold leading-tight">{announcement.title}</h3>
+                          <Badge variant="outline" className={`text-[10px] ${config.class}`}>{announcement.priority}</Badge>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {categoryLabels[announcement.category] || announcement.category}
+                          </Badge>
+                        </div>
+
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">{preview}</p>
+
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setAnnouncementToDelete(announcement)}
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          type="button"
+                          variant="link"
+                          className="mt-2 h-auto px-0 text-sm font-semibold"
+                          onClick={() => setSelectedAnnouncement(announcement)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          Ler aviso completo
                         </Button>
+
+                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                          Publicado em {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
+                          {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
+                        </p>
+
+                        <AnnouncementInteractions
+                          announcementId={announcement.id}
+                          currentUserId={currentUser?.collaborator_id || currentUser?.id}
+                        />
                       </div>
-                    ) : null}
+
+                      {canEdit ? (
+                        <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+                          <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
+                            <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setAnnouncementToDelete(announcement)}
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={8}
-          onPageChange={setPage}
-          itemLabel="avisos"
-        />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={8}
+            onPageChange={setPage}
+            itemLabel="avisos"
+          />
         </>
       )}
 
@@ -252,9 +305,10 @@ export default function Announcements() {
         title="Excluir aviso"
         description={
           announcementToDelete
-            ? `Essa acao nao pode ser desfeita. Deseja excluir o aviso "${announcementToDelete.title}"?`
-            : 'Essa acao nao pode ser desfeita.'
+            ? `Essa ação não pode ser desfeita. Deseja excluir o aviso "${announcementToDelete.title}"?`
+            : 'Essa ação não pode ser desfeita.'
         }
+        isLoading={deleteMutation.isPending}
       />
 
       <AnnouncementDetailsDialog
@@ -262,6 +316,8 @@ export default function Announcements() {
         open={Boolean(selectedAnnouncement)}
         onOpenChange={(open) => !open && setSelectedAnnouncement(null)}
       />
+
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
   );
 }

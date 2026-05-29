@@ -70,12 +70,6 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = appClient.auth.onAuthStateChange((event, session) => {
-      console.log('[intranet] auth state change', {
-        event,
-        hasAccessToken: Boolean(session?.access_token),
-        timestamp: new Date().toISOString(),
-      });
-
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setIsAuthenticated(false);
@@ -112,25 +106,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const checkUserAuth = async ({ silent = false } = {}) => {
-    console.log('[intranet] checkUserAuth:start', {
-      silent,
-      timestamp: new Date().toISOString(),
-    });
-
     try {
       if (!silent) {
         setIsLoadingAuth(true);
       }
       setAuthError(null);
       const currentUser = await appClient.auth.me();
-      console.log('[intranet] checkUserAuth:success', {
-        userId: currentUser?.id || null,
-        backendStatus: currentUser?.backend_status || null,
-        backendReason: currentUser?.backend_reason || null,
-        backendErrorDetail: currentUser?.backend_error_detail || null,
-        silent,
-        timestamp: new Date().toISOString(),
-      });
       setUser(currentUser);
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
@@ -146,12 +127,6 @@ export const AuthProvider = ({ children }) => {
       } else {
         console.error('Supabase auth check failed:', error);
       }
-      console.log('[intranet] checkUserAuth:error', {
-        message: error?.message || 'Unknown auth error',
-        code: error?.code || null,
-        silent,
-        timestamp: new Date().toISOString(),
-      });
       if (isIntranetAccessDenied(error) || isInvalidSessionClaimError(error) || isUnauthenticatedSessionError(error)) {
         await clearIntranetSession();
       }

@@ -16,7 +16,7 @@ const categoryLabels = {
 const priorityLabels = {
   urgente: 'Urgente',
   alta: 'Alta',
-  media: 'Media',
+  media: 'Média',
   baixa: 'Baixa',
 };
 

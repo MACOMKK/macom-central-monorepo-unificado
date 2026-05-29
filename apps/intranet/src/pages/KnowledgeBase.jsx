@@ -218,8 +218,8 @@ export default function KnowledgeBase() {
         title="Excluir artigo"
         description={
           itemToDelete
-            ? `Essa acao nao pode ser desfeita. Deseja excluir o artigo "${itemToDelete.title}"?`
-            : 'Essa acao nao pode ser desfeita.'
+            ? `Essa ação não pode ser desfeita. Deseja excluir o artigo "${itemToDelete.title}"?`
+            : 'Essa ação não pode ser desfeita.'
         }
       />
     </div>

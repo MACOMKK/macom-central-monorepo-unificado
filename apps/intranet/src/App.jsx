@@ -1,8 +1,8 @@
 import { Toaster } from '@macom/ui';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 
@@ -45,75 +45,11 @@ const ProtectedShell = () => {
   return <Outlet />;
 };
 
-const DebugLifecycle = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    const onVisibilityChange = () => {
-      console.log('[intranet] visibilitychange', {
-        visibilityState: document.visibilityState,
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    const onFocus = () => {
-      console.log('[intranet] window focus', {
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    const onBlur = () => {
-      console.log('[intranet] window blur', {
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    const onPageShow = (event) => {
-      console.log('[intranet] pageshow', {
-        persisted: event.persisted,
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    const onPageHide = (event) => {
-      console.log('[intranet] pagehide', {
-        persisted: event.persisted,
-        timestamp: new Date().toISOString(),
-      });
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('pageshow', onPageShow);
-    window.addEventListener('pagehide', onPageHide);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('pageshow', onPageShow);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, []);
-
-  useEffect(() => {
-    console.log('[intranet] route change', {
-      pathname: location.pathname,
-      search: location.search,
-      timestamp: new Date().toISOString(),
-    });
-  }, [location.pathname, location.search]);
-
-  return null;
-};
-
 function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
-          <DebugLifecycle />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<ProtectedShell />}>

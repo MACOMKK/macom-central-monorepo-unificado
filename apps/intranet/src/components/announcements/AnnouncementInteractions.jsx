@@ -42,7 +42,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
       queryClient.invalidateQueries({ queryKey: ['reactions', announcementId] });
     },
     onError: (error) => {
-      toast.error(error.message || 'Nao foi possivel registrar a reacao.');
+      toast.error(error.message || 'Não foi possível registrar a reação.');
     },
   });
 
@@ -55,7 +55,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
     },
     onError: (error) => {
       setSending(false);
-      toast.error(error.message || 'Nao foi possivel enviar o comentario.');
+      toast.error(error.message || 'Não foi possível enviar o comentário.');
     },
   });
 
@@ -107,7 +107,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
       {showComments && (
         <div className="mt-3 space-y-3">
           {comments.length === 0 && (
-            <p className="text-xs text-muted-foreground">Nenhum comentario ainda. Seja o primeiro!</p>
+            <p className="text-xs text-muted-foreground">Nenhum comentário ainda. Seja o primeiro!</p>
           )}
 
           {comments.map((comment) => (
@@ -127,7 +127,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
-              placeholder="Escreva um comentario..."
+              placeholder="Escreva um comentário..."
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && handleSendComment()}

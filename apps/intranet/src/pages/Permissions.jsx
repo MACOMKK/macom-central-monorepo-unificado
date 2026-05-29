@@ -184,7 +184,7 @@ export default function Permissions() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Permissoes de Acesso</h1>
-          <p className="text-sm text-muted-foreground">Configure o acesso por modulo para cada usuario</p>
+          <p className="text-sm text-muted-foreground">Configure o acesso por módulo para cada usuário</p>
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export default function Permissions() {
             totalItems={totalItems}
             pageSize={8}
             onPageChange={setPage}
-            itemLabel="usuarios"
+            itemLabel="usuários"
           />
         </>
       )}

@@ -16,7 +16,21 @@ import {
   EllipsisVertical,
   DollarSign,
 } from 'lucide-react';
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Input, Skeleton } from '@macom/ui';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  FeedbackToast,
+  Input,
+  Skeleton,
+} from '@macom/ui';
 import DocumentForm from '../components/documents/DocumentForm';
 import { usePermissions } from '@/lib/usePermissions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
@@ -24,7 +38,7 @@ import Pagination, { usePaginatedItems } from '../components/Pagination';
 
 const categoryConfig = {
   politica: {
-    label: 'Politicas',
+    label: 'Políticas',
     helper: 'Regras e diretrizes da empresa',
     icon: Shield,
     iconWrap: 'bg-blue-100 text-blue-500',
@@ -32,13 +46,13 @@ const categoryConfig = {
   },
   procedimento: {
     label: 'Procedimentos',
-    helper: 'Fluxos e execucoes operacionais',
+    helper: 'Fluxos e execuções operacionais',
     icon: ClipboardList,
     iconWrap: 'bg-orange-100 text-orange-500',
     accent: 'border-orange-100 hover:border-orange-200',
   },
   formulario: {
-    label: 'Formularios',
+    label: 'Formulários',
     helper: 'Modelos e arquivos para preenchimento',
     icon: Files,
     iconWrap: 'bg-emerald-100 text-emerald-500',
@@ -53,7 +67,7 @@ const categoryConfig = {
   },
   treinamento: {
     label: 'Treinamentos',
-    helper: 'Materiais de capacitacao',
+    helper: 'Materiais de capacitação',
     icon: GraduationCap,
     iconWrap: 'bg-amber-100 text-amber-500',
     accent: 'border-amber-100 hover:border-amber-200',
@@ -109,16 +123,29 @@ function getPreviewType(document) {
   return 'unsupported';
 }
 
+function getErrorMessage(error, fallback) {
+  if (!error) return fallback;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function Documents() {
   const { canEdit } = usePermissions('documentos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewDocument, setPreviewDocument] = useState(null);
   const [documentToDelete, setDocumentToDelete] = useState(null);
+  const [feedback, setFeedback] = useState(null);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const queryClient = useQueryClient();
 
-  const { data: documents = [], isLoading } = useQuery({
+  const {
+    data: documents = [],
+    error: documentsError,
+    isError: isDocumentsError,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ['documents'],
     queryFn: () => appClient.entities.Document.list('-created_date', 100),
   });
@@ -128,12 +155,29 @@ export default function Documents() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setDialogOpen(false);
+      setFeedback({ type: 'success', message: 'Documento criado com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível criar o documento.'),
+      });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.Document.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documents'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setDocumentToDelete(null);
+      setFeedback({ type: 'success', message: 'Documento excluído com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível excluir o documento.'),
+      });
+    },
   });
 
   const normalizedSearch = search.toLowerCase().trim();
@@ -186,7 +230,6 @@ export default function Documents() {
   const handleConfirmDelete = () => {
     if (!documentToDelete) return;
     deleteMutation.mutate(documentToDelete.id);
-    setDocumentToDelete(null);
   };
 
   return (
@@ -195,7 +238,7 @@ export default function Documents() {
         <div className="max-w-2xl">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Documentos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Repositorio oficial de arquivos, formularios e manuais da empresa.
+            Repositório oficial de arquivos, formulários e manuais da empresa.
           </p>
         </div>
 
@@ -235,6 +278,22 @@ export default function Documents() {
           </div>
           <Skeleton className="h-96 rounded-[28px]" />
         </div>
+      ) : isDocumentsError ? (
+        <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/5">
+          <AlertTitle>Não foi possível carregar os documentos</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{getErrorMessage(documentsError, 'Tente novamente em alguns instantes.')}</span>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full shrink-0 sm:w-auto"
+              disabled={isFetching}
+              onClick={() => refetch()}
+            >
+              {isFetching ? 'Tentando...' : 'Tentar novamente'}
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : filtered.length === 0 ? (
         <div className="rounded-[28px] border border-dashed border-border bg-card py-20 text-center text-muted-foreground shadow-sm">
           <FolderOpen className="mx-auto mb-4 h-12 w-12 opacity-30" />
@@ -316,7 +375,7 @@ export default function Documents() {
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {normalizedSearch
                     ? `Resultados para "${search}".`
-                    : 'Documentos mais recentes para consulta rapida da equipe.'}
+                    : 'Documentos mais recentes para consulta rápida da equipe.'}
                 </p>
               </div>
               {catFilter !== 'all' && (
@@ -357,7 +416,7 @@ export default function Documents() {
                           </button>
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                             {size && <span>{size}</span>}
-                            {size && <span>•</span>}
+                            {size && <span>&bull;</span>}
                             <span>Modificado {formatDate(document.updated_date || document.created_date)}</span>
                           </div>
                         </div>
@@ -459,7 +518,7 @@ export default function Documents() {
                   {previewType === 'unsupported' ? (
                     <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center">
                       <p className="text-sm text-muted-foreground">
-                        Este tipo de arquivo nao possui visualizacao interna no momento.
+                        Este tipo de arquivo não possui visualização interna no momento.
                       </p>
                       {previewDocument.file_url && (
                         <a href={previewDocument.file_url} target="_blank" rel="noopener noreferrer">
@@ -485,10 +544,13 @@ export default function Documents() {
         title="Excluir documento"
         description={
           documentToDelete
-            ? `Essa acao nao pode ser desfeita. Deseja excluir o documento "${documentToDelete.title}"?`
-            : 'Essa acao nao pode ser desfeita.'
+            ? `Essa ação não pode ser desfeita. Deseja excluir o documento "${documentToDelete.title}"?`
+            : 'Essa ação não pode ser desfeita.'
         }
+        isLoading={deleteMutation.isPending}
       />
+
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
   );
 }

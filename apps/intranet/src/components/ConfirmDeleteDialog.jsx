@@ -14,10 +14,11 @@ export default function ConfirmDeleteDialog({
   open,
   onOpenChange,
   onConfirm,
-  title = 'Confirmar exclusao',
-  description = 'Essa acao nao pode ser desfeita.',
+  title = 'Confirmar exclusão',
+  description = 'Essa ação não pode ser desfeita.',
   confirmLabel = 'Excluir',
   cancelLabel = 'Cancelar',
+  isLoading = false,
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -27,12 +28,13 @@ export default function ConfirmDeleteDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={isLoading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {confirmLabel}
+            {isLoading ? 'Excluindo...' : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
