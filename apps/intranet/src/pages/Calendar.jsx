@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { appClient } from '@/api/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, isValid, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, ChevronLeft, ChevronRight, Trash2, Clock, MapPin } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Clock, MapPin, Pencil, UserRound } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@macom/ui';
 import EventForm from '../components/calendar/EventForm';
 import { cn } from '@/lib/utils';
@@ -20,11 +20,11 @@ const typeColors = {
 };
 
 const typeLabels = {
-  reuniao: 'Reuniao',
+  reuniao: 'Reunião',
   treinamento: 'Treinamento',
   evento: 'Evento',
   feriado: 'Feriado',
-  aniversario: 'Aniversario',
+  aniversario: 'Aniversário',
   outro: 'Outro',
 };
 
@@ -38,6 +38,7 @@ export default function Calendar() {
   const { canEdit } = usePermissions('calendario');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [eventToDelete, setEventToDelete] = useState(null);
   const queryClient = useQueryClient();
@@ -52,6 +53,15 @@ export default function Calendar() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setDialogOpen(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => appClient.entities.CalendarEvent.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      setDialogOpen(false);
+      setEditingEvent(null);
     },
   });
 
@@ -80,27 +90,59 @@ export default function Calendar() {
     setEventToDelete(null);
   };
 
+  const openCreateDialog = () => {
+    setEditingEvent(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (event) => {
+    setEditingEvent(event);
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingEvent(null);
+    }
+  };
+
+  const handleSubmitEvent = (data) => {
+    if (editingEvent) {
+      updateMutation.mutate({ id: editingEvent.id, data });
+      return;
+    }
+
+    createMutation.mutate(data);
+  };
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold">Calendario</h1>
+          <h1 className="text-2xl font-bold">Calendário</h1>
           <p className="mt-1 text-sm text-muted-foreground">Eventos e datas importantes</p>
         </div>
 
         {canEdit ? (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button className="w-full gap-2 sm:w-auto">
+              <Button className="w-full gap-2 sm:w-auto" onClick={openCreateDialog}>
                 <Plus className="h-4 w-4" />
                 Novo Evento
               </Button>
             </DialogTrigger>
             <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Novo Evento</DialogTitle>
+                <DialogTitle>{editingEvent ? 'Editar Evento' : 'Novo Evento'}</DialogTitle>
               </DialogHeader>
-              <EventForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+              <EventForm
+                key={editingEvent?.id || 'new-event'}
+                initialData={editingEvent}
+                onSubmit={handleSubmitEvent}
+                isLoading={createMutation.isPending || updateMutation.isPending}
+                submitLabel={editingEvent ? 'Salvar Alterações' : 'Salvar Evento'}
+              />
             </DialogContent>
           </Dialog>
         ) : null}
@@ -192,14 +234,24 @@ export default function Calendar() {
                   </div>
 
                   {canEdit ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => setEventToDelete(event)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openEditDialog(event)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive"
+                        onClick={() => setEventToDelete(event)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
 
@@ -222,6 +274,12 @@ export default function Calendar() {
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
                       {event.location}
+                    </span>
+                  ) : null}
+                  {event.responsible_name || event.responsible_email ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <UserRound className="h-3 w-3" />
+                      {event.responsible_name || event.responsible_email}
                     </span>
                   ) : null}
                 </div>

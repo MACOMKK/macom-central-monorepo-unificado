@@ -117,8 +117,8 @@ const ENTITY_CONFIG = {
       type: 'tipo',
       date: 'data_evento',
     },
-    createFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id'],
-    updateFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id'],
+    createFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
+    updateFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
   },
   Document: {
     schema: INTRANET_SCHEMA,
@@ -778,8 +778,10 @@ function mapCalendarEvent(
   departmentsById: Map<string, Record<string, unknown>>,
   unitsById: Map<string, Record<string, unknown>>,
   creatorMap = new Map<string, Record<string, unknown>>(),
+  responsibleMap = new Map<string, Record<string, unknown>>(),
 ) {
   const creator = creatorMap.get(String(row.criado_por));
+  const responsible = responsibleMap.get(String(row.responsavel_colaborador_id));
   const department = departmentsById.get(String(row.departamento_id));
   const unit = unitsById.get(String(row.unidade_id));
 
@@ -797,6 +799,10 @@ function mapCalendarEvent(
     unit_id: row.unidade_id,
     unit: unit?.key || null,
     unit_name: unit?.city || unit?.name || null,
+    responsible_collaborator_id: row.responsavel_colaborador_id || null,
+    responsible_id: row.responsavel_colaborador_id || null,
+    responsible_name: responsible?.nome || null,
+    responsible_email: responsible?.email || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -932,10 +938,16 @@ async function listQuickLinks(orderBy?: string, limit?: number) {
 
 async function listCalendarEvents(orderBy?: string, limit?: number) {
   const rows = await listBaseEntity('CalendarEvent', orderBy, limit);
-  const [departments, units, creators] = await Promise.all([listDepartments(), listUnits(), enrichWithCreators(rows)]);
+  const responsibleIds = rows.map((row) => String(row.responsavel_colaborador_id || '')).filter(Boolean);
+  const [departments, units, creators, responsibleMap] = await Promise.all([
+    listDepartments(),
+    listUnits(),
+    enrichWithCreators(rows),
+    fetchCollaboratorsByIds(responsibleIds),
+  ]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
   const unitsById = new Map(units.map((item) => [String(item.id), item]));
-  return rows.map((row) => mapCalendarEvent(row, departmentsById, unitsById, creators));
+  return rows.map((row) => mapCalendarEvent(row, departmentsById, unitsById, creators, responsibleMap));
 }
 
 async function listDocuments(orderBy?: string, limit?: number) {
@@ -1345,11 +1357,12 @@ async function updateQuickLink(id: string, payload: Record<string, unknown>) {
 async function createCalendarEvent(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
   const unit = await resolveUnit(payload.unit || payload.unit_id);
+  const responsibleId = payload.responsible_collaborator_id || payload.responsible_id || null;
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.eventos_calendario (
-        titulo, descricao, data_evento, horario, tipo, local, departamento_id, unidade_id, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        titulo, descricao, data_evento, horario, tipo, local, departamento_id, unidade_id, responsavel_colaborador_id, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       returning *;
     `,
     [
@@ -1361,15 +1374,18 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
       payload.location || null,
       department?.id || null,
       unit?.id || null,
+      responsibleId || null,
       collaboratorId,
     ],
   );
-  const [departments, units, creators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const collaboratorIds = [String(rows[0].criado_por || ''), String(rows[0].responsavel_colaborador_id || '')];
+  const [departments, units, collaborators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds(collaboratorIds)]);
   return mapCalendarEvent(
     rows[0],
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(units.map((item) => [String(item.id), item])),
-    creators,
+    collaborators,
+    collaborators,
   );
 }
 
@@ -1391,18 +1407,23 @@ async function updateCalendarEvent(id: string, payload: Record<string, unknown>)
   if ('location' in payload) assign('local', payload.location);
   if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
   if ('unit' in payload || 'unit_id' in payload) assign('unidade_id', unit?.id || null);
+  if ('responsible_collaborator_id' in payload || 'responsible_id' in payload) {
+    assign('responsavel_colaborador_id', payload.responsible_collaborator_id || payload.responsible_id || null);
+  }
   assign('atualizado_em', new Date().toISOString());
 
   const rows = await runSql<Record<string, unknown>>(
     `update gestao_intranet.eventos_calendario set ${updates.join(', ')} where id = $1 returning *;`,
     values,
   );
-  const [departments, units, creators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const collaboratorIds = [String(rows[0].criado_por || ''), String(rows[0].responsavel_colaborador_id || '')];
+  const [departments, units, collaborators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds(collaboratorIds)]);
   return mapCalendarEvent(
     rows[0],
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(units.map((item) => [String(item.id), item])),
-    creators,
+    collaborators,
+    collaborators,
   );
 }
 

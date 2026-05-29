@@ -11,10 +11,13 @@ import {
   Shield,
   ClipboardList,
   Files,
+  FileText,
   BookOpen,
   GraduationCap,
   EllipsisVertical,
   DollarSign,
+  X,
+  Pencil,
 } from 'lucide-react';
 import {
   Alert,
@@ -29,6 +32,11 @@ import {
   DialogTrigger,
   FeedbackToast,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
 } from '@macom/ui';
 import DocumentForm from '../components/documents/DocumentForm';
@@ -72,6 +80,13 @@ const categoryConfig = {
     iconWrap: 'bg-amber-100 text-amber-500',
     accent: 'border-amber-100 hover:border-amber-200',
   },
+  relatorio: {
+    label: 'Relatórios',
+    helper: 'Relatórios e documentos analíticos',
+    icon: FileText,
+    iconWrap: 'bg-cyan-100 text-cyan-600',
+    accent: 'border-cyan-100 hover:border-cyan-200',
+  },
   vendas: {
     label: 'Vendas',
     helper: 'Materiais comerciais e apoio ao time de vendas',
@@ -103,6 +118,17 @@ function formatDate(value) {
   return date.toLocaleDateString('pt-BR');
 }
 
+function formatDateKey(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 function getPreviewType(document) {
   const fileType = String(document?.file_type || '').toLowerCase();
   const fileName = String(document?.file_name || document?.title || '').toLowerCase();
@@ -131,11 +157,14 @@ function getErrorMessage(error, fallback) {
 export default function Documents() {
   const { canEdit } = usePermissions('documentos');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState(null);
   const [previewDocument, setPreviewDocument] = useState(null);
   const [documentToDelete, setDocumentToDelete] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [publishDateFilter, setPublishDateFilter] = useState('');
   const queryClient = useQueryClient();
 
   const {
@@ -150,17 +179,39 @@ export default function Documents() {
     queryFn: () => appClient.entities.Document.list('-created_date', 100),
   });
 
+  const { data: departments = [] } = useQuery({
+    queryKey: ['catalog-departments'],
+    queryFn: () => appClient.catalogs.listDepartments(),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.Document.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setDialogOpen(false);
+      setEditingDocument(null);
       setFeedback({ type: 'success', message: 'Documento criado com sucesso.' });
     },
     onError: (error) => {
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível criar o documento.'),
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => appClient.entities.Document.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setDialogOpen(false);
+      setEditingDocument(null);
+      setFeedback({ type: 'success', message: 'Documento atualizado com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'Não foi possível atualizar o documento.'),
       });
     },
   });
@@ -181,7 +232,34 @@ export default function Documents() {
   });
 
   const normalizedSearch = search.toLowerCase().trim();
-  const categoryScopedDocuments = documents.filter((document) => {
+  const departmentOptions = departments.length > 0
+    ? departments
+    : Array.from(
+      new Map(
+        documents
+          .filter((document) => document.department_id || document.department_name || document.department)
+          .map((document) => [
+            String(document.department_id || document.department || document.department_name),
+            {
+              id: document.department_id || document.department || document.department_name,
+              key: document.department || document.department_id || document.department_name,
+              name: document.department_name || document.department,
+            },
+          ])
+      ).values()
+    );
+  const departmentScopedDocuments = documents.filter((document) => {
+    const matchDepartment =
+      departmentFilter === 'all' ||
+      document.department_id === departmentFilter ||
+      document.department === departmentFilter;
+    const matchPublishDate =
+      !publishDateFilter ||
+      formatDateKey(document.created_date) === publishDateFilter;
+    return matchDepartment && matchPublishDate;
+  });
+
+  const categoryScopedDocuments = departmentScopedDocuments.filter((document) => {
     const matchCat = catFilter === 'all' || document.category === catFilter;
     return matchCat;
   });
@@ -198,7 +276,7 @@ export default function Documents() {
 
   const categoryCards = Object.entries(categoryConfig)
     .map(([key, config]) => {
-      const items = categoryScopedDocuments.filter((document) => (document.category || 'outros') === key);
+      const items = departmentScopedDocuments.filter((document) => (document.category || 'outros') === key);
       if (!items.length) return null;
 
       const latestValue = items.reduce((latest, document) => {
@@ -223,13 +301,45 @@ export default function Documents() {
     totalItems,
     totalPages,
     paginatedItems: paginatedDocuments,
-  } = usePaginatedItems(filtered, pageSize, [search, catFilter]);
+  } = usePaginatedItems(filtered, pageSize, [search, catFilter, departmentFilter, publishDateFilter]);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
+  const hasAdvancedFilters = departmentFilter !== 'all' || Boolean(publishDateFilter);
 
   const handleConfirmDelete = () => {
     if (!documentToDelete) return;
     deleteMutation.mutate(documentToDelete.id);
+  };
+
+  const clearAdvancedFilters = () => {
+    setDepartmentFilter('all');
+    setPublishDateFilter('');
+  };
+
+  const openCreateDialog = () => {
+    setEditingDocument(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (document) => {
+    setEditingDocument(document);
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingDocument(null);
+    }
+  };
+
+  const handleSubmitDocument = (data) => {
+    if (editingDocument) {
+      updateMutation.mutate({ id: editingDocument.id, data });
+      return;
+    }
+
+    createMutation.mutate(data);
   };
 
   return (
@@ -253,22 +363,68 @@ export default function Documents() {
             />
           </div>
           {canEdit && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
               <DialogTrigger asChild>
-                <Button className="h-10 w-full rounded-xl px-4 text-sm font-medium sm:w-auto">
+                <Button className="h-10 w-full rounded-xl px-4 text-sm font-medium sm:w-auto" onClick={openCreateDialog}>
                   <Plus className="mr-2 h-4 w-4" />
                   Novo
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Novo Documento</DialogTitle>
+                  <DialogTitle>{editingDocument ? 'Editar Documento' : 'Novo Documento'}</DialogTitle>
                 </DialogHeader>
-                <DocumentForm onSubmit={(data) => createMutation.mutate(data)} isLoading={createMutation.isPending} />
+                <DocumentForm
+                  key={editingDocument?.id || 'new-document'}
+                  initialData={editingDocument}
+                  onSubmit={handleSubmitDocument}
+                  isLoading={createMutation.isPending || updateMutation.isPending}
+                  submitLabel={editingDocument ? 'Salvar Alterações' : 'Salvar Documento'}
+                />
               </DialogContent>
             </Dialog>
           )}
         </div>
+      </div>
+
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <div className="min-w-[190px] max-w-[220px] flex-1 sm:flex-none">
+          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+            <SelectTrigger className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none">
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Departamento</SelectItem>
+              {departmentOptions.map((department) => (
+                <SelectItem key={department.id || department.key} value={department.id || department.key}>
+                  {department.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="w-[150px]">
+          <Input
+            type="date"
+            value={publishDateFilter}
+            onChange={(event) => setPublishDateFilter(event.target.value)}
+            className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none"
+          />
+        </div>
+
+        {hasAdvancedFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-lg px-2 text-xs text-muted-foreground"
+            onClick={clearAdvancedFilters}
+          >
+            <X className="mr-1 h-3.5 w-3.5" />
+            Limpar
+          </Button>
+        ) : null}
       </div>
 
       {isLoading ? (
@@ -458,14 +614,24 @@ export default function Documents() {
                         </a>
                       )}
                       {canEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => setDocumentToDelete(document)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
+                            onClick={() => openEditDialog(document)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setDocumentToDelete(document)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>

@@ -4,19 +4,37 @@ import { appClient } from '@/api/client';
 import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@macom/ui';
 import { Upload, Loader2 } from 'lucide-react';
 
-export default function DocumentForm({ onSubmit, isLoading }) {
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  category: 'outros',
+  department: '',
+  file_url: '',
+  file_path: '',
+  file_name: '',
+  file_type: '',
+  file_size: null,
+};
+
+function normalizeInitialData(initialData) {
+  if (!initialData) return EMPTY_FORM;
+
+  return {
+    title: initialData.title || '',
+    description: initialData.description || '',
+    category: initialData.category || 'outros',
+    department: initialData.department || initialData.department_id || '',
+    file_url: initialData.file_url || '',
+    file_path: initialData.file_path || '',
+    file_name: initialData.file_name || '',
+    file_type: initialData.file_type || '',
+    file_size: initialData.file_size || null,
+  };
+}
+
+export default function DocumentForm({ initialData = null, onSubmit, isLoading, submitLabel }) {
   const [uploadError, setUploadError] = useState('');
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    category: 'outros',
-    department: '',
-    file_url: '',
-    file_path: '',
-    file_name: '',
-    file_type: '',
-    file_size: null,
-  });
+  const [form, setForm] = useState(() => normalizeInitialData(initialData));
   const [uploading, setUploading] = useState(false);
 
   const { data: departments = [] } = useQuery({
@@ -74,6 +92,7 @@ export default function DocumentForm({ onSubmit, isLoading }) {
               <SelectItem value="formulario">Formulário</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
               <SelectItem value="treinamento">Treinamento</SelectItem>
+              <SelectItem value="relatorio">Relatório</SelectItem>
               <SelectItem value="vendas">Vendas</SelectItem>
               <SelectItem value="outros">Outros</SelectItem>
             </SelectContent>
@@ -115,7 +134,7 @@ export default function DocumentForm({ onSubmit, isLoading }) {
         ) : null}
       </div>
       <Button type="submit" disabled={isLoading || uploading || !form.file_url || !form.file_path || !form.file_name} className="w-full">
-        {isLoading ? 'Salvando...' : 'Salvar Documento'}
+        {isLoading ? 'Salvando...' : submitLabel || 'Salvar Documento'}
       </Button>
     </form>
   );
