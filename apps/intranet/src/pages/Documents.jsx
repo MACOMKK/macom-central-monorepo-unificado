@@ -458,14 +458,9 @@ export default function Documents() {
       ) : (
         <div className="space-y-8">
           <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Pastas Principais</h2>
-                {activeCategoryLabel && (
-                  <p className="mt-1 text-xs text-muted-foreground">Filtro ativo: {activeCategoryLabel}</p>
-                )}
-              </div>
-              {catFilter !== 'all' && (
+            {catFilter !== 'all' && (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Filtro ativo: {activeCategoryLabel}</p>
                 <button
                   type="button"
                   onClick={() => setCatFilter('all')}
@@ -473,8 +468,8 @@ export default function Documents() {
                 >
                   Ver todos
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {categoryCards.map((category) => {
