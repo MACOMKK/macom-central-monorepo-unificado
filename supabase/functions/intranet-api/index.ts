@@ -554,6 +554,26 @@ function assertAnnouncementOwnerOrAdmin(
   }
 }
 
+function assertCalendarEventOwnerOrAdmin(
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  event: Record<string, unknown> | null | undefined,
+) {
+  if (user.role === 'admin') return;
+
+  if (!event) {
+    const error = new Error('Evento nao encontrado.');
+    (error as Error & { status?: number }).status = 404;
+    throw error;
+  }
+
+  if (!collaboratorId || String(event.criado_por || '') !== collaboratorId) {
+    const error = new Error('Apenas o criador do evento ou um administrador pode alterar este evento.');
+    (error as Error & { status?: number }).status = 403;
+    throw error;
+  }
+}
+
 function validateDocumentFileSize(fileSize: unknown) {
   if (fileSize === null || fileSize === undefined || fileSize === '') return;
 
@@ -1412,7 +1432,18 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
   );
 }
 
-async function updateCalendarEvent(id: string, payload: Record<string, unknown>) {
+async function updateCalendarEvent(
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  id: string,
+  payload: Record<string, unknown>,
+) {
+  const previousRows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.eventos_calendario where id = $1 limit 1;',
+    [id],
+  );
+  assertCalendarEventOwnerOrAdmin(user, collaboratorId, previousRows[0]);
+
   const department = await resolveDepartment(payload.department || payload.department_id);
   const unit = await resolveUnit(payload.unit || payload.unit_id);
   const updates: string[] = [];
@@ -1773,6 +1804,21 @@ async function deleteAnnouncement(
   return { success: true };
 }
 
+async function deleteCalendarEvent(
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  id: string,
+) {
+  const rows = await runSql<Record<string, unknown>>(
+    'select * from gestao_intranet.eventos_calendario where id = $1 limit 1;',
+    [id],
+  );
+  assertCalendarEventOwnerOrAdmin(user, collaboratorId, rows[0]);
+
+  await deleteBaseEntity('CalendarEvent', id);
+  return { success: true };
+}
+
 async function listEntity(entity: string, orderBy?: string, limit?: number) {
   switch (entity) {
     case 'Announcement':
@@ -1878,7 +1924,7 @@ async function updateEntity(
     case 'Announcement':
       return updateAnnouncement(authClient, user, collaboratorId, id, payload);
     case 'CalendarEvent':
-      return updateCalendarEvent(id, payload);
+      return updateCalendarEvent(user, collaboratorId, id, payload);
     case 'Document':
       return updateDocument(authClient, id, payload);
     case 'Employee':
@@ -1911,7 +1957,7 @@ async function deleteEntity(
     case 'AnnouncementReaction':
       return deleteBaseEntity('AnnouncementReaction', id);
     case 'CalendarEvent':
-      return deleteBaseEntity('CalendarEvent', id);
+      return deleteCalendarEvent(user, collaboratorId, id);
     case 'Document':
       return deleteDocument(authClient, id);
     case 'Employee':

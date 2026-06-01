@@ -7,6 +7,7 @@ import { Plus, ChevronLeft, ChevronRight, Trash2, Clock, MapPin, Pencil, UserRou
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@macom/ui';
 import EventForm from '../components/calendar/EventForm';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/AuthContext';
 import { usePermissions } from '@/lib/usePermissions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 
@@ -34,8 +35,17 @@ function parseEventDate(value) {
   return isValid(parsed) ? parsed : null;
 }
 
+function canManageEvent(event, currentUser) {
+  if (!event || !currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+
+  const currentUserId = currentUser.collaborator_id || currentUser.id;
+  return Boolean(currentUserId && event.created_by_id === currentUserId);
+}
+
 export default function Calendar() {
   const { canEdit } = usePermissions('calendario');
+  const { user: currentUser } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -225,66 +235,74 @@ export default function Calendar() {
           ) : null}
 
           <div className="space-y-3">
-            {selectedEvents.map((event) => (
-              <div key={event.id} className="rounded-lg border border-border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${typeColors[event.type] || typeColors.outro}`} />
-                    <h4 className="text-sm font-medium leading-tight">{event.title}</h4>
+            {selectedEvents.map((event) => {
+              const canManage = canEdit && canManageEvent(event, currentUser);
+
+              return (
+                <div key={event.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${typeColors[event.type] || typeColors.outro}`} />
+                      <h4 className="text-sm font-medium leading-tight">{event.title}</h4>
+                    </div>
+
+                    {canManage ? (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditDialog(event)}
+                          aria-label="Editar evento"
+                          title="Editar evento"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => setEventToDelete(event)}
+                          aria-label="Excluir evento"
+                          title="Excluir evento"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
 
-                  {canEdit ? (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openEditDialog(event)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => setEventToDelete(event)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                  <Badge variant="secondary" className="mt-1 text-[10px]">
+                    {typeLabels[event.type] || event.type}
+                  </Badge>
+
+                  {event.description ? (
+                    <p className="mt-2 text-xs text-muted-foreground">{event.description}</p>
                   ) : null}
+
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {event.time ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {event.time}
+                      </span>
+                    ) : null}
+                    {event.location ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {event.location}
+                      </span>
+                    ) : null}
+                    {event.responsible_name || event.responsible_email ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <UserRound className="h-3 w-3" />
+                        {event.responsible_name || event.responsible_email}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-
-                <Badge variant="secondary" className="mt-1 text-[10px]">
-                  {typeLabels[event.type] || event.type}
-                </Badge>
-
-                {event.description ? (
-                  <p className="mt-2 text-xs text-muted-foreground">{event.description}</p>
-                ) : null}
-
-                <div className="mt-2 flex flex-wrap gap-3">
-                  {event.time ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {event.time}
-                    </span>
-                  ) : null}
-                  {event.location ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3" />
-                      {event.location}
-                    </span>
-                  ) : null}
-                  {event.responsible_name || event.responsible_email ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <UserRound className="h-3 w-3" />
-                      {event.responsible_name || event.responsible_email}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
