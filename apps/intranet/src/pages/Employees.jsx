@@ -8,6 +8,11 @@ import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
 import Pagination, { usePaginatedItems } from '../components/Pagination';
 
+function replaceEmployee(employees, employee) {
+  if (!employee?.id) return employees;
+  return employees.map((item) => (item.id === employee.id ? { ...item, ...employee } : item));
+}
+
 export default function Employees() {
   const { canEdit } = usePermissions('colaboradores');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -30,11 +35,35 @@ export default function Employees() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.Employee.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['employees'] });
+      const previousEmployees = queryClient.getQueryData(['employees']);
+      const optimisticEmployee = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['employees'], (old = []) => (
+        Array.isArray(old) ? replaceEmployee(old, optimisticEmployee) : old
+      ));
+      setEditingEmployee(null);
+      setDialogOpen(false);
+
+      return { previousEmployees };
+    },
+    onSuccess: (updatedEmployee) => {
+      queryClient.setQueryData(['employees'], (old = []) => (
+        Array.isArray(old) ? replaceEmployee(old, updatedEmployee) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       setEditingEmployee(null);
       setDialogOpen(false);
       toast.success('Colaborador atualizado!');
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['employees'], context?.previousEmployees);
+      toast.error('Não foi possível atualizar o colaborador.');
     },
   });
 
