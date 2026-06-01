@@ -25,7 +25,30 @@ export default function KnowledgeCard({ item, canEdit, onEdit, onDelete }) {
 
   const helpfulMutation = useMutation({
     mutationFn: () => appClient.entities.KnowledgeBase.update(item.id, { helpful_count: (item.helpful_count || 0) + 1 }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge'] }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['knowledge'] });
+      const previousItems = queryClient.getQueryData(['knowledge']);
+      const nextCount = (item.helpful_count || 0) + 1;
+
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old)
+          ? old.map((current) => (current.id === item.id ? { ...current, helpful_count: nextCount } : current))
+          : old
+      ));
+
+      return { previousItems };
+    },
+    onSuccess: (updatedItem) => {
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old)
+          ? old.map((current) => (current.id === updatedItem?.id ? { ...current, ...updatedItem } : current))
+          : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['knowledge'] });
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['knowledge'], context?.previousItems);
+    },
   });
 
   const tags = item.tags ? item.tags.split(',').map(t => t.trim()).filter(Boolean) : [];

@@ -18,6 +18,20 @@ const CATEGORY_LABELS = {
 const TYPES = ['all', 'faq', 'artigo', 'tutorial', 'politica'];
 const TYPE_LABELS = { all: 'Todos os tipos', faq: 'FAQ', artigo: 'Artigo', tutorial: 'Tutorial', politica: 'Política' };
 
+function prependKnowledgeItem(items, item) {
+  if (!item?.id) return items;
+  return [item, ...items.filter((current) => current.id !== item.id)];
+}
+
+function replaceKnowledgeItem(items, item) {
+  if (!item?.id) return items;
+  return items.map((current) => (current.id === item.id ? { ...current, ...item } : current));
+}
+
+function removeKnowledgeItem(items, id) {
+  return items.filter((item) => item.id !== id);
+}
+
 export default function KnowledgeBase() {
   const { canEdit } = usePermissions('colaboradores'); // reuse permissions or just allow all
   const queryClient = useQueryClient();
@@ -35,7 +49,10 @@ export default function KnowledgeBase() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.KnowledgeBase.create(data),
-    onSuccess: () => {
+    onSuccess: (createdItem) => {
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old) ? prependKnowledgeItem(old, createdItem) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['knowledge'] });
       setDialogOpen(false);
       toast.success('Artigo criado!');
@@ -44,19 +61,58 @@ export default function KnowledgeBase() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.KnowledgeBase.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['knowledge'] });
+      const previousItems = queryClient.getQueryData(['knowledge']);
+      const optimisticItem = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old) ? replaceKnowledgeItem(old, optimisticItem) : old
+      ));
+      setDialogOpen(false);
+      setEditing(null);
+
+      return { previousItems };
+    },
+    onSuccess: (updatedItem) => {
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old) ? replaceKnowledgeItem(old, updatedItem) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['knowledge'] });
       setDialogOpen(false);
       setEditing(null);
       toast.success('Artigo atualizado!');
     },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['knowledge'], context?.previousItems);
+      toast.error('Não foi possível atualizar o artigo.');
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.KnowledgeBase.delete(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['knowledge'] });
+      const previousItems = queryClient.getQueryData(['knowledge']);
+
+      queryClient.setQueryData(['knowledge'], (old = []) => (
+        Array.isArray(old) ? removeKnowledgeItem(old, id) : old
+      ));
+      setItemToDelete(null);
+
+      return { previousItems };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge'] });
       toast.success('Artigo removido!');
+    },
+    onError: (_error, _id, context) => {
+      queryClient.setQueryData(['knowledge'], context?.previousItems);
+      toast.error('Não foi possível remover o artigo.');
     },
   });
 
