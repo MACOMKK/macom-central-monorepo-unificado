@@ -15,18 +15,46 @@ import {
   Textarea,
 } from '@macom/ui';
 
-export default function AnnouncementForm({ onSubmit, isLoading }) {
+const emptyAnnouncementForm = {
+  title: '',
+  content: '',
+  category: 'geral',
+  priority: 'media',
+  pinned: false,
+  image_url: '',
+  image_path: '',
+  image_name: '',
+  image_type: '',
+  image_size: null,
+};
+
+function buildInitialForm(initialData) {
+  if (!initialData) return emptyAnnouncementForm;
+
+  return {
+    ...emptyAnnouncementForm,
+    title: initialData.title || '',
+    content: initialData.content || '',
+    category: initialData.category || 'geral',
+    priority: initialData.priority || 'media',
+    pinned: Boolean(initialData.pinned),
+    image_url: initialData.image_url || '',
+    image_path: initialData.image_path || '',
+    image_name: initialData.image_name || '',
+    image_type: initialData.image_type || '',
+    image_size: initialData.image_size ?? null,
+  };
+}
+
+export default function AnnouncementForm({
+  initialData = null,
+  onSubmit,
+  isLoading,
+  submitLabel = 'Publicar Aviso',
+  loadingLabel = 'Publicando...',
+}) {
   const [form, setForm] = useState({
-    title: '',
-    content: '',
-    category: 'geral',
-    priority: 'media',
-    pinned: false,
-    image_url: '',
-    image_path: '',
-    image_name: '',
-    image_type: '',
-    image_size: null,
+    ...buildInitialForm(initialData),
   });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -177,7 +205,7 @@ export default function AnnouncementForm({ onSubmit, isLoading }) {
       </div>
 
       <Button type="submit" disabled={isLoading || uploading} className="w-full">
-        {isLoading ? 'Publicando...' : 'Publicar Aviso'}
+        {isLoading ? loadingLabel : submitLabel}
       </Button>
     </form>
   );

@@ -534,6 +534,26 @@ function assertAdmin(user: Record<string, unknown>) {
   }
 }
 
+function assertAnnouncementOwnerOrAdmin(
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  announcement: Record<string, unknown> | null | undefined,
+) {
+  if (user.role === 'admin') return;
+
+  if (!announcement) {
+    const error = new Error('Aviso nao encontrado.');
+    (error as Error & { status?: number }).status = 404;
+    throw error;
+  }
+
+  if (!collaboratorId || String(announcement.criado_por || '') !== collaboratorId) {
+    const error = new Error('Apenas o criador do aviso ou um administrador pode alterar este aviso.');
+    (error as Error & { status?: number }).status = 403;
+    throw error;
+  }
+}
+
 function validateDocumentFileSize(fileSize: unknown) {
   if (fileSize === null || fileSize === undefined || fileSize === '') return;
 
@@ -1119,6 +1139,8 @@ function resolveAnnouncementStorageBucket(announcement: Record<string, unknown> 
 
 async function updateAnnouncement(
   authClient: ReturnType<typeof createClient>,
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
   id: string,
   payload: Record<string, unknown>,
 ) {
@@ -1129,6 +1151,7 @@ async function updateAnnouncement(
     [id],
   );
   const previousAnnouncement = previousRows[0];
+  assertAnnouncementOwnerOrAdmin(user, collaboratorId, previousAnnouncement);
   const updates: string[] = [];
   const values: unknown[] = [id];
 
@@ -1724,12 +1747,18 @@ async function deleteDocument(authClient: ReturnType<typeof createClient>, id: s
   return { success: true };
 }
 
-async function deleteAnnouncement(authClient: ReturnType<typeof createClient>, id: string) {
+async function deleteAnnouncement(
+  authClient: ReturnType<typeof createClient>,
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  id: string,
+) {
   const rows = await runSql<Record<string, unknown>>(
     'select * from gestao_intranet.avisos where id = $1 limit 1;',
     [id],
   );
   const announcement = rows[0];
+  assertAnnouncementOwnerOrAdmin(user, collaboratorId, announcement);
 
   await deleteBaseEntity('Announcement', id);
 
@@ -1837,10 +1866,17 @@ async function createEntity(entity: string, payload: Record<string, unknown>, co
   }
 }
 
-async function updateEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string, payload: Record<string, unknown>) {
+async function updateEntity(
+  authClient: ReturnType<typeof createClient>,
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  entity: string,
+  id: string,
+  payload: Record<string, unknown>,
+) {
   switch (entity) {
     case 'Announcement':
-      return updateAnnouncement(authClient, id, payload);
+      return updateAnnouncement(authClient, user, collaboratorId, id, payload);
     case 'CalendarEvent':
       return updateCalendarEvent(id, payload);
     case 'Document':
@@ -1860,10 +1896,16 @@ async function updateEntity(authClient: ReturnType<typeof createClient>, entity:
   }
 }
 
-async function deleteEntity(authClient: ReturnType<typeof createClient>, entity: string, id: string) {
+async function deleteEntity(
+  authClient: ReturnType<typeof createClient>,
+  user: Record<string, unknown>,
+  collaboratorId: string | null,
+  entity: string,
+  id: string,
+) {
   switch (entity) {
     case 'Announcement':
-      return deleteAnnouncement(authClient, id);
+      return deleteAnnouncement(authClient, user, collaboratorId, id);
     case 'AnnouncementComment':
       return deleteBaseEntity('AnnouncementComment', id);
     case 'AnnouncementReaction':
@@ -1989,7 +2031,16 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleEdit(context.user as Record<string, unknown>, moduleKey);
       }
-      return json({ row: await updateEntity(authClient, entity, id, payload as Record<string, unknown>) });
+      return json({
+        row: await updateEntity(
+          authClient,
+          context.user as Record<string, unknown>,
+          context.collaboratorId,
+          entity,
+          id,
+          payload as Record<string, unknown>,
+        ),
+      });
     }
 
     if (action === 'delete') {
@@ -2002,7 +2053,13 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleEdit(context.user as Record<string, unknown>, moduleKey);
       }
-      return json(await deleteEntity(authClient, entity, id));
+      return json(await deleteEntity(
+        authClient,
+        context.user as Record<string, unknown>,
+        context.collaboratorId,
+        entity,
+        id,
+      ));
     }
 
     return json({ error: 'Acao invalida.' }, 400);

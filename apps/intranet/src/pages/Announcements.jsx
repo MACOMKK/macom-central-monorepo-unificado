@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Bell, Info, Pin, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, Info, Pencil, Pin, Plus, Trash2 } from 'lucide-react';
 
 import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
@@ -50,6 +50,26 @@ function getAnnouncementPreview(content, maxLength = 280) {
   return `${normalized.slice(0, maxLength).trimEnd()}...`;
 }
 
+function formatAnnouncementDate(value) {
+  return format(new Date(value), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR });
+}
+
+function wasAnnouncementEdited(announcement) {
+  if (!announcement?.created_date || !announcement?.updated_date) return false;
+  const createdAt = new Date(announcement.created_date).getTime();
+  const updatedAt = new Date(announcement.updated_date).getTime();
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) return false;
+  return updatedAt - createdAt > 1000;
+}
+
+function canManageAnnouncement(announcement, currentUser) {
+  if (!announcement || !currentUser) return false;
+  if (currentUser.role === 'admin') return true;
+
+  const currentUserId = currentUser.collaborator_id || currentUser.id;
+  return Boolean(currentUserId && announcement.created_by_id === currentUserId);
+}
+
 function getErrorMessage(error, fallback) {
   if (!error) return fallback;
   return error instanceof Error ? error.message : fallback;
@@ -58,6 +78,7 @@ function getErrorMessage(error, fallback) {
 export default function Announcements() {
   const { canEdit } = usePermissions('avisos');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [filter, setFilter] = useState('all');
   const [announcementToDelete, setAnnouncementToDelete] = useState(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
@@ -84,12 +105,31 @@ export default function Announcements() {
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
       setDialogOpen(false);
+      setEditingAnnouncement(null);
       setFeedback({ type: 'success', message: 'Aviso publicado com sucesso.' });
     },
     onError: (error) => {
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível publicar o aviso.'),
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => appClient.entities.Announcement.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
+      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+      setDialogOpen(false);
+      setEditingAnnouncement(null);
+      setFeedback({ type: 'success', message: 'Aviso atualizado com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: getErrorMessage(error, 'NÃ£o foi possÃ­vel atualizar o aviso.'),
       });
     },
   });
@@ -141,6 +181,31 @@ export default function Announcements() {
     deleteMutation.mutate(announcementToDelete.id);
   };
 
+  const openCreateDialog = () => {
+    setEditingAnnouncement(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (announcement) => {
+    setEditingAnnouncement(announcement);
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingAnnouncement(null);
+    }
+  };
+
+  const handleSubmitAnnouncement = (data) => {
+    if (editingAnnouncement) {
+      return updateMutation.mutateAsync({ id: editingAnnouncement.id, data });
+    }
+
+    return createMutation.mutateAsync(data);
+  };
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -150,17 +215,21 @@ export default function Announcements() {
         </div>
 
         {canEdit ? (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button className="w-full gap-2 sm:w-auto"><Plus className="h-4 w-4" /> Novo Aviso</Button>
+              <Button className="w-full gap-2 sm:w-auto" onClick={openCreateDialog}><Plus className="h-4 w-4" /> Novo Aviso</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[88vh] max-w-lg overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Novo Aviso</DialogTitle>
+                <DialogTitle>{editingAnnouncement ? 'Editar Aviso' : 'Novo Aviso'}</DialogTitle>
               </DialogHeader>
               <AnnouncementForm
-                onSubmit={(data) => createMutation.mutateAsync(data)}
-                isLoading={createMutation.isPending}
+                key={editingAnnouncement?.id || 'new-announcement'}
+                initialData={editingAnnouncement}
+                onSubmit={handleSubmitAnnouncement}
+                isLoading={createMutation.isPending || updateMutation.isPending}
+                submitLabel={editingAnnouncement ? 'Salvar AlteraÃ§Ãµes' : 'Publicar Aviso'}
+                loadingLabel={editingAnnouncement ? 'Salvando...' : 'Publicando...'}
               />
             </DialogContent>
           </Dialog>
@@ -213,6 +282,7 @@ export default function Announcements() {
             {paginatedAnnouncements.map((announcement) => {
               const config = priorityConfig[announcement.priority] || priorityConfig.media;
               const preview = getAnnouncementPreview(announcement.content);
+              const canManage = canEdit && canManageAnnouncement(announcement, currentUser);
 
               return (
                 <div
@@ -255,8 +325,9 @@ export default function Announcements() {
                         </Button>
 
                         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                          Publicado em {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
+                          Publicado em {formatAnnouncementDate(announcement.created_date)}
                           {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
+                          {wasAnnouncementEdited(announcement) ? ` · editado em ${formatAnnouncementDate(announcement.updated_date)}` : ''}
                         </p>
 
                         <AnnouncementInteractions
@@ -265,10 +336,20 @@ export default function Announcements() {
                         />
                       </div>
 
-                      {canEdit ? (
+                      {canManage ? (
                         <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
                           <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
                             <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(announcement)}
+                            className="h-8 w-8"
+                            aria-label="Editar aviso"
+                            title="Editar aviso"
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"

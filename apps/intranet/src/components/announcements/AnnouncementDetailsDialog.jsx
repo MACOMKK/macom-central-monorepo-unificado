@@ -20,6 +20,18 @@ const priorityLabels = {
   baixa: 'Baixa',
 };
 
+function formatAnnouncementDate(value) {
+  return format(new Date(value), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR });
+}
+
+function wasAnnouncementEdited(announcement) {
+  if (!announcement?.created_date || !announcement?.updated_date) return false;
+  const createdAt = new Date(announcement.created_date).getTime();
+  const updatedAt = new Date(announcement.updated_date).getTime();
+  if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)) return false;
+  return updatedAt - createdAt > 1000;
+}
+
 export default function AnnouncementDetailsDialog({ announcement, open, onOpenChange }) {
   if (!announcement) return null;
 
@@ -53,8 +65,9 @@ export default function AnnouncementDetailsDialog({ announcement, open, onOpenCh
 
             <p className="text-xs text-muted-foreground">
               Publicado em{' '}
-              {format(new Date(announcement.created_date), "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
+              {formatAnnouncementDate(announcement.created_date)}
               {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
+              {wasAnnouncementEdited(announcement) ? ` · editado em ${formatAnnouncementDate(announcement.updated_date)}` : ''}
             </p>
           </DialogHeader>
 
