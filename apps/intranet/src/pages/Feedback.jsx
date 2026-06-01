@@ -30,6 +30,16 @@ const categoryLabels = {
 
 const EMPTY_FORM = { type: 'sugestao', category: 'geral', title: '', content: '', anonymous: false };
 
+function prependFeedback(feedbacks, feedback) {
+  if (!feedback?.id) return feedbacks;
+  return [feedback, ...feedbacks.filter((item) => item.id !== feedback.id)];
+}
+
+function replaceFeedback(feedbacks, feedback) {
+  if (!feedback?.id) return feedbacks;
+  return feedbacks.map((item) => (item.id === feedback.id ? { ...item, ...feedback } : item));
+}
+
 function FeedbackCard({ item, isAdmin, onStatusChange, onRespond }) {
   const [expanded, setExpanded] = useState(false);
   const [response, setResponse] = useState(item.admin_response || '');
@@ -125,17 +135,48 @@ export default function Feedback() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.Feedback.create(data),
-    onSuccess: () => {
+    onSuccess: (createdFeedback) => {
+      queryClient.setQueryData(['feedbacks'], (old = []) => (
+        Array.isArray(old) ? prependFeedback(old, createdFeedback) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['feedbacks'] });
       setForm(EMPTY_FORM);
       toast.success('Feedback enviado com sucesso!');
+      setSubmitting(false);
+    },
+    onError: () => {
+      toast.error('Não foi possível enviar o feedback.');
       setSubmitting(false);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.Feedback.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feedbacks'] }),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['feedbacks'] });
+      const previousFeedbacks = queryClient.getQueryData(['feedbacks']);
+      const optimisticFeedback = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['feedbacks'], (old = []) => (
+        Array.isArray(old) ? replaceFeedback(old, optimisticFeedback) : old
+      ));
+
+      return { previousFeedbacks };
+    },
+    onSuccess: (updatedFeedback) => {
+      queryClient.setQueryData(['feedbacks'], (old = []) => (
+        Array.isArray(old) ? replaceFeedback(old, updatedFeedback) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['feedbacks'] });
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['feedbacks'], context?.previousFeedbacks);
+      toast.error('Não foi possível atualizar o feedback.');
+    },
   });
 
   const handleSubmit = (e) => {
