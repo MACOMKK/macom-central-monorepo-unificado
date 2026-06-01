@@ -29,6 +29,20 @@ const typeLabels = {
   outro: 'Outro',
 };
 
+function replaceEvent(events, event) {
+  if (!event?.id) return events;
+  return events.map((item) => (item.id === event.id ? { ...item, ...event } : item));
+}
+
+function removeEvent(events, id) {
+  return events.filter((event) => event.id !== id);
+}
+
+function prependEvent(events, event) {
+  if (!event?.id) return events;
+  return [event, ...events.filter((item) => item.id !== event.id)];
+}
+
 function parseEventDate(value) {
   if (!value || typeof value !== 'string') return null;
   const parsed = parseISO(value);
@@ -60,7 +74,10 @@ export default function Calendar() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.CalendarEvent.create(data),
-    onSuccess: () => {
+    onSuccess: (createdEvent) => {
+      queryClient.setQueryData(['events'], (old = []) => (
+        Array.isArray(old) ? prependEvent(old, createdEvent) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setDialogOpen(false);
     },
@@ -68,16 +85,53 @@ export default function Calendar() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.CalendarEvent.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] });
+      const previousEvents = queryClient.getQueryData(['events']);
+      const optimisticEvent = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['events'], (old = []) => (
+        Array.isArray(old) ? replaceEvent(old, optimisticEvent) : old
+      ));
+      setDialogOpen(false);
+      setEditingEvent(null);
+
+      return { previousEvents };
+    },
+    onSuccess: (updatedEvent) => {
+      queryClient.setQueryData(['events'], (old = []) => (
+        Array.isArray(old) ? replaceEvent(old, updatedEvent) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setDialogOpen(false);
       setEditingEvent(null);
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['events'], context?.previousEvents);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.CalendarEvent.delete(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['events'] });
+      const previousEvents = queryClient.getQueryData(['events']);
+
+      queryClient.setQueryData(['events'], (old = []) => (
+        Array.isArray(old) ? removeEvent(old, id) : old
+      ));
+      setEventToDelete(null);
+
+      return { previousEvents };
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onError: (_error, _id, context) => {
+      queryClient.setQueryData(['events'], context?.previousEvents);
+    },
   });
 
   const monthStart = startOfMonth(currentMonth);
