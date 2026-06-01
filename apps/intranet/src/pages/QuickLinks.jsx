@@ -320,19 +320,19 @@ export default function QuickLinks() {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex h-full w-full items-start gap-4 p-4 sm:p-5"
+                    className="flex h-full w-full flex-col p-5"
                   >
-                    <div className="shrink-0">
-                        <LinkCardIcon linkUrl={link.url} config={config} Icon={CategoryIcon} />
-                      </div>
+                    <div className="mb-4">
+                      <LinkCardIcon linkUrl={link.url} config={config} Icon={CategoryIcon} />
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className="line-clamp-2 text-base font-semibold leading-tight text-slate-800 transition-colors group-hover:text-[#0B1B3D]">
+                        <h3 className="text-base font-semibold text-slate-800 transition-colors group-hover:text-[#0B1B3D]">
                           {link.name}
                         </h3>
-                        <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#FF8C00]" />
+                        <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#FF8C00]" />
                       </div>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
                         {link.description || 'Acesso rapido para uma ferramenta importante da rotina da empresa.'}
                       </p>
                     </div>
