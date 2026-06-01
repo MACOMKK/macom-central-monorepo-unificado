@@ -332,11 +332,9 @@ export default function QuickLinks() {
                         </h3>
                         <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-[#FF8C00]" />
                       </div>
-                      {link.description ? (
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-                          {link.description}
-                        </p>
-                      ) : null}
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                        {link.description || 'Acesso rapido para uma ferramenta importante da rotina da empresa.'}
+                      </p>
                     </div>
                   </a>
                 )}
