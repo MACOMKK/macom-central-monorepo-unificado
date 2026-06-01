@@ -1353,8 +1353,8 @@ async function createQuickLink(payload: Record<string, unknown>, collaboratorId:
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.links_uteis (
-        nome, url, descricao, icone, categoria, ordem, mostrar_na_dashboard, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+        nome, url, descricao, icone, categoria, mostrar_na_dashboard, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7)
       returning *;
     `,
     [
@@ -1363,7 +1363,6 @@ async function createQuickLink(payload: Record<string, unknown>, collaboratorId:
       payload.description || null,
       payload.icon || null,
       payload.category || 'sistema',
-      payload.order || 0,
       payload.show_on_dashboard || false,
       collaboratorId,
     ],
@@ -1385,7 +1384,6 @@ async function updateQuickLink(id: string, payload: Record<string, unknown>) {
   if ('description' in payload) assign('descricao', payload.description);
   if ('icon' in payload) assign('icone', payload.icon);
   if ('category' in payload) assign('categoria', payload.category);
-  if ('order' in payload) assign('ordem', payload.order);
   if ('show_on_dashboard' in payload) assign('mostrar_na_dashboard', payload.show_on_dashboard);
   assign('atualizado_em', new Date().toISOString());
 

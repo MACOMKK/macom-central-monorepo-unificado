@@ -67,6 +67,53 @@ const defaultLinkConfig = {
   softBg: 'bg-slate-100',
 };
 
+const quickLinkQueryKeys = [
+  ['quicklinks'],
+  ['quicklinks-dashboard'],
+];
+
+function updateQuickLinkCaches(queryClient, updater) {
+  quickLinkQueryKeys.forEach((queryKey) => {
+    queryClient.setQueryData(queryKey, (old = []) => {
+      if (!Array.isArray(old)) return old;
+      return updater(old);
+    });
+  });
+}
+
+function snapshotQuickLinkCaches(queryClient) {
+  return quickLinkQueryKeys.map((queryKey) => ({
+    queryKey,
+    data: queryClient.getQueryData(queryKey),
+  }));
+}
+
+function restoreQuickLinkCaches(queryClient, snapshots = []) {
+  snapshots.forEach(({ queryKey, data }) => {
+    queryClient.setQueryData(queryKey, data);
+  });
+}
+
+function invalidateQuickLinkCaches(queryClient) {
+  quickLinkQueryKeys.forEach((queryKey) => {
+    queryClient.invalidateQueries({ queryKey });
+  });
+}
+
+function prependQuickLink(links, link) {
+  if (!link?.id) return links;
+  return [link, ...links.filter((item) => item.id !== link.id)];
+}
+
+function replaceQuickLink(links, link) {
+  if (!link?.id) return links;
+  return links.map((item) => (item.id === link.id ? { ...item, ...link } : item));
+}
+
+function removeQuickLink(links, id) {
+  return links.filter((link) => link.id !== id);
+}
+
 const MACOM_FAVICON_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1779409501/favicon_macom_kzu6sd.png';
 const INTERNAL_SYSTEM_HOSTS = new Set([
   'macom-central.vercel.app',
@@ -141,37 +188,80 @@ export default function QuickLinks() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.QuickLink.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quicklinks'] });
-      queryClient.invalidateQueries({ queryKey: ['quicklinks-dashboard'] });
+    onSuccess: (createdLink) => {
+      updateQuickLinkCaches(queryClient, (old) => prependQuickLink(old, createdLink));
       setDialogOpen(false);
       setEditingLink(null);
+      invalidateQuickLinkCaches(queryClient);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.QuickLink.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quicklinks'] });
-      queryClient.invalidateQueries({ queryKey: ['quicklinks-dashboard'] });
+    onMutate: async ({ id, data }) => {
+      await Promise.all(quickLinkQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotQuickLinkCaches(queryClient);
+      const optimisticLink = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      updateQuickLinkCaches(queryClient, (old) => replaceQuickLink(old, optimisticLink));
       setDialogOpen(false);
       setEditingLink(null);
+
+      return { previousCaches };
+    },
+    onSuccess: (updatedLink) => {
+      updateQuickLinkCaches(queryClient, (old) => replaceQuickLink(old, updatedLink));
+      invalidateQuickLinkCaches(queryClient);
+    },
+    onError: (_error, _variables, context) => {
+      restoreQuickLinkCaches(queryClient, context?.previousCaches);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.QuickLink.delete(id),
+    onMutate: async (id) => {
+      await Promise.all(quickLinkQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotQuickLinkCaches(queryClient);
+
+      updateQuickLinkCaches(queryClient, (old) => removeQuickLink(old, id));
+      setLinkToDelete(null);
+
+      return { previousCaches };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quicklinks'] });
-      queryClient.invalidateQueries({ queryKey: ['quicklinks-dashboard'] });
+      invalidateQuickLinkCaches(queryClient);
+    },
+    onError: (_error, _id, context) => {
+      restoreQuickLinkCaches(queryClient, context?.previousCaches);
     },
   });
 
   const toggleDashboardMutation = useMutation({
     mutationFn: ({ id, show_on_dashboard }) => appClient.entities.QuickLink.update(id, { show_on_dashboard }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['quicklinks'] });
-      queryClient.invalidateQueries({ queryKey: ['quicklinks-dashboard'] });
+    onMutate: async ({ id, show_on_dashboard }) => {
+      await Promise.all(quickLinkQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotQuickLinkCaches(queryClient);
+      const optimisticLink = {
+        id,
+        show_on_dashboard,
+        updated_date: new Date().toISOString(),
+      };
+
+      updateQuickLinkCaches(queryClient, (old) => replaceQuickLink(old, optimisticLink));
+
+      return { previousCaches };
+    },
+    onSuccess: (updatedLink) => {
+      updateQuickLinkCaches(queryClient, (old) => replaceQuickLink(old, updatedLink));
+      invalidateQuickLinkCaches(queryClient);
+    },
+    onError: (_error, _variables, context) => {
+      restoreQuickLinkCaches(queryClient, context?.previousCaches);
     },
   });
 
