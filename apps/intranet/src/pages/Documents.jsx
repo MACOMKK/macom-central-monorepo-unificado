@@ -103,6 +103,20 @@ const categoryConfig = {
   },
 };
 
+function prependDocument(documents, document) {
+  if (!document?.id) return documents;
+  return [document, ...documents.filter((item) => item.id !== document.id)];
+}
+
+function replaceDocument(documents, document) {
+  if (!document?.id) return documents;
+  return documents.map((item) => (item.id === document.id ? { ...item, ...document } : item));
+}
+
+function removeDocument(documents, id) {
+  return documents.filter((document) => document.id !== id);
+}
+
 function formatFileSize(value) {
   const bytes = Number(value);
   if (!Number.isFinite(bytes) || bytes <= 0) return null;
@@ -186,7 +200,10 @@ export default function Documents() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.Document.create(data),
-    onSuccess: () => {
+    onSuccess: (createdDocument) => {
+      queryClient.setQueryData(['documents'], (old = []) => (
+        Array.isArray(old) ? prependDocument(old, createdDocument) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setDialogOpen(false);
       setEditingDocument(null);
@@ -202,13 +219,36 @@ export default function Documents() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.Document.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['documents'] });
+      const previousDocuments = queryClient.getQueryData(['documents']);
+      const optimisticDocument = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['documents'], (old = []) => (
+        Array.isArray(old) ? replaceDocument(old, optimisticDocument) : old
+      ));
+      setDialogOpen(false);
+      setEditingDocument(null);
+      setPreviewDocument((current) => (current?.id === id ? { ...current, ...optimisticDocument } : current));
+
+      return { previousDocuments };
+    },
+    onSuccess: (updatedDocument) => {
+      queryClient.setQueryData(['documents'], (old = []) => (
+        Array.isArray(old) ? replaceDocument(old, updatedDocument) : old
+      ));
+      setPreviewDocument((current) => (current?.id === updatedDocument?.id ? updatedDocument : current));
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setDialogOpen(false);
       setEditingDocument(null);
       setFeedback({ type: 'success', message: 'Documento atualizado com sucesso.' });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(['documents'], context?.previousDocuments);
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível atualizar o documento.'),
@@ -218,12 +258,25 @@ export default function Documents() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.Document.delete(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['documents'] });
+      const previousDocuments = queryClient.getQueryData(['documents']);
+
+      queryClient.setQueryData(['documents'], (old = []) => (
+        Array.isArray(old) ? removeDocument(old, id) : old
+      ));
+      setDocumentToDelete(null);
+      setPreviewDocument((current) => (current?.id === id ? null : current));
+
+      return { previousDocuments };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       setDocumentToDelete(null);
       setFeedback({ type: 'success', message: 'Documento excluído com sucesso.' });
     },
-    onError: (error) => {
+    onError: (error, _id, context) => {
+      queryClient.setQueryData(['documents'], context?.previousDocuments);
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível excluir o documento.'),
