@@ -1581,55 +1581,49 @@ async function updateDocument(authClient: ReturnType<typeof createClient>, id: s
 }
 
 async function updateEmployee(id: string, payload: Record<string, unknown>) {
-  const department = await resolveDepartment(payload.department || payload.department_id);
-  const unit = await resolveUnit(payload.unit || payload.unit_id);
+  const [department, unit] = await Promise.all([
+    'department' in payload || 'department_id' in payload
+      ? resolveDepartment(payload.department || payload.department_id)
+      : Promise.resolve(null),
+    'unit' in payload || 'unit_id' in payload
+      ? resolveUnit(payload.unit || payload.unit_id)
+      : Promise.resolve(null),
+  ]);
+  const updates: string[] = [];
+  const values: unknown[] = [id];
+  const assign = (column: string, value: unknown) => {
+    values.push(value);
+    updates.push(`${column} = $${values.length}`);
+  };
+
+  if ('name' in payload) assign('nome', payload.name);
+  if ('email' in payload) assign('email', payload.email || null);
+  if ('phone' in payload) assign('telefone', payload.phone || null);
+  if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
+  if ('position' in payload) assign('cargo', payload.position || null);
+  if ('function_role' in payload) assign('funcao', payload.function_role || null);
+  if ('unit' in payload || 'unit_id' in payload) assign('unidade_id', unit?.id || null);
+  if ('birth_date' in payload) assign('data_nascimento', payload.birth_date || null);
+  assign('atualizado_em', new Date().toISOString());
+
   const employeeRows = await runSql<Record<string, unknown>>(
-    `
-      update public.colaboradores
-      set
-        nome = $2,
-        email = $3,
-        telefone = $4,
-        departamento_id = $5,
-        cargo = $6,
-        funcao = coalesce($7, funcao),
-        unidade_id = $8,
-        atualizado_em = now()
+    `update public.colaboradores
+      set ${updates.join(', ')}
       where id = $1
-      returning id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, status, criado_em, atualizado_em;
-    `,
-    [
-      id,
-      payload.name,
-      payload.email || null,
-      payload.phone || null,
-      department?.id || null,
-      payload.position || null,
-      payload.function_role || null,
-      unit?.id || null,
-    ],
+      returning id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, data_nascimento, status, criado_em, atualizado_em;`,
+    values,
   );
 
-  await runSql(
-    `
-      insert into gestao_intranet.perfis_colaboradores (colaborador_id, foto_url, atualizado_em)
-      values ($1,$2,now())
-      on conflict (colaborador_id) do update
-      set foto_url = excluded.foto_url,
-          atualizado_em = now();
-    `,
-    [id, payload.photo_url || null],
-  );
-
-  if ('birth_date' in payload) {
+  if ('photo_url' in payload) {
     await runSql(
       `
-        update public.colaboradores
-        set data_nascimento = $2,
-            atualizado_em = now()
-        where id = $1;
+        insert into gestao_intranet.perfis_colaboradores (colaborador_id, foto_url, atualizado_em)
+        values ($1,$2,now())
+        on conflict (colaborador_id) do update
+        set foto_url = excluded.foto_url,
+            atualizado_em = now();
       `,
-      [id, payload.birth_date || null],
+      [id, payload.photo_url || null],
     );
   }
 
