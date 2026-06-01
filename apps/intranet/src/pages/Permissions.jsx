@@ -33,6 +33,21 @@ const PERMISSION_OPTIONS = [
   { value: 'edit', label: 'Editar', activeClass: 'bg-[#E30613]/12 text-[#B0000F]' },
 ];
 
+function upsertPermission(perms, permission) {
+  if (!permission?.user_email) return perms;
+  const exists = perms.some((item) => (
+    item.user_email === permission.user_email ||
+    (permission.collaborator_id && item.collaborator_id === permission.collaborator_id)
+  ));
+  if (!exists) return [permission, ...perms];
+  return perms.map((item) => (
+    item.user_email === permission.user_email ||
+    (permission.collaborator_id && item.collaborator_id === permission.collaborator_id)
+      ? { ...item, ...permission }
+      : item
+  ));
+}
+
 function PermissionRow({ user, existingPerm, onSave, isSaving }) {
   const [modules, setModules] = useState(existingPerm?.modules || DEFAULT_MODULES);
 
@@ -125,13 +140,39 @@ export default function Permissions() {
   const saveMutation = useMutation({
     mutationFn: async (data) => {
       const latestPerms = await appClient.entities.UserPermission.list();
-      const existing = latestPerms.find((item) => item.user_email === data.user_email);
+      const existing = latestPerms.find((item) => (
+        item.user_email === data.user_email ||
+        (data.collaborator_id && item.collaborator_id === data.collaborator_id)
+      ));
       if (existing) return appClient.entities.UserPermission.update(existing.id, data);
       return appClient.entities.UserPermission.create(data);
     },
-    onSuccess: () => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ['user-permissions'] });
+      const previousPerms = queryClient.getQueryData(['user-permissions']);
+      const optimisticPermission = {
+        ...data,
+        id: data.collaborator_id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['user-permissions'], (old = []) => (
+        Array.isArray(old) ? upsertPermission(old, optimisticPermission) : old
+      ));
+
+      return { previousPerms };
+    },
+    onSuccess: (savedPermission) => {
+      queryClient.setQueryData(['user-permissions'], (old = []) => (
+        Array.isArray(old) ? upsertPermission(old, savedPermission) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       toast.success('Permissoes salvas!');
+      setSavingUser(null);
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['user-permissions'], context?.previousPerms);
+      toast.error('Não foi possível salvar as permissões.');
       setSavingUser(null);
     },
   });

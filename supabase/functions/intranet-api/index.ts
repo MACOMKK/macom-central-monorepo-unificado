@@ -1701,6 +1701,16 @@ async function createUserPermission(payload: Record<string, unknown>) {
         colaborador_id, mod_avisos, mod_links, mod_colaboradores, mod_documentos,
         mod_calendario, mod_conhecimento, mod_feedback
       ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+      on conflict (colaborador_id) do update
+      set
+        mod_avisos = excluded.mod_avisos,
+        mod_links = excluded.mod_links,
+        mod_colaboradores = excluded.mod_colaboradores,
+        mod_documentos = excluded.mod_documentos,
+        mod_calendario = excluded.mod_calendario,
+        mod_conhecimento = excluded.mod_conhecimento,
+        mod_feedback = excluded.mod_feedback,
+        atualizado_em = now()
       returning *;
     `,
     [
