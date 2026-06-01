@@ -43,6 +43,54 @@ const categoryLabels = {
   pos_vendas: 'Pos-Vendas',
 };
 
+const announcementQueryKeys = [
+  ['announcements'],
+  ['announcements-recent'],
+  ['home-highlights'],
+];
+
+function updateAnnouncementCaches(queryClient, updater) {
+  announcementQueryKeys.forEach((queryKey) => {
+    queryClient.setQueryData(queryKey, (old = []) => {
+      if (!Array.isArray(old)) return old;
+      return updater(old);
+    });
+  });
+}
+
+function snapshotAnnouncementCaches(queryClient) {
+  return announcementQueryKeys.map((queryKey) => ({
+    queryKey,
+    data: queryClient.getQueryData(queryKey),
+  }));
+}
+
+function restoreAnnouncementCaches(queryClient, snapshots = []) {
+  snapshots.forEach(({ queryKey, data }) => {
+    queryClient.setQueryData(queryKey, data);
+  });
+}
+
+function invalidateAnnouncementCaches(queryClient) {
+  announcementQueryKeys.forEach((queryKey) => {
+    queryClient.invalidateQueries({ queryKey });
+  });
+}
+
+function prependAnnouncement(announcements, announcement) {
+  if (!announcement?.id) return announcements;
+  return [announcement, ...announcements.filter((item) => item.id !== announcement.id)];
+}
+
+function replaceAnnouncement(announcements, announcement) {
+  if (!announcement?.id) return announcements;
+  return announcements.map((item) => (item.id === announcement.id ? { ...item, ...announcement } : item));
+}
+
+function removeAnnouncement(announcements, id) {
+  return announcements.filter((announcement) => announcement.id !== id);
+}
+
 function getAnnouncementPreview(content, maxLength = 280) {
   if (!content) return '';
   const normalized = String(content).replace(/\s+/g, ' ').trim();
@@ -100,13 +148,12 @@ export default function Announcements() {
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.Announcement.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+    onSuccess: (createdAnnouncement) => {
+      updateAnnouncementCaches(queryClient, (old) => prependAnnouncement(old, createdAnnouncement));
       setDialogOpen(false);
       setEditingAnnouncement(null);
       setFeedback({ type: 'success', message: 'Aviso publicado com sucesso.' });
+      invalidateAnnouncementCaches(queryClient);
     },
     onError: (error) => {
       setFeedback({
@@ -118,7 +165,25 @@ export default function Announcements() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => appClient.entities.Announcement.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await Promise.all(announcementQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotAnnouncementCaches(queryClient);
+      const optimisticAnnouncement = {
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, optimisticAnnouncement));
+      setDialogOpen(false);
+      setEditingAnnouncement(null);
+      setSelectedAnnouncement((current) => (current?.id === id ? { ...current, ...optimisticAnnouncement } : current));
+
+      return { previousCaches };
+    },
+    onSuccess: (updatedAnnouncement) => {
+      updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, updatedAnnouncement));
+      setSelectedAnnouncement((current) => (current?.id === updatedAnnouncement?.id ? updatedAnnouncement : current));
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
@@ -126,7 +191,8 @@ export default function Announcements() {
       setEditingAnnouncement(null);
       setFeedback({ type: 'success', message: 'Aviso atualizado com sucesso.' });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      restoreAnnouncementCaches(queryClient, context?.previousCaches);
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'NÃ£o foi possÃ­vel atualizar o aviso.'),
@@ -136,6 +202,16 @@ export default function Announcements() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => appClient.entities.Announcement.delete(id),
+    onMutate: async (id) => {
+      await Promise.all(announcementQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotAnnouncementCaches(queryClient);
+
+      updateAnnouncementCaches(queryClient, (old) => removeAnnouncement(old, id));
+      setAnnouncementToDelete(null);
+      setSelectedAnnouncement((current) => (current?.id === id ? null : current));
+
+      return { previousCaches };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
@@ -143,7 +219,8 @@ export default function Announcements() {
       setAnnouncementToDelete(null);
       setFeedback({ type: 'success', message: 'Aviso excluído com sucesso.' });
     },
-    onError: (error) => {
+    onError: (error, _id, context) => {
+      restoreAnnouncementCaches(queryClient, context?.previousCaches);
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível excluir o aviso.'),
@@ -153,12 +230,29 @@ export default function Announcements() {
 
   const togglePin = useMutation({
     mutationFn: (announcement) => appClient.entities.Announcement.update(announcement.id, { pinned: !announcement.pinned }),
-    onSuccess: () => {
+    onMutate: async (announcement) => {
+      await Promise.all(announcementQueryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousCaches = snapshotAnnouncementCaches(queryClient);
+      const optimisticAnnouncement = {
+        ...announcement,
+        pinned: !announcement.pinned,
+        updated_date: new Date().toISOString(),
+      };
+
+      updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, optimisticAnnouncement));
+      setSelectedAnnouncement((current) => (current?.id === announcement.id ? optimisticAnnouncement : current));
+
+      return { previousCaches };
+    },
+    onSuccess: (updatedAnnouncement) => {
+      updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, updatedAnnouncement));
+      setSelectedAnnouncement((current) => (current?.id === updatedAnnouncement?.id ? updatedAnnouncement : current));
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
       queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
       queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
     },
-    onError: (error) => {
+    onError: (error, _announcement, context) => {
+      restoreAnnouncementCaches(queryClient, context?.previousCaches);
       setFeedback({
         type: 'error',
         message: getErrorMessage(error, 'Não foi possível atualizar o aviso.'),
