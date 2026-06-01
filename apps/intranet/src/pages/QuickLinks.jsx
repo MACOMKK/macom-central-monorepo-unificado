@@ -104,14 +104,14 @@ function LinkCardIcon({ linkUrl, config, Icon }) {
 
   if (!faviconUrl || hasError) {
     return (
-      <div className={`rounded-xl p-3 ${config.softBg} ${config.textColor} transition-colors group-hover:bg-[#FF8C00]/10 group-hover:text-[#FF8C00]`}>
+      <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl ${config.softBg} ${config.textColor} transition-colors group-hover:bg-[#FF8C00]/10 group-hover:text-[#FF8C00]`}>
         <Icon className="h-5.5 w-5.5" />
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl bg-slate-50 p-2.5 transition-colors group-hover:bg-[#FF8C00]/10">
+    <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 transition-colors group-hover:bg-[#FF8C00]/10">
       <img
         src={faviconUrl}
         alt=""
