@@ -213,24 +213,72 @@ export function useCatalogMutations({
 
   const assignUserMutation = useMutation({
     mutationFn: async ({ id, payload }) => catalogApi.ativos.update(id, payload),
-    onSuccess: () =>
+    onMutate: async ({ id, payload }) => {
+      const queryKey = ['ativos'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRows = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old)
+          ? replaceCatalogRecord(old, { id, ...payload, atualizado_em: new Date().toISOString() })
+          : old
+      ));
+
+      return { previousRows, queryKey };
+    },
+    onSuccess: (updatedAsset, _variables, context) => {
+      if (updatedAsset?.id) {
+        queryClient.setQueryData(context.queryKey, (old = []) => (
+          Array.isArray(old) ? replaceCatalogRecord(old, updatedAsset) : old
+        ));
+      }
       handleMutationSuccess({
         queryKeys: [['ativos']],
         message: 'Usuario vinculado com sucesso.',
         onSuccess: onAssignAssetSuccess,
-      }),
-    onError: (error) => showMutationError(error, 'Falha ao vincular usuario.'),
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousRows);
+      }
+      showMutationError(error, 'Falha ao vincular usuario.');
+    },
   });
 
   const assignCorporateLineMutation = useMutation({
     mutationFn: async ({ id, payload }) => catalogApi.linhas_corporativas.update(id, payload),
-    onSuccess: () =>
+    onMutate: async ({ id, payload }) => {
+      const queryKey = ['linhas_corporativas'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRows = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old)
+          ? replaceCatalogRecord(old, { id, ...payload, atualizado_em: new Date().toISOString() })
+          : old
+      ));
+
+      return { previousRows, queryKey };
+    },
+    onSuccess: (updatedLine, _variables, context) => {
+      if (updatedLine?.id) {
+        queryClient.setQueryData(context.queryKey, (old = []) => (
+          Array.isArray(old) ? replaceCatalogRecord(old, updatedLine) : old
+        ));
+      }
       handleMutationSuccess({
         queryKeys: [['linhas_corporativas']],
         message: 'Responsavel vinculado com sucesso.',
         onSuccess: onAssignCorporateLineSuccess,
-      }),
-    onError: (error) => showMutationError(error, 'Falha ao vincular responsavel.'),
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousRows);
+      }
+      showMutationError(error, 'Falha ao vincular responsavel.');
+    },
   });
 
   const passwordMutation = useMutation({
@@ -364,6 +412,39 @@ export function useCatalogMutations({
 
   const unlinkAssignmentsMutation = useMutation({
     mutationFn: async (id) => catalogApi.colaboradores.unlinkAssignments(id),
+    onMutate: async (id) => {
+      const queryKeys = [
+        ['ativos'],
+        ['linhas_corporativas'],
+        ['acessos_usuario_sistema'],
+      ];
+      await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousData = new Map(queryKeys.map((queryKey) => [queryKey[0], queryClient.getQueryData(queryKey)]));
+
+      queryClient.setQueryData(['ativos'], (old = []) => (
+        Array.isArray(old)
+          ? old.map((asset) => (
+            asset.usuario_id === id
+              ? { ...asset, usuario_id: null, atualizado_em: new Date().toISOString() }
+              : asset
+          ))
+          : old
+      ));
+      queryClient.setQueryData(['linhas_corporativas'], (old = []) => (
+        Array.isArray(old)
+          ? old.map((line) => (
+            line.colaborador_id === id
+              ? { ...line, colaborador_id: null, atualizado_em: new Date().toISOString() }
+              : line
+          ))
+          : old
+      ));
+      queryClient.setQueryData(['acessos_usuario_sistema'], (old = []) => (
+        Array.isArray(old) ? old.filter((access) => access.colaborador_id !== id) : old
+      ));
+
+      return { previousData };
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['ativos'] });
       queryClient.invalidateQueries({ queryKey: ['linhas_corporativas'] });
@@ -382,7 +463,14 @@ export function useCatalogMutations({
             : 'Nenhum item vinculado para remover.',
       });
     },
-    onError: (error) => showMutationError(error, 'Falha ao desvincular itens.'),
+    onError: (error, _variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['ativos'], context.previousData.get('ativos'));
+        queryClient.setQueryData(['linhas_corporativas'], context.previousData.get('linhas_corporativas'));
+        queryClient.setQueryData(['acessos_usuario_sistema'], context.previousData.get('acessos_usuario_sistema'));
+      }
+      showMutationError(error, 'Falha ao desvincular itens.');
+    },
   });
 
   return {
