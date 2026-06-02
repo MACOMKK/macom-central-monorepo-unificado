@@ -15,6 +15,20 @@ function replaceCatalogRecord(rows, record) {
   return rows.map((row) => (row.id === record.id ? { ...row, ...record } : row));
 }
 
+function upsertCatalogRecords(rows, records) {
+  const items = Array.isArray(records) ? records.filter((record) => record?.id) : [records].filter((record) => record?.id);
+  if (!items.length) return rows;
+
+  const recordsById = new Map(items.map((record) => [record.id, record]));
+  const updatedRows = rows.map((row) => (
+    recordsById.has(row.id) ? { ...row, ...recordsById.get(row.id) } : row
+  ));
+  const existingIds = new Set(updatedRows.map((row) => row.id));
+  const newRows = items.filter((record) => !existingIds.has(record.id));
+
+  return [...newRows, ...updatedRows];
+}
+
 function removeCatalogRecords(rows, ids) {
   const idsToRemove = new Set(Array.isArray(ids) ? ids : [ids]);
   return rows.filter((row) => !idsToRemove.has(row.id));
@@ -62,6 +76,9 @@ export function useCatalogMutations({
     partialSuccessMessage,
     emptyMessage,
   }) => {
+    queryClient.setQueryData([queryKey], (old = []) => (
+      Array.isArray(old) ? upsertCatalogRecords(old, created) : old
+    ));
     queryClient.invalidateQueries({ queryKey: [queryKey] });
     resetImportState();
     setFeedback(
