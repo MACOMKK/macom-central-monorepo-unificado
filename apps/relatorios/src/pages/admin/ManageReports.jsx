@@ -86,6 +86,8 @@ export default function ManageReports() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-reports'] });
       queryClient.invalidateQueries({ queryKey: ['all-reports-for-perm'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report'] });
     },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(['all-reports'], context?.previousReports);
@@ -139,6 +141,10 @@ export default function ManageReports() {
     setEditingReport(null);
     queryClient.invalidateQueries({ queryKey: ['all-reports'] });
     queryClient.invalidateQueries({ queryKey: ['all-reports-for-perm'] });
+    queryClient.invalidateQueries({ queryKey: ['reports'] });
+    if (savedReport?.id) {
+      queryClient.invalidateQueries({ queryKey: ['report', savedReport.id] });
+    }
   };
 
   const handleManageNotice = (report) => {

@@ -50,7 +50,10 @@ export default function ManagePermissions() {
 
       return { previousPermissions, queryKey };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['all-permissions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-permissions'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+    },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(context?.queryKey || ['all-permissions'], context?.previousPermissions);
     },
@@ -62,6 +65,7 @@ export default function ManagePermissions() {
     ));
     setDialogOpen(false);
     queryClient.invalidateQueries({ queryKey: ['all-permissions'] });
+    queryClient.invalidateQueries({ queryKey: ['reports'] });
   };
 
   const handleConfirmDelete = () => {
