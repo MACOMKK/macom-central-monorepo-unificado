@@ -28,7 +28,7 @@ export default function PermissionForm({ onSaved, onCancel }) {
       }));
       return dataClient.entities.ReportPermission.bulkCreate(perms);
     },
-    onSuccess: onSaved,
+    onSuccess: (createdPermissions) => onSaved?.(createdPermissions),
   });
 
   const toggleReport = (reportId) => {

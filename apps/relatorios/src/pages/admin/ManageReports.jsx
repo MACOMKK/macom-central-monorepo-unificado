@@ -43,6 +43,13 @@ const providerLabels = {
   other: 'Outro',
 };
 
+function upsertReport(reports, report) {
+  if (!report?.id) return reports;
+  const exists = reports.some((item) => item.id === report.id);
+  if (!exists) return [report, ...reports];
+  return reports.map((item) => (item.id === report.id ? { ...item, ...report } : item));
+}
+
 export default function ManageReports() {
   const { user } = useOutletContext();
   const [search, setSearch] = useState('');
@@ -62,7 +69,28 @@ export default function ManageReports() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => dataClient.entities.Report.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['all-reports'] }),
+    onMutate: async (id) => {
+      const queryKeys = [['all-reports'], ['all-reports-for-perm']];
+      await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousReports = queryClient.getQueryData(['all-reports']);
+      const previousReportsForPerm = queryClient.getQueryData(['all-reports-for-perm']);
+
+      queryKeys.forEach((queryKey) => {
+        queryClient.setQueryData(queryKey, (old = []) => (
+          Array.isArray(old) ? old.filter((report) => report.id !== id) : old
+        ));
+      });
+
+      return { previousReports, previousReportsForPerm };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['all-reports-for-perm'] });
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(['all-reports'], context?.previousReports);
+      queryClient.setQueryData(['all-reports-for-perm'], context?.previousReportsForPerm);
+    },
   });
 
   const categories = ['all', ...new Set(reports.map((report) => report.category).filter(Boolean))];
@@ -98,10 +126,19 @@ export default function ManageReports() {
     setDialogOpen(true);
   };
 
-  const handleSaved = () => {
+  const handleSaved = (savedReport) => {
+    if (savedReport?.id) {
+      queryClient.setQueryData(['all-reports'], (old = []) => (
+        Array.isArray(old) ? upsertReport(old, savedReport) : old
+      ));
+      queryClient.setQueryData(['all-reports-for-perm'], (old = []) => (
+        Array.isArray(old) ? upsertReport(old, savedReport) : old
+      ));
+    }
     setDialogOpen(false);
     setEditingReport(null);
     queryClient.invalidateQueries({ queryKey: ['all-reports'] });
+    queryClient.invalidateQueries({ queryKey: ['all-reports-for-perm'] });
   };
 
   const handleManageNotice = (report) => {

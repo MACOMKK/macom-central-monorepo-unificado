@@ -8,6 +8,23 @@ import PermissionForm from '@/components/admin/PermissionForm';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 
+function upsertPermissions(permissions, nextPermissions) {
+  const items = Array.isArray(nextPermissions)
+    ? nextPermissions.filter((permission) => permission?.id)
+    : [nextPermissions].filter((permission) => permission?.id);
+
+  if (!items.length) return permissions;
+
+  const itemsById = new Map(items.map((permission) => [permission.id, permission]));
+  const updated = permissions.map((permission) => (
+    itemsById.has(permission.id) ? { ...permission, ...itemsById.get(permission.id) } : permission
+  ));
+  const existingIds = new Set(updated.map((permission) => permission.id));
+  const created = items.filter((permission) => !existingIds.has(permission.id));
+
+  return [...created, ...updated];
+}
+
 export default function ManagePermissions() {
   const { user } = useOutletContext();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -22,10 +39,27 @@ export default function ManagePermissions() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => dataClient.entities.ReportPermission.delete(id),
+    onMutate: async (id) => {
+      const queryKey = ['all-permissions'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousPermissions = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? old.filter((permission) => permission.id !== id) : old
+      ));
+
+      return { previousPermissions, queryKey };
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['all-permissions'] }),
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(context?.queryKey || ['all-permissions'], context?.previousPermissions);
+    },
   });
 
-  const handleSaved = () => {
+  const handleSaved = (createdPermissions) => {
+    queryClient.setQueryData(['all-permissions'], (old = []) => (
+      Array.isArray(old) ? upsertPermissions(old, createdPermissions) : old
+    ));
     setDialogOpen(false);
     queryClient.invalidateQueries({ queryKey: ['all-permissions'] });
   };

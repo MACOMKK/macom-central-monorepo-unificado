@@ -97,7 +97,7 @@ export default function ReportForm({ report, onSaved, onCancel }) {
 
       return report ? dataClient.entities.Report.update(report.id, data) : dataClient.entities.Report.create(data);
     },
-    onSuccess: onSaved,
+    onSuccess: (savedReport) => onSaved?.(savedReport),
   });
 
   const toggleUnit = (unitId) => {
