@@ -130,6 +130,20 @@ function buildLatestTermIndex(terms) {
   }, {});
 }
 
+function upsertTerms(terms, nextTerms) {
+  const items = Array.isArray(nextTerms) ? nextTerms.filter(Boolean) : [nextTerms].filter(Boolean);
+  if (!items.length) return terms;
+
+  const nextById = new Map(items.map((term) => [term.id, term]));
+  const updatedTerms = terms.map((term) => (
+    nextById.has(term.id) ? { ...term, ...nextById.get(term.id) } : term
+  ));
+  const existingIds = new Set(updatedTerms.map((term) => term.id));
+  const newTerms = items.filter((term) => !existingIds.has(term.id));
+
+  return [...newTerms, ...updatedTerms];
+}
+
 function getCardStatus(assets, latestTermsByAsset) {
   if (!assets.length) return 'sem_termo';
 
@@ -482,14 +496,16 @@ export default function TermsPossession() {
 
   const generatePdfMutation = useMutation({
     mutationFn: async ({ collaborator, assets: linkedAssets, latestTermsByAsset }) => {
-      await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
+      const ensuredTerms = await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
       const { employee, normalizedAssets } = buildPdfPayload(collaborator, linkedAssets);
 
       const result = await generateTermoPDF(employee, normalizedAssets);
-      return { collaborator, filename: result.filename };
+      return { collaborator, ensuredTerms, filename: result.filename };
     },
-    onSuccess: ({ collaborator }) => {
-
+    onSuccess: ({ collaborator, ensuredTerms }) => {
+      queryClient.setQueryData(['termos_posse'], (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, ensuredTerms) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
       setFeedback({
         type: 'success',
@@ -510,7 +526,7 @@ export default function TermsPossession() {
         throw new Error('Colaborador sem email cadastrado.');
       }
 
-      await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
+      const ensuredTerms = await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
       const { employee, normalizedAssets } = buildPdfPayload(collaborator, linkedAssets);
       const { blob, filename } = await generateTermoPDF(employee, normalizedAssets, { returnBlob: true });
       const pdf_base64 = await blobToBase64(blob);
@@ -581,9 +597,13 @@ export default function TermsPossession() {
         pdf_base64,
       });
 
-      return collaborator;
+      return { collaborator, ensuredTerms };
     },
-    onSuccess: (collaborator) => {
+    onSuccess: ({ collaborator, ensuredTerms }) => {
+      queryClient.setQueryData(['termos_posse'], (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, ensuredTerms) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
       setFeedback({
         type: 'success',
         message: `Email enviado com sucesso para ${collaborator.nome || collaborator.email}.`,
@@ -608,7 +628,7 @@ export default function TermsPossession() {
       }
 
       const now = new Date().toISOString();
-      await Promise.all(
+      const signedTerms = await Promise.all(
         pendingTerms.map((term) =>
           catalogApi.termos_posse.update(term.id, {
             status: 'assinado',
@@ -617,16 +637,42 @@ export default function TermsPossession() {
         )
       );
 
-      return collaborator;
+      return { collaborator, signedTerms };
     },
-    onSuccess: (collaborator) => {
+    onMutate: async ({ latestTermsByAsset }) => {
+      const queryKey = ['termos_posse'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousTerms = queryClient.getQueryData(queryKey);
+      const now = new Date().toISOString();
+      const optimisticTerms = Object.values(latestTermsByAsset)
+        .filter((term) => term && term.status !== 'assinado')
+        .map((term) => ({
+          ...term,
+          status: 'assinado',
+          assinado_em: now,
+          atualizado_em: now,
+        }));
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, optimisticTerms) : old
+      ));
+
+      return { previousTerms, queryKey };
+    },
+    onSuccess: ({ collaborator, signedTerms }, _variables, context) => {
+      queryClient.setQueryData(context.queryKey, (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, signedTerms) : old
+      ));
       queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
       setFeedback({
         type: 'success',
         message: `Termos marcados como assinados para ${collaborator.nome || collaborator.email}.`,
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousTerms);
+      }
       setFeedback({
         type: 'error',
         message: error.message || 'Nao foi possivel marcar os termos como assinados.',
