@@ -12,6 +12,13 @@ const INITIAL_FORM = {
   required: true,
 };
 
+function upsertNotice(notices, notice) {
+  if (!notice?.id) return notices;
+  const exists = notices.some((item) => item.id === notice.id);
+  if (!exists) return [notice, ...notices];
+  return notices.map((item) => (item.id === notice.id ? { ...item, ...notice } : item));
+}
+
 export default function ReportNoticeForm({ report, user, onSaved, onCancel }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(INITIAL_FORM);
@@ -71,9 +78,18 @@ export default function ReportNoticeForm({ report, user, onSaved, onCancel }) {
         version: hasMeaningfulChange ? (currentNotice.version || 1) + 1 : (currentNotice.version || 1),
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (savedNotice) => {
+      queryClient.setQueryData(['report-notice', report?.id], (old = []) => (
+        Array.isArray(old) ? upsertNotice(old, savedNotice) : old
+      ));
+      queryClient.setQueryData(['report-notice-active', report?.id, user?.id], (old = []) => {
+        if (!Array.isArray(old)) return old;
+        if (savedNotice?.active === false) return old.filter((notice) => notice.id !== savedNotice.id);
+        return upsertNotice(old, savedNotice);
+      });
       await queryClient.invalidateQueries({ queryKey: ['report-notice', report?.id] });
-      onSaved?.();
+      await queryClient.invalidateQueries({ queryKey: ['report-notice-active', report?.id] });
+      onSaved?.(savedNotice);
     },
   });
 

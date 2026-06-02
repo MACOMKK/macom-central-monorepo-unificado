@@ -100,10 +100,42 @@ export default function ReportViewer() {
     mutationFn: () =>
       dataClient.entities.ReportNoticeAcceptance.create({
         notice_id: activeNotice.id,
+        report_id: report?.id,
+        collaborator_id: user?.id,
+        accepted_version: activeNotice.version,
       }),
-    onSuccess: async () => {
+    onMutate: async () => {
+      const queryKey = ['report-notice-acceptance', activeNotice?.id, user?.id];
+      await queryClient.cancelQueries({ queryKey });
+      const previousAcceptances = queryClient.getQueryData(queryKey);
+      const optimisticAcceptance = {
+        id: `temp-acceptance-${Date.now()}`,
+        notice_id: activeNotice.id,
+        report_id: report?.id || null,
+        collaborator_id: user?.id || null,
+        accepted_version: activeNotice.version || 1,
+        accepted_at: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(queryKey, [optimisticAcceptance]);
+
+      return { previousAcceptances, queryKey };
+    },
+    onSuccess: async (createdAcceptance, _variables, context) => {
+      if (createdAcceptance?.id) {
+        queryClient.setQueryData(context.queryKey, [createdAcceptance]);
+      }
       await queryClient.invalidateQueries({
         queryKey: ['report-notice-acceptance', activeNotice?.id, user?.id],
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousAcceptances);
+      }
+      toast({
+        title: 'Falha ao confirmar ciencia',
+        description: error?.message || 'Nao foi possivel registrar o aceite.',
       });
     },
   });
