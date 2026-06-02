@@ -42,6 +42,14 @@ import {
 } from '@macom/ui';
 import AdminGuard from '@/components/admin/AdminGuard';
 
+function updateUserInLists(queryClient, updater) {
+  [['settings-users'], ['all-users']].forEach((queryKey) => {
+    queryClient.setQueryData(queryKey, (old = []) => (
+      Array.isArray(old) ? old.map((entry) => updater(entry)) : old
+    ));
+  });
+}
+
 export default function Settings() {
   const { user } = useOutletContext();
   const { toast } = useToast();
@@ -65,15 +73,64 @@ export default function Settings() {
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, data }) => dataClient.entities.User.update(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      const queryKeys = [['settings-users'], ['all-users']];
+      await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousSettingsUsers = queryClient.getQueryData(['settings-users']);
+      const previousAllUsers = queryClient.getQueryData(['all-users']);
+
+      updateUserInLists(queryClient, (entry) => (
+        entry.id === id
+          ? {
+            ...entry,
+            full_name: data.full_name ?? entry.full_name,
+            role: data.role ?? entry.role,
+            unit_id: data.unit_id ?? null,
+            unit_name: data.unit_name || 'Sem unidade',
+          }
+          : entry
+      ));
+      setEditOpen(false);
+      setEditUser(null);
+
+      return { previousAllUsers, previousSettingsUsers };
+    },
+    onSuccess: (updatedUser) => {
+      if (updatedUser?.id) {
+        updateUserInLists(queryClient, (entry) => (
+          entry.id === updatedUser.id ? { ...entry, ...updatedUser } : entry
+        ));
+      }
       queryClient.invalidateQueries({ queryKey: ['settings-users'] });
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
       toast({ title: 'Usuario atualizado!' });
+    },
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(['settings-users'], context?.previousSettingsUsers);
+      queryClient.setQueryData(['all-users'], context?.previousAllUsers);
+      toast({
+        title: 'Falha ao atualizar usuario',
+        description: error?.message || 'Nao foi possivel salvar as alteracoes.',
+      });
     },
   });
 
   const manageUserMutation = useMutation({
     mutationFn: ({ userId, action, accessId }) => dataClient.users.manageUser(userId, action, accessId),
+    onMutate: async ({ userId, action }) => {
+      const queryKeys = [['settings-users'], ['all-users']];
+      await Promise.all(queryKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const previousSettingsUsers = queryClient.getQueryData(['settings-users']);
+      const previousAllUsers = queryClient.getQueryData(['all-users']);
+      const nextActive = action === 'activate';
+
+      updateUserInLists(queryClient, (entry) => (
+        entry.id === userId ? { ...entry, active: nextActive } : entry
+      ));
+      setConfirmAction(null);
+
+      return { previousAllUsers, previousSettingsUsers };
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['settings-users'] });
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
@@ -82,9 +139,10 @@ export default function Settings() {
         activate: 'Acesso reativado com sucesso!',
       };
       toast({ title: titles[variables.action] || 'Usuario atualizado!' });
-      setConfirmAction(null);
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(['settings-users'], context?.previousSettingsUsers);
+      queryClient.setQueryData(['all-users'], context?.previousAllUsers);
       const description = error?.message || 'Nao foi possivel concluir a operacao.';
       toast({
         title: 'Falha ao atualizar usuario',
@@ -119,8 +177,6 @@ export default function Settings() {
         unit_name: unit?.name || null,
       }
     });
-    setEditOpen(false);
-    setEditUser(null);
   };
 
   const statusLabel = (targetUser) => targetUser?.active === false ? 'Inativo' : 'Ativo';
