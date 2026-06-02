@@ -10,6 +10,16 @@ import {
 } from '@/pages/catalog-manager/utils/importCatalogRows';
 import { importInfrastructureRows } from '@/pages/catalog-manager/utils/importInfrastructureRows';
 
+function replaceCatalogRecord(rows, record) {
+  if (!record?.id) return rows;
+  return rows.map((row) => (row.id === record.id ? { ...row, ...record } : row));
+}
+
+function removeCatalogRecords(rows, ids) {
+  const idsToRemove = new Set(Array.isArray(ids) ? ids : [ids]);
+  return rows.filter((row) => !idsToRemove.has(row.id));
+}
+
 export function useCatalogMutations({
   collaborators,
   currentQueryKey,
@@ -72,19 +82,68 @@ export function useCatalogMutations({
       }
       return catalogApi[lockedEntityKey].create(payload);
     },
-    onSuccess: () =>
+    onMutate: async ({ record, payload }) => {
+      const queryKey = [currentQueryKey];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRows = queryClient.getQueryData(queryKey);
+      const isUpdate = Boolean(record?.id);
+      const optimisticRecord = {
+        ...(record || {}),
+        ...payload,
+        id: record?.id || `temp-${lockedEntityKey}-${Date.now()}`,
+        atualizado_em: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(queryKey, (old = []) => {
+        if (!Array.isArray(old)) return old;
+        return isUpdate ? replaceCatalogRecord(old, optimisticRecord) : [optimisticRecord, ...old];
+      });
+      onSaveSuccess?.();
+
+      return { isUpdate, optimisticId: optimisticRecord.id, previousRows, queryKey };
+    },
+    onSuccess: (savedRecord, _variables, context) => {
+      if (savedRecord?.id) {
+        queryClient.setQueryData(context.queryKey, (old = []) => {
+          if (!Array.isArray(old)) return old;
+          if (context.isUpdate) return replaceCatalogRecord(old, savedRecord);
+          return old.map((row) => (row.id === context.optimisticId ? savedRecord : row));
+        });
+      }
+
       handleMutationSuccess({
         queryKeys: [[currentQueryKey]],
         message: 'Registro salvo com sucesso.',
-        onSuccess: onSaveSuccess,
-      }),
-    onError: (error) => showMutationError(error, 'Falha ao salvar registro.'),
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousRows);
+      }
+      showMutationError(error, 'Falha ao salvar registro.');
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => catalogApi[lockedEntityKey].remove(id),
+    onMutate: async (id) => {
+      const queryKey = [currentQueryKey];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRows = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? removeCatalogRecords(old, id) : old
+      ));
+
+      return { previousRows, queryKey };
+    },
     onSuccess: () => handleMutationSuccess({ queryKeys: [[currentQueryKey]], message: 'Registro removido com sucesso.' }),
-    onError: (error) => showMutationError(error, 'Falha ao remover registro.'),
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousRows);
+      }
+      showMutationError(error, 'Falha ao remover registro.');
+    },
   });
 
   const deleteManyMutation = useMutation({
@@ -104,7 +163,27 @@ export function useCatalogMutations({
         { failedIds: [], removedIds: [] },
       );
     },
-    onSuccess: ({ failedIds, removedIds }) => {
+    onMutate: async (ids) => {
+      const queryKey = [currentQueryKey];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRows = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? removeCatalogRecords(old, ids) : old
+      ));
+
+      return { previousRows, queryKey };
+    },
+    onSuccess: ({ failedIds, removedIds }, _variables, context) => {
+      if (failedIds.length) {
+        queryClient.setQueryData([currentQueryKey], (old = []) => {
+          if (!Array.isArray(old)) return old;
+          const failedRows = (context?.previousRows || []).filter((row) => failedIds.includes(row.id));
+          const existingIds = new Set(old.map((row) => row.id));
+          return [...failedRows.filter((row) => !existingIds.has(row.id)), ...old];
+        });
+      }
+
       if (removedIds.length) {
         queryClient.invalidateQueries({ queryKey: [currentQueryKey] });
       }
@@ -124,7 +203,12 @@ export function useCatalogMutations({
           : 'Falha ao remover os registros selecionados.',
       });
     },
-    onError: (error) => showMutationError(error, 'Falha ao remover os registros selecionados.'),
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousRows);
+      }
+      showMutationError(error, 'Falha ao remover os registros selecionados.');
+    },
   });
 
   const assignUserMutation = useMutation({

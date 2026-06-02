@@ -23,6 +23,33 @@ const statusOptions = [
   { value: 'false', label: 'Bloqueado' },
 ];
 
+function upsertAccess(accesses, access) {
+  if (!access) return accesses;
+  const exists = accesses.some((entry) => (
+    entry.id === access.id ||
+    (
+      access.colaborador_id &&
+      access.sistema_id &&
+      entry.colaborador_id === access.colaborador_id &&
+      entry.sistema_id === access.sistema_id
+    )
+  ));
+
+  if (!exists) return [access, ...accesses];
+
+  return accesses.map((entry) => (
+    entry.id === access.id ||
+    (
+      access.colaborador_id &&
+      access.sistema_id &&
+      entry.colaborador_id === access.colaborador_id &&
+      entry.sistema_id === access.sistema_id
+    )
+      ? { ...entry, ...access }
+      : entry
+  ));
+}
+
 export default function SystemAccess() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -91,16 +118,22 @@ export default function SystemAccess() {
   }, [accessesError]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      systemAccessApi.accesses.save({
-        colaborador_id: form.colaborador_id,
-        sistema_id: form.sistema_id,
-        nivel_acesso: form.nivel_acesso,
-        ativo: form.ativo === 'true',
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['acessos_usuario_sistema'] });
-      setFeedback({ type: 'success', message: 'Acesso do sistema salvo com sucesso.' });
+    mutationFn: (data) => systemAccessApi.accesses.save(data),
+    onMutate: async (data) => {
+      const queryKey = ['acessos_usuario_sistema'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousAccesses = queryClient.getQueryData(queryKey);
+      const optimisticAccess = {
+        ...data,
+        id: `temp-access-${Date.now()}`,
+        criado_em: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? upsertAccess(old, optimisticAccess) : old
+      ));
+
       setForm({
         colaborador_id: '',
         sistema_id: '',
@@ -108,30 +141,83 @@ export default function SystemAccess() {
         ativo: 'true',
       });
       setCollaboratorSearch('');
+
+      return { optimisticId: optimisticAccess.id, previousAccesses, queryKey };
     },
-    onError: (error) => {
+    onSuccess: (savedAccess, _variables, context) => {
+      if (savedAccess?.id) {
+        queryClient.setQueryData(context.queryKey, (old = []) => {
+          if (!Array.isArray(old)) return old;
+          return upsertAccess(
+            old.filter((entry) => entry.id !== context.optimisticId),
+            savedAccess,
+          );
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['acessos_usuario_sistema'] });
+      setFeedback({ type: 'success', message: 'Acesso do sistema salvo com sucesso.' });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousAccesses);
+      }
       setFeedback({ type: 'error', message: error.message || 'Falha ao salvar acesso do sistema.' });
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, ativo }) => systemAccessApi.accesses.update(id, { ativo }),
-    onSuccess: () => {
+    onMutate: async ({ id, ativo }) => {
+      const queryKey = ['acessos_usuario_sistema'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousAccesses = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old)
+          ? old.map((entry) => (entry.id === id ? { ...entry, ativo, atualizado_em: new Date().toISOString() } : entry))
+          : old
+      ));
+
+      return { previousAccesses, queryKey };
+    },
+    onSuccess: (updatedAccess, _variables, context) => {
+      if (updatedAccess?.id) {
+        queryClient.setQueryData(context.queryKey, (old = []) => (
+          Array.isArray(old) ? upsertAccess(old, updatedAccess) : old
+        ));
+      }
       queryClient.invalidateQueries({ queryKey: ['acessos_usuario_sistema'] });
       setFeedback({ type: 'success', message: 'Status do acesso atualizado.' });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousAccesses);
+      }
       setFeedback({ type: 'error', message: error.message || 'Falha ao atualizar status do acesso.' });
     },
   });
 
   const removeMutation = useMutation({
     mutationFn: (id) => systemAccessApi.accesses.remove(id),
+    onMutate: async (id) => {
+      const queryKey = ['acessos_usuario_sistema'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousAccesses = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old) ? old.filter((entry) => entry.id !== id) : old
+      ));
+
+      return { previousAccesses, queryKey };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['acessos_usuario_sistema'] });
       setFeedback({ type: 'success', message: 'Acesso removido com sucesso.' });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousAccesses);
+      }
       setFeedback({ type: 'error', message: error.message || 'Falha ao remover acesso.' });
     },
   });
@@ -266,7 +352,12 @@ export default function SystemAccess() {
         <div className="flex justify-end">
           <Button
             disabled={!form.colaborador_id || !form.sistema_id || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
+            onClick={() => saveMutation.mutate({
+              colaborador_id: form.colaborador_id,
+              sistema_id: form.sistema_id,
+              nivel_acesso: form.nivel_acesso,
+              ativo: form.ativo === 'true',
+            })}
           >
             <Plus className="h-4 w-4" />
             {saveMutation.isPending ? 'Salvando...' : 'Salvar acesso'}
