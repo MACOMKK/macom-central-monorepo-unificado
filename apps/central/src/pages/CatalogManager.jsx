@@ -51,6 +51,8 @@ import {
 } from '@/pages/catalog-manager/utils/buildConfigLookups';
 import { catalogApi } from '@/lib/catalogApi';
 import { systemAccessApi } from '@/lib/systemAccessApi';
+import { useAuth } from '@/lib/AuthContext';
+import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
 
 function formatDate(dateString) {
   if (!dateString) return '-';
@@ -93,16 +95,21 @@ const ENTITY_DEPENDENCIES = {
 };
 
 export default function CatalogManager({ lockedEntityKey }) {
+  const { canCentral } = useAuth();
   const importInputRef = useRef(null);
+  const canManageModule = canCentral?.(lockedEntityKey, CENTRAL_PERMISSION_LEVELS.manage);
   const isCollaboratorsView = lockedEntityKey === 'colaboradores';
   const isAssetsView = lockedEntityKey === 'ativos';
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
   const isBulkDeleteView =
-    lockedEntityKey === 'ativos' ||
-    lockedEntityKey === 'colaboradores' ||
-    lockedEntityKey === 'infra_estrutura' ||
-    lockedEntityKey === 'linhas_corporativas' ||
-    lockedEntityKey === 'contatos';
+    canManageModule &&
+    (
+      lockedEntityKey === 'ativos' ||
+      lockedEntityKey === 'colaboradores' ||
+      lockedEntityKey === 'infra_estrutura' ||
+      lockedEntityKey === 'linhas_corporativas' ||
+      lockedEntityKey === 'contatos'
+    );
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
@@ -715,6 +722,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   return (
     <div className="space-y-6">
       <CatalogHeader
+        canManage={canManageModule}
         importAssetsPending={importAssetsMutation.isPending}
         importCollaboratorsPending={importCollaboratorsMutation.isPending}
         importContactsPending={importContactsMutation.isPending}
@@ -728,7 +736,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         onImportContacts={openContactsImportDialog}
         onImportCorporateLines={openCorporateLinesImportDialog}
         onImportInfrastructure={openInfrastructureImportDialog}
-        onNewRecord={() => setEditingRecord({})}
+        onNewRecord={() => canManageModule && setEditingRecord({})}
         singularLabel={entityMeta[lockedEntityKey].singular}
         subtitle={entityMeta[lockedEntityKey].subtitle}
         title={entityMeta[lockedEntityKey].title}
@@ -806,6 +814,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           <DepartmentCardsGrid
             assetsByDepartmentId={current.cardStats?.assetsByDepartmentId}
             collaboratorsByDepartmentId={current.cardStats?.collaboratorsByDepartmentId}
+            canManage={canManageModule}
             departments={rows}
             onDelete={handleDeleteDepartment}
             onEdit={setEditingRecord}
@@ -830,6 +839,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           <UnitCardsGrid
             assetsByUnitId={current.cardStats?.assetsByUnitId}
             collaboratorsByUnitId={current.cardStats?.collaboratorsByUnitId}
+            canManage={canManageModule}
             formatPhone={formatPhone}
             onDelete={handleDeleteUnit}
             onEdit={setEditingRecord}
@@ -839,6 +849,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       ) : (
         <CatalogEntityTable
           allRowsSelected={allBulkRowsSelected}
+          canManage={canManageModule}
           columns={current.columns}
           entityKey={lockedEntityKey}
           isLoading={isLoading}

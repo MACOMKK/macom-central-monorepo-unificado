@@ -5,24 +5,48 @@ import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseCl
 
 const AuthContext = createContext(null);
 const CENTRAL_ACCESS_ROLES = new Set(['admin', 'gestor']);
+const CENTRAL_PERMISSION_LEVELS = {
+  none: 'sem',
+  view: 'ver',
+  manage: 'gerenciar',
+};
 
 function canAccessCentral(profile) {
   return CENTRAL_ACCESS_ROLES.has(profile?.funcao) && profile?.status !== 'inativo';
 }
 
+function hasCentralPermission(profile, permissions = [], moduleKey, requiredLevel = CENTRAL_PERMISSION_LEVELS.view) {
+  if (profile?.funcao === 'admin' && profile?.status !== 'inativo') {
+    return true;
+  }
+
+  const permission = permissions.find((item) => item.modulo === moduleKey);
+  const level = permission?.nivel_acesso || CENTRAL_PERMISSION_LEVELS.none;
+
+  if (requiredLevel === CENTRAL_PERMISSION_LEVELS.view) {
+    return level === CENTRAL_PERMISSION_LEVELS.view || level === CENTRAL_PERMISSION_LEVELS.manage;
+  }
+
+  return level === CENTRAL_PERMISSION_LEVELS.manage;
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [centralPermissions, setCentralPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const inFlightValidationRef = useRef(null);
   const validatedTokenRef = useRef(null);
   const profileRef = useRef(null);
+  const permissionsRef = useRef([]);
 
   function clearAuthState() {
     validatedTokenRef.current = null;
     profileRef.current = null;
+    permissionsRef.current = [];
     setSession(null);
     setProfile(null);
+    setCentralPermissions([]);
     setLoading(false);
   }
 
@@ -35,6 +59,7 @@ export function AuthProvider({ children }) {
     try {
       const authPayload = await catalogApi.auth.me(nextSession.access_token);
       const collaborator = authPayload?.row || null;
+      const permissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 
       if (!canAccessCentral(collaborator)) {
         await supabase.auth.signOut();
@@ -44,8 +69,10 @@ export function AuthProvider({ children }) {
 
       validatedTokenRef.current = nextSession.access_token;
       profileRef.current = collaborator;
+      permissionsRef.current = permissions;
       setSession(nextSession);
       setProfile(collaborator);
+      setCentralPermissions(permissions);
       setLoading(false);
     } catch (error) {
       await supabase.auth.signOut().catch(() => null);
@@ -65,6 +92,7 @@ export function AuthProvider({ children }) {
     if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profileRef.current) {
       setSession(nextSession);
       setProfile(profileRef.current);
+      setCentralPermissions(permissionsRef.current);
       setLoading(false);
       return;
     }
@@ -140,9 +168,14 @@ export function AuthProvider({ children }) {
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
+        setCentralPermissions([]);
+      },
+      centralPermissions,
+      canCentral(moduleKey, requiredLevel = CENTRAL_PERMISSION_LEVELS.view) {
+        return hasCentralPermission(profile, centralPermissions, moduleKey, requiredLevel);
       },
     }),
-    [loading, profile, session]
+    [centralPermissions, loading, profile, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

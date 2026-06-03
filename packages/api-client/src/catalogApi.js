@@ -107,6 +107,7 @@ export const catalogApi = {
       return {
         row: result.row || null,
         access: result.access || null,
+        permissions: result.permissions || [],
       };
     },
   },
@@ -407,6 +408,18 @@ export const catalogApi = {
         depois: parseJsonField(row.depois),
         metadados: parseJsonField(row.metadados) || {},
       }));
+    },
+  },
+  permissoes_central: {
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'permissoes_central', {
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    async save(payload) {
+      const result = await invokeCatalog('save', 'permissoes_central', { payload });
+      return result.row || null;
     },
   },
 };

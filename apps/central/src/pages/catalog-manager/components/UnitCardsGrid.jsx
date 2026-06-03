@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 
 export default function UnitCardsGrid({
   assetsByUnitId = {},
+  canManage = true,
   collaboratorsByUnitId = {},
   formatPhone,
   onDelete,
@@ -66,19 +67,21 @@ export default function UnitCardsGrid({
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
-                <Button variant="outline" className="h-10 flex-1 gap-2 rounded-xl" onClick={() => onEdit(unit)}>
-                  <Pencil className="h-4 w-4" /> Editar
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-[#ff4b4b] hover:bg-red-50 hover:text-[#ff4b4b]"
-                  onClick={() => onDelete(unit.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              {canManage ? (
+                <div className="mt-4 flex items-center gap-2">
+                  <Button variant="outline" className="h-10 flex-1 gap-2 rounded-xl" onClick={() => onEdit(unit)}>
+                    <Pencil className="h-4 w-4" /> Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-xl text-[#ff4b4b] hover:bg-red-50 hover:text-[#ff4b4b]"
+                    onClick={() => onDelete(unit.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </Card>
         );

@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, ShieldCheck, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
+import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
 
 const routePrefetchers = {
   '/': () => import('@/pages/Dashboard'),
@@ -15,27 +16,29 @@ const routePrefetchers = {
   '/infraestrutura': () => import('@/pages/Infrastructure'),
   '/acessos-sistemas': () => import('@/pages/SystemAccess'),
   '/logs-auditoria': () => import('@/pages/AuditLogs'),
+  '/permissoes-central': () => import('@/pages/CentralPermissions'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
 };
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: Home },
-  { path: '/ativos', label: 'Ativos', icon: Laptop },
-  { path: '/departamentos', label: 'Departamentos', icon: Building2 },
-  { path: '/unidades', label: 'Unidades', icon: Building2 },
-  { path: '/colaboradores', label: 'Colaboradores', icon: Users },
-  { path: '/contatos', label: 'Contatos', icon: Phone },
-  { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone },
-  { path: '/infraestrutura', label: 'Infraestrutura', icon: Network },
-  { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound },
-  { path: '/logs-auditoria', label: 'Logs Auditoria', icon: History },
-  { path: '/termos-posse', label: 'Termos de Posse', icon: FileText },
+  { path: '/', label: 'Dashboard', icon: Home, module: 'dashboard' },
+  { path: '/ativos', label: 'Ativos', icon: Laptop, module: 'ativos' },
+  { path: '/departamentos', label: 'Departamentos', icon: Building2, module: 'departamentos' },
+  { path: '/unidades', label: 'Unidades', icon: Building2, module: 'unidades' },
+  { path: '/colaboradores', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
+  { path: '/contatos', label: 'Contatos', icon: Phone, module: 'contatos' },
+  { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone, module: 'linhas_corporativas' },
+  { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
+  { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound, module: 'acessos_usuario_sistema' },
+  { path: '/logs-auditoria', label: 'Logs Auditoria', icon: History, module: 'logs_auditoria' },
+  { path: '/permissoes-central', label: 'Permissoes Central', icon: ShieldCheck, adminOnly: true },
+  { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
 ];
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen, theme, toggleTheme }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { canCentral, logout, profile } = useAuth();
   const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
   const handleLogout = async () => {
@@ -96,7 +99,10 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
         </div>
 
         <nav className="flex-1 overflow-y-auto space-y-0.5 px-2 py-4">
-          {navItems.map((item) => {
+          {navItems.filter((item) => {
+            if (item.adminOnly) return profile?.funcao === 'admin';
+            return canCentral?.(item.module, CENTRAL_PERMISSION_LEVELS.view);
+          }).map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link

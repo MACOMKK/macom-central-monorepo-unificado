@@ -35,6 +35,13 @@ vi.mock('@/lib/systemAccessApi', () => ({
   },
 }));
 
+vi.mock('@/lib/AuthContext', () => ({
+  useAuth: () => ({
+    canCentral: vi.fn(() => true),
+    profile: { id: 'admin-1', funcao: 'admin', status: 'ativo' },
+  }),
+}));
+
 vi.mock('@/components/CatalogEntityDialog', () => ({
   default: ({ fields, onOpenChange, onSubmit, open, record, title }) => {
     const React = require('react');
@@ -114,6 +121,29 @@ vi.mock('@/components/CatalogEntityDialog', () => ({
         <button type="submit">Salvar</button>
       </form>
     );
+  },
+}));
+
+vi.mock('@/components/ConfirmDeleteDialog', () => ({
+  default: ({ description, onConfirm, open }) => {
+    const React = require('react');
+    const confirmedRef = React.useRef(false);
+
+    React.useEffect(() => {
+      if (!open) {
+        confirmedRef.current = false;
+        return;
+      }
+
+      if (confirmedRef.current) return;
+      confirmedRef.current = true;
+      const confirmMessage = String(description || '').replace(/^Essa acao nao pode ser desfeita\. /, '');
+      if (open && window.confirm(confirmMessage)) {
+        onConfirm?.();
+      }
+    }, [description, onConfirm, open]);
+
+    return null;
   },
 }));
 

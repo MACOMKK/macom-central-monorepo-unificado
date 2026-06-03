@@ -173,7 +173,64 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['entidade', 'acao', 'registro_id', 'responsavel_colaborador_id'],
   },
+  permissoes_central: {
+    schema: 'gestao_ativos',
+    table: 'permissoes_central',
+    orderBy: 'modulo',
+    allowedFields: ['id', 'funcao', 'modulo', 'nivel_acesso'],
+  },
 } as const;
+
+const CENTRAL_MODULES = [
+  'dashboard',
+  'ativos',
+  'departamentos',
+  'unidades',
+  'colaboradores',
+  'contatos',
+  'linhas_corporativas',
+  'infra_estrutura',
+  'acessos_usuario_sistema',
+  'logs_auditoria',
+  'termos_posse',
+] as const;
+
+const CENTRAL_ENTITY_MODULES: Partial<Record<keyof typeof ENTITY_CONFIG, string>> = {
+  acessos_usuario_sistema: 'acessos_usuario_sistema',
+  ativos: 'ativos',
+  colaboradores: 'colaboradores',
+  contatos: 'contatos',
+  departamentos: 'departamentos',
+  infra_estrutura: 'infra_estrutura',
+  linhas_corporativas: 'linhas_corporativas',
+  logs_auditoria: 'logs_auditoria',
+  permissoes_central: 'permissoes_central',
+  sistemas: 'acessos_usuario_sistema',
+  termos_posse: 'termos_posse',
+  unidades: 'unidades',
+};
+
+const CENTRAL_MODULE_READ_ENTITIES: Record<string, Array<keyof typeof ENTITY_CONFIG>> = {
+  dashboard: [],
+  acessos_usuario_sistema: ['acessos_usuario_sistema', 'colaboradores', 'sistemas'],
+  ativos: ['ativos', 'colaboradores', 'unidades'],
+  colaboradores: [
+    'colaboradores',
+    'ativos',
+    'linhas_corporativas',
+    'departamentos',
+    'unidades',
+    'sistemas',
+    'acessos_usuario_sistema',
+  ],
+  contatos: ['contatos', 'unidades'],
+  departamentos: ['departamentos', 'ativos', 'colaboradores'],
+  infra_estrutura: ['infra_estrutura', 'unidades'],
+  linhas_corporativas: ['linhas_corporativas', 'colaboradores', 'unidades'],
+  logs_auditoria: ['logs_auditoria'],
+  termos_posse: ['termos_posse', 'ativos', 'colaboradores'],
+  unidades: ['unidades', 'ativos', 'colaboradores'],
+};
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -247,6 +304,63 @@ async function userHasActiveSystemAccess(userId: string, systemSlug: string) {
   );
 
   return Boolean(rows[0]);
+}
+
+async function getCentralPermissions(funcao: string | null | undefined) {
+  if (!sql || !funcao) return [];
+
+  if (funcao === 'admin') {
+    return CENTRAL_MODULES.map((modulo) => ({
+      id: `admin-${modulo}`,
+      funcao,
+      modulo,
+      nivel_acesso: 'gerenciar',
+    }));
+  }
+
+  const rows = await sql.unsafe(
+    `
+      select id, funcao, modulo, nivel_acesso, criado_em, atualizado_em
+      from gestao_ativos.permissoes_central
+      where funcao = $1
+      order by modulo asc;
+    `,
+    [funcao],
+  );
+
+  return rows;
+}
+
+function centralPermissionLevel(permissions: Array<Record<string, unknown>>, modulo: string | null | undefined) {
+  if (!modulo) return 'sem';
+  const permission = permissions.find((row) => row.modulo === modulo);
+  return typeof permission?.nivel_acesso === 'string' ? permission.nivel_acesso : 'sem';
+}
+
+function hasCentralPermission(
+  permissions: Array<Record<string, unknown>>,
+  modulo: string | null | undefined,
+  requiredLevel: 'ver' | 'gerenciar',
+) {
+  const level = centralPermissionLevel(permissions, modulo);
+  if (requiredLevel === 'ver') {
+    return level === 'ver' || level === 'gerenciar';
+  }
+  return level === 'gerenciar';
+}
+
+function canReadCentralEntityForGrantedModule(
+  permissions: Array<Record<string, unknown>>,
+  entity: keyof typeof ENTITY_CONFIG,
+) {
+  return permissions.some((permission) => {
+    if (permission.nivel_acesso !== 'ver' && permission.nivel_acesso !== 'gerenciar') {
+      return false;
+    }
+
+    const moduleKey = typeof permission.modulo === 'string' ? permission.modulo : '';
+    return CENTRAL_MODULE_READ_ENTITIES[moduleKey]?.includes(entity);
+  });
 }
 
 async function userHasActiveSystemAccessAny(userIds: string[], systemSlug: string) {
@@ -1346,12 +1460,19 @@ Deno.serve(async (request) => {
       ),
     ];
     const authenticatedCollaboratorId = authenticatedCollaborator?.id || user.id;
+    const accessProfile = authenticatedCollaborator;
+    const centralPermissions = await getCentralPermissions(
+      typeof accessProfile?.funcao === 'string' ? accessProfile.funcao : null,
+    );
 
     if (action === 'me' && entity === 'colaboradores') {
       const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
 
       if (!systemSlug) {
-        return json({ row: authenticatedCollaborator || null });
+        return json({
+          row: authenticatedCollaborator || null,
+          permissions: centralPermissions,
+        });
       }
 
       const rows = await sql.unsafe(
@@ -1372,6 +1493,7 @@ Deno.serve(async (request) => {
       return json({
         row: authenticatedCollaborator || null,
         access: rows[0] || null,
+        permissions: centralPermissions,
       });
     }
 
@@ -1400,7 +1522,6 @@ Deno.serve(async (request) => {
       }
 
       const reportsSystemSlug = 'relatorios';
-      const accessProfile = authenticatedCollaborator;
       const isGlobalAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
       const isGlobalManager = accessProfile?.funcao === 'gestor' && accessProfile?.status !== 'inativo';
       const reportsAccess = await getSystemAccessAny(authenticatedCollaboratorIds, reportsSystemSlug, { onlyActive: true });
@@ -1914,18 +2035,59 @@ Deno.serve(async (request) => {
       }
     }
 
+    const centralModule = CENTRAL_ENTITY_MODULES[entity];
     const canReadCentralEntityAsManager =
       isGlobalManager &&
       action === 'list' &&
-      !shouldAuditReportsEntity(entity);
+      !shouldAuditReportsEntity(entity) &&
+      (
+        hasCentralPermission(centralPermissions, centralModule, 'ver') ||
+        canReadCentralEntityForGrantedModule(centralPermissions, entity)
+      ) &&
+      entity !== 'permissoes_central';
+    const canManageCentralEntityAsManager =
+      isGlobalManager &&
+      !shouldAuditReportsEntity(entity) &&
+      entity !== 'permissoes_central' &&
+      hasCentralPermission(centralPermissions, centralModule, 'gerenciar');
 
-    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin && !canReadCentralEntityAsManager) {
+    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin && !canReadCentralEntityAsManager && !canManageCentralEntityAsManager) {
       return json({ error: 'Acesso restrito a administradores.' }, 403);
     }
 
     if (action === 'list') {
       const rows = await sql.unsafe(`select * from ${schema}.${table} order by ${orderBy} ${orderDirection};`);
       return json({ rows });
+    }
+
+    if (action === 'save' && entity === 'permissoes_central') {
+      const sanitized = sanitizePayload(entity, payload);
+      const funcao = typeof sanitized.funcao === 'string' ? sanitized.funcao : null;
+      const modulo = typeof sanitized.modulo === 'string' ? sanitized.modulo : null;
+      const nivelAcesso = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : 'sem';
+
+      if (!funcao || !modulo) {
+        return json({ error: 'Funcao e modulo sao obrigatorios.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into gestao_ativos.permissoes_central (
+            funcao,
+            modulo,
+            nivel_acesso
+          )
+          values ($1, $2, $3)
+          on conflict (funcao, modulo)
+          do update set
+            nivel_acesso = excluded.nivel_acesso,
+            atualizado_em = now()
+          returning *;
+        `,
+        [funcao, modulo, nivelAcesso],
+      );
+
+      return json({ row: rows[0] || null });
     }
 
     if (action === 'save' && entity === 'acessos_usuario_sistema') {

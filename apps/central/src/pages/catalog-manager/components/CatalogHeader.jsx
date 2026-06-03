@@ -3,6 +3,7 @@ import { Download, Plus, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function CatalogHeader({
+  canManage = true,
   importAssetsPending,
   importCollaboratorsPending,
   importContactsPending,
@@ -40,15 +41,17 @@ export default function CatalogHeader({
             >
               <Download className="h-4 w-4" /> Exportar CSV
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-              onClick={onImportAssets}
-              disabled={importAssetsPending}
-            >
-              <Upload className="h-4 w-4" /> Importar
-            </Button>
+            {canManage ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+                onClick={onImportAssets}
+                disabled={importAssetsPending}
+              >
+                <Upload className="h-4 w-4" /> Importar
+              </Button>
+            ) : null}
           </>
         ) : null}
         {lockedEntityKey === 'colaboradores' ? (
@@ -61,18 +64,20 @@ export default function CatalogHeader({
             >
               <Download className="h-4 w-4" /> Exportar CSV
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 gap-2 rounded-xl px-4 text-[14px]"
-              onClick={onImportCollaborators}
-              disabled={importCollaboratorsPending}
-            >
-              <Upload className="h-4 w-4" /> Importar
-            </Button>
+            {canManage ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+                onClick={onImportCollaborators}
+                disabled={importCollaboratorsPending}
+              >
+                <Upload className="h-4 w-4" /> Importar
+              </Button>
+            ) : null}
           </>
         ) : null}
-        {lockedEntityKey === 'infra_estrutura' ? (
+        {canManage && lockedEntityKey === 'infra_estrutura' ? (
           <Button
             type="button"
             variant="outline"
@@ -83,7 +88,7 @@ export default function CatalogHeader({
             <Upload className="h-4 w-4" /> Importar
           </Button>
         ) : null}
-        {lockedEntityKey === 'contatos' ? (
+        {canManage && lockedEntityKey === 'contatos' ? (
           <Button
             type="button"
             variant="outline"
@@ -94,7 +99,7 @@ export default function CatalogHeader({
             <Upload className="h-4 w-4" /> Importar
           </Button>
         ) : null}
-        {lockedEntityKey === 'linhas_corporativas' ? (
+        {canManage && lockedEntityKey === 'linhas_corporativas' ? (
           <Button
             type="button"
             variant="outline"
@@ -105,25 +110,27 @@ export default function CatalogHeader({
             <Upload className="h-4 w-4" /> Importar
           </Button>
         ) : null}
-        <Button
-          onClick={onNewRecord}
-          className={`h-10 gap-2 rounded-xl px-4 ${
-            lockedEntityKey === 'unidades' ||
-            lockedEntityKey === 'departamentos' ||
-            lockedEntityKey === 'ativos' ||
-            lockedEntityKey === 'termos_posse' ||
-            lockedEntityKey === 'infra_estrutura'
-              ? 'bg-[#d1131f] hover:bg-[#b50f1a]'
-              : ''
-          }`}
-        >
-          <Plus className="h-4 w-4" />{' '}
-          {lockedEntityKey === 'termos_posse'
-            ? 'Gerar Termo'
-            : lockedEntityKey === 'infra_estrutura'
-              ? 'Novo'
-              : `Novo ${singularLabel}`}
-        </Button>
+        {canManage ? (
+          <Button
+            onClick={onNewRecord}
+            className={`h-10 gap-2 rounded-xl px-4 ${
+              lockedEntityKey === 'unidades' ||
+              lockedEntityKey === 'departamentos' ||
+              lockedEntityKey === 'ativos' ||
+              lockedEntityKey === 'termos_posse' ||
+              lockedEntityKey === 'infra_estrutura'
+                ? 'bg-[#d1131f] hover:bg-[#b50f1a]'
+                : ''
+            }`}
+          >
+            <Plus className="h-4 w-4" />{' '}
+            {lockedEntityKey === 'termos_posse'
+              ? 'Gerar Termo'
+              : lockedEntityKey === 'infra_estrutura'
+                ? 'Novo'
+                : `Novo ${singularLabel}`}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ const SELECTION_LABELS_BY_ENTITY = {
 
 export default function CatalogEntityTable({
   allRowsSelected = false,
+  canManage = true,
   columns,
   entityKey,
   isLoading,
@@ -38,8 +39,9 @@ export default function CatalogEntityTable({
   const menuType = MENU_TYPES_BY_ENTITY[entityKey];
   const isCenteredActions = Boolean(menuType);
   const isCollaborators = entityKey === 'colaboradores';
-  const showSelection = Boolean(SELECTION_LABELS_BY_ENTITY[entityKey]);
+  const showSelection = canManage && Boolean(SELECTION_LABELS_BY_ENTITY[entityKey]);
   const selectionLabel = SELECTION_LABELS_BY_ENTITY[entityKey];
+  const colSpan = columns.length + (canManage ? 1 : 0) + (showSelection ? 1 : 0);
 
   return (
     <CatalogTableShell
@@ -48,17 +50,18 @@ export default function CatalogEntityTable({
       entityKey={entityKey}
       onToggleAllRows={onToggleAllRows}
       selectionLabel={selectionLabel}
+      showActions={canManage}
       showSelection={showSelection}
     >
       {isLoading ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1 + (showSelection ? 1 : 0)} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={colSpan} className="py-12 text-center text-muted-foreground">
             Carregando...
           </TableCell>
         </TableRow>
       ) : rows.length === 0 ? (
         <TableRow>
-          <TableCell colSpan={columns.length + 1 + (showSelection ? 1 : 0)} className="py-12 text-center text-muted-foreground">
+          <TableCell colSpan={colSpan} className="py-12 text-center text-muted-foreground">
             Nenhum registro encontrado
           </TableCell>
         </TableRow>
@@ -84,30 +87,32 @@ export default function CatalogEntityTable({
                 {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
               </TableCell>
             ))}
-            <TableCell
-              className={isCenteredActions ? 'text-center' : 'text-right'}
-              onClick={isCenteredActions ? (event) => event.stopPropagation() : undefined}
-            >
-              <div className={isCenteredActions ? 'flex justify-center gap-1' : 'flex justify-end gap-1'}>
-                {menuType ? (
-                  <MenuTriggerButton onClick={(event) => toggleRowMenu(event, row, menuType)} />
-                ) : (
-                  <>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => onDelete(row)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </TableCell>
+            {canManage ? (
+              <TableCell
+                className={isCenteredActions ? 'text-center' : 'text-right'}
+                onClick={isCenteredActions ? (event) => event.stopPropagation() : undefined}
+              >
+                <div className={isCenteredActions ? 'flex justify-center gap-1' : 'flex justify-end gap-1'}>
+                  {menuType ? (
+                    <MenuTriggerButton onClick={(event) => toggleRowMenu(event, row, menuType)} />
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(row)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => onDelete(row)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </TableCell>
+            ) : null}
           </TableRow>
         ))
       )}

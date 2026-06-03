@@ -5,11 +5,13 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { CENTRAL_PERMISSION_LEVELS, CENTRAL_PERMISSION_MODULE_BY_PATH } from '@/lib/centralPermissions';
 import PageNotFound from '@/lib/PageNotFound';
 import { queryClientInstance } from '@/lib/query-client';
 
 const Assets = lazy(() => import('@/pages/Assets'));
 const AuditLogs = lazy(() => import('@/pages/AuditLogs'));
+const CentralPermissions = lazy(() => import('@/pages/CentralPermissions'));
 const Collaborators = lazy(() => import('@/pages/Collaborators'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
 const CorporateLines = lazy(() => import('@/pages/CorporateLines'));
@@ -46,6 +48,31 @@ function LoginRoute() {
   return <Login onSubmit={login} loading={false} />;
 }
 
+function CentralRoute({ children, adminOnly = false, moduleKey }) {
+  const { canCentral, profile } = useAuth();
+
+  if (adminOnly && profile?.funcao !== 'admin') {
+    return <PageNotFound />;
+  }
+
+  if (moduleKey && !canCentral?.(moduleKey, CENTRAL_PERMISSION_LEVELS.view)) {
+    return <PageNotFound />;
+  }
+
+  return children;
+}
+
+function withCentralPermission(path, element, options = {}) {
+  return (
+    <CentralRoute
+      adminOnly={options.adminOnly}
+      moduleKey={options.moduleKey || CENTRAL_PERMISSION_MODULE_BY_PATH[path]}
+    >
+      {element}
+    </CentralRoute>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -62,17 +89,18 @@ export default function App() {
             />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/ativos" element={<Assets />} />
-                <Route path="/colaboradores" element={<Collaborators />} />
-                <Route path="/contatos" element={<Contacts />} />
-                <Route path="/linhas-corporativas" element={<CorporateLines />} />
-                <Route path="/departamentos" element={<Departments />} />
-                <Route path="/unidades" element={<Units />} />
-                <Route path="/infraestrutura" element={<Infrastructure />} />
-                <Route path="/acessos-sistemas" element={<SystemAccess />} />
-                <Route path="/logs-auditoria" element={<AuditLogs />} />
-                <Route path="/termos-posse" element={<TermsPossession />} />
+                <Route path="/" element={withCentralPermission('/', <Dashboard />)} />
+                <Route path="/ativos" element={withCentralPermission('/ativos', <Assets />)} />
+                <Route path="/colaboradores" element={withCentralPermission('/colaboradores', <Collaborators />)} />
+                <Route path="/contatos" element={withCentralPermission('/contatos', <Contacts />)} />
+                <Route path="/linhas-corporativas" element={withCentralPermission('/linhas-corporativas', <CorporateLines />)} />
+                <Route path="/departamentos" element={withCentralPermission('/departamentos', <Departments />)} />
+                <Route path="/unidades" element={withCentralPermission('/unidades', <Units />)} />
+                <Route path="/infraestrutura" element={withCentralPermission('/infraestrutura', <Infrastructure />)} />
+                <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccess />)} />
+                <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
+                <Route path="/permissoes-central" element={withCentralPermission('/permissoes-central', <CentralPermissions />, { adminOnly: true })} />
+                <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />
                 <Route path="*" element={<PageNotFound />} />
               </Route>
             </Route>

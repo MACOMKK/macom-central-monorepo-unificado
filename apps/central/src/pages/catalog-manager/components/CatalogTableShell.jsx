@@ -8,6 +8,7 @@ export default function CatalogTableShell({
   entityKey,
   onToggleAllRows,
   selectionLabel,
+  showActions = true,
   showSelection = false,
 }) {
   const isCenteredActionsHeader =
@@ -38,9 +39,11 @@ export default function CatalogTableShell({
                   {column.label}
                 </TableHead>
               ))}
-              <TableHead className={isCenteredActionsHeader ? 'text-center text-[13px] font-semibold' : 'text-right font-bold'}>
-                Acoes
-              </TableHead>
+              {showActions ? (
+                <TableHead className={isCenteredActionsHeader ? 'text-center text-[13px] font-semibold' : 'text-right font-bold'}>
+                  Acoes
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>{children}</TableBody>

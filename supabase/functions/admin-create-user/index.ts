@@ -182,6 +182,35 @@ async function resolveAuthenticatedCollaborator(authUser: { id: string; email?: 
   return byEmailRows[0] || null;
 }
 
+async function canManageCentralCollaborators(collaborator: Record<string, unknown> | null) {
+  if (!sql || !collaborator) return false;
+
+  if (collaborator.status === 'inativo') {
+    return false;
+  }
+
+  if (collaborator.funcao === 'admin') {
+    return true;
+  }
+
+  if (collaborator.funcao !== 'gestor') {
+    return false;
+  }
+
+  const rows = await sql.unsafe(
+    `
+      select 1
+      from gestao_ativos.permissoes_central
+      where funcao = 'gestor'
+        and modulo = 'colaboradores'
+        and nivel_acesso = 'gerenciar'
+      limit 1;
+    `,
+  );
+
+  return Boolean(rows[0]);
+}
+
 function buildCentralCollaboratorAuditMetadata({
   before,
   after,
@@ -292,15 +321,13 @@ Deno.serve(async (request) => {
     const collaboratorId = String(body.id || '').trim();
     const payload = normalizePayload(body);
 
-    const adminRole = await sql.unsafe(
-      'select funcao from public.colaboradores where id = $1 limit 1;',
-      [user.id],
-    );
     const responsibleCollaborator = await resolveAuthenticatedCollaborator(user);
     const responsibleCollaboratorId = responsibleCollaborator?.id || user.id;
     const responsibleEmail = responsibleCollaborator?.email || user.email || null;
+    const isAdmin = responsibleCollaborator?.funcao === 'admin' && responsibleCollaborator?.status !== 'inativo';
+    const canManageCollaborators = await canManageCentralCollaborators(responsibleCollaborator);
 
-    if ((adminRole[0]?.funcao || 'usuario') !== 'admin') {
+    if (!canManageCollaborators) {
       return json({ error: 'Apenas administradores podem gerenciar colaboradores.' }, 403);
     }
 
@@ -463,6 +490,10 @@ Deno.serve(async (request) => {
 
     if (action !== 'create') {
       return json({ error: 'Acao invalida.' }, 400);
+    }
+
+    if (!isAdmin && (payload.funcao === 'admin' || payload.funcao === 'gestor')) {
+      return json({ error: 'Apenas administradores podem criar colaboradores admin ou gestor.' }, 403);
     }
 
     if (!email) {

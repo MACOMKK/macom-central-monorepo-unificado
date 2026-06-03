@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAuth } from '@/lib/AuthContext';
+import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
 import { catalogApi, systemAccessApi } from '@macom/api-client';
 
 const accessOptions = [
@@ -52,6 +54,8 @@ function upsertAccess(accesses, access) {
 
 export default function SystemAccess() {
   const queryClient = useQueryClient();
+  const { canCentral } = useAuth();
+  const canManage = canCentral?.('acessos_usuario_sistema', CENTRAL_PERMISSION_LEVELS.manage);
   const [search, setSearch] = useState('');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [feedback, setFeedback] = useState(null);
@@ -263,6 +267,7 @@ export default function SystemAccess() {
         </p>
       </div>
 
+      {canManage ? (
       <Card className="space-y-4 p-5">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5 text-primary" />
@@ -364,6 +369,7 @@ export default function SystemAccess() {
           </Button>
         </div>
       </Card>
+      ) : null}
 
       <Card className="space-y-4 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -389,19 +395,19 @@ export default function SystemAccess() {
                 <TableHead>Sistema</TableHead>
                 <TableHead>Nivel</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                {canManage ? <TableHead className="text-right">Acoes</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={canManage ? 6 : 5} className="py-10 text-center text-sm text-muted-foreground">
                     Carregando acessos...
                   </TableCell>
                 </TableRow>
               ) : filteredAccesses.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={canManage ? 6 : 5} className="py-10 text-center text-sm text-muted-foreground">
                     Nenhum acesso cadastrado.
                   </TableCell>
                 </TableRow>
@@ -421,26 +427,28 @@ export default function SystemAccess() {
                         {entry.ativo ? 'Liberado' : 'Bloqueado'}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={toggleMutation.isPending}
-                          onClick={() => toggleMutation.mutate({ id: entry.id, ativo: !entry.ativo })}
-                        >
-                          {entry.ativo ? 'Bloquear' : 'Liberar'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={removeMutation.isPending}
-                          onClick={() => setAccessToDelete(entry)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {canManage ? (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={toggleMutation.isPending}
+                            onClick={() => toggleMutation.mutate({ id: entry.id, ativo: !entry.ativo })}
+                          >
+                            {entry.ativo ? 'Bloquear' : 'Liberar'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={removeMutation.isPending}
+                            onClick={() => setAccessToDelete(entry)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))
               )}
