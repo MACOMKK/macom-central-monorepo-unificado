@@ -45,8 +45,11 @@ async function invokeCatalogFunction(action, payload = {}, accessTokenOverride) 
 
 export const systemAccessApi = {
   systems: {
-    async list() {
-      const result = await invokeCatalogFunction('list', { entity: 'sistemas' });
+    async list(options = {}) {
+      const result = await invokeCatalogFunction('list', {
+        entity: 'sistemas',
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return result.rows || [];
     },
     async findBySlug(slug) {
@@ -55,16 +58,28 @@ export const systemAccessApi = {
     },
   },
   accesses: {
-    async list() {
-      const result = await invokeCatalogFunction('list', { entity: 'acessos_usuario_sistema' });
+    async list(options = {}) {
+      const result = await invokeCatalogFunction('list', {
+        entity: 'acessos_usuario_sistema',
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return result.rows || [];
     },
-    async save(payload) {
-      const result = await invokeCatalogFunction('save', { entity: 'acessos_usuario_sistema', payload });
+    async save(payload, options = {}) {
+      const result = await invokeCatalogFunction('save', {
+        entity: 'acessos_usuario_sistema',
+        payload,
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return result.row || null;
     },
-    async update(id, payload) {
-      const result = await invokeCatalogFunction('update', { entity: 'acessos_usuario_sistema', id, payload });
+    async update(id, payload, options = {}) {
+      const result = await invokeCatalogFunction('update', {
+        entity: 'acessos_usuario_sistema',
+        id,
+        payload,
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return result.row || null;
     },
     async findByCollaboratorAndSystem(colaboradorId, systemSlug, accessToken) {
@@ -75,8 +90,12 @@ export const systemAccessApi = {
       }, accessToken);
       return result.row || null;
     },
-    async remove(id) {
-      await invokeCatalogFunction('delete', { entity: 'acessos_usuario_sistema', id });
+    async remove(id, options = {}) {
+      await invokeCatalogFunction('delete', {
+        entity: 'acessos_usuario_sistema',
+        id,
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return true;
     },
   },

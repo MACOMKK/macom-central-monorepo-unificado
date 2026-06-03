@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { catalogApi, systemAccessApi } from '@macom/api-client';
+import { catalogApi } from '@/lib/catalogApi';
+import { systemAccessApi } from '@/lib/systemAccessApi';
 
 const PAGE_SIZE = 25;
 

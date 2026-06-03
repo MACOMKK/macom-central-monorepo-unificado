@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import PaginationControls from '@/components/PaginationControls';
 import { useAuth } from '@/lib/AuthContext';
 import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
-import { catalogApi, systemAccessApi } from '@macom/api-client';
+import { catalogApi } from '@/lib/catalogApi';
+import { systemAccessApi } from '@/lib/systemAccessApi';
 
 const accessOptions = [
   { value: 'admin', label: 'Admin' },

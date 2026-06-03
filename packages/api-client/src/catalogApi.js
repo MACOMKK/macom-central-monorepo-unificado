@@ -148,8 +148,10 @@ export const catalogApi = {
     },
   },
   colaboradores: {
-    async list() {
-      const result = await invokeCatalog('list', 'colaboradores');
+    async list(options = {}) {
+      const result = await invokeCatalog('list', 'colaboradores', {
+        ...(options.appContext ? { app_context: options.appContext } : {}),
+      });
       return result.rows || [];
     },
     async create(payload) {

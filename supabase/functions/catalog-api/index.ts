@@ -1472,6 +1472,8 @@ Deno.serve(async (request) => {
     const id = body.id as string | undefined;
     const payload = body.payload as Record<string, unknown> | undefined;
     const filters = body.filters as Record<string, unknown> | undefined;
+    const appContext = typeof body.app_context === 'string' ? body.app_context : '';
+    const isCentralContext = appContext === 'central';
 
     if (!entity || !ENTITY_CONFIG[entity]) {
       return json({ error: 'Entidade invalida.' }, 400);
@@ -1585,7 +1587,75 @@ Deno.serve(async (request) => {
         (canManageReportPermissionsAsManager && entity === 'permissoes_relatorios') ||
         (canManageReportNoticesAsManager && entity === 'avisos_relatorios');
 
-    if (action === 'list' && entity === 'permissoes_funcoes_relatorios' && reportsAccess?.nivel_acesso === 'gestor') {
+    if (
+      !isCentralContext &&
+      action === 'list' &&
+      entity === 'colaboradores' &&
+      reportsAccess?.nivel_acesso === 'gestor' &&
+      canViewReportPermissionsAsManager
+    ) {
+      const reportsSystem = await getSystemBySlug(reportsSystemSlug);
+      const reportsSystemId = typeof reportsSystem?.id === 'string' ? reportsSystem.id : null;
+
+      if (!reportsSystemId) {
+        return json({ error: 'Sistema de relatorios nao encontrado.' }, 404);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select c.*
+          from public.colaboradores c
+          where exists (
+            select 1
+            from public.acessos_usuario_sistema aus
+            where aus.colaborador_id = c.id
+              and aus.sistema_id = $1
+          )
+          order by c.${orderBy} ${orderDirection};
+        `,
+        [reportsSystemId],
+      );
+      return json({ rows });
+    }
+
+    if (
+      !isCentralContext &&
+      action === 'list' &&
+      entity === 'sistemas' &&
+      reportsAccess?.nivel_acesso === 'gestor' &&
+      canManageReportPermissionsAsManager
+    ) {
+      const reportsSystem = await getSystemBySlug(reportsSystemSlug);
+      return json({ rows: reportsSystem?.id ? [reportsSystem] : [] });
+    }
+
+    if (
+      !isCentralContext &&
+      action === 'list' &&
+      entity === 'acessos_usuario_sistema' &&
+      reportsAccess?.nivel_acesso === 'gestor' &&
+      canManageReportPermissionsAsManager
+    ) {
+      const reportsSystem = await getSystemBySlug(reportsSystemSlug);
+      const reportsSystemId = typeof reportsSystem?.id === 'string' ? reportsSystem.id : null;
+
+      if (!reportsSystemId) {
+        return json({ error: 'Sistema de relatorios nao encontrado.' }, 404);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select *
+          from public.acessos_usuario_sistema
+          where sistema_id = $1
+          order by ${orderBy} ${orderDirection};
+        `,
+        [reportsSystemId],
+      );
+      return json({ rows });
+    }
+
+    if (!isCentralContext && action === 'list' && entity === 'permissoes_funcoes_relatorios' && reportsAccess?.nivel_acesso === 'gestor') {
       const requestedLevel = typeof filters?.nivel_acesso === 'string' ? filters.nivel_acesso : 'gestor';
 
       if (requestedLevel !== 'gestor') {
@@ -1932,7 +2002,7 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
-    if (!isGlobalAdmin && isReportsAdmin) {
+    if (!isCentralContext && !isGlobalAdmin && isReportsAdmin) {
       const reportsSystem = await getSystemBySlug(reportsSystemSlug);
       const reportsSystemId = typeof reportsSystem?.id === 'string' ? reportsSystem.id : null;
 
