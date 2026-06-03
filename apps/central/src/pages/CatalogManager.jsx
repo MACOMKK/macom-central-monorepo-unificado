@@ -94,6 +94,16 @@ const ENTITY_DEPENDENCIES = {
   unidades: ['unidades', 'ativos', 'colaboradores'],
 };
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGINATED_ENTITIES = new Set([
+  'ativos',
+  'colaboradores',
+  'contatos',
+  'infra_estrutura',
+  'linhas_corporativas',
+  'termos_posse',
+]);
+
 export default function CatalogManager({ lockedEntityKey }) {
   const { canCentral, profile } = useAuth();
   const importInputRef = useRef(null);
@@ -140,6 +150,8 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorDepartmentFilter, setCollaboratorDepartmentFilter] = useState('all');
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
   const [selectedBulkIds, setSelectedBulkIds] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [feedback, setFeedback] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
@@ -408,6 +420,30 @@ export default function CatalogManager({ lockedEntityKey }) {
     lockedEntityKey,
     search,
   });
+  const shouldPaginate = PAGINATED_ENTITIES.has(lockedEntityKey);
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = shouldPaginate
+    ? rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : rows;
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    assetCategoryFilter,
+    assetStatusFilter,
+    assetUnitFilter,
+    collaboratorDepartmentFilter,
+    collaboratorStatusFilter,
+    collaboratorUnitFilter,
+    lockedEntityKey,
+    pageSize,
+    search,
+  ]);
+
+  useEffect(() => {
+    setPage((currentValue) => Math.min(currentValue, totalPages));
+  }, [totalPages]);
 
   const resetImportAssetsDialog = () => {
     setImportAssetsOpen(false);
@@ -627,8 +663,8 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   const allBulkRowsSelected =
     isBulkDeleteView &&
-    rows.length > 0 &&
-    rows.every((row) => selectedBulkIds.includes(row.id));
+    paginatedRows.length > 0 &&
+    paginatedRows.every((row) => selectedBulkIds.includes(row.id));
 
   const handleToggleBulkSelection = (rowId, checked) => {
     setSelectedBulkIds((currentSelection) =>
@@ -639,7 +675,13 @@ export default function CatalogManager({ lockedEntityKey }) {
   };
 
   const handleToggleAllBulkRows = (checked) => {
-    setSelectedBulkIds(checked ? rows.map((row) => row.id) : []);
+    const pageIds = paginatedRows.map((row) => row.id);
+    setSelectedBulkIds((currentSelection) => {
+      if (checked) {
+        return [...new Set([...currentSelection, ...pageIds])];
+      }
+      return currentSelection.filter((selectedId) => !pageIds.includes(selectedId));
+    });
   };
 
   const handleDeleteSelectedRows = async () => {
@@ -879,12 +921,17 @@ export default function CatalogManager({ lockedEntityKey }) {
           isLoading={isLoading}
           onDelete={handleDeleteRow}
           onEdit={setEditingRecord}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
           onRowClick={setViewingCollaboratorLinks}
           onToggleAllRows={handleToggleAllBulkRows}
           onToggleRowSelection={handleToggleBulkSelection}
-          rows={rows}
+          page={currentPage}
+          pageSize={pageSize}
+          rows={paginatedRows}
           selectedRowIds={selectedBulkIds}
           toggleRowMenu={toggleRowMenu}
+          totalRows={rows.length}
         />
       )}
 

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import PaginationControls from '@/components/PaginationControls';
 import { useAuth } from '@/lib/AuthContext';
 import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
 import { catalogApi, systemAccessApi } from '@macom/api-client';
@@ -24,6 +25,8 @@ const statusOptions = [
   { value: 'true', label: 'Liberado' },
   { value: 'false', label: 'Bloqueado' },
 ];
+
+const DEFAULT_PAGE_SIZE = 10;
 
 function upsertAccess(accesses, access) {
   if (!access) return accesses;
@@ -60,6 +63,8 @@ export default function SystemAccess() {
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [accessToDelete, setAccessToDelete] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [form, setForm] = useState({
     colaborador_id: '',
     sistema_id: '',
@@ -248,8 +253,22 @@ export default function SystemAccess() {
       );
     });
   }, [hydratedAccesses, normalizedSearch]);
+  const totalPages = Math.max(1, Math.ceil(filteredAccesses.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedAccesses = useMemo(
+    () => filteredAccesses.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filteredAccesses, pageSize],
+  );
 
   const isLoading = loadingCollaborators || loadingSystems || loadingAccesses;
+
+  useEffect(() => {
+    setPage(1);
+  }, [normalizedSearch, pageSize]);
+
+  useEffect(() => {
+    setPage((currentValue) => Math.min(currentValue, totalPages));
+  }, [totalPages]);
 
   const handleConfirmDelete = () => {
     if (!accessToDelete) return;
@@ -412,7 +431,7 @@ export default function SystemAccess() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAccesses.map((entry) => (
+                paginatedAccesses.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell className="font-medium">{entry.colaborador?.nome || '—'}</TableCell>
                     <TableCell>{entry.colaborador?.email || '—'}</TableCell>
@@ -455,6 +474,15 @@ export default function SystemAccess() {
             </TableBody>
           </Table>
         </div>
+        {filteredAccesses.length > 0 ? (
+          <PaginationControls
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredAccesses.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        ) : null}
       </Card>
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />

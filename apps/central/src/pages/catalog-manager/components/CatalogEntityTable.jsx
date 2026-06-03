@@ -2,6 +2,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
+import PaginationControls from '@/components/PaginationControls';
 import CatalogTableShell from '@/pages/catalog-manager/components/CatalogTableShell';
 import MenuTriggerButton from '@/pages/catalog-manager/components/MenuTriggerButton';
 
@@ -29,12 +30,17 @@ export default function CatalogEntityTable({
   isLoading,
   onDelete,
   onEdit,
+  onPageChange,
+  onPageSizeChange,
   onRowClick,
   onToggleAllRows,
   onToggleRowSelection,
+  page = 1,
+  pageSize = 10,
   rows,
   selectedRowIds = [],
   toggleRowMenu,
+  totalRows,
 }) {
   const menuType = MENU_TYPES_BY_ENTITY[entityKey];
   const isCenteredActions = Boolean(menuType);
@@ -42,6 +48,8 @@ export default function CatalogEntityTable({
   const showSelection = canManage && Boolean(SELECTION_LABELS_BY_ENTITY[entityKey]);
   const selectionLabel = SELECTION_LABELS_BY_ENTITY[entityKey];
   const colSpan = columns.length + (canManage ? 1 : 0) + (showSelection ? 1 : 0);
+
+  const resolvedTotalRows = totalRows ?? rows.length;
 
   return (
     <CatalogTableShell
@@ -116,6 +124,19 @@ export default function CatalogEntityTable({
           </TableRow>
         ))
       )}
+      {!isLoading && resolvedTotalRows > 0 ? (
+        <TableRow>
+          <TableCell colSpan={colSpan} className="p-0">
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              totalItems={resolvedTotalRows}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+            />
+          </TableCell>
+        </TableRow>
+      ) : null}
     </CatalogTableShell>
   );
 }
