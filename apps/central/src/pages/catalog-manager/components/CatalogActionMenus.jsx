@@ -7,6 +7,8 @@ import InfrastructureActionsMenu from '@/pages/catalog-manager/components/Infras
 export default function CatalogActionMenus({
   assetMenu,
   assetMenuHandlers,
+  collaboratorCanDelete,
+  collaboratorCanResetPassword,
   collaboratorCanUnlinkAll,
   collaboratorMenu,
   collaboratorMenuHandlers,
@@ -47,6 +49,8 @@ export default function CatalogActionMenus({
       />
 
       <CollaboratorActionsMenu
+        canDelete={collaboratorCanDelete}
+        canResetPassword={collaboratorCanResetPassword}
         canUnlinkAll={collaboratorCanUnlinkAll}
         isUnlinking={isUnlinking}
         menu={collaboratorMenu}

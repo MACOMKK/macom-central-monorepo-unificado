@@ -2,6 +2,8 @@ import { createPortal } from 'react-dom';
 import { KeyRound, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 
 export default function CollaboratorActionsMenu({
+  canDelete = true,
+  canResetPassword = true,
   canUnlinkAll,
   isUnlinking,
   menu,
@@ -26,14 +28,16 @@ export default function CollaboratorActionsMenu({
         <Pencil className="h-4 w-4" />
         Editar
       </button>
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
-        onClick={onResetPassword}
-      >
-        <KeyRound className="h-4 w-4" />
-        Redefinir senha
-      </button>
+      {canResetPassword ? (
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+          onClick={onResetPassword}
+        >
+          <KeyRound className="h-4 w-4" />
+          Redefinir senha
+        </button>
+      ) : null}
       {canUnlinkAll ? (
         <button
           type="button"
@@ -45,14 +49,16 @@ export default function CollaboratorActionsMenu({
           Desvincular tudo
         </button>
       ) : null}
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
-        onClick={onDelete}
-      >
-        <Trash2 className="h-4 w-4" />
-        Excluir
-      </button>
+      {canDelete ? (
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-4 w-4" />
+          Excluir
+        </button>
+      ) : null}
     </div>,
     document.body
   );

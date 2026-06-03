@@ -2,6 +2,7 @@ export function useCatalogActionHandlers({
   assetMenu,
   assets,
   closeMenu,
+  canManageElevatedRoles = true,
   collaboratorMenu,
   corporateLineMenu,
   corporateLines,
@@ -51,6 +52,14 @@ export function useCatalogActionHandlers({
     collaboratorMenu &&
       collaboratorMenu.row.status === 'inativo' &&
       hasLinkedCollaboratorItems(collaboratorMenu.row.id)
+  );
+  const collaboratorCanDelete = Boolean(
+    collaboratorMenu &&
+      (canManageElevatedRoles || !['admin', 'gestor'].includes(collaboratorMenu.row.funcao))
+  );
+  const collaboratorCanResetPassword = Boolean(
+    collaboratorMenu &&
+      (canManageElevatedRoles || collaboratorMenu.row.funcao !== 'admin')
   );
 
   const assetMenuHandlers = {
@@ -111,6 +120,11 @@ export function useCatalogActionHandlers({
 
   const collaboratorMenuHandlers = {
     onDelete: () => {
+      if (!collaboratorCanDelete) {
+        showMenuError('Apenas administradores podem excluir colaboradores admin ou gestor.');
+        return;
+      }
+
       if (hasLinkedCollaboratorItems(collaboratorMenu?.row?.id)) {
         showMenuError('Nao e permitido excluir um colaborador com itens vinculados.');
         return;
@@ -124,6 +138,11 @@ export function useCatalogActionHandlers({
     },
     onEdit: () => openRecordEditor(collaboratorMenu),
     onResetPassword: () => {
+      if (!collaboratorCanResetPassword) {
+        showMenuError('Apenas administradores podem redefinir senha de colaboradores admin.');
+        return;
+      }
+
       openPasswordReset(collaboratorMenu.row);
       closeMenu();
     },
@@ -140,6 +159,8 @@ export function useCatalogActionHandlers({
 
   return {
     assetMenuHandlers,
+    collaboratorCanDelete,
+    collaboratorCanResetPassword,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,

@@ -95,9 +95,10 @@ const ENTITY_DEPENDENCIES = {
 };
 
 export default function CatalogManager({ lockedEntityKey }) {
-  const { canCentral } = useAuth();
+  const { canCentral, profile } = useAuth();
   const importInputRef = useRef(null);
   const canManageModule = canCentral?.(lockedEntityKey, CENTRAL_PERMISSION_LEVELS.manage);
+  const canManageElevatedRoles = profile?.funcao === 'admin';
   const isCollaboratorsView = lockedEntityKey === 'colaboradores';
   const isAssetsView = lockedEntityKey === 'ativos';
   const isCorporateLinesView = lockedEntityKey === 'linhas_corporativas';
@@ -277,6 +278,14 @@ export default function CatalogManager({ lockedEntityKey }) {
     const assetsByDepartmentId = countAssetsByDepartmentId(assets, collaboratorsById);
     const collaboratorsByUnitId = countByKey(activeCollaborators, 'unidade_id');
     const assetsByUnitId = countAssetsByUnitId(assets);
+    const availableCollaboratorRoleOptions = canManageElevatedRoles
+      ? collaboratorRoleOptions
+      : collaboratorRoleOptions.filter((option) => option.value === 'usuario');
+    const isEditingElevatedCollaborator = ['admin', 'gestor'].includes(editingRecord?.funcao);
+    const availableCollaboratorStatusOptions =
+      !canManageElevatedRoles && isEditingElevatedCollaborator
+        ? collaboratorStatusOptions.filter((option) => option.value !== 'inativo')
+        : collaboratorStatusOptions;
 
     return {
       departamentos: buildDepartmentsConfig({
@@ -298,8 +307,8 @@ export default function CatalogManager({ lockedEntityKey }) {
       colaboradores: buildCollaboratorsConfig({
         assetsByProfileId,
         Badge,
-        collaboratorRoleOptions,
-        collaboratorStatusOptions,
+        collaboratorRoleOptions: availableCollaboratorRoleOptions,
+        collaboratorStatusOptions: availableCollaboratorStatusOptions,
         collaborators,
         departments,
         departmentOptions,
@@ -511,6 +520,8 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   const {
     assetMenuHandlers,
+    collaboratorCanDelete,
+    collaboratorCanResetPassword,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,
@@ -519,6 +530,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   } = useCatalogActionHandlers({
     assetMenu,
     assets,
+    canManageElevatedRoles,
     closeMenu,
     collaboratorMenu,
     corporateLineMenu,
@@ -648,6 +660,18 @@ export default function CatalogManager({ lockedEntityKey }) {
     }
 
     if (isCollaboratorsView) {
+      const hasElevatedRoles = rows.some((row) =>
+        selectedBulkIds.includes(row.id) && ['admin', 'gestor'].includes(row.funcao)
+      );
+
+      if (!canManageElevatedRoles && hasElevatedRoles) {
+        setFeedback({
+          type: 'error',
+          message: 'Apenas administradores podem excluir colaboradores admin ou gestor.',
+        });
+        return;
+      }
+
       const hasLinkedItems = rows.some((row) => {
         if (!selectedBulkIds.includes(row.id)) return false;
         const assetsCount = linkedAssetsByCollaboratorId[row.id]?.length || 0;
@@ -943,6 +967,8 @@ export default function CatalogManager({ lockedEntityKey }) {
       <CatalogActionMenus
         assetMenu={assetMenu}
         assetMenuHandlers={assetMenuHandlers}
+        collaboratorCanDelete={collaboratorCanDelete}
+        collaboratorCanResetPassword={collaboratorCanResetPassword}
         collaboratorCanUnlinkAll={collaboratorCanUnlinkAll}
         collaboratorMenu={collaboratorMenu}
         collaboratorMenuHandlers={collaboratorMenuHandlers}

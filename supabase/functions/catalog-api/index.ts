@@ -2191,6 +2191,9 @@ Deno.serve(async (request) => {
         validateContatosPayload(normalized, true);
       }
       if (entity === 'colaboradores') {
+        if (!isGlobalAdmin && normalized.funcao && normalized.funcao !== 'usuario') {
+          return json({ error: 'Apenas administradores podem definir colaboradores como admin ou gestor.' }, 403);
+        }
         validateColaboradoresDocumentFields(normalized);
         await validateColaboradoresUniqueFields(normalized);
       }
@@ -2301,6 +2304,22 @@ Deno.serve(async (request) => {
         validateContatosPayload(normalized);
       }
       if (entity === 'colaboradores') {
+        if (
+          !isGlobalAdmin &&
+          normalized.funcao &&
+          normalized.funcao !== 'usuario' &&
+          normalized.funcao !== beforeRow?.funcao
+        ) {
+          return json({ error: 'Apenas administradores podem definir colaboradores como admin ou gestor.' }, 403);
+        }
+        if (
+          !isGlobalAdmin &&
+          normalized.status === 'inativo' &&
+          ['admin', 'gestor'].includes(String(beforeRow?.funcao || '')) &&
+          beforeRow?.status !== 'inativo'
+        ) {
+          return json({ error: 'Apenas administradores podem inativar colaboradores admin ou gestor.' }, 403);
+        }
         validateColaboradoresDocumentFields(normalized);
         await validateColaboradoresUniqueFields(normalized, id);
       }

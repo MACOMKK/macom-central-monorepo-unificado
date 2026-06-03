@@ -342,6 +342,14 @@ Deno.serve(async (request) => {
 
       const beforeRow = await fetchRowById('public', 'colaboradores', collaboratorId);
 
+      if (!beforeRow) {
+        return json({ error: 'Colaborador nao encontrado.' }, 404);
+      }
+
+      if (!isAdmin && (beforeRow.funcao === 'admin' || beforeRow.funcao === 'gestor')) {
+        return json({ error: 'Apenas administradores podem excluir colaboradores admin ou gestor.' }, 403);
+      }
+
       await sql.unsafe('delete from public.colaboradores where id = $1;', [collaboratorId]);
 
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(collaboratorId);
@@ -375,6 +383,16 @@ Deno.serve(async (request) => {
         return json({ error: 'Senha obrigatoria com pelo menos 6 caracteres.' }, 400);
       }
 
+      const collaboratorRow = await fetchRowById('public', 'colaboradores', collaboratorId);
+
+      if (!collaboratorRow) {
+        return json({ error: 'Colaborador nao encontrado.' }, 404);
+      }
+
+      if (!isAdmin && collaboratorRow.funcao === 'admin') {
+        return json({ error: 'Apenas administradores podem redefinir senha de colaboradores admin.' }, 403);
+      }
+
       const { error: updatePasswordError } = await adminClient.auth.admin.updateUserById(collaboratorId, {
         password,
       });
@@ -383,7 +401,6 @@ Deno.serve(async (request) => {
         return json({ error: updatePasswordError.message || 'Falha ao atualizar senha no Auth.' }, 400);
       }
 
-      const collaboratorRow = await fetchRowById('public', 'colaboradores', collaboratorId);
       await insertCentralAuditLog({
         action: 'redefinir_senha',
         entity: 'colaboradores',
