@@ -295,7 +295,7 @@ export default function AuditLogs() {
   const pageEnd = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
   return (
-    <AdminGuard user={user}>
+    <AdminGuard user={user} module="logs_auditoria">
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
           <p className="mb-1 text-[10px] font-black uppercase tracking-widest" style={{ color: '#E30613' }}>

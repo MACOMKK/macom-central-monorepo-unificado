@@ -27,6 +27,7 @@ const statusOptions = [
 ];
 
 const DEFAULT_PAGE_SIZE = 10;
+const HIDDEN_ACCESS_SYSTEM_SLUGS = new Set(['central', 'rh', 'pagamentos']);
 
 function upsertAccess(accesses, access) {
   if (!access) return accesses;
@@ -57,8 +58,13 @@ function upsertAccess(accesses, access) {
 
 export default function SystemAccess() {
   const queryClient = useQueryClient();
-  const { canCentral } = useAuth();
+  const { canCentral, profile } = useAuth();
   const canManage = canCentral?.('acessos_usuario_sistema', CENTRAL_PERMISSION_LEVELS.manage);
+  const canGrantAdminAccess = profile?.funcao === 'admin';
+  const availableAccessOptions = useMemo(
+    () => accessOptions.filter((option) => canGrantAdminAccess || option.value !== 'admin'),
+    [canGrantAdminAccess],
+  );
   const [search, setSearch] = useState('');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [feedback, setFeedback] = useState(null);
@@ -101,6 +107,11 @@ export default function SystemAccess() {
 
   const systemsById = useMemo(
     () => new Map(systems.map((system) => [system.id, system])),
+    [systems],
+  );
+
+  const grantableSystems = useMemo(
+    () => systems.filter((system) => !HIDDEN_ACCESS_SYSTEM_SLUGS.has(String(system.slug || '').toLowerCase())),
     [systems],
   );
 
@@ -326,12 +337,12 @@ export default function SystemAccess() {
               </SelectTrigger>
               <SelectContent>
                 {loadingSystems ? <SelectItem value="loading-systems" disabled>Carregando sistemas...</SelectItem> : null}
-                {!loadingSystems && systems.length === 0 ? (
+                {!loadingSystems && grantableSystems.length === 0 ? (
                   <SelectItem value="empty-systems" disabled>
                     Nenhum sistema disponivel
                   </SelectItem>
                 ) : null}
-                {systems.map((system) => (
+                {grantableSystems.map((system) => (
                   <SelectItem key={system.id} value={system.id}>
                     {system.nome}
                   </SelectItem>
@@ -347,7 +358,7 @@ export default function SystemAccess() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {accessOptions.map((option) => (
+                {availableAccessOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>

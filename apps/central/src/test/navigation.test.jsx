@@ -74,7 +74,12 @@ describe('Navigation and route protection', () => {
     const user = userEvent.setup();
     const setMobileOpen = vi.fn();
 
-    useAuthMock.mockReturnValue({ logout: vi.fn(), user: { id: 'admin-1' } });
+    useAuthMock.mockReturnValue({
+      canCentral: vi.fn(() => true),
+      logout: vi.fn(),
+      profile: { funcao: 'admin' },
+      user: { id: 'admin-1' },
+    });
 
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -102,7 +107,12 @@ describe('Navigation and route protection', () => {
   it('inicializa o layout com tema salvo e permite alternar o tema', async () => {
     const user = userEvent.setup();
 
-    useAuthMock.mockReturnValue({ logout: vi.fn(), user: { id: 'admin-1' } });
+    useAuthMock.mockReturnValue({
+      canCentral: vi.fn(() => true),
+      logout: vi.fn(),
+      profile: { funcao: 'admin' },
+      user: { id: 'admin-1' },
+    });
 
     render(
       <MemoryRouter initialEntries={['/']}>

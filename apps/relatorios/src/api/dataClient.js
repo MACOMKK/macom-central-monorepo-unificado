@@ -84,6 +84,19 @@ const createLookupCache = () => ({
 const unitsCache = createLookupCache();
 const collaboratorsCache = createLookupCache();
 
+const REPORTS_FUNCTION_MODULES = [
+  'relatorios',
+  'permissoes_relatorios',
+  'avisos_relatorios',
+  'logs_auditoria',
+];
+
+const REPORTS_PERMISSION_LEVELS = {
+  sem: 0,
+  ver: 1,
+  gerenciar: 2,
+};
+
 const isCacheFresh = (cache) =>
   Array.isArray(cache.data) && Date.now() - cache.loadedAt < LOOKUP_CACHE_TTL_MS;
 
@@ -216,6 +229,51 @@ const mapReportPermissionPayload = (payload = {}) => ({
   colaborador_id: payload.collaborator_id ?? payload.colaborador_id ?? payload.user_id ?? null,
   relatorio_id: payload.report_id ?? payload.relatorio_id ?? null,
 });
+
+const mapReportsFunctionPermissionRow = (row = {}) => {
+  const permission = row.permissao || 'sem';
+
+  return {
+    id: row.id,
+    access_level: row.nivel_acesso || 'gestor',
+    module: row.modulo || '',
+    permission,
+    can_view: REPORTS_PERMISSION_LEVELS[permission] >= REPORTS_PERMISSION_LEVELS.ver,
+    can_manage: REPORTS_PERMISSION_LEVELS[permission] >= REPORTS_PERMISSION_LEVELS.gerenciar,
+    raw: row,
+  };
+};
+
+const buildReportsFunctionPermissionMap = (rows = []) => {
+  const permissions = Object.fromEntries(REPORTS_FUNCTION_MODULES.map((module) => [module, 'sem']));
+
+  rows.forEach((row) => {
+    if (row.module && row.permission) {
+      permissions[row.module] = row.permission;
+    }
+  });
+
+  return permissions;
+};
+
+export const canReportsFunction = (permissions = {}, module, requiredPermission = 'ver') => {
+  const currentLevel = REPORTS_PERMISSION_LEVELS[permissions?.[module] || 'sem'] || 0;
+  const requiredLevel = REPORTS_PERMISSION_LEVELS[requiredPermission] || REPORTS_PERMISSION_LEVELS.ver;
+  return currentLevel >= requiredLevel;
+};
+
+const getReportsFunctionPermissions = async (accessLevel, accessToken) => {
+  if (accessLevel !== 'gestor') {
+    return [];
+  }
+
+  const rows = await catalogApi.permissoes_funcoes_relatorios.list(
+    { filters: { nivel_acesso: accessLevel } },
+    accessToken,
+  );
+
+  return rows.map(mapReportsFunctionPermissionRow);
+};
 
 const mapReportNoticeRow = (row = {}) => ({
   id: row.id,
@@ -444,11 +502,15 @@ const ensureReportsSystemAccess = async (profile, accessToken, prefetchedAccess 
     throw accessError;
   }
 
+  const permissionRows = await getReportsFunctionPermissions(access.nivel_acesso, accessToken);
+
   return {
     ...profile,
     role: mapSystemAccessLevelToRole(access.nivel_acesso),
     system_access_id: access.id,
     system_access_level: access.nivel_acesso || 'usuario',
+    reports_permission_rows: permissionRows,
+    reports_permissions: buildReportsFunctionPermissionMap(permissionRows),
   };
 };
 

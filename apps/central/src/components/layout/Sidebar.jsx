@@ -16,7 +16,7 @@ const routePrefetchers = {
   '/infraestrutura': () => import('@/pages/Infrastructure'),
   '/acessos-sistemas': () => import('@/pages/SystemAccess'),
   '/logs-auditoria': () => import('@/pages/AuditLogs'),
-  '/permissoes-central': () => import('@/pages/CentralPermissions'),
+  '/permissoes-sistemas': () => import('@/pages/CentralPermissions'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
 };
 
@@ -30,9 +30,9 @@ const navItems = [
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone, module: 'linhas_corporativas' },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
   { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound, module: 'acessos_usuario_sistema' },
-  { path: '/logs-auditoria', label: 'Logs Auditoria', icon: History, module: 'logs_auditoria' },
-  { path: '/permissoes-central', label: 'Permissoes Central', icon: ShieldCheck, adminOnly: true },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
+  { path: '/permissoes-sistemas', label: 'Permissoes', icon: ShieldCheck, adminOnly: true },
+  { path: '/logs-auditoria', label: 'Logs', icon: History, module: 'logs_auditoria' },
 ];
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen, theme, toggleTheme }) {

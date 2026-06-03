@@ -4,6 +4,7 @@ import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, Message
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
+import { canReportsFunction } from '@/api/dataClient';
 
 const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 
@@ -15,6 +16,12 @@ const navItems = [
   { path: '/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
   { path: '/logs', icon: History, label: 'Logs', adminOnly: true },
 ];
+
+const managerPermissionByPath = {
+  '/relatorios': 'relatorios',
+  '/permissoes': 'permissoes_relatorios',
+  '/logs': 'logs_auditoria',
+};
 
 const routePrefetchers = {
   '/': () => import('@/pages/Dashboard'),
@@ -38,8 +45,15 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
   const [isSavingPassword, setIsSavingPassword] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const isAdmin = user?.role === 'admin';
+  const isManager = user?.role === 'manager';
 
-  const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const filteredItems = navItems.filter((item) => {
+    if (!item.adminOnly || isAdmin) return true;
+    if (!isManager) return false;
+
+    const module = managerPermissionByPath[item.path];
+    return module ? canReportsFunction(user?.reports_permissions, module, 'ver') : false;
+  });
   const supportItems = [
     {
       href: 'https://wa.me/5591983927903',

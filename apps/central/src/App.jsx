@@ -99,7 +99,8 @@ export default function App() {
                 <Route path="/infraestrutura" element={withCentralPermission('/infraestrutura', <Infrastructure />)} />
                 <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccess />)} />
                 <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
-                <Route path="/permissoes-central" element={withCentralPermission('/permissoes-central', <CentralPermissions />, { adminOnly: true })} />
+                <Route path="/permissoes-central" element={<Navigate to="/permissoes-sistemas" replace />} />
+                <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <CentralPermissions />, { adminOnly: true })} />
                 <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />
                 <Route path="*" element={<PageNotFound />} />
               </Route>

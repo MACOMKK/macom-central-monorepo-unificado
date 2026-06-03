@@ -334,6 +334,24 @@ export const catalogApi = {
       return true;
     },
   },
+  permissoes_funcoes_relatorios: {
+    async list(options = {}, accessTokenOverride) {
+      const result = await invokeSupabaseFunction(
+        'catalog-api',
+        {
+          action: 'list',
+          entity: 'permissoes_funcoes_relatorios',
+          filters: options.filters || {},
+        },
+        accessTokenOverride,
+      );
+      return result.rows || [];
+    },
+    async save(payload) {
+      const result = await invokeCatalog('save', 'permissoes_funcoes_relatorios', { payload });
+      return result.row || null;
+    },
+  },
   avisos_relatorios: {
     async list(options = {}) {
       const result = await invokeCatalog('list', 'avisos_relatorios', {

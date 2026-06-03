@@ -145,6 +145,12 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFields: ['id', 'colaborador_id', 'relatorio_id'],
   },
+  permissoes_funcoes_relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'permissoes_funcoes',
+    orderBy: 'modulo',
+    allowedFields: ['id', 'nivel_acesso', 'modulo', 'permissao'],
+  },
   avisos_relatorios: {
     schema: 'gestao_relatorio',
     table: 'avisos_relatorios',
@@ -194,6 +200,12 @@ const CENTRAL_MODULES = [
   'logs_auditoria',
   'termos_posse',
 ] as const;
+
+const REPORTS_PERMISSION_LEVELS: Record<string, number> = {
+  sem: 0,
+  ver: 1,
+  gerenciar: 2,
+};
 
 const CENTRAL_ENTITY_MODULES: Partial<Record<keyof typeof ENTITY_CONFIG, string>> = {
   acessos_usuario_sistema: 'acessos_usuario_sistema',
@@ -347,6 +359,28 @@ function hasCentralPermission(
     return level === 'ver' || level === 'gerenciar';
   }
   return level === 'gerenciar';
+}
+
+async function hasReportsFunctionPermission(
+  reportsAccess: Record<string, unknown> | null | undefined,
+  modulo: string,
+  requiredLevel: 'ver' | 'gerenciar',
+) {
+  if (!sql || reportsAccess?.nivel_acesso !== 'gestor') return false;
+
+  const rows = await sql.unsafe(
+    `
+      select permissao
+      from gestao_relatorio.permissoes_funcoes
+      where nivel_acesso = 'gestor'
+        and modulo = $1
+      limit 1;
+    `,
+    [modulo],
+  );
+  const permission = typeof rows[0]?.permissao === 'string' ? rows[0].permissao : 'sem';
+
+  return (REPORTS_PERMISSION_LEVELS[permission] || 0) >= REPORTS_PERMISSION_LEVELS[requiredLevel];
 }
 
 function canReadCentralEntityForGrantedModule(
@@ -1532,17 +1566,50 @@ Deno.serve(async (request) => {
           entity === 'relatorios' ||
           entity === 'relatorios_unidades' ||
           entity === 'permissoes_relatorios' ||
+          entity === 'permissoes_funcoes_relatorios' ||
           entity === 'avisos_relatorios' ||
           entity === 'avisos_relatorios_aceites' ||
           entity === 'logs_auditoria_relatorios'
         ));
+      const canViewReportsAsManager = await hasReportsFunctionPermission(reportsAccess, 'relatorios', 'ver');
+      const canManageReportsAsManager = await hasReportsFunctionPermission(reportsAccess, 'relatorios', 'gerenciar');
+      const canViewReportPermissionsAsManager = await hasReportsFunctionPermission(reportsAccess, 'permissoes_relatorios', 'ver');
+      const canManageReportPermissionsAsManager = await hasReportsFunctionPermission(reportsAccess, 'permissoes_relatorios', 'gerenciar');
+      const canManageReportNoticesAsManager = await hasReportsFunctionPermission(reportsAccess, 'avisos_relatorios', 'gerenciar');
+      const canViewReportLogsAsManager = await hasReportsFunctionPermission(reportsAccess, 'logs_auditoria', 'ver');
+      const canManageReportsEntityAsManager =
+        (canManageReportsAsManager && (
+          entity === 'relatorios' ||
+          entity === 'relatorios_unidades'
+        )) ||
+        (canManageReportPermissionsAsManager && entity === 'permissoes_relatorios') ||
+        (canManageReportNoticesAsManager && entity === 'avisos_relatorios');
+
+    if (action === 'list' && entity === 'permissoes_funcoes_relatorios' && reportsAccess?.nivel_acesso === 'gestor') {
+      const requestedLevel = typeof filters?.nivel_acesso === 'string' ? filters.nivel_acesso : 'gestor';
+
+      if (requestedLevel !== 'gestor') {
+        return json({ error: 'Acesso restrito as permissoes da propria funcao.' }, 403);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select *
+          from gestao_relatorio.permissoes_funcoes
+          where nivel_acesso = 'gestor'
+          order by ${orderBy} ${orderDirection};
+        `,
+      );
+
+      return json({ rows });
+    }
 
     if (action === 'list' && entity === 'relatorios') {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const { clauses, values } = buildSqlFilters(sanitizedFilters, 1, 'r');
       const whereClauses = [...clauses];
 
-      if (!canManageReportsEntityAsAdmin) {
+      if (!canManageReportsEntityAsAdmin && !canViewReportsAsManager) {
         if (!hasReportsAccess) {
           return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
         }
@@ -1591,7 +1658,7 @@ Deno.serve(async (request) => {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const relationFilters = { ...sanitizedFilters };
 
-      if (!canManageReportsEntityAsAdmin) {
+      if (!canManageReportsEntityAsAdmin && !canViewReportsAsManager) {
         if (!hasReportsAccess) {
           return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
         }
@@ -1623,6 +1690,10 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'list' && entity === 'logs_auditoria_relatorios') {
+      if (!canManageReportsEntityAsAdmin && !canViewReportLogsAsManager) {
+        return json({ error: 'Acesso restrito a administradores.' }, 403);
+      }
+
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const { clauses, values } = buildSqlFilters(sanitizedFilters, 1);
       const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
@@ -1699,7 +1770,7 @@ Deno.serve(async (request) => {
       const sanitizedFilters = sanitizePayload(entity, filters || {});
       const permissionFilters = { ...sanitizedFilters };
 
-      if (!canManageReportsEntityAsAdmin) {
+      if (!canManageReportsEntityAsAdmin && !canViewReportPermissionsAsManager) {
         if (!hasReportsAccess) {
           return json({ error: 'Seu usuario nao possui acesso liberado ao sistema de relatorios.' }, 403);
         }
@@ -1890,9 +1961,14 @@ Deno.serve(async (request) => {
         const sanitized = sanitizePayload(entity, payload);
         const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
         const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
+        const nextAccessLevel = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : 'usuario';
 
         if (!colaboradorId || !sistemaId) {
           return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
+        }
+
+        if (!isGlobalAdmin && nextAccessLevel === 'admin') {
+          return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
         }
 
         if (sistemaId !== reportsSystemId) {
@@ -1930,7 +2006,7 @@ Deno.serve(async (request) => {
           [
             colaboradorId,
             sistemaId,
-            sanitized.nivel_acesso ?? 'usuario',
+            nextAccessLevel,
             sanitized.ativo ?? true,
           ],
         );
@@ -1974,6 +2050,10 @@ Deno.serve(async (request) => {
         const sanitized = sanitizePayload(entity, payload);
         if (!Object.keys(sanitized).length) {
           return json({ error: 'Nenhum campo para atualizar.' }, 400);
+        }
+
+        if (!isGlobalAdmin && sanitized.nivel_acesso === 'admin') {
+          return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
         }
 
         const query = buildUpdateQuery('public', 'acessos_usuario_sistema', id, sanitized);
@@ -2051,7 +2131,13 @@ Deno.serve(async (request) => {
       entity !== 'permissoes_central' &&
       hasCentralPermission(centralPermissions, centralModule, 'gerenciar');
 
-    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin && !canReadCentralEntityAsManager && !canManageCentralEntityAsManager) {
+    if (
+      !canManageReportsEntityAsAdmin &&
+      !canManageReportsEntityAsManager &&
+      !isGlobalAdmin &&
+      !canReadCentralEntityAsManager &&
+      !canManageCentralEntityAsManager
+    ) {
       return json({ error: 'Acesso restrito a administradores.' }, 403);
     }
 
@@ -2090,13 +2176,48 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
+    if (action === 'save' && entity === 'permissoes_funcoes_relatorios') {
+      const sanitized = sanitizePayload(entity, payload);
+      const nivelAcesso = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : null;
+      const modulo = typeof sanitized.modulo === 'string' ? sanitized.modulo : null;
+      const permissao = typeof sanitized.permissao === 'string' ? sanitized.permissao : 'sem';
+
+      if (!nivelAcesso || !modulo) {
+        return json({ error: 'Nivel de acesso e modulo sao obrigatorios.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into gestao_relatorio.permissoes_funcoes (
+            nivel_acesso,
+            modulo,
+            permissao
+          )
+          values ($1, $2, $3)
+          on conflict (nivel_acesso, modulo)
+          do update set
+            permissao = excluded.permissao,
+            atualizado_em = now()
+          returning *;
+        `,
+        [nivelAcesso, modulo, permissao],
+      );
+
+      return json({ row: rows[0] || null });
+    }
+
     if (action === 'save' && entity === 'acessos_usuario_sistema') {
       const sanitized = sanitizePayload(entity, payload);
       const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
       const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
+      const nextAccessLevel = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : 'usuario';
 
       if (!colaboradorId || !sistemaId) {
         return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
+      }
+
+      if (!isGlobalAdmin && nextAccessLevel === 'admin') {
+        return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
       }
 
       const existingRows = await sql.unsafe(
@@ -2117,9 +2238,9 @@ Deno.serve(async (request) => {
             colaborador_id,
             sistema_id,
             nivel_acesso,
-            ativo
-          )
-          values ($1, $2, $3, $4)
+          ativo
+        )
+        values ($1, $2, $3, $4)
           on conflict (colaborador_id, sistema_id)
           do update set
             nivel_acesso = excluded.nivel_acesso,
@@ -2130,7 +2251,7 @@ Deno.serve(async (request) => {
         [
           colaboradorId,
           sistemaId,
-          sanitized.nivel_acesso ?? 'usuario',
+          nextAccessLevel,
           sanitized.ativo ?? true,
         ],
       );
@@ -2290,6 +2411,9 @@ Deno.serve(async (request) => {
             : sanitized;
       if (!Object.keys(normalized).length) {
         return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      }
+      if (entity === 'acessos_usuario_sistema' && !isGlobalAdmin && normalized.nivel_acesso === 'admin') {
+        return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
       }
       if (entity === 'ativos') {
         validateAtivosPayload(normalized);

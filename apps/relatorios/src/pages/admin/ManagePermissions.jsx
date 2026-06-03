@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
-import { dataClient } from '@/api/dataClient';
+import { canReportsFunction, dataClient } from '@/api/dataClient';
 import { Plus, Trash2, Shield, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@macom/ui';
 import PermissionForm from '@/components/admin/PermissionForm';
@@ -31,6 +31,8 @@ export default function ManagePermissions() {
   const [search, setSearch] = useState('');
   const [permissionToDelete, setPermissionToDelete] = useState(null);
   const queryClient = useQueryClient();
+  const canManagePermissions =
+    user?.role === 'admin' || canReportsFunction(user?.reports_permissions, 'permissoes_relatorios', 'gerenciar');
 
   const { data: permissions = [], isLoading } = useQuery({
     queryKey: ['all-permissions'],
@@ -82,7 +84,7 @@ export default function ManagePermissions() {
   );
 
   return (
-    <AdminGuard user={user}>
+    <AdminGuard user={user} module="permissoes_relatorios">
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div style={{ background: '#141414' }} className="px-6 lg:px-10 py-8">
           <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>Administração</p>
@@ -102,15 +104,17 @@ export default function ManagePermissions() {
                 style={{ borderRadius: 2 }}
               />
             </div>
-            <button
-              onClick={() => setDialogOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
-              style={{ background: '#E30613' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#b80010'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#E30613'; }}
-            >
-              <Plus className="w-4 h-4" /> Nova Permissao
-            </button>
+            {canManagePermissions ? (
+              <button
+                onClick={() => setDialogOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
+                style={{ background: '#E30613' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#b80010'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#E30613'; }}
+              >
+                <Plus className="w-4 h-4" /> Nova Permissao
+              </button>
+            ) : null}
           </div>
 
           <div className="bg-white overflow-hidden" style={{ borderTop: '3px solid #E30613' }}>
@@ -121,15 +125,15 @@ export default function ManagePermissions() {
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Email</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Relatorio</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Unidade</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead>
+                  {canManagePermissions ? <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-10 text-sm" style={{ color: '#999' }}>Carregando...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canManagePermissions ? 5 : 4} className="text-center py-10 text-sm" style={{ color: '#999' }}>Carregando...</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-16">
+                    <TableCell colSpan={canManagePermissions ? 5 : 4} className="text-center py-16">
                       <Shield className="w-10 h-10 mx-auto mb-2" style={{ color: '#ddd' }} />
                       <p className="text-xs uppercase tracking-wider font-bold" style={{ color: '#bbb' }}>Nenhuma permissao cadastrada</p>
                     </TableCell>
@@ -144,7 +148,7 @@ export default function ManagePermissions() {
                       </span>
                     </TableCell>
                     <TableCell className="text-xs" style={{ color: '#666' }}>{permission.unit_name || '—'}</TableCell>
-                    <TableCell className="text-right">
+                    {canManagePermissions ? <TableCell className="text-right">
                       <button
                         onClick={() => setPermissionToDelete(permission)}
                         className="p-2 transition-colors"
@@ -154,7 +158,7 @@ export default function ManagePermissions() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                    </TableCell>
+                    </TableCell> : null}
                   </TableRow>
                 ))}
               </TableBody>

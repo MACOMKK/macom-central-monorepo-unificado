@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { Bell, FileText, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 
-import { dataClient } from '@/api/dataClient';
+import { canReportsFunction, dataClient } from '@/api/dataClient';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import ReportNoticeForm from '@/components/admin/ReportNoticeForm';
@@ -61,6 +61,9 @@ export default function ManageReports() {
   const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
   const [selectedReportForNotice, setSelectedReportForNotice] = useState(null);
   const queryClient = useQueryClient();
+  const canManageReports = user?.role === 'admin' || canReportsFunction(user?.reports_permissions, 'relatorios', 'gerenciar');
+  const canManageNotices = user?.role === 'admin' || canReportsFunction(user?.reports_permissions, 'avisos_relatorios', 'gerenciar');
+  const showActions = canManageReports || canManageNotices;
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['all-reports'],
@@ -165,7 +168,7 @@ export default function ManageReports() {
   };
 
   return (
-    <AdminGuard user={user}>
+    <AdminGuard user={user} module="relatorios">
       <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
         <div className="px-6 py-8 lg:px-10" style={{ background: '#141414' }}>
           <p className="mb-1 text-[10px] font-black uppercase tracking-widest" style={{ color: '#E30613' }}>
@@ -217,19 +220,21 @@ export default function ManageReports() {
                 </SelectContent>
               </Select>
 
-              <button
-                onClick={handleCreate}
-                className="flex w-full items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
-                style={{ background: '#E30613' }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = '#b80010';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = '#E30613';
-                }}
-              >
-                <Plus className="h-4 w-4" /> Novo Relatorio
-              </button>
+              {canManageReports ? (
+                <button
+                  onClick={handleCreate}
+                  className="flex w-full items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-all"
+                  style={{ background: '#E30613' }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.background = '#b80010';
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.background = '#E30613';
+                  }}
+                >
+                  <Plus className="h-4 w-4" /> Novo Relatorio
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -242,19 +247,19 @@ export default function ManageReports() {
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Categoria</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Origem</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead>
+                  {showActions ? <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Acoes</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-sm" style={{ color: '#999' }}>
+                    <TableCell colSpan={showActions ? 6 : 5} className="py-10 text-center text-sm" style={{ color: '#999' }}>
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredReports.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-16 text-center">
+                    <TableCell colSpan={showActions ? 6 : 5} className="py-16 text-center">
                       <FileText className="mx-auto mb-2 h-10 w-10" style={{ color: '#ddd' }} />
                       <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#bbb' }}>
                         Nenhum relatorio encontrado
@@ -304,9 +309,9 @@ export default function ManageReports() {
                           {report.active !== false ? 'Ativo' : 'Inativo'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      {showActions ? <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <button
+                          {canManageNotices ? <button
                             onClick={() => handleManageNotice(report)}
                             className="p-2 transition-colors"
                             style={{ color: '#888' }}
@@ -319,8 +324,8 @@ export default function ManageReports() {
                             }}
                           >
                             <Bell className="h-4 w-4" />
-                          </button>
-                          <button
+                          </button> : null}
+                          {canManageReports ? <button
                             onClick={() => handleEdit(report)}
                             className="p-2 transition-colors"
                             style={{ color: '#888' }}
@@ -332,8 +337,8 @@ export default function ManageReports() {
                             }}
                           >
                             <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
+                          </button> : null}
+                          {canManageReports ? <button
                             onClick={() => setReportToDelete(report)}
                             className="p-2 transition-colors"
                             style={{ color: '#888' }}
@@ -345,9 +350,9 @@ export default function ManageReports() {
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </button> : null}
                         </div>
-                      </TableCell>
+                      </TableCell> : null}
                     </TableRow>
                   ))
                 )}
