@@ -15,6 +15,11 @@ export default function CollaboratorLinksDialog({
   unitName,
 }) {
   if (!collaborator) return null;
+  const roleLabels = {
+    admin: 'Admin',
+    gestor: 'Gestor',
+    usuario: 'Usuario',
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,7 +40,7 @@ export default function CollaboratorLinksDialog({
                   {unitName || 'Sem unidade'}
                 </span>
                 <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
-                  {collaborator.funcao === 'admin' ? 'Admin' : 'User'}
+                  {roleLabels[collaborator.funcao] || collaborator.funcao || 'Usuario'}
                 </span>
                 <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground">
                   {collaborator.status || '-'}

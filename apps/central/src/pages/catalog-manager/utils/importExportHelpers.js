@@ -102,7 +102,7 @@ export function downloadCollaboratorsTemplate(examples) {
   const { departmentName, unitName } = examples;
   const csv = [
     'nome,email,password,funcao,cpf,telefone,departamento,cargo,data_admissao,status,unidade',
-    `Maria Souza,maria.souza@empresa.com.br,Temp.123456,usuario,11122233344,91999999999,${departmentName},Assistente,2026-05-07,ativo,${unitName}`,
+    `Maria Souza,maria.souza@empresa.com.br,Temp.123456,gestor,11122233344,91999999999,${departmentName},Assistente,2026-05-07,ativo,${unitName}`,
   ].join('\n');
 
   downloadFile(csv, 'modelo-importacao-colaboradores.csv', 'text/csv;charset=utf-8;');
@@ -115,7 +115,7 @@ export function downloadCollaboratorsJsonTemplate(examples) {
       nome: 'Maria Souza',
       email: 'maria.souza@empresa.com.br',
       password: 'Temp.123456',
-      funcao: 'usuario',
+      funcao: 'gestor',
       cpf: '11122233344',
       telefone: '91999999999',
       departamento: departmentName,

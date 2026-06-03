@@ -534,6 +534,17 @@ export function buildCollaboratorsConfig({
   unitOptions,
   units,
 }) {
+  const roleLabels = {
+    admin: 'Admin',
+    gestor: 'Gestor',
+    usuario: 'Usuario',
+  };
+  const roleTone = {
+    admin: 'bg-blue-100 text-blue-700',
+    gestor: 'bg-amber-100 text-amber-700',
+    usuario: 'bg-slate-100 text-slate-700',
+  };
+
   return {
     rows: collaborators,
     fields: [
@@ -656,10 +667,10 @@ export function buildCollaboratorsConfig({
         render: (value) => (
           <span
             className={`rounded-md px-3 py-1 text-[13px] font-semibold leading-none ${
-              value === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
+              roleTone[value] || roleTone.usuario
             }`}
           >
-            {value === 'admin' ? 'Admin' : 'User'}
+            {roleLabels[value] || value || 'Usuario'}
           </span>
         ),
       },

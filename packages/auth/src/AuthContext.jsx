@@ -4,6 +4,11 @@ import { catalogApi } from '@macom/api-client/catalogApi';
 import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
+const CENTRAL_ACCESS_ROLES = new Set(['admin', 'gestor']);
+
+function canAccessCentral(profile) {
+  return CENTRAL_ACCESS_ROLES.has(profile?.funcao) && profile?.status !== 'inativo';
+}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -21,7 +26,7 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }
 
-  async function runAdminValidation(nextSession) {
+  async function runCentralAccessValidation(nextSession) {
     if (!nextSession?.user) {
       clearAuthState();
       return;
@@ -31,10 +36,10 @@ export function AuthProvider({ children }) {
       const authPayload = await catalogApi.auth.me(nextSession.access_token);
       const collaborator = authPayload?.row || null;
 
-      if (collaborator?.funcao !== 'admin' || collaborator?.status === 'inativo') {
+      if (!canAccessCentral(collaborator)) {
         await supabase.auth.signOut();
         clearAuthState();
-        throw new Error('Acesso restrito a administradores.');
+        throw new Error('Acesso restrito a administradores e gestores.');
       }
 
       validatedTokenRef.current = nextSession.access_token;
@@ -54,7 +59,7 @@ export function AuthProvider({ children }) {
     const { force = false } = options;
 
     if (!nextSession?.user) {
-      return runAdminValidation(nextSession);
+      return runCentralAccessValidation(nextSession);
     }
 
     if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profileRef.current) {
@@ -68,7 +73,7 @@ export function AuthProvider({ children }) {
       return inFlightValidationRef.current.promise;
     }
 
-    const validationPromise = runAdminValidation(nextSession).finally(() => {
+    const validationPromise = runCentralAccessValidation(nextSession).finally(() => {
       if (inFlightValidationRef.current?.token === accessToken) {
         inFlightValidationRef.current = null;
       }
@@ -124,7 +129,7 @@ export function AuthProvider({ children }) {
       session,
       profile,
       user: session?.user || null,
-      isAuthenticated: Boolean(session?.user && profile?.funcao === 'admin'),
+      isAuthenticated: Boolean(session?.user && canAccessCentral(profile)),
       loading,
       async login(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });

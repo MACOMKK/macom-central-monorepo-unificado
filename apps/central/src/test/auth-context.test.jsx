@@ -101,4 +101,43 @@ describe('AuthProvider', () => {
       expect(screen.getByText('Administrador')).toBeInTheDocument();
     });
   });
+
+  it('permite acesso ao gestor logado', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-gestor',
+          user: { id: 'user-2', email: 'gestor@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    authMeMock.mockResolvedValue({
+      row: {
+        id: 'user-2',
+        nome: 'Gestor Central',
+        email: 'gestor@macom.com',
+        funcao: 'gestor',
+        status: 'ativo',
+      },
+      access: null,
+    });
+
+    render(
+      <AuthProvider>
+        <Harness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(authMeMock).toHaveBeenCalledWith('token-gestor');
+      expect(screen.getByText('autenticado')).toBeInTheDocument();
+      expect(screen.getByText('Gestor Central')).toBeInTheDocument();
+    });
+  });
 });

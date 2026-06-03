@@ -1402,6 +1402,7 @@ Deno.serve(async (request) => {
       const reportsSystemSlug = 'relatorios';
       const accessProfile = authenticatedCollaborator;
       const isGlobalAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
+      const isGlobalManager = accessProfile?.funcao === 'gestor' && accessProfile?.status !== 'inativo';
       const reportsAccess = await getSystemAccessAny(authenticatedCollaboratorIds, reportsSystemSlug, { onlyActive: true });
       const hasReportsAccess = Boolean(reportsAccess);
       const isReportsAdmin = reportsAccess?.nivel_acesso === 'admin';
@@ -1913,7 +1914,12 @@ Deno.serve(async (request) => {
       }
     }
 
-    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin) {
+    const canReadCentralEntityAsManager =
+      isGlobalManager &&
+      action === 'list' &&
+      !shouldAuditReportsEntity(entity);
+
+    if (!canManageReportsEntityAsAdmin && !isGlobalAdmin && !canReadCentralEntityAsManager) {
       return json({ error: 'Acesso restrito a administradores.' }, 403);
     }
 

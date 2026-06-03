@@ -5,6 +5,7 @@ export const unitStatusOptions = [
 
 export const collaboratorRoleOptions = [
   { value: 'usuario', label: 'Usuario' },
+  { value: 'gestor', label: 'Gestor' },
   { value: 'admin', label: 'Admin' },
 ];
 
