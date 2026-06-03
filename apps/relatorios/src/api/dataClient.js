@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { reportsApi } from '@/api/reportsApi';
 import { catalogApi } from '@macom/api-client/catalogApi';
 import { systemAccessApi } from '@macom/api-client/systemAccessApi';
 
@@ -267,7 +268,7 @@ const getReportsFunctionPermissions = async (accessLevel, accessToken) => {
     return [];
   }
 
-  const rows = await catalogApi.permissoes_funcoes_relatorios.list(
+  const rows = await reportsApi.permissoes_funcoes_relatorios.list(
     { filters: { nivel_acesso: accessLevel } },
     accessToken,
   );
@@ -377,7 +378,7 @@ const hydrateReports = async (rows = []) => {
 const hydrateReportPermissions = async (rows = []) => {
   const [collaborators, reportRows] = await Promise.all([
     readCached(collaboratorsCache, () => catalogApi.colaboradores.list()),
-    catalogApi.relatorios.list().then((items) => hydrateReports(items)),
+    reportsApi.relatorios.list().then((items) => hydrateReports(items)),
   ]);
 
   const collaboratorsById = new Map(collaborators.map((collaborator) => [collaborator.id, collaborator]));
@@ -671,12 +672,12 @@ const createCentralUserEntity = () => ({
 
 const createCatalogReportEntity = () => ({
   list: async (sort) => {
-    const rows = await catalogApi.relatorios.list();
+    const rows = await reportsApi.relatorios.list();
     const reports = await hydrateReports(rows);
     return sortRows(reports, sort);
   },
   filter: async (filters = {}) => {
-    const rows = await catalogApi.relatorios.list({
+    const rows = await reportsApi.relatorios.list({
       filters: {
         id: filters.id,
         ativo: 'active' in filters ? filters.active : filters.ativo,
@@ -699,7 +700,7 @@ const createCatalogReportEntity = () => ({
       ? [...new Set(payload.unit_ids.filter(Boolean))]
       : [payload.unit_id ?? payload.unidade_id].filter(Boolean);
     const allUnits = payload.all_units === true || payload.todas_unidades === true;
-    const row = await catalogApi.relatorios.create(
+    const row = await reportsApi.relatorios.create(
       mapReportPayload({
         ...payload,
         unit_id: allUnits ? null : unitIds[0] || null,
@@ -709,14 +710,14 @@ const createCatalogReportEntity = () => ({
 
     if (!allUnits && unitIds.length) {
       await Promise.all(
-        unitIds.map((unitId) => catalogApi.relatorios_unidades.create(mapReportUnitPayload({
+        unitIds.map((unitId) => reportsApi.relatorios_unidades.create(mapReportUnitPayload({
           report_id: row.id,
           unit_id: unitId,
         }))),
       );
     }
 
-    const refreshedRows = await catalogApi.relatorios.list({ filters: { id: row.id } });
+    const refreshedRows = await reportsApi.relatorios.list({ filters: { id: row.id } });
     const refreshedRow = refreshedRows[0] || row;
     return (await hydrateReports([refreshedRow]))[0];
   },
@@ -725,41 +726,41 @@ const createCatalogReportEntity = () => ({
       ? [...new Set(payload.unit_ids.filter(Boolean))]
       : [payload.unit_id ?? payload.unidade_id].filter(Boolean);
     const allUnits = payload.all_units === true || payload.todas_unidades === true;
-    const row = await catalogApi.relatorios.update(id, mapReportPayload({
+    const row = await reportsApi.relatorios.update(id, mapReportPayload({
       ...payload,
       unit_id: allUnits ? null : unitIds[0] || null,
       all_units: allUnits,
     }));
 
-    const existingRelations = await catalogApi.relatorios_unidades.list({ filters: { relatorio_id: id } });
-    await Promise.all(existingRelations.map((relation) => catalogApi.relatorios_unidades.remove(relation.id)));
+    const existingRelations = await reportsApi.relatorios_unidades.list({ filters: { relatorio_id: id } });
+    await Promise.all(existingRelations.map((relation) => reportsApi.relatorios_unidades.remove(relation.id)));
 
     if (!allUnits && unitIds.length) {
       await Promise.all(
-        unitIds.map((unitId) => catalogApi.relatorios_unidades.create(mapReportUnitPayload({
+        unitIds.map((unitId) => reportsApi.relatorios_unidades.create(mapReportUnitPayload({
           report_id: id,
           unit_id: unitId,
         }))),
       );
     }
 
-    const refreshedRows = await catalogApi.relatorios.list({ filters: { id } });
+    const refreshedRows = await reportsApi.relatorios.list({ filters: { id } });
     const refreshedRow = refreshedRows[0] || row;
     return (await hydrateReports([refreshedRow]))[0];
   },
   delete: async (id) => {
-    await catalogApi.relatorios.remove(id);
+    await reportsApi.relatorios.remove(id);
     return { id };
   },
   bulkCreate: async (rows) => {
-    const created = await Promise.all(rows.map((row) => catalogApi.relatorios.create(mapReportPayload(row))));
+    const created = await Promise.all(rows.map((row) => reportsApi.relatorios.create(mapReportPayload(row))));
     return hydrateReports(created);
   },
 });
 
 const createCatalogReportPermissionEntity = () => ({
   list: async (sort) => {
-    const rows = await catalogApi.permissoes_relatorios.list();
+    const rows = await reportsApi.permissoes_relatorios.list();
     const permissions = await hydrateReportPermissions(rows);
     return sortRows(permissions, sort);
   },
@@ -772,24 +773,24 @@ const createCatalogReportPermissionEntity = () => ({
       payload.relatorio_id = filters.report_id || filters.relatorio_id;
     }
 
-    const rows = await catalogApi.permissoes_relatorios.list({ filters: payload });
+    const rows = await reportsApi.permissoes_relatorios.list({ filters: payload });
     return mapReportPermissions(rows);
   },
   create: async (payload) => {
-    const row = await catalogApi.permissoes_relatorios.create(mapReportPermissionPayload(payload));
+    const row = await reportsApi.permissoes_relatorios.create(mapReportPermissionPayload(payload));
     return (await hydrateReportPermissions([row]))[0];
   },
   update: async (id, payload) => {
-    const row = await catalogApi.permissoes_relatorios.update(id, mapReportPermissionPayload(payload));
+    const row = await reportsApi.permissoes_relatorios.update(id, mapReportPermissionPayload(payload));
     return (await hydrateReportPermissions([row]))[0];
   },
   delete: async (id) => {
-    await catalogApi.permissoes_relatorios.remove(id);
+    await reportsApi.permissoes_relatorios.remove(id);
     return { id };
   },
   bulkCreate: async (rows) => {
     const created = await Promise.all(
-      rows.map((row) => catalogApi.permissoes_relatorios.create(mapReportPermissionPayload(row)))
+      rows.map((row) => reportsApi.permissoes_relatorios.create(mapReportPermissionPayload(row)))
     );
     return hydrateReportPermissions(created);
   },
@@ -797,7 +798,7 @@ const createCatalogReportPermissionEntity = () => ({
 
 const createCatalogAuditLogEntity = () => ({
   list: async (sort) => {
-    const result = await catalogApi.logs_auditoria_relatorios.list();
+    const result = await reportsApi.logs_auditoria_relatorios.list();
     return sortRows(result.rows.map(mapAuditLogRow), sort);
   },
   filter: async (filters = {}) => {
@@ -808,7 +809,7 @@ const createCatalogAuditLogEntity = () => ({
     if (filters.actor_collaborator_id || filters.colaborador_id) {
       payload.actor_colaborador_id = filters.actor_collaborator_id || filters.colaborador_id;
     }
-    const result = await catalogApi.logs_auditoria_relatorios.list({ filters: payload });
+    const result = await reportsApi.logs_auditoria_relatorios.list({ filters: payload });
     return result.rows.map(mapAuditLogRow);
   },
   listPage: async ({ sort = '-created_at', page = 1, pageSize = 50, filters = {} } = {}) => {
@@ -821,7 +822,7 @@ const createCatalogAuditLogEntity = () => ({
     }
 
     const offset = Math.max(0, (page - 1) * pageSize);
-    const result = await catalogApi.logs_auditoria_relatorios.list({
+    const result = await reportsApi.logs_auditoria_relatorios.list({
       filters: payload,
       limit: pageSize,
       offset,
@@ -840,7 +841,7 @@ const createCatalogAuditLogEntity = () => ({
 
 const createCatalogReportNoticeEntity = () => ({
   list: async (sort = '-updated_at') => {
-    const rows = await catalogApi.avisos_relatorios.list();
+    const rows = await reportsApi.avisos_relatorios.list();
     return sortRows(rows.map(mapReportNoticeRow), sort);
   },
   filter: async (filters = {}, sort = '-updated_at') => {
@@ -848,26 +849,26 @@ const createCatalogReportNoticeEntity = () => ({
     if (filters.id) payload.id = filters.id;
     if (filters.report_id || filters.relatorio_id) payload.relatorio_id = filters.report_id || filters.relatorio_id;
     if (filters.active !== undefined || filters.ativo !== undefined) payload.ativo = filters.active ?? filters.ativo;
-    const rows = await catalogApi.avisos_relatorios.list({ filters: payload });
+    const rows = await reportsApi.avisos_relatorios.list({ filters: payload });
     return sortRows(rows.map(mapReportNoticeRow), sort);
   },
   create: async (payload) => {
-    const row = await catalogApi.avisos_relatorios.create(mapReportNoticePayload(payload));
+    const row = await reportsApi.avisos_relatorios.create(mapReportNoticePayload(payload));
     return mapReportNoticeRow(row);
   },
   update: async (id, payload) => {
-    const row = await catalogApi.avisos_relatorios.update(id, mapReportNoticePayload(payload));
+    const row = await reportsApi.avisos_relatorios.update(id, mapReportNoticePayload(payload));
     return mapReportNoticeRow(row);
   },
   delete: async (id) => {
-    await catalogApi.avisos_relatorios.remove(id);
+    await reportsApi.avisos_relatorios.remove(id);
     return { id };
   },
 });
 
 const createCatalogReportNoticeAcceptanceEntity = () => ({
   list: async (sort = '-accepted_at') => {
-    const rows = await catalogApi.avisos_relatorios_aceites.list();
+    const rows = await reportsApi.avisos_relatorios_aceites.list();
     return sortRows(rows.map(mapReportNoticeAcceptanceRow), sort);
   },
   filter: async (filters = {}, sort = '-accepted_at') => {
@@ -878,11 +879,11 @@ const createCatalogReportNoticeAcceptanceEntity = () => ({
     if (filters.collaborator_id || filters.colaborador_id || filters.user_id) {
       payload.colaborador_id = filters.collaborator_id || filters.colaborador_id || filters.user_id;
     }
-    const rows = await catalogApi.avisos_relatorios_aceites.list({ filters: payload });
+    const rows = await reportsApi.avisos_relatorios_aceites.list({ filters: payload });
     return sortRows(rows.map(mapReportNoticeAcceptanceRow), sort);
   },
   create: async (payload) => {
-    const row = await catalogApi.avisos_relatorios_aceites.create(mapReportNoticeAcceptancePayload(payload));
+    const row = await reportsApi.avisos_relatorios_aceites.create(mapReportNoticeAcceptancePayload(payload));
     return mapReportNoticeAcceptanceRow(row);
   },
 });
@@ -903,7 +904,7 @@ export const dataClient = {
       }
 
       const authUser = session.user;
-      const authPayload = await catalogApi.auth.me(session.access_token, 'relatorios');
+      const authPayload = await reportsApi.auth.me(session.access_token);
       const collaborator = authPayload?.row || null;
       const profile = normalizeCentralCollaborator(collaborator, authUser);
 
