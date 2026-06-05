@@ -16,7 +16,7 @@ describe('Login page', () => {
       />
     );
 
-    await user.type(screen.getByLabelText('SENHA'), 'Segredo123');
+    await user.type(screen.getByLabelText('Senha'), 'Segredo123');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => {
@@ -30,8 +30,8 @@ describe('Login page', () => {
 
     render(<Login onSubmit={onSubmit} loading={false} />);
 
-    await user.type(screen.getByLabelText('EMAIL'), 'admin@macom.com');
-    await user.type(screen.getByLabelText('SENHA'), 'senha-errada');
+    await user.type(screen.getByLabelText('E-mail'), 'admin@macom.com');
+    await user.type(screen.getByLabelText('Senha'), 'senha-errada');
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(await screen.findByText('Credenciais invalidas.')).toBeInTheDocument();
@@ -42,8 +42,8 @@ describe('Login page', () => {
 
     render(<Login onSubmit={onSubmit} loading defaultEmail="admin@macom.com" />);
 
-    expect(screen.getByLabelText('EMAIL')).toBeDisabled();
-    expect(screen.getByLabelText('SENHA')).toBeDisabled();
+    expect(screen.getByLabelText('E-mail')).toBeDisabled();
+    expect(screen.getByLabelText('Senha')).toBeDisabled();
     expect(screen.getByRole('button', { name: '' })).toBeDisabled();
   });
 });

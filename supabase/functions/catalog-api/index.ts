@@ -1,3 +1,6 @@
+// DEPRECATED: catalog-api foi mantida temporariamente apenas como fallback historico.
+// Novas chamadas devem usar central-api, relatorios-api ou intranet-api conforme o dominio.
+// Nao adicionar novas entidades ou regras aqui sem revalidar a estrategia de desativacao.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 
