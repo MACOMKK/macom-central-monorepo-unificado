@@ -44,6 +44,13 @@ export const reportsApi = {
   },
   relatorios: buildReportEntity('relatorios'),
   relatorios_unidades: buildReportEntity('relatorios_unidades'),
+  unidades: buildReportEntity('unidades'),
+  colaboradores: {
+    ...buildReportEntity('colaboradores'),
+    async create() {
+      throw new Error('Criacao de colaboradores usa admin-create-user.');
+    },
+  },
   permissoes_relatorios: buildReportEntity('permissoes_relatorios'),
   permissoes_funcoes_relatorios: {
     async list(options = {}, accessTokenOverride) {

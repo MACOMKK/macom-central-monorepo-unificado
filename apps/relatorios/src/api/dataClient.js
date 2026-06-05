@@ -1,7 +1,7 @@
 import { supabase } from '@/api/supabaseClient';
 import { reportsApi } from '@/api/reportsApi';
-import { catalogApi } from '@macom/api-client/catalogApi';
-import { systemAccessApi } from '@macom/api-client/systemAccessApi';
+import { reportsSystemAccessApi } from '@/api/reportsSystemAccessApi';
+import { reportsAdminUsersApi } from '@/api/reportsAdminUsersApi';
 
 const SORT_KEY_MAP = {
   created_date: 'criado_em'
@@ -364,7 +364,7 @@ const hydrateReports = async (rows = []) => {
 
   let unitsById = new Map();
   try {
-    const units = await readCached(unitsCache, () => catalogApi.unidades.list());
+    const units = await readCached(unitsCache, () => reportsApi.unidades.list());
     unitsById = new Map(units.map((unit) => [unit.id, unit]));
   } catch (error) {
     if (error?.message !== 'Acesso restrito a administradores.') {
@@ -377,7 +377,7 @@ const hydrateReports = async (rows = []) => {
 
 const hydrateReportPermissions = async (rows = []) => {
   const [collaborators, reportRows] = await Promise.all([
-    readCached(collaboratorsCache, () => catalogApi.colaboradores.list()),
+    readCached(collaboratorsCache, () => reportsApi.colaboradores.list()),
     reportsApi.relatorios.list().then((items) => hydrateReports(items)),
   ]);
 
@@ -456,7 +456,7 @@ const normalizeCentralCollaborator = (collaborator, authUser, access = null) => 
 });
 
 const getRelatoriosSystem = async () => {
-  const system = await systemAccessApi.systems.findBySlug('relatorios');
+  const system = await reportsSystemAccessApi.systems.findBySlug('relatorios');
   if (!system?.id) {
     throw new Error('Sistema de relatorios nao encontrado.');
   }
@@ -466,7 +466,7 @@ const getRelatoriosSystem = async () => {
 const getRelatoriosAccessMap = async () => {
   const [system, accesses] = await Promise.all([
     getRelatoriosSystem(),
-    systemAccessApi.accesses.list(),
+    reportsSystemAccessApi.accesses.list(),
   ]);
 
   const accessMap = new Map(
@@ -489,7 +489,7 @@ const ensureReportsSystemAccess = async (profile, accessToken, prefetchedAccess 
 
   const access =
     prefetchedAccess ||
-    (await systemAccessApi.accesses.findByCollaboratorAndSystem(
+    (await reportsSystemAccessApi.accesses.findByCollaboratorAndSystem(
       collaboratorId,
       'relatorios',
       accessToken,
@@ -560,7 +560,7 @@ const createEntity = (table) => ({
 
 const createCentralUnitEntity = () => ({
   list: async (sort) => {
-    const rows = await readCached(unitsCache, () => catalogApi.unidades.list());
+    const rows = await readCached(unitsCache, () => reportsApi.unidades.list());
     const mapped = rows.map(mapCentralUnit);
     const parsed = parseSort(sort);
 
@@ -580,7 +580,7 @@ const createCentralUnitEntity = () => ({
     });
   },
   filter: async (filters = {}) => {
-    const rows = await readCached(unitsCache, () => catalogApi.unidades.list());
+    const rows = await readCached(unitsCache, () => reportsApi.unidades.list());
     return rows.map(mapCentralUnit).filter((row) => matchesFilters(row, filters));
   },
   create: async () => {
@@ -600,7 +600,7 @@ const createCentralUnitEntity = () => ({
 const createCentralUserEntity = () => ({
   list: async () => {
     const [rows, { accessMap }] = await Promise.all([
-      readCached(collaboratorsCache, () => catalogApi.colaboradores.list()),
+      readCached(collaboratorsCache, () => reportsApi.colaboradores.list()),
       getRelatoriosAccessMap(),
     ]);
 
@@ -613,7 +613,7 @@ const createCentralUserEntity = () => ({
     return rows.filter((row) => matchesFilters(row, filters));
   },
   create: async (payload) => {
-    const result = await catalogApi.colaboradores.create({
+    const result = await reportsAdminUsersApi.create({
       nome: payload.full_name || payload.nome || '',
       email: payload.email || '',
       password: payload.password || '',
@@ -623,7 +623,7 @@ const createCentralUserEntity = () => ({
     });
 
     const system = await getRelatoriosSystem();
-    const access = await systemAccessApi.accesses.save({
+    const access = await reportsSystemAccessApi.accesses.save({
       colaborador_id: result.id,
       sistema_id: system.id,
       nivel_acesso: mapRoleToSystemAccessLevel(payload.role),
@@ -639,19 +639,19 @@ const createCentralUserEntity = () => ({
     const hasCentralChanges = 'full_name' in payload || 'nome' in payload || 'unit_id' in payload;
 
     if (hasCentralChanges) {
-      collaborator = await catalogApi.colaboradores.update(id, {
+      collaborator = await reportsApi.colaboradores.update(id, {
         nome: payload.full_name || payload.nome,
         unidade_id: nextUnitId,
       });
       invalidateCollaboratorsCache();
     } else {
-      const rows = await readCached(collaboratorsCache, () => catalogApi.colaboradores.list());
+      const rows = await readCached(collaboratorsCache, () => reportsApi.colaboradores.list());
       collaborator = rows.find((row) => row.id === id) || null;
     }
 
     let access = null;
     if (payload.access_id && ('role' in payload || 'active' in payload)) {
-      access = await systemAccessApi.accesses.update(payload.access_id, {
+      access = await reportsSystemAccessApi.accesses.update(payload.access_id, {
         nivel_acesso: 'role' in payload ? mapRoleToSystemAccessLevel(payload.role) : undefined,
         ativo: 'active' in payload ? payload.active : undefined,
       });
@@ -932,7 +932,7 @@ export const dataClient = {
   },
   users: {
     inviteUser: async (email, role = 'user', initialPassword = '', fullName = '') => {
-      const collaborator = await catalogApi.colaboradores.create({
+      const collaborator = await reportsAdminUsersApi.create({
         nome: fullName,
         email,
         password: initialPassword,
@@ -940,7 +940,7 @@ export const dataClient = {
         status: 'ativo',
       });
       const system = await getRelatoriosSystem();
-      await systemAccessApi.accesses.save({
+      await reportsSystemAccessApi.accesses.save({
         colaborador_id: collaborator.id,
         sistema_id: system.id,
         nivel_acesso: mapRoleToSystemAccessLevel(role),
@@ -950,7 +950,7 @@ export const dataClient = {
       return collaborator;
     },
     setUserPassword: async (userId, password) => {
-      await catalogApi.colaboradores.updatePassword(userId, password);
+      await reportsAdminUsersApi.updatePassword(userId, password);
       return { ok: true };
     },
     manageUser: async (userId, action, accessId) => {
@@ -960,17 +960,17 @@ export const dataClient = {
       }
 
       if (action === 'delete') {
-        await systemAccessApi.accesses.remove(accessId);
+        await reportsSystemAccessApi.accesses.remove(accessId);
         return { ok: true };
       }
 
       if (action === 'deactivate') {
-        await systemAccessApi.accesses.update(accessId, { ativo: false });
+        await reportsSystemAccessApi.accesses.update(accessId, { ativo: false });
         return { ok: true };
       }
 
       if (action === 'activate') {
-        await systemAccessApi.accesses.update(accessId, { ativo: true });
+        await reportsSystemAccessApi.accesses.update(accessId, { ativo: true });
         return { ok: true };
       }
 
