@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { catalogApi } from '@macom/api-client/catalogApi';
 import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
@@ -30,6 +29,51 @@ function hasCentralPermission(profile, permissions = [], moduleKey, requiredLeve
   return level === CENTRAL_PERMISSION_LEVELS.manage;
 }
 
+function toCentralApiError(message, status = 500, code) {
+  const error = new Error(message || 'Falha ao consultar a Central.');
+  error.status = status;
+  if (code) error.code = code;
+  return error;
+}
+
+async function getCentralAuthProfile(accessToken) {
+  assertSupabaseConfigured();
+
+  if (!accessToken) {
+    throw toCentralApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
+  }
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/central-api`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      action: 'me',
+      entity: 'colaboradores',
+      system_slug: 'central',
+    }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw toCentralApiError(
+      result?.error || 'Falha ao consultar a Central.',
+      response.status,
+      result?.code || (response.status === 401 ? 'auth_required' : undefined),
+    );
+  }
+
+  return {
+    row: result.row || null,
+    access: result.access || null,
+    permissions: result.permissions || [],
+  };
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -57,7 +101,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const authPayload = await catalogApi.auth.me(nextSession.access_token);
+      const authPayload = await getCentralAuthProfile(nextSession.access_token);
       const collaborator = authPayload?.row || null;
       const permissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 

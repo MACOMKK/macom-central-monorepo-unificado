@@ -7,15 +7,7 @@ const signInWithPasswordMock = vi.fn();
 const signOutMock = vi.fn();
 const getSessionMock = vi.fn();
 const onAuthStateChangeMock = vi.fn();
-const authMeMock = vi.fn();
-
-vi.mock('@macom/api-client/catalogApi', () => ({
-  catalogApi: {
-    auth: {
-      me: (...args) => authMeMock(...args),
-    },
-  },
-}));
+const fetchMock = vi.fn();
 
 vi.mock('@macom/api-client/supabaseClient', () => ({
   assertSupabaseConfigured: vi.fn(),
@@ -50,7 +42,8 @@ describe('AuthProvider', () => {
     signOutMock.mockReset();
     getSessionMock.mockReset();
     onAuthStateChangeMock.mockReset();
-    authMeMock.mockReset();
+    fetchMock.mockReset();
+    global.fetch = fetchMock;
 
     signOutMock.mockResolvedValue({ error: null });
     getSessionMock.mockResolvedValue({ data: { session: null } });
@@ -76,15 +69,18 @@ describe('AuthProvider', () => {
       error: null,
     });
 
-    authMeMock.mockResolvedValue({
-      row: {
-        id: 'user-1',
-        nome: 'Administrador',
-        email: 'admin@macom.com',
-        funcao: 'admin',
-        status: 'ativo',
-      },
-      access: null,
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-1',
+          nome: 'Administrador',
+          email: 'admin@macom.com',
+          funcao: 'admin',
+          status: 'ativo',
+        },
+        access: null,
+      }),
     });
 
     render(
@@ -96,7 +92,14 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => {
-      expect(authMeMock).toHaveBeenCalledWith('token-admin');
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/functions/v1/central-api'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer token-admin',
+          }),
+        }),
+      );
       expect(screen.getByText('autenticado')).toBeInTheDocument();
       expect(screen.getByText('Administrador')).toBeInTheDocument();
     });
@@ -115,15 +118,18 @@ describe('AuthProvider', () => {
       error: null,
     });
 
-    authMeMock.mockResolvedValue({
-      row: {
-        id: 'user-2',
-        nome: 'Gestor Central',
-        email: 'gestor@macom.com',
-        funcao: 'gestor',
-        status: 'ativo',
-      },
-      access: null,
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-2',
+          nome: 'Gestor Central',
+          email: 'gestor@macom.com',
+          funcao: 'gestor',
+          status: 'ativo',
+        },
+        access: null,
+      }),
     });
 
     render(
@@ -135,7 +141,14 @@ describe('AuthProvider', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => {
-      expect(authMeMock).toHaveBeenCalledWith('token-gestor');
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/functions/v1/central-api'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer token-gestor',
+          }),
+        }),
+      );
       expect(screen.getByText('autenticado')).toBeInTheDocument();
       expect(screen.getByText('Gestor Central')).toBeInTheDocument();
     });
