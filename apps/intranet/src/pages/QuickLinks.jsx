@@ -69,7 +69,6 @@ const defaultLinkConfig = {
 
 const quickLinkQueryKeys = [
   ['quicklinks'],
-  ['quicklinks-dashboard'],
 ];
 
 function updateQuickLinkCaches(queryClient, updater) {

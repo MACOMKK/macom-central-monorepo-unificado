@@ -188,7 +188,6 @@ describe('CatalogManager collaborators', () => {
     await user.click(await screen.findByRole('button', { name: 'Novo Colaborador' }));
     await user.type(screen.getByLabelText('Nome'), 'Maria Souza');
     await user.type(screen.getByLabelText('Email'), 'maria@macom.com');
-    await user.type(screen.getByLabelText('Senha de acesso'), 'Temp123');
     await user.type(screen.getByLabelText('Telefone'), '123');
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
@@ -205,7 +204,6 @@ describe('CatalogManager collaborators', () => {
     await user.click(await screen.findByRole('button', { name: 'Novo Colaborador' }));
     await user.type(screen.getByLabelText('Nome'), 'Maria Souza');
     await user.type(screen.getByLabelText('Email'), 'maria@macom.com');
-    await user.type(screen.getByLabelText('Senha de acesso'), 'Temp123');
     await user.type(screen.getByLabelText('CPF'), '12345678901');
     await user.type(screen.getByLabelText('Telefone'), '85999999999');
     await user.type(screen.getByLabelText('Cargo'), 'Analista de TI');
@@ -223,7 +221,7 @@ describe('CatalogManager collaborators', () => {
       expect(catalogApi.colaboradores.create).toHaveBeenCalledWith({
         nome: 'Maria Souza',
         email: 'maria@macom.com',
-        password: 'Temp123',
+        password: 'Kmacom.123',
         funcao: 'admin',
         cpf: '12345678901',
         telefone: '85999999999',

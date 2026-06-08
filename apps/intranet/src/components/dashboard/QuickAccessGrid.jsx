@@ -71,7 +71,7 @@ function QuickAccessIcon({ linkUrl, config, Icon }) {
 
 export default function QuickAccessGrid() {
   const { data: links = [], isLoading } = useQuery({
-    queryKey: ['quicklinks-dashboard'],
+    queryKey: ['quicklinks'],
     queryFn: () => appClient.entities.QuickLink.list('created_date', 100),
   });
 

@@ -52,8 +52,7 @@ const categoryLabels = {
 const announcementQueryKeys = [
   ['announcements', 'active'],
   ['announcements', 'manage'],
-  ['announcements-recent'],
-  ['home-highlights'],
+  ['announcements-home'],
 ];
 
 function updateAnnouncementCaches(queryClient, updater) {
@@ -197,8 +196,7 @@ export default function Announcements() {
       updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, updatedAnnouncement));
       setSelectedAnnouncement((current) => (current?.id === updatedAnnouncement?.id ? updatedAnnouncement : current));
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-home'] });
       setDialogOpen(false);
       setEditingAnnouncement(null);
       setFeedback({ type: 'success', message: 'Aviso atualizado com sucesso.' });
@@ -226,8 +224,7 @@ export default function Announcements() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-home'] });
       setAnnouncementToDelete(null);
       setFeedback({ type: 'success', message: 'Aviso excluído com sucesso.' });
     },
@@ -260,8 +257,7 @@ export default function Announcements() {
       updateAnnouncementCaches(queryClient, (old) => replaceAnnouncement(old, updatedAnnouncement));
       setSelectedAnnouncement((current) => (current?.id === updatedAnnouncement?.id ? updatedAnnouncement : current));
       queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      queryClient.invalidateQueries({ queryKey: ['announcements-recent'] });
-      queryClient.invalidateQueries({ queryKey: ['home-highlights'] });
+      queryClient.invalidateQueries({ queryKey: ['announcements-home'] });
     },
     onError: (error, _announcement, context) => {
       restoreAnnouncementCaches(queryClient, context?.previousCaches);

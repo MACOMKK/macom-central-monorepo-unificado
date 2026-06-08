@@ -36,9 +36,11 @@ function formatDate(dateStr) {
 
 export default function RecentAnnouncements() {
   const { data: announcements = [], isLoading } = useQuery({
-    queryKey: ['announcements-recent'],
-    queryFn: () => appClient.entities.Announcement.list('-created_date', 5),
+    queryKey: ['announcements-home'],
+    queryFn: () => appClient.entities.Announcement.list('-created_date', 10),
   });
+
+  const recentAnnouncements = announcements.slice(0, 5);
 
   return (
     <div className="h-full rounded-2xl border border-border bg-card p-5">
@@ -56,11 +58,11 @@ export default function RecentAnnouncements() {
         <div className="space-y-3">
           {[1, 2, 3].map((item) => <Skeleton key={item} className="h-16 w-full rounded-xl" />)}
         </div>
-      ) : announcements.length === 0 ? (
+      ) : recentAnnouncements.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Nenhum aviso publicado.</p>
       ) : (
         <div className="space-y-1">
-          {announcements.map((announcement) => {
+          {recentAnnouncements.map((announcement) => {
             const priority = priorityConfig[announcement.priority] || priorityConfig.media;
 
             return (
