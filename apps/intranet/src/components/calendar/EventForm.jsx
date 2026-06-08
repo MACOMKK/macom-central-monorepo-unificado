@@ -32,10 +32,10 @@ export default function EventForm({ initialData = null, onSubmit, isLoading, sub
     ...normalizeInitialData(initialData),
   });
   const { data: employees = [] } = useQuery({
-    queryKey: ['calendar-responsible-employees'],
+    queryKey: ['employees'],
     queryFn: async () => {
       try {
-        return await appClient.entities.Employee.list();
+        return await appClient.entities.Employee.list('name', 200);
       } catch {
         return [];
       }
