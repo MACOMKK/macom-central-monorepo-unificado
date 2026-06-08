@@ -92,19 +92,35 @@ export default function MobileNav({ open = false, onClose }) {
           })}
 
           {isAdmin ? (
-            <Link
-              to="/permissoes"
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors',
-                location.pathname === '/permissoes'
-                  ? 'bg-sidebar-primary text-white'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
-              )}
-            >
-              <ShieldCheck className="h-5 w-5" />
-              <span>Permissoes</span>
-            </Link>
+            <>
+              <Link
+                to="/guia"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors',
+                  location.pathname === '/guia'
+                    ? 'bg-sidebar-primary text-white'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
+                )}
+              >
+                <BookOpen className="h-5 w-5" />
+                <span>Guia</span>
+              </Link>
+
+              <Link
+                to="/permissoes"
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors',
+                  location.pathname === '/permissoes'
+                    ? 'bg-sidebar-primary text-white'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
+                )}
+              >
+                <ShieldCheck className="h-5 w-5" />
+                <span>Permissoes</span>
+              </Link>
+            </>
           ) : null}
         </nav>
 

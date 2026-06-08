@@ -19,6 +19,7 @@ const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Departments = lazy(() => import('@/pages/Departments'));
 const Infrastructure = lazy(() => import('@/pages/Infrastructure'));
 const Login = lazy(() => import('@/pages/Login'));
+const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
 const SystemAccess = lazy(() => import('@/pages/SystemAccess'));
 const TermsPossession = lazy(() => import('@/pages/TermsPossession'));
 const Units = lazy(() => import('@/pages/Units'));
@@ -99,6 +100,7 @@ export default function App() {
                 <Route path="/infraestrutura" element={withCentralPermission('/infraestrutura', <Infrastructure />)} />
                 <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccess />)} />
                 <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
+                <Route path="/guia-plataforma" element={withCentralPermission('/guia-plataforma', <PlatformGuide />, { adminOnly: true })} />
                 <Route path="/permissoes-central" element={<Navigate to="/permissoes-sistemas" replace />} />
                 <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <CentralPermissions />, { adminOnly: true })} />
                 <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />

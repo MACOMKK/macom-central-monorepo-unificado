@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, ShieldCheck, Smartphone, Sun, Users, X } from 'lucide-react';
+import { BookOpen, Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, ShieldCheck, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -15,6 +15,7 @@ const routePrefetchers = {
   '/linhas-corporativas': () => import('@/pages/CorporateLines'),
   '/infraestrutura': () => import('@/pages/Infrastructure'),
   '/acessos-sistemas': () => import('@/pages/SystemAccess'),
+  '/guia-plataforma': () => import('@/pages/PlatformGuide'),
   '/logs-auditoria': () => import('@/pages/AuditLogs'),
   '/permissoes-sistemas': () => import('@/pages/CentralPermissions'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
@@ -31,6 +32,7 @@ const navItems = [
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
   { path: '/acessos-sistemas', label: 'Acessos Sistemas', icon: KeyRound, module: 'acessos_usuario_sistema' },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
+  { path: '/guia-plataforma', label: 'Guia', icon: BookOpen, adminOnly: true },
   { path: '/permissoes-sistemas', label: 'Permissoes', icon: ShieldCheck, adminOnly: true },
   { path: '/logs-auditoria', label: 'Logs', icon: History, module: 'logs_auditoria' },
 ];
