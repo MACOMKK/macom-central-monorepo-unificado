@@ -39,12 +39,16 @@ const ENTITY_CONFIG = {
       category: 'categoria',
       priority: 'prioridade',
       pinned: 'fixado',
+      publish_date: 'publica_em',
+      expiration_date: 'expira_em',
     },
     filterMap: {
       id: 'id',
       category: 'categoria',
       priority: 'prioridade',
       pinned: 'fixado',
+      publish_date: 'publica_em',
+      expiration_date: 'expira_em',
     },
     createFields: [
       'title',
@@ -52,6 +56,7 @@ const ENTITY_CONFIG = {
       'category',
       'priority',
       'pinned',
+      'publish_date',
       'expiration_date',
       'image_url',
       'image_path',
@@ -65,6 +70,7 @@ const ENTITY_CONFIG = {
       'category',
       'priority',
       'pinned',
+      'publish_date',
       'expiration_date',
       'image_url',
       'image_path',
@@ -691,6 +697,7 @@ function buildWhereClause(entityName: keyof typeof ENTITY_CONFIG, filters: Recor
 
 function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<string, Record<string, unknown>>()) {
   const creator = creatorMap.get(String(row.criado_por));
+  const status = getAnnouncementStatus(row);
   return {
     id: row.id,
     title: row.titulo,
@@ -698,7 +705,9 @@ function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<stri
     category: row.categoria,
     priority: row.prioridade,
     pinned: row.fixado,
+    publish_date: row.publica_em,
     expiration_date: row.expira_em,
+    status,
     image_url: row.imagem_url || null,
     image_path: row.imagem_path || null,
     image_name: row.imagem_nome || null,
@@ -790,6 +799,16 @@ function mapQuickLink(row: Record<string, unknown>, creatorMap = new Map<string,
     created_by: creator?.email || creator?.nome || null,
     created_by_id: row.criado_por || null,
   };
+}
+
+function getAnnouncementStatus(row: Record<string, unknown>) {
+  const now = Date.now();
+  const publishAt = row.publica_em ? new Date(String(row.publica_em)).getTime() : null;
+  const expireAt = row.expira_em ? new Date(String(row.expira_em)).getTime() : null;
+
+  if (publishAt && Number.isFinite(publishAt) && publishAt > now) return 'scheduled';
+  if (expireAt && Number.isFinite(expireAt) && expireAt < now) return 'expired';
+  return 'published';
 }
 
 function normalizeDateOnly(value: unknown) {
@@ -943,8 +962,27 @@ async function filterBaseEntity(
   );
 }
 
-async function listAnnouncements(orderBy?: string, limit?: number) {
-  const rows = await listBaseEntity('Announcement', orderBy, limit);
+async function listAnnouncements(
+  orderBy?: string,
+  limit?: number,
+  options: { includeInactive?: boolean; filters?: Record<string, unknown> } = {},
+) {
+  const { column, ascending } = convertOrder('Announcement', orderBy);
+  const filters = { ...(options.filters || {}) };
+  delete filters.include_inactive;
+  const { clauses, values } = buildWhereClause('Announcement', filters);
+
+  if (!options.includeInactive) {
+    clauses.push('(publica_em is null or publica_em <= now())');
+    clauses.push('(expira_em is null or expira_em >= now())');
+  }
+
+  const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+  const limitSql = limit ? `limit ${Number(limit)}` : '';
+  const rows = await runSql<Record<string, unknown>>(
+    `select * from gestao_intranet.avisos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
+    values,
+  );
   const creators = await enrichWithCreators(rows);
   return rows.map((row) => mapAnnouncement(row, creators));
 }
@@ -1088,9 +1126,9 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.avisos (
-        titulo, conteudo, categoria, prioridade, fixado, expira_em,
+        titulo, conteudo, categoria, prioridade, fixado, publica_em, expira_em,
         imagem_url, imagem_path, imagem_nome, imagem_tipo, imagem_tamanho, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       returning *;
     `,
     [
@@ -1099,6 +1137,7 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
       sanitized.category || 'geral',
       sanitized.priority || 'media',
       sanitized.pinned || false,
+      sanitized.publish_date || null,
       sanitized.expiration_date || null,
       sanitized.image_url || null,
       sanitized.image_path || null,
@@ -1188,6 +1227,7 @@ async function updateAnnouncement(
   if ('category' in sanitized) assign('categoria', sanitized.category);
   if ('priority' in sanitized) assign('prioridade', sanitized.priority);
   if ('pinned' in sanitized) assign('fixado', sanitized.pinned);
+  if ('publish_date' in sanitized) assign('publica_em', sanitized.publish_date);
   if ('expiration_date' in sanitized) assign('expira_em', sanitized.expiration_date);
   if ('image_url' in sanitized) assign('imagem_url', sanitized.image_url);
   if ('image_path' in sanitized) assign('imagem_path', sanitized.image_path);
@@ -1826,10 +1866,19 @@ async function deleteCalendarEvent(
   return { success: true };
 }
 
-async function listEntity(entity: string, orderBy?: string, limit?: number) {
+async function listEntity(
+  entity: string,
+  orderBy?: string,
+  limit?: number,
+  user?: Record<string, unknown>,
+  filters: Record<string, unknown> = {},
+) {
   switch (entity) {
     case 'Announcement':
-      return listAnnouncements(orderBy, limit);
+      return listAnnouncements(orderBy, limit, {
+        includeInactive: Boolean(filters.include_inactive) && Boolean(user) && canEditModule(user as Record<string, unknown>, 'avisos'),
+        filters,
+      });
     case 'AnnouncementComment':
       return listAnnouncementComments({}, orderBy, limit);
     case 'AnnouncementReaction':
@@ -1881,8 +1930,16 @@ function getEntityModule(entity: string) {
   }
 }
 
-async function filterEntity(entity: string, filters: Record<string, unknown>, orderBy?: string, limit?: number) {
+async function filterEntity(
+  entity: string,
+  filters: Record<string, unknown>,
+  orderBy?: string,
+  limit?: number,
+  user?: Record<string, unknown>,
+) {
   switch (entity) {
+    case 'Announcement':
+      return listEntity(entity, orderBy, limit, user, filters);
     case 'AnnouncementComment':
       return listAnnouncementComments(filters, orderBy, limit);
     case 'AnnouncementReaction':
@@ -1890,7 +1947,7 @@ async function filterEntity(entity: string, filters: Record<string, unknown>, or
     case 'UserPermission':
       return filterUserPermissions(filters, orderBy, limit);
     default:
-      return listEntity(entity, orderBy, limit);
+      return listEntity(entity, orderBy, limit, user, filters);
   }
 }
 
@@ -2049,7 +2106,7 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleView(context.user as Record<string, unknown>, moduleKey);
       }
-      return json({ rows: await listEntity(entity, orderBy, limit) });
+      return json({ rows: await listEntity(entity, orderBy, limit, context.user as Record<string, unknown>) });
     }
 
     if (action === 'filter') {
@@ -2059,7 +2116,15 @@ Deno.serve(async (request) => {
       } else if (moduleKey) {
         assertModuleView(context.user as Record<string, unknown>, moduleKey);
       }
-      return json({ rows: await filterEntity(entity, filters as Record<string, unknown>, orderBy, limit) });
+      return json({
+        rows: await filterEntity(
+          entity,
+          filters as Record<string, unknown>,
+          orderBy,
+          limit,
+          context.user as Record<string, unknown>,
+        ),
+      });
     }
 
     if (action === 'create') {

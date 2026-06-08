@@ -107,7 +107,8 @@ create table if not exists gestao_intranet.avisos (
   categoria text default 'geral',
   prioridade text default 'media',
   fixado boolean not null default false,
-  expira_em date,
+  publica_em timestamptz,
+  expira_em timestamptz,
   criado_por uuid references public.colaboradores (id) on delete set null,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()

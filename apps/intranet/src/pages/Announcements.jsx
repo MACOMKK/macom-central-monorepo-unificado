@@ -34,6 +34,12 @@ const priorityConfig = {
   baixa: { icon: Bell, class: 'bg-gray-100 text-gray-700 border-gray-200' },
 };
 
+const statusConfig = {
+  scheduled: { label: 'Agendado', class: 'border-amber-200 bg-amber-50 text-amber-700' },
+  published: { label: 'Publicado', class: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  expired: { label: 'Expirado', class: 'border-slate-200 bg-slate-50 text-slate-600' },
+};
+
 const categoryLabels = {
   geral: 'Geral',
   rh: 'RH',
@@ -44,7 +50,8 @@ const categoryLabels = {
 };
 
 const announcementQueryKeys = [
-  ['announcements'],
+  ['announcements', 'active'],
+  ['announcements', 'manage'],
   ['announcements-recent'],
   ['home-highlights'],
 ];
@@ -124,7 +131,7 @@ function getErrorMessage(error, fallback) {
 }
 
 export default function Announcements() {
-  const { canEdit } = usePermissions('avisos');
+  const { canEdit, isLoading: isPermissionsLoading } = usePermissions('avisos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -142,8 +149,13 @@ export default function Announcements() {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['announcements'],
-    queryFn: () => appClient.entities.Announcement.list('-created_date', 50),
+    queryKey: ['announcements', canEdit ? 'manage' : 'active'],
+    queryFn: () => (
+      canEdit
+        ? appClient.entities.Announcement.filter({ include_inactive: true }, '-created_date', 50)
+        : appClient.entities.Announcement.list('-created_date', 50)
+    ),
+    enabled: !isPermissionsLoading,
   });
 
   const createMutation = useMutation({
@@ -347,7 +359,7 @@ export default function Announcements() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading || isPermissionsLoading ? (
         <div className="space-y-3">{[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-24 w-full rounded-xl" />)}</div>
       ) : isAnnouncementsError ? (
         <Alert variant="destructive" className="rounded-2xl border-destructive/30 bg-destructive/5">
@@ -375,6 +387,7 @@ export default function Announcements() {
           <div className="space-y-4">
             {paginatedAnnouncements.map((announcement) => {
               const config = priorityConfig[announcement.priority] || priorityConfig.media;
+              const status = statusConfig[announcement.status] || statusConfig.published;
               const preview = getAnnouncementPreview(announcement.content);
               const canManage = canEdit && canManageAnnouncement(announcement, currentUser);
 
@@ -405,6 +418,11 @@ export default function Announcements() {
                           <Badge variant="secondary" className="text-[10px]">
                             {categoryLabels[announcement.category] || announcement.category}
                           </Badge>
+                          {canEdit ? (
+                            <Badge variant="outline" className={`text-[10px] ${status.class}`}>
+                              {status.label}
+                            </Badge>
+                          ) : null}
                         </div>
 
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{preview}</p>
@@ -423,6 +441,14 @@ export default function Announcements() {
                           {announcement.created_by ? ` · por ${announcement.created_by}` : ''}
                           {wasAnnouncementEdited(announcement) ? ` · editado em ${formatAnnouncementDate(announcement.updated_date)}` : ''}
                         </p>
+
+                        {canEdit && (announcement.publish_date || announcement.expiration_date) ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            {announcement.publish_date ? `Inicia em ${formatAnnouncementDate(announcement.publish_date)}` : ''}
+                            {announcement.publish_date && announcement.expiration_date ? ' | ' : ''}
+                            {announcement.expiration_date ? `Expira em ${formatAnnouncementDate(announcement.expiration_date)}` : ''}
+                          </p>
+                        ) : null}
 
                         <AnnouncementInteractions
                           announcementId={announcement.id}

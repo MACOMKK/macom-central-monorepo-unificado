@@ -21,12 +21,29 @@ const emptyAnnouncementForm = {
   category: 'geral',
   priority: 'media',
   pinned: false,
+  publish_date: '',
+  expiration_date: '',
   image_url: '',
   image_path: '',
   image_name: '',
   image_type: '',
   image_size: null,
 };
+
+function toDatetimeLocal(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function datetimeLocalToIso(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
 
 function buildInitialForm(initialData) {
   if (!initialData) return emptyAnnouncementForm;
@@ -38,6 +55,8 @@ function buildInitialForm(initialData) {
     category: initialData.category || 'geral',
     priority: initialData.priority || 'media',
     pinned: Boolean(initialData.pinned),
+    publish_date: toDatetimeLocal(initialData.publish_date),
+    expiration_date: toDatetimeLocal(initialData.expiration_date),
     image_url: initialData.image_url || '',
     image_path: initialData.image_path || '',
     image_name: initialData.image_name || '',
@@ -99,7 +118,11 @@ export default function AnnouncementForm({
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    await onSubmit(form);
+    await onSubmit({
+      ...form,
+      publish_date: datetimeLocalToIso(form.publish_date),
+      expiration_date: datetimeLocalToIso(form.expiration_date),
+    });
   };
 
   return (
@@ -202,6 +225,26 @@ export default function AnnouncementForm({
       <div className="flex items-center gap-3">
         <Switch checked={form.pinned} onCheckedChange={(value) => setForm({ ...form, pinned: value })} />
         <Label>Fixar aviso</Label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Publicar em</Label>
+          <Input
+            type="datetime-local"
+            value={form.publish_date}
+            onChange={(event) => setForm({ ...form, publish_date: event.target.value })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Expirar em</Label>
+          <Input
+            type="datetime-local"
+            value={form.expiration_date}
+            onChange={(event) => setForm({ ...form, expiration_date: event.target.value })}
+          />
+        </div>
       </div>
 
       <Button type="submit" disabled={isLoading || uploading} className="w-full">
