@@ -1079,6 +1079,43 @@ async function listEmployees() {
   );
 }
 
+async function listEmployeeBirthdays(limit?: number) {
+  const limitSql = limit ? `limit ${Number(limit)}` : '';
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        c.id,
+        c.nome,
+        c.cargo,
+        c.status,
+        c.data_nascimento,
+        c.departamento_id,
+        d.nome as departamento_nome,
+        d.descricao as departamento_descricao,
+        p.foto_url
+      from public.colaboradores c
+      left join public.departamentos d on d.id = c.departamento_id
+      left join gestao_intranet.perfis_colaboradores p on p.colaborador_id = c.id
+      where c.status = 'ativo'
+        and c.data_nascimento is not null
+      order by c.nome asc
+      ${limitSql};
+    `,
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.nome,
+    position: row.cargo || null,
+    status: row.status,
+    birth_date: normalizeDateOnly(row.data_nascimento),
+    department_id: row.departamento_id,
+    department_name: row.departamento_nome || null,
+    department: row.departamento_nome ? toKey(String(row.departamento_nome)) : null,
+    photo_url: row.foto_url || null,
+  }));
+}
+
 async function listUsers() {
   const employees = await listEmployees();
   return employees.map((employee) => ({
@@ -1889,6 +1926,8 @@ async function listEntity(
       return listDocuments(orderBy, limit);
     case 'Employee':
       return listEmployees();
+    case 'EmployeeBirthday':
+      return listEmployeeBirthdays(limit);
     case 'Feedback':
       return listFeedback(orderBy, limit);
     case 'KnowledgeBase':
@@ -1915,6 +1954,7 @@ function getEntityModule(entity: string) {
     case 'Document':
       return 'documentos';
     case 'Employee':
+    case 'EmployeeBirthday':
     case 'User':
       return 'colaboradores';
     case 'Feedback':

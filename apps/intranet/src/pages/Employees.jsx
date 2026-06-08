@@ -57,6 +57,7 @@ export default function Employees() {
         Array.isArray(old) ? replaceEmployee(old, updatedEmployee) : old
       ));
       queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['employee-birthdays'] });
       setEditingEmployee(null);
       setDialogOpen(false);
       toast.success('Colaborador atualizado!');

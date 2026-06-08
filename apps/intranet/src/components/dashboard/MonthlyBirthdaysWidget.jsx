@@ -49,8 +49,8 @@ export default function MonthlyBirthdaysWidget() {
   const scrollRef = useRef(null);
 
   const { data: employees = [] } = useQuery({
-    queryKey: ['employees'],
-    queryFn: () => appClient.entities.Employee.list('name', 200),
+    queryKey: ['employee-birthdays'],
+    queryFn: () => appClient.entities.EmployeeBirthday.list('name', 200),
   });
 
   const today = new Date();

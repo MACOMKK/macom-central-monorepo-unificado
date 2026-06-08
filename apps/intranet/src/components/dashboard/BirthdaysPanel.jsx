@@ -20,8 +20,8 @@ function parseBirthDate(value) {
 
 export default function BirthdaysPanel() {
   const { data: employees = [], isLoading } = useQuery({
-    queryKey: ['employees'],
-    queryFn: () => appClient.entities.Employee.list('name', 200),
+    queryKey: ['employee-birthdays'],
+    queryFn: () => appClient.entities.EmployeeBirthday.list('name', 200),
   });
 
   const today = new Date();

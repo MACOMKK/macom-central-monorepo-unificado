@@ -14,8 +14,8 @@ function normalizeBirthDateKey(value) {
 
 export default function BirthdayWidget() {
   const { data: employees = [] } = useQuery({
-    queryKey: ['employees'],
-    queryFn: () => appClient.entities.Employee.list('name', 200),
+    queryKey: ['employee-birthdays'],
+    queryFn: () => appClient.entities.EmployeeBirthday.list('name', 200),
   });
 
   const today = format(new Date(), 'MM-dd');
