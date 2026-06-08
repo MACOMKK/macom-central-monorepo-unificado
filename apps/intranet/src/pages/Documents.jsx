@@ -103,6 +103,13 @@ const categoryConfig = {
   },
 };
 
+const companyOptions = [
+  { value: 'macom_motors', label: 'Macom Motors' },
+  { value: 'macom_mitsubishi', label: 'Macom Mitsubishi' },
+];
+
+const companyLabelMap = Object.fromEntries(companyOptions.map((company) => [company.value, company.label]));
+
 function prependDocument(documents, document) {
   if (!document?.id) return documents;
   return [document, ...documents.filter((item) => item.id !== document.id)];
@@ -176,6 +183,7 @@ export default function Documents() {
   const [documentToDelete, setDocumentToDelete] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [search, setSearch] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [publishDateFilter, setPublishDateFilter] = useState('');
@@ -302,6 +310,9 @@ export default function Documents() {
       ).values()
     );
   const departmentScopedDocuments = documents.filter((document) => {
+    const matchCompany =
+      companyFilter === 'all' ||
+      (document.company || 'macom_motors') === companyFilter;
     const matchDepartment =
       departmentFilter === 'all' ||
       document.department_id === departmentFilter ||
@@ -309,7 +320,7 @@ export default function Documents() {
     const matchPublishDate =
       !publishDateFilter ||
       formatDateKey(document.created_date) === publishDateFilter;
-    return matchDepartment && matchPublishDate;
+    return matchCompany && matchDepartment && matchPublishDate;
   });
 
   const categoryScopedDocuments = departmentScopedDocuments.filter((document) => {
@@ -323,7 +334,8 @@ export default function Documents() {
       document.title?.toLowerCase().includes(normalizedSearch) ||
       document.description?.toLowerCase().includes(normalizedSearch) ||
       document.file_name?.toLowerCase().includes(normalizedSearch) ||
-      document.department_name?.toLowerCase().includes(normalizedSearch);
+      document.department_name?.toLowerCase().includes(normalizedSearch) ||
+      companyLabelMap[document.company || 'macom_motors']?.toLowerCase().includes(normalizedSearch);
     return matchSearch;
   });
 
@@ -354,10 +366,10 @@ export default function Documents() {
     totalItems,
     totalPages,
     paginatedItems: paginatedDocuments,
-  } = usePaginatedItems(filtered, pageSize, [search, catFilter, departmentFilter, publishDateFilter]);
+  } = usePaginatedItems(filtered, pageSize, [search, catFilter, companyFilter, departmentFilter, publishDateFilter]);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
-  const hasAdvancedFilters = departmentFilter !== 'all' || Boolean(publishDateFilter);
+  const hasAdvancedFilters = companyFilter !== 'all' || departmentFilter !== 'all' || Boolean(publishDateFilter);
 
   const handleConfirmDelete = () => {
     if (!documentToDelete) return;
@@ -365,6 +377,7 @@ export default function Documents() {
   };
 
   const clearAdvancedFilters = () => {
+    setCompanyFilter('all');
     setDepartmentFilter('all');
     setPublishDateFilter('');
   };
@@ -441,6 +454,22 @@ export default function Documents() {
       </div>
 
       <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <div className="min-w-[190px] max-w-[220px] flex-1 sm:flex-none">
+          <Select value={companyFilter} onValueChange={setCompanyFilter}>
+            <SelectTrigger className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none">
+              <SelectValue placeholder="Empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Empresa</SelectItem>
+              {companyOptions.map((company) => (
+                <SelectItem key={company.value} value={company.value}>
+                  {company.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="min-w-[190px] max-w-[220px] flex-1 sm:flex-none">
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
             <SelectTrigger className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none">
@@ -628,6 +657,9 @@ export default function Documents() {
                         <div className="flex shrink-0 flex-wrap items-center gap-2">
                           <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[9px] font-medium">
                             {config.label}
+                          </Badge>
+                          <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
+                            {companyLabelMap[document.company || 'macom_motors'] || 'Macom Motors'}
                           </Badge>
                           {document.department_name && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">

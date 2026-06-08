@@ -25,7 +25,16 @@ function isMissingSessionError(error) {
   return message.includes('auth session missing');
 }
 
-async function uploadToBucket(file, bucket, maxFileSize) {
+function sanitizeStorageFolder(value, fallback = 'outros') {
+  return String(value || fallback)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || fallback;
+}
+
+async function uploadToBucket(file, bucket, maxFileSize, folder = '') {
   assertSupabaseConfigured();
 
   if (Number.isFinite(file?.size) && file.size > maxFileSize) {
@@ -33,7 +42,9 @@ async function uploadToBucket(file, bucket, maxFileSize) {
   }
 
   const fileExt = file.name.split('.').pop();
-  const filePath = `${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+  const normalizedFolder = String(folder || '').replace(/^\/+|\/+$/g, '');
+  const fileName = `${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+  const filePath = normalizedFolder ? `${normalizedFolder}/${fileName}` : fileName;
 
   const { error: uploadError } = await supabase.storage
     .from(bucket)
@@ -50,11 +61,14 @@ async function uploadToBucket(file, bucket, maxFileSize) {
   };
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, options = {}) {
+  const company = sanitizeStorageFolder(options.company, 'macom_motors');
+  const category = sanitizeStorageFolder(options.category, 'outros');
   const { publicUrl, filePath } = await uploadToBucket(
     file,
     DOCUMENT_STORAGE_BUCKET,
     MAX_DOCUMENT_FILE_SIZE,
+    `${company}/${category}`,
   );
   return {
     file_url: publicUrl,

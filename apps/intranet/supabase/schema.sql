@@ -197,6 +197,8 @@ create table if not exists gestao_intranet.documentos (
   arquivo_nome text,
   arquivo_tipo text,
   arquivo_tamanho bigint,
+  empresa text not null default 'macom_motors'
+    check (empresa in ('macom_motors', 'macom_mitsubishi')),
   categoria text default 'outros',
   departamento_id uuid references public.departamentos (id) on delete set null,
   criado_por uuid references public.colaboradores (id) on delete set null,

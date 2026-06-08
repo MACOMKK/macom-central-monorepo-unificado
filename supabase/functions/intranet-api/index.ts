@@ -128,14 +128,16 @@ const ENTITY_CONFIG = {
       created_date: 'criado_em',
       updated_date: 'atualizado_em',
       category: 'categoria',
+      company: 'empresa',
     },
     filterMap: {
       id: 'id',
       category: 'categoria',
+      company: 'empresa',
       department_id: 'departamento_id',
     },
-    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'category', 'department', 'department_id'],
-    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'category', 'department', 'department_id'],
+    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id'],
+    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id'],
   },
   Feedback: {
     schema: INTRANET_SCHEMA,
@@ -867,6 +869,7 @@ function mapDocument(
     file_name: row.arquivo_nome || null,
     file_type: row.arquivo_tipo || null,
     file_size: row.arquivo_tamanho || null,
+    company: row.empresa || 'macom_motors',
     category: row.categoria,
     department_id: row.departamento_id,
     department: department?.key || null,
@@ -1488,8 +1491,8 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
-        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, categoria, departamento_id, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       returning *;
     `,
     [
@@ -1500,6 +1503,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
       payload.file_name,
       payload.file_type || null,
       payload.file_size || null,
+      payload.company || 'macom_motors',
       payload.category || 'outros',
       department?.id || null,
       collaboratorId,
@@ -1556,6 +1560,7 @@ async function updateDocument(authClient: ReturnType<typeof createClient>, id: s
   if ('file_name' in payload) assign('arquivo_nome', payload.file_name);
   if ('file_type' in payload) assign('arquivo_tipo', payload.file_type);
   if ('file_size' in payload) assign('arquivo_tamanho', payload.file_size);
+  if ('company' in payload) assign('empresa', payload.company || 'macom_motors');
   if ('category' in payload) assign('categoria', payload.category);
   if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
   assign('atualizado_em', new Date().toISOString());

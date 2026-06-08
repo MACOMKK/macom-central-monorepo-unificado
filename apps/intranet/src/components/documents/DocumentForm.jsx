@@ -7,6 +7,7 @@ import { Upload, Loader2 } from 'lucide-react';
 const EMPTY_FORM = {
   title: '',
   description: '',
+  company: 'macom_motors',
   category: 'outros',
   department: '',
   file_url: '',
@@ -22,6 +23,7 @@ function normalizeInitialData(initialData) {
   return {
     title: initialData.title || '',
     description: initialData.description || '',
+    company: initialData.company || 'macom_motors',
     category: initialData.category || 'outros',
     department: initialData.department || initialData.department_id || '',
     file_url: initialData.file_url || '',
@@ -48,7 +50,10 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
     setUploadError('');
     setUploading(true);
     try {
-      const uploadResult = await appClient.storage.uploadFile(file);
+      const uploadResult = await appClient.storage.uploadFile(file, {
+        company: form.company,
+        category: form.category,
+      });
       setForm((prev) => ({ ...prev, ...uploadResult }));
     } catch (error) {
       setForm((prev) => ({
@@ -81,7 +86,17 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
         <Label>Descrição</Label>
         <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={2} placeholder="Breve descrição..." />
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="space-y-2">
+          <Label>Empresa</Label>
+          <Select value={form.company} onValueChange={(value) => setForm({ ...form, company: value })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="macom_motors">Macom Motors</SelectItem>
+              <SelectItem value="macom_mitsubishi">Macom Mitsubishi</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-2">
           <Label>Categoria</Label>
           <Select value={form.category} onValueChange={(value) => setForm({ ...form, category: value })}>
