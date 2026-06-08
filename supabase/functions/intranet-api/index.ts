@@ -1031,6 +1031,27 @@ async function listCalendarEvents(orderBy?: string, limit?: number) {
   return rows.map((row) => mapCalendarEvent(row, departmentsById, unitsById, creators, responsibleMap));
 }
 
+async function listUpcomingCalendarEvents(limit = 2) {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id, titulo, data_evento, horario, tipo
+      from gestao_intranet.eventos_calendario
+      where data_evento >= current_date
+      order by data_evento asc, horario asc nulls last
+      limit $1;
+    `,
+    [limit],
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.titulo,
+    date: normalizeDateOnly(row.data_evento),
+    time: row.horario,
+    type: row.tipo,
+  }));
+}
+
 async function listDocuments(orderBy?: string, limit?: number) {
   const rows = await listBaseEntity('Document', orderBy, limit);
   const [departments, creators] = await Promise.all([listDepartments(), enrichWithCreators(rows)]);
@@ -1922,6 +1943,8 @@ async function listEntity(
       return listAnnouncementReactions({}, orderBy, limit);
     case 'CalendarEvent':
       return listCalendarEvents(orderBy, limit);
+    case 'UpcomingCalendarEvent':
+      return listUpcomingCalendarEvents(limit || 2);
     case 'Document':
       return listDocuments(orderBy, limit);
     case 'Employee':
@@ -1950,6 +1973,7 @@ function getEntityModule(entity: string) {
     case 'AnnouncementReaction':
       return 'avisos';
     case 'CalendarEvent':
+    case 'UpcomingCalendarEvent':
       return 'calendario';
     case 'Document':
       return 'documentos';

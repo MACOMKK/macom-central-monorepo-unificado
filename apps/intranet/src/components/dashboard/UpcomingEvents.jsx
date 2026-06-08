@@ -71,16 +71,10 @@ function EventCard({ title, date, image, typeLabel }) {
 }
 
 export default function UpcomingEvents() {
-  const today = format(new Date(), 'yyyy-MM-dd');
-
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ['events'],
-    queryFn: () => appClient.entities.CalendarEvent.list('date', 200),
+    queryKey: ['events-upcoming'],
+    queryFn: () => appClient.entities.UpcomingCalendarEvent.list('date', 2),
   });
-
-  const upcomingEvents = events
-    .filter((event) => typeof event?.date === 'string' && event.date >= today)
-    .slice(0, 2);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -97,11 +91,11 @@ export default function UpcomingEvents() {
             <Skeleton key={item} className="h-[208px] rounded-xl" />
           ))}
         </div>
-      ) : upcomingEvents.length === 0 ? (
+      ) : events.length === 0 ? (
         <p className="p-8 text-center text-sm text-slate-500">Nenhum evento proximo.</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 md:grid-cols-2">
-          {upcomingEvents.map((event, index) => (
+          {events.map((event, index) => (
             <EventCard
               key={event.id}
               title={event.title}

@@ -79,6 +79,7 @@ export default function Calendar() {
         Array.isArray(old) ? prependEvent(old, createdEvent) : old
       ));
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['events-upcoming'] });
       setDialogOpen(false);
     },
   });
@@ -107,6 +108,7 @@ export default function Calendar() {
         Array.isArray(old) ? replaceEvent(old, updatedEvent) : old
       ));
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['events-upcoming'] });
       setDialogOpen(false);
       setEditingEvent(null);
     },
@@ -128,7 +130,10 @@ export default function Calendar() {
 
       return { previousEvents };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['events-upcoming'] });
+    },
     onError: (_error, _id, context) => {
       queryClient.setQueryData(['events'], context?.previousEvents);
     },
