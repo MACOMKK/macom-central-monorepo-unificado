@@ -3,37 +3,21 @@ import { Link, useLocation } from 'react-router-dom';
 import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
 import {
-  LayoutDashboard,
-  Megaphone,
-  Link2,
-  Users,
-  FileText,
-  CalendarDays,
   LogOut,
   ShieldCheck,
-  MessageSquarePlus,
   BookOpen,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const navItems = [
-  { path: '/', label: 'Home', icon: LayoutDashboard },
-  { path: '/avisos', label: 'Mural de Avisos', icon: Megaphone },
-  { path: '/links', label: 'Links \u00dateis', icon: Link2 },
-  { path: '/colaboradores', label: 'Colaboradores', icon: Users },
-  { path: '/documentos', label: 'Documentos', icon: FileText },
-  { path: '/calendario', label: 'Calend\u00e1rio', icon: CalendarDays },
-  { path: '/feedback', label: 'Feedback & Sugest\u00f5es', icon: MessageSquarePlus },
-  { path: '/conhecimento', label: 'Base de Conhecimento', icon: BookOpen },
-];
+import { canViewNavItem, intranetNavItems } from '@/lib/navigation';
 
 export default function Sidebar({ collapsed = false, onToggle }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
   const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
+  const visibleNavItems = intranetNavItems.filter((item) => canViewNavItem(item, user));
 
   return (
     <aside
@@ -82,7 +66,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
       </div>
 
       <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link

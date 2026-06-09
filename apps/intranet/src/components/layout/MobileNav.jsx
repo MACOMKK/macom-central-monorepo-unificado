@@ -1,14 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Megaphone,
-  Link2,
-  Users,
-  FileText,
-  CalendarDays,
   ShieldCheck,
-  MessageSquarePlus,
   BookOpen,
   X,
   LogOut
@@ -16,24 +9,15 @@ import {
 import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
+import { canViewNavItem, intranetNavItems } from '@/lib/navigation';
 
 const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
-
-const navItems = [
-  { path: '/', label: 'Home', icon: LayoutDashboard },
-  { path: '/avisos', label: 'Mural de Avisos', icon: Megaphone },
-  { path: '/links', label: 'Links \u00dateis', icon: Link2 },
-  { path: '/colaboradores', label: 'Colaboradores', icon: Users },
-  { path: '/documentos', label: 'Documentos', icon: FileText },
-  { path: '/calendario', label: 'Calend\u00e1rio', icon: CalendarDays },
-  { path: '/feedback', label: 'Feedback', icon: MessageSquarePlus },
-  { path: '/conhecimento', label: 'Base de Conhecimento', icon: BookOpen },
-];
 
 export default function MobileNav({ open = false, onClose }) {
   const location = useLocation();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const visibleNavItems = intranetNavItems.filter((item) => canViewNavItem(item, user));
 
   return (
     <>
@@ -71,7 +55,7 @@ export default function MobileNav({ open = false, onClose }) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link

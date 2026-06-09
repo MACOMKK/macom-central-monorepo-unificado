@@ -33,7 +33,7 @@ function removeKnowledgeItem(items, id) {
 }
 
 export default function KnowledgeBase() {
-  const { canEdit } = usePermissions('colaboradores'); // reuse permissions or just allow all
+  const { canEdit } = usePermissions('conhecimento');
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
