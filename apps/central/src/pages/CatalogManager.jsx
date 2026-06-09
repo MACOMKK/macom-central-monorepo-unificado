@@ -127,6 +127,8 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
+  const [emailRecord, setEmailRecord] = useState(null);
+  const [emailForm, setEmailForm] = useState({ email: '', confirmEmail: '', resetPassword: false });
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importAssetsPreview, setImportAssetsPreview] = useState([]);
@@ -523,6 +525,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     assignUserMutation,
     deleteManyMutation,
     deleteMutation,
+    emailMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
     importContactsMutation,
@@ -540,6 +543,10 @@ export default function CatalogManager({ lockedEntityKey }) {
     onAssignAssetSuccess: () => setAssigningAsset(null),
     onAssignCorporateLineSuccess: () => setAssigningCorporateLine(null),
     onCollaboratorsImportReport: handleCollaboratorsImportReport,
+    onEmailSuccess: () => {
+      setEmailRecord(null);
+      setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
+    },
     onPasswordSuccess: () => {
       setPasswordRecord(null);
       setPasswordForm({ password: '', confirmPassword: '' });
@@ -572,6 +579,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     assetMenuHandlers,
     collaboratorCanDelete,
     collaboratorCanResetPassword,
+    collaboratorCanUpdateEmail,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,
@@ -590,6 +598,10 @@ export default function CatalogManager({ lockedEntityKey }) {
     infrastructureMenu,
     openAssetAssignment: setAssigningAsset,
     openCorporateLineAssignment: setAssigningCorporateLine,
+    openEmailUpdate: (record) => {
+      setEmailRecord(record);
+      setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
+    },
     openPasswordReset: setPasswordRecord,
     openRecord: setEditingRecord,
     requestConfirmation: setConfirmDialog,
@@ -674,6 +686,35 @@ export default function CatalogManager({ lockedEntityKey }) {
     setFeedback,
     setPasswordForm,
   });
+
+  const handleSubmitEmailUpdate = () => {
+    const email = emailForm.email.trim().toLowerCase();
+    const confirmEmail = emailForm.confirmEmail.trim().toLowerCase();
+    const currentEmail = String(emailRecord?.email || '').trim().toLowerCase();
+
+    if (!emailRecord?.id) return;
+
+    if (!email || !email.includes('@')) {
+      setFeedback({ type: 'error', message: 'Informe um email valido.' });
+      return;
+    }
+
+    if (email !== confirmEmail) {
+      setFeedback({ type: 'error', message: 'Os emails informados nao conferem.' });
+      return;
+    }
+
+    if (email === currentEmail) {
+      setFeedback({ type: 'error', message: 'Informe um email diferente do atual.' });
+      return;
+    }
+
+    emailMutation.mutate({
+      id: emailRecord.id,
+      email,
+      resetPassword: emailForm.resetPassword,
+    });
+  };
 
   const allBulkRowsSelected =
     isBulkDeleteView &&
@@ -1064,6 +1105,20 @@ export default function CatalogManager({ lockedEntityKey }) {
           open: assigningCorporateLine !== null,
           record: assigningCorporateLine,
         }}
+        emailUpdate={{
+          collaborator: emailRecord,
+          form: emailForm,
+          isPending: emailMutation.isPending,
+          onClose: () => {
+            setEmailRecord(null);
+            setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
+          },
+          onConfirmEmailChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, confirmEmail: value })),
+          onEmailChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, email: value })),
+          onResetPasswordChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, resetPassword: value })),
+          onSubmit: handleSubmitEmailUpdate,
+          open: emailRecord !== null,
+        }}
         passwordReset={{
           form: passwordForm,
           isPending: passwordMutation.isPending,
@@ -1085,6 +1140,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         assetMenuHandlers={assetMenuHandlers}
         collaboratorCanDelete={collaboratorCanDelete}
         collaboratorCanResetPassword={collaboratorCanResetPassword}
+        collaboratorCanUpdateEmail={collaboratorCanUpdateEmail}
         collaboratorCanUnlinkAll={collaboratorCanUnlinkAll}
         collaboratorMenu={collaboratorMenu}
         collaboratorMenuHandlers={collaboratorMenuHandlers}

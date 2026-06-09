@@ -42,6 +42,7 @@ export function useCatalogMutations({
   normalizeText,
   onAssignAssetSuccess,
   onAssignCorporateLineSuccess,
+  onEmailSuccess,
   onPasswordSuccess,
   onCollaboratorsImportReport,
   onResetAssetsImport,
@@ -309,6 +310,25 @@ export function useCatalogMutations({
     onError: (error) => showMutationError(error, 'Falha ao atualizar senha.'),
   });
 
+  const emailMutation = useMutation({
+    mutationFn: async ({ id, email, resetPassword }) =>
+      catalogApi.colaboradores.updateEmail(id, email, { resetPassword }),
+    onSuccess: (updatedCollaborator) => {
+      if (updatedCollaborator?.id) {
+        queryClient.setQueryData(['colaboradores'], (old = []) => (
+          Array.isArray(old) ? replaceCatalogRecord(old, updatedCollaborator) : old
+        ));
+      }
+
+      handleMutationSuccess({
+        queryKeys: [['colaboradores']],
+        message: 'Email de acesso atualizado com sucesso.',
+        onSuccess: onEmailSuccess,
+      });
+    },
+    onError: (error) => showMutationError(error, 'Falha ao atualizar email de acesso.'),
+  });
+
   const importAssetsMutation = useMutation({
     mutationFn: async (rowsToImport) =>
       importAssetRows({
@@ -498,6 +518,7 @@ export function useCatalogMutations({
     assignUserMutation,
     deleteMutation,
     deleteManyMutation,
+    emailMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
     importContactsMutation,

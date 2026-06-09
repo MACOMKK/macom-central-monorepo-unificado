@@ -1,12 +1,14 @@
 import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
 import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
 import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
+import EmailUpdateDialog from '@/pages/catalog-manager/components/EmailUpdateDialog';
 import PasswordResetDialog from '@/pages/catalog-manager/components/PasswordResetDialog';
 
 export default function CatalogAuxDialogs({
   assetAssignment,
   collaboratorLinks,
   corporateLineAssignment,
+  emailUpdate,
   passwordReset,
 }) {
   return (
@@ -52,6 +54,18 @@ export default function CatalogAuxDialogs({
         onPasswordChange={passwordReset.onPasswordChange}
         onSubmit={passwordReset.onSubmit}
         open={passwordReset.open}
+      />
+
+      <EmailUpdateDialog
+        collaborator={emailUpdate.collaborator}
+        form={emailUpdate.form}
+        isPending={emailUpdate.isPending}
+        onClose={emailUpdate.onClose}
+        onConfirmEmailChange={emailUpdate.onConfirmEmailChange}
+        onEmailChange={emailUpdate.onEmailChange}
+        onResetPasswordChange={emailUpdate.onResetPasswordChange}
+        onSubmit={emailUpdate.onSubmit}
+        open={emailUpdate.open}
       />
     </>
   );

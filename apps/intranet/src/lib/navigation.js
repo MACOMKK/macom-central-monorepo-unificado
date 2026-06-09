@@ -20,10 +20,14 @@ export const intranetNavItems = [
   { path: '/conhecimento', label: 'Base de Conhecimento', icon: BookOpen, module: 'conhecimento' },
 ];
 
-export function canViewNavItem(item, user) {
-  if (!item.module) return true;
+export function canViewModule(module, user) {
+  if (!module) return true;
   if (user?.role === 'admin') return true;
 
-  const level = user?.permissions?.[item.module] ?? 'view';
+  const level = user?.permissions?.[module] ?? 'view';
   return level === 'view' || level === 'edit';
+}
+
+export function canViewNavItem(item, user) {
+  return canViewModule(item.module, user);
 }

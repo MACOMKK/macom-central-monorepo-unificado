@@ -119,6 +119,15 @@ export const catalogApi = {
       await invokeSupabaseFunction('admin-create-user', { action: 'update_password', id, password });
       return true;
     },
+    updateEmail: async (id, email, options = {}) => {
+      const result = await invokeSupabaseFunction('admin-create-user', {
+        action: 'update_email',
+        id,
+        email,
+        reset_password: Boolean(options.resetPassword),
+      });
+      return result.row || null;
+    },
     unlinkAssignments: async (id) => {
       return invokeSupabaseFunction('admin-create-user', { action: 'unlink_assignments', id });
     },

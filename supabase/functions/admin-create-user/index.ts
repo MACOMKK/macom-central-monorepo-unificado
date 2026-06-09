@@ -421,6 +421,82 @@ Deno.serve(async (request) => {
       return json({ success: true });
     }
 
+    if (action === 'update_email') {
+      if (!collaboratorId) {
+        return json({ error: 'ID obrigatorio.' }, 400);
+      }
+
+      if (!email) {
+        return json({ error: 'Novo email obrigatorio.' }, 400);
+      }
+
+      const collaboratorRow = await fetchRowById('public', 'colaboradores', collaboratorId);
+
+      if (!collaboratorRow) {
+        return json({ error: 'Colaborador nao encontrado.' }, 404);
+      }
+
+      if (!isAdmin && (collaboratorRow.funcao === 'admin' || collaboratorRow.funcao === 'gestor')) {
+        return json({ error: 'Apenas administradores podem alterar email de colaboradores admin ou gestor.' }, 403);
+      }
+
+      const emailRows = await sql.unsafe(
+        'select id from public.colaboradores where lower(trim(email)) = lower(trim($1)) and id <> $2 limit 1;',
+        [email, collaboratorId],
+      );
+
+      if (emailRows[0]) {
+        return json({ error: 'Ja existe um colaborador com este email.' }, 400);
+      }
+
+      const updateAuthPayload: Record<string, unknown> = {
+        email,
+        email_confirm: true,
+      };
+
+      if (body.reset_password === true) {
+        updateAuthPayload.password = 'Kmacom.123';
+      }
+
+      const { error: updateEmailError } = await adminClient.auth.admin.updateUserById(collaboratorId, updateAuthPayload);
+
+      if (updateEmailError) {
+        return json({ error: mapDatabaseError(updateEmailError.message || 'Falha ao atualizar email no Auth.') }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          update public.colaboradores
+          set email = $2, atualizado_em = now()
+          where id = $1
+          returning *;
+        `,
+        [collaboratorId, email],
+      );
+
+      await insertCentralAuditLog({
+        action: 'atualizar',
+        entity: 'colaboradores',
+        recordId: collaboratorId,
+        responsibleCollaboratorId,
+        responsibleEmail,
+        before: collaboratorRow,
+        after: rows[0] || null,
+        metadata: buildCentralCollaboratorAuditMetadata({
+          before: collaboratorRow,
+          after: rows[0] || null,
+          baseMetadata: {
+            campo: 'email',
+            email_anterior: collaboratorRow.email || null,
+            email_novo: email,
+            senha_redefinida: body.reset_password === true,
+          },
+        }),
+      });
+
+      return json({ row: rows[0] || null });
+    }
+
     if (action === 'unlink_assignments') {
       if (!collaboratorId) {
         return json({ error: 'ID obrigatorio.' }, 400);

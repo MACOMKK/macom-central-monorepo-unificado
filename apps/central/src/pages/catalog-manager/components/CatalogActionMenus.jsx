@@ -9,6 +9,7 @@ export default function CatalogActionMenus({
   assetMenuHandlers,
   collaboratorCanDelete,
   collaboratorCanResetPassword,
+  collaboratorCanUpdateEmail,
   collaboratorCanUnlinkAll,
   collaboratorMenu,
   collaboratorMenuHandlers,
@@ -51,12 +52,14 @@ export default function CatalogActionMenus({
       <CollaboratorActionsMenu
         canDelete={collaboratorCanDelete}
         canResetPassword={collaboratorCanResetPassword}
+        canUpdateEmail={collaboratorCanUpdateEmail}
         canUnlinkAll={collaboratorCanUnlinkAll}
         isUnlinking={isUnlinking}
         menu={collaboratorMenu}
         onDelete={collaboratorMenuHandlers.onDelete}
         onEdit={collaboratorMenuHandlers.onEdit}
         onResetPassword={collaboratorMenuHandlers.onResetPassword}
+        onUpdateEmail={collaboratorMenuHandlers.onUpdateEmail}
         onUnlinkAll={collaboratorMenuHandlers.onUnlinkAll}
       />
     </>

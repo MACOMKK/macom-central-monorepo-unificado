@@ -12,6 +12,7 @@ export function useCatalogActionHandlers({
   openRecord,
   openAssetAssignment,
   openCorporateLineAssignment,
+  openEmailUpdate,
   openPasswordReset,
   requestConfirmation,
   systemAccesses,
@@ -60,6 +61,10 @@ export function useCatalogActionHandlers({
   const collaboratorCanResetPassword = Boolean(
     collaboratorMenu &&
       (canManageElevatedRoles || collaboratorMenu.row.funcao !== 'admin')
+  );
+  const collaboratorCanUpdateEmail = Boolean(
+    collaboratorMenu &&
+      (canManageElevatedRoles || !['admin', 'gestor'].includes(collaboratorMenu.row.funcao))
   );
 
   const assetMenuHandlers = {
@@ -137,6 +142,15 @@ export function useCatalogActionHandlers({
       );
     },
     onEdit: () => openRecordEditor(collaboratorMenu),
+    onUpdateEmail: () => {
+      if (!collaboratorCanUpdateEmail) {
+        showMenuError('Apenas administradores podem alterar email de colaboradores admin ou gestor.');
+        return;
+      }
+
+      openEmailUpdate(collaboratorMenu.row);
+      closeMenu();
+    },
     onResetPassword: () => {
       if (!collaboratorCanResetPassword) {
         showMenuError('Apenas administradores podem redefinir senha de colaboradores admin.');
@@ -161,6 +175,7 @@ export function useCatalogActionHandlers({
     assetMenuHandlers,
     collaboratorCanDelete,
     collaboratorCanResetPassword,
+    collaboratorCanUpdateEmail,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,

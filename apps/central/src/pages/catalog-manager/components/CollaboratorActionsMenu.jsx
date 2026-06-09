@@ -1,14 +1,16 @@
 import { createPortal } from 'react-dom';
-import { KeyRound, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { KeyRound, Mail, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 
 export default function CollaboratorActionsMenu({
   canDelete = true,
+  canUpdateEmail = true,
   canResetPassword = true,
   canUnlinkAll,
   isUnlinking,
   menu,
   onDelete,
   onEdit,
+  onUpdateEmail,
   onResetPassword,
   onUnlinkAll,
 }) {
@@ -28,6 +30,16 @@ export default function CollaboratorActionsMenu({
         <Pencil className="h-4 w-4" />
         Editar
       </button>
+      {canUpdateEmail ? (
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+          onClick={onUpdateEmail}
+        >
+          <Mail className="h-4 w-4" />
+          Atualizar email de acesso
+        </button>
+      ) : null}
       {canResetPassword ? (
         <button
           type="button"

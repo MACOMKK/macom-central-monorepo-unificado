@@ -14,6 +14,7 @@ vi.mock('@/lib/catalogApi', () => ({
       update: vi.fn(),
       remove: vi.fn(),
       updatePassword: vi.fn(),
+      updateEmail: vi.fn(),
       unlinkAssignments: vi.fn(),
     },
     contatos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
@@ -249,6 +250,48 @@ vi.mock('@/pages/catalog-manager/components/CorporateLinesImportDialog', () => (
     ) : null,
 }));
 vi.mock('@/pages/catalog-manager/components/ImportPreviewTable', () => ({ default: () => null }));
+vi.mock('@/pages/catalog-manager/components/EmailUpdateDialog', () => ({
+  default: ({
+    collaborator,
+    form,
+    isPending,
+    onClose,
+    onConfirmEmailChange,
+    onEmailChange,
+    onResetPasswordChange,
+    onSubmit,
+    open,
+  }) =>
+    open ? (
+      <div>
+        <h2>Atualizar email de acesso</h2>
+        <p>{collaborator?.email}</p>
+        <label>
+          Novo email
+          <input aria-label="Novo email" value={form.email} onChange={(event) => onEmailChange(event.target.value)} />
+        </label>
+        <label>
+          Confirmar novo email
+          <input
+            aria-label="Confirmar novo email"
+            value={form.confirmEmail}
+            onChange={(event) => onConfirmEmailChange(event.target.value)}
+          />
+        </label>
+        <label>
+          Redefinir senha para Kmacom.123
+          <input
+            aria-label="Redefinir senha para Kmacom.123"
+            type="checkbox"
+            checked={form.resetPassword}
+            onChange={(event) => onResetPasswordChange(event.target.checked)}
+          />
+        </label>
+        <button type="button" onClick={onClose}>Cancelar atualizacao de email</button>
+        <button type="button" onClick={onSubmit} disabled={isPending}>Atualizar email</button>
+      </div>
+    ) : null,
+}));
 vi.mock('@/pages/catalog-manager/components/PasswordResetDialog', () => ({ default: () => null }));
 vi.mock('@/pages/catalog-manager/components/SearchToolbar', () => ({ default: () => null }));
 
@@ -321,10 +364,11 @@ vi.mock('@/pages/catalog-manager/components/InfrastructureActionsMenu', () => ({
 }));
 
 vi.mock('@/pages/catalog-manager/components/CollaboratorActionsMenu', () => ({
-  default: ({ canUnlinkAll, menu, onDelete, onEdit, onResetPassword, onUnlinkAll }) =>
+  default: ({ canUnlinkAll, menu, onDelete, onEdit, onResetPassword, onUpdateEmail, onUnlinkAll }) =>
     menu ? (
       <div>
         <button type="button" onClick={onEdit}>Editar</button>
+        <button type="button" onClick={onUpdateEmail}>Atualizar email de acesso</button>
         <button type="button" onClick={onResetPassword}>Redefinir senha</button>
         {canUnlinkAll ? <button type="button" onClick={onUnlinkAll}>Desvincular tudo</button> : null}
         <button type="button" onClick={onDelete}>Excluir</button>
@@ -428,6 +472,7 @@ export function resetCatalogManagerMocks() {
   catalogApi.ativos.update.mockResolvedValue({ id: 'asset-updated' });
   catalogApi.colaboradores.create.mockResolvedValue({ id: 'col-created' });
   catalogApi.colaboradores.update.mockResolvedValue({ id: 'col-updated' });
+  catalogApi.colaboradores.updateEmail.mockResolvedValue({ id: 'col-updated', email: 'novo@macom.com' });
   catalogApi.colaboradores.remove.mockResolvedValue(true);
   catalogApi.colaboradores.unlinkAssignments.mockResolvedValue({
     ativos_count: 1,

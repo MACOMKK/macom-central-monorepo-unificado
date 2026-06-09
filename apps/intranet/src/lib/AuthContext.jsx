@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { appClient } from '@/api/client';
 
 const AuthContext = createContext();
+const DEFAULT_INITIAL_PASSWORD = 'Kmacom.123';
+const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
 
 const INTRANET_ACCESS_DENIED_CODES = new Set([
   'INTRANET_COLLABORATOR_NOT_FOUND',
@@ -24,12 +26,44 @@ const isUnauthenticatedSessionError = (error) => {
   );
 };
 
+function getPasswordChangeStorageKey(user) {
+  const userKey = user?.id || user?.collaborator_id || user?.email;
+  return userKey ? `${PASSWORD_CHANGE_REQUIRED_PREFIX}${userKey}` : null;
+}
+
+function readPasswordChangeRequired(user) {
+  const key = getPasswordChangeStorageKey(user);
+  if (!key) return false;
+
+  try {
+    return window.localStorage.getItem(key) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writePasswordChangeRequired(user, required) {
+  const key = getPasswordChangeStorageKey(user);
+  if (!key) return;
+
+  try {
+    if (required) {
+      window.localStorage.setItem(key, 'true');
+    } else {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Local storage is only a client-side reminder for the active session.
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     } = appClient.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        setMustChangePassword(false);
         setIsAuthenticated(false);
         setAuthChecked(true);
         setIsLoadingAuth(false);
@@ -80,6 +115,7 @@ export const AuthProvider = ({ children }) => {
 
       if (!session?.access_token) {
         setUser(null);
+        setMustChangePassword(false);
         setIsAuthenticated(false);
         setAuthChecked(true);
         setIsLoadingAuth(false);
@@ -113,6 +149,7 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
       const currentUser = await appClient.auth.me();
       setUser(currentUser);
+      setMustChangePassword(readPasswordChangeRequired(currentUser));
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
       if (!silent) {
@@ -131,6 +168,7 @@ export const AuthProvider = ({ children }) => {
         await clearIntranetSession();
       }
       setUser(null);
+      setMustChangePassword(false);
       setIsAuthenticated(false);
       setAuthError(
         isUnauthenticatedSessionError(error)
@@ -154,7 +192,10 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const currentUser = await appClient.auth.signIn(credentials);
+      const shouldRequirePasswordChange = credentials?.password === DEFAULT_INITIAL_PASSWORD;
+      writePasswordChangeRequired(currentUser, shouldRequirePasswordChange);
       setUser(currentUser);
+      setMustChangePassword(shouldRequirePasswordChange);
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
       return currentUser;
@@ -163,6 +204,7 @@ export const AuthProvider = ({ children }) => {
         await clearIntranetSession();
       }
       setUser(null);
+      setMustChangePassword(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       setAuthError({
@@ -184,6 +226,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changePassword = async (newPassword) => {
+    await appClient.auth.updatePassword(newPassword);
+    writePasswordChangeRequired(user, false);
+    setMustChangePassword(false);
+    await checkUserAuth({ silent: true });
+  };
+
   const navigateToLogin = () => {
     appClient.auth.redirectToLogin(window.location.pathname + window.location.search);
   };
@@ -197,8 +246,11 @@ export const AuthProvider = ({ children }) => {
       authChecked,
       logout,
       signIn,
+      changePassword,
       navigateToLogin,
       checkUserAuth,
+      defaultInitialPassword: DEFAULT_INITIAL_PASSWORD,
+      mustChangePassword,
     }}>
       {children}
     </AuthContext.Provider>

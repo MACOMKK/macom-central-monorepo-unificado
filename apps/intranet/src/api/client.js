@@ -135,6 +135,13 @@ export const appClient = {
       return intranetApi.auth.me(data?.session?.access_token);
     },
 
+    async updatePassword(password) {
+      assertSupabaseConfigured();
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw normalizeFunctionError(error, 'Falha ao atualizar senha.');
+      return true;
+    },
+
     async getSession() {
       assertSupabaseConfigured();
       const { data, error } = await supabase.auth.getSession();

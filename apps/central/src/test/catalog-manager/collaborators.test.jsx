@@ -333,6 +333,44 @@ describe('CatalogManager collaborators', () => {
     });
   });
 
+  it('atualiza o email de acesso do colaborador pelo menu de acoes', async () => {
+    const user = userEvent.setup();
+    catalogApi.colaboradores.list.mockResolvedValue([
+      {
+        id: 'col-email-1',
+        nome: 'Colaborador Provisorio',
+        email: '12345678901@cadastro.macom.com.br',
+        funcao: 'usuario',
+        status: 'ativo',
+      },
+    ]);
+    catalogApi.ativos.list.mockResolvedValue([]);
+
+    renderCatalogManager('colaboradores');
+
+    const trigger = await screen.findByRole('button', { name: 'Abrir menu de acoes' });
+    await user.click(trigger);
+    await user.click(screen.getByRole('button', { name: 'Atualizar email de acesso' }));
+
+    expect(await screen.findByText('Atualizar email de acesso')).toBeInTheDocument();
+    expect(screen.getAllByText('12345678901@cadastro.macom.com.br').length).toBeGreaterThan(0);
+
+    await user.type(screen.getByLabelText('Novo email'), 'novo@macom.com');
+    await user.type(screen.getByLabelText('Confirmar novo email'), 'novo@macom.com');
+    await user.click(screen.getByLabelText('Redefinir senha para Kmacom.123'));
+    await user.click(screen.getByRole('button', { name: 'Atualizar email' }));
+
+    await waitFor(() => {
+      expect(catalogApi.colaboradores.updateEmail).toHaveBeenCalledWith(
+        'col-email-1',
+        'novo@macom.com',
+        { resetPassword: true }
+      );
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Email de acesso atualizado com sucesso.');
+  });
+
   it('importa colaboradores com sucesso a partir do preview carregado', async () => {
     const user = userEvent.setup();
     catalogApi.ativos.list.mockResolvedValue([]);
