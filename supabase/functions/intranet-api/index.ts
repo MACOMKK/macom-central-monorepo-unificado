@@ -9,6 +9,7 @@ const corsHeaders = {
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const sql = databaseUrl
   ? postgres(databaseUrl, {
@@ -23,6 +24,7 @@ const INTRANET_SCHEMA = 'gestao_intranet';
 const INTRANET_SYSTEM_SLUG = 'intranet';
 const ANNOUNCEMENT_IMAGES_STORAGE_BUCKET = 'avisos';
 const DOCUMENTS_STORAGE_BUCKET = 'documentos';
+const DOCUMENT_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_ANNOUNCEMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -876,6 +878,7 @@ function mapDocument(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
   creatorMap = new Map<string, Record<string, unknown>>(),
+  signedFileUrl?: string | null,
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const department = departmentsById.get(String(row.departamento_id));
@@ -884,7 +887,7 @@ function mapDocument(
     id: row.id,
     title: row.titulo,
     description: row.descricao,
-    file_url: row.arquivo_url,
+    file_url: signedFileUrl || row.arquivo_url || null,
     file_path: row.arquivo_path || null,
     file_name: row.arquivo_nome || null,
     file_type: row.arquivo_tipo || null,
@@ -930,6 +933,44 @@ function mapEmployee(
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
   };
+}
+
+function createStorageAdminClient() {
+  if (!supabaseUrl || !serviceRoleKey) return null;
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+async function createDocumentSignedUrl(document: Record<string, unknown>) {
+  const storageClient = createStorageAdminClient();
+  const filePath = typeof document.arquivo_path === 'string' ? document.arquivo_path.trim() : '';
+  if (!storageClient || !filePath) {
+    return typeof document.arquivo_url === 'string' ? document.arquivo_url : null;
+  }
+
+  const bucket = resolveDocumentStorageBucket(document);
+  const { data, error } = await storageClient.storage
+    .from(bucket)
+    .createSignedUrl(filePath, DOCUMENT_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    console.error('Failed to create signed document URL:', {
+      bucket,
+      filePath,
+      message: error.message,
+    });
+    return typeof document.arquivo_url === 'string' ? document.arquivo_url : null;
+  }
+
+  return data?.signedUrl || null;
+}
+
+async function mapDocumentWithSignedUrl(
+  row: Record<string, unknown>,
+  departmentsById: Map<string, Record<string, unknown>>,
+  creatorMap = new Map<string, Record<string, unknown>>(),
+) {
+  const signedFileUrl = await createDocumentSignedUrl(row);
+  return mapDocument(row, departmentsById, creatorMap, signedFileUrl);
 }
 
 async function enrichWithCreators(rows: Record<string, unknown>[]) {
@@ -1138,7 +1179,7 @@ async function listDocuments(orderBy?: string, limit?: number, user?: Record<str
   );
   const [departments, creators] = await Promise.all([listDepartments(), enrichWithCreators(rows)]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
-  return rows.map((row) => mapDocument(row, departmentsById, creators));
+  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, creators)));
 }
 
 async function listEmployees() {
@@ -1664,7 +1705,7 @@ async function updateCalendarEvent(
 
 async function createDocument(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
-  if (!payload.file_url || !payload.file_path || !payload.file_name) {
+  if (!payload.file_path || !payload.file_name) {
     throw new Error('Arquivo obrigatorio para criar documento.');
   }
   validateDocumentFileSize(payload.file_size);
@@ -1678,7 +1719,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
     [
       payload.title,
       payload.description || null,
-      payload.file_url,
+      payload.file_url || null,
       payload.file_path,
       payload.file_name,
       payload.file_type || null,
@@ -1690,7 +1731,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
     ],
   );
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
-  return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
+  return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
 function resolveDocumentStorageBucket(document: Record<string, unknown> | null | undefined) {
@@ -1707,10 +1748,16 @@ async function deleteStorageFile(
   filePath: unknown,
   bucket = DOCUMENTS_STORAGE_BUCKET,
 ) {
+  void authClient;
   const normalizedPath = typeof filePath === 'string' ? filePath.trim() : '';
   if (!normalizedPath) return;
 
-  const { error } = await authClient.storage.from(bucket).remove([normalizedPath]);
+  const storageClient = createStorageAdminClient();
+  if (!storageClient) {
+    throw new Error('Cliente administrativo do storage nao configurado.');
+  }
+
+  const { error } = await storageClient.storage.from(bucket).remove([normalizedPath]);
   if (error) {
     throw new Error(error.message || 'Falha ao remover arquivo do storage.');
   }
@@ -1762,7 +1809,7 @@ async function updateDocument(authClient: ReturnType<typeof createClient>, id: s
     );
   }
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
-  return mapDocument(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
+  return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
 async function updateEmployee(id: string, payload: Record<string, unknown>) {

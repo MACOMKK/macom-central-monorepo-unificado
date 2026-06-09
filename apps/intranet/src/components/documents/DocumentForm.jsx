@@ -148,7 +148,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
           <p className="text-xs text-destructive">{uploadError}</p>
         ) : null}
       </div>
-      <Button type="submit" disabled={isLoading || uploading || !form.file_url || !form.file_path || !form.file_name} className="w-full">
+      <Button type="submit" disabled={isLoading || uploading || !form.file_path || !form.file_name} className="w-full">
         {isLoading ? 'Salvando...' : submitLabel || 'Salvar Documento'}
       </Button>
     </form>

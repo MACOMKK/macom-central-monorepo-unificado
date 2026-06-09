@@ -54,9 +54,8 @@ async function uploadToBucket(file, bucket, maxFileSize, folder = '') {
     throw normalizeFunctionError(uploadError, 'Falha ao enviar arquivo.');
   }
 
-  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
   return {
-    publicUrl: data.publicUrl,
+    publicUrl: '',
     filePath,
   };
 }
