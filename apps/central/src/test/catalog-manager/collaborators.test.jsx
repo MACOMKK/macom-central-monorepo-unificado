@@ -346,6 +346,7 @@ describe('CatalogManager collaborators', () => {
         telefone: '85999999999',
         departamento: 'Tecnologia',
         cargo: 'Analista de TI',
+        data_nascimento: '1994-08-10',
         data_admissao: '2026-05-11',
         status: 'ativo',
         unidade: 'Matriz',
@@ -365,11 +366,12 @@ describe('CatalogManager collaborators', () => {
         nome: 'Maria Souza',
         email: 'maria@macom.com',
         password: 'Temp123',
-        funcao: 'admin',
+        funcao: 'usuario',
         cpf: '12345678901',
         telefone: '85999999999',
         departamento_id: 'dep-1',
         cargo: 'Analista de TI',
+        data_nascimento: '1994-08-10',
         data_admissao: '2026-05-11',
         status: 'ativo',
         unidade_id: 'unit-1',
@@ -377,6 +379,209 @@ describe('CatalogManager collaborators', () => {
     });
 
     expect(screen.getByRole('alert')).toHaveTextContent('1 colaborador(es) importado(s) com sucesso.');
+  });
+
+  it('exibe relatorio do import com sucessos e erros de colaboradores', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Maria Importada',
+        email: 'maria.importada@macom.com',
+        password: '',
+        cpf: '12345678901',
+      },
+      {
+        nome: 'Email Existente',
+        email: 'existente@macom.com',
+        password: '',
+        cpf: '12345678902',
+      },
+    ]);
+    catalogApi.colaboradores.create
+      .mockResolvedValueOnce({
+        id: 'col-imported-1',
+        nome: 'Maria Importada',
+        email: 'maria.importada@macom.com',
+      })
+      .mockRejectedValueOnce(new Error('Ja existe um colaborador com este email.'));
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    expect(await screen.findByText('Relatorio do import de colaboradores')).toBeInTheDocument();
+    expect(screen.getByText('1 importado(s) com sucesso · 1 erro(s)')).toBeInTheDocument();
+    expect(screen.getAllByText('Maria Importada').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('maria.importada@macom.com').length).toBeGreaterThan(0);
+    expect(screen.getByText('Linha 3: Ja existe um colaborador com este email.')).toBeInTheDocument();
+  });
+
+  it('usa senha padrao e funcao usuario quando importacao de colaboradores nao informa senha ou tenta funcao elevada', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Joao Importado',
+        email: 'joao.importado@macom.com',
+        password: '',
+        funcao: 'gestor',
+        departamento: 'Tecnologia',
+        unidade: 'Matriz',
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    await waitFor(() => {
+      expect(catalogApi.colaboradores.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nome: 'Joao Importado',
+          email: 'joao.importado@macom.com',
+          password: 'Kmacom.123',
+          funcao: 'usuario',
+          departamento_id: 'dep-1',
+          unidade_id: 'unit-1',
+        })
+      );
+    });
+  });
+
+  it('gera email provisorio pelo CPF quando importacao de colaboradores nao informa email', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Sem Email Importado',
+        email: '',
+        password: '',
+        funcao: 'gestor',
+        cpf: '123.456.789-01',
+        cargo: 'Consultor',
+        data_admissao: '2026-05-11',
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    await waitFor(() => {
+      expect(catalogApi.colaboradores.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nome: 'Sem Email Importado',
+          email: '12345678901@cadastro.macom.com.br',
+          password: 'Kmacom.123',
+          funcao: 'usuario',
+          cpf: '12345678901',
+          cargo: 'Consultor',
+          data_admissao: '2026-05-11',
+        })
+      );
+    });
+  });
+
+  it('normaliza datas brasileiras na importacao de colaboradores', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Data Brasileira',
+        email: '',
+        cpf: '12345678902',
+        data_nascimento: '10/08/1994',
+        data_admissao: '11/05/2026',
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    await waitFor(() => {
+      expect(catalogApi.colaboradores.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: '12345678902@cadastro.macom.com.br',
+          data_nascimento: '1994-08-10',
+          data_admissao: '2026-05-11',
+        })
+      );
+    });
+  });
+
+  it('exibe erro claro quando data de colaborador importado e invalida', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Data Invalida',
+        email: '',
+        cpf: '12345678903',
+        data_nascimento: '31/02/1994',
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Linha 2: Data de nascimento invalida.');
+    });
+
+    expect(catalogApi.colaboradores.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ nome: 'Data Invalida' })
+    );
+  });
+
+  it('exibe erro quando importacao de colaboradores nao informa email nem CPF', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    readImportFileRows.mockResolvedValue([
+      {
+        nome: 'Sem Email e Sem CPF',
+        email: '',
+        cpf: '',
+      },
+    ]);
+
+    renderCatalogManager('colaboradores');
+
+    await user.click(await screen.findByRole('button', { name: 'Importar colaboradores' }));
+    const fileInput = screen.getByLabelText('Arquivo de importacao de colaboradores');
+    const file = new File(['fake'], 'colaboradores.csv', { type: 'text/csv' });
+    await user.upload(fileInput, file);
+    await user.click(screen.getByRole('button', { name: 'Confirmar importacao de colaboradores' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Linha 2: Email obrigatorio ou CPF obrigatorio para gerar email provisório.');
+    });
+
+    expect(catalogApi.colaboradores.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ nome: 'Sem Email e Sem CPF' })
+    );
   });
 
   it('exibe erro quando a importacao de colaboradores nao encontra o departamento', async () => {

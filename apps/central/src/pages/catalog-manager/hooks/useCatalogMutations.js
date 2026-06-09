@@ -43,6 +43,7 @@ export function useCatalogMutations({
   onAssignAssetSuccess,
   onAssignCorporateLineSuccess,
   onPasswordSuccess,
+  onCollaboratorsImportReport,
   onResetAssetsImport,
   onResetCollaboratorsImport,
   onResetContactsImport,
@@ -342,7 +343,8 @@ export function useCatalogMutations({
         rowsToImport,
         units,
       }),
-    onSuccess: ({ created, errors }) =>
+    onSuccess: ({ created, errors }) => {
+      onCollaboratorsImportReport?.({ created, errors });
       handleImportSuccess({
         queryKey: 'colaboradores',
         created,
@@ -352,7 +354,8 @@ export function useCatalogMutations({
         partialSuccessMessage: (createdCount, importErrors) =>
           `${createdCount} colaborador(es) importado(s). ${importErrors.length} linha(s) com erro: ${importErrors.slice(0, 3).join(' | ')}`,
         emptyMessage: 'Nenhum colaborador foi importado.',
-      }),
+      });
+    },
     onError: (error) => showMutationError(error, 'Falha ao importar colaboradores.'),
   });
 

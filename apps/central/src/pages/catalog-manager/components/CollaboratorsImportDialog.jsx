@@ -14,7 +14,7 @@ export default function CollaboratorsImportDialog({
 }) {
   return (
     <ImportDialogShell
-      expectedFields="nome,email,password,funcao,cpf,telefone,departamento,cargo,data_admissao,status,unidade"
+      expectedFields="nome,email,password,funcao,cpf,telefone,departamento,cargo,data_nascimento,data_admissao,status,unidade"
       fileName={fileName}
       isPending={isPending}
       onClose={onClose}

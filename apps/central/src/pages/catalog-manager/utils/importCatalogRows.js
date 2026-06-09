@@ -69,6 +69,57 @@ export async function importAssetRows({
   return { created, errors };
 }
 
+function normalizeImportDate(value, fieldLabel) {
+  if (value === undefined || value === null || value === '') return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new Error(`${fieldLabel} invalida.`);
+    }
+    return value.toISOString().slice(0, 10);
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const date = new Date(`${text}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(`${fieldLabel} invalida.`);
+    }
+    return text;
+  }
+
+  const brDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brDate) {
+    const [, day, month, year] = brDate;
+    const normalized = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const date = new Date(`${normalized}T00:00:00Z`);
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.getUTCFullYear() !== Number(year) ||
+      date.getUTCMonth() + 1 !== Number(month) ||
+      date.getUTCDate() !== Number(day)
+    ) {
+      throw new Error(`${fieldLabel} invalida.`);
+    }
+    return normalized;
+  }
+
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const serial = Number(text);
+    if (Number.isFinite(serial) && serial > 0) {
+      const excelEpoch = Date.UTC(1899, 11, 30);
+      const date = new Date(excelEpoch + serial * 24 * 60 * 60 * 1000);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10);
+      }
+    }
+  }
+
+  throw new Error(`${fieldLabel} invalida. Use AAAA-MM-DD ou DD/MM/AAAA.`);
+}
+
 export async function importCollaboratorRows({
   collaboratorsApiCreate,
   departments,
@@ -77,6 +128,8 @@ export async function importCollaboratorRows({
   rowsToImport,
   units,
 }) {
+  const defaultPassword = 'Kmacom.123';
+  const provisionalEmailDomain = 'cadastro.macom.com.br';
   const departmentOptions = departments.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
   const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
   const created = [];
@@ -90,6 +143,8 @@ export async function importCollaboratorRows({
       const unidadeNome = normalizeText(row.unidade || row.unidade_nome);
       const departamentoId = departamentoNome ? resolveIdByName(departamentoNome, departmentOptions) : null;
       const unidadeId = unidadeNome ? resolveIdByName(unidadeNome, unitOptions) : null;
+      const cpf = String(row.cpf || '').replace(/\D/g, '');
+      const email = String(row.email || '').trim().toLowerCase() || (cpf ? `${cpf}@${provisionalEmailDomain}` : null);
 
       if (departamentoNome && !departamentoId) {
         throw new Error(`Departamento nao encontrado: ${row.departamento || row.departamento_nome}`);
@@ -101,21 +156,21 @@ export async function importCollaboratorRows({
 
       const payload = {
         nome: row.nome || null,
-        email: row.email || null,
-        password: row.password || null,
-        funcao: row.funcao || 'usuario',
-        cpf: row.cpf || null,
+        email,
+        password: row.password || defaultPassword,
+        funcao: 'usuario',
+        cpf: cpf || null,
         telefone: row.telefone || null,
         departamento_id: departamentoId || null,
         cargo: row.cargo || null,
-        data_admissao: row.data_admissao || null,
+        data_nascimento: normalizeImportDate(row.data_nascimento, 'Data de nascimento'),
+        data_admissao: normalizeImportDate(row.data_admissao, 'Data de admissao'),
         status: row.status || 'ativo',
         unidade_id: unidadeId || null,
       };
 
       if (!payload.nome) throw new Error('Nome obrigatorio.');
-      if (!payload.email) throw new Error('Email obrigatorio.');
-      if (!payload.password) throw new Error('Password obrigatoria.');
+      if (!payload.email) throw new Error('Email obrigatorio ou CPF obrigatorio para gerar email provisório.');
 
       const createdRow = await collaboratorsApiCreate(payload);
       created.push(createdRow);

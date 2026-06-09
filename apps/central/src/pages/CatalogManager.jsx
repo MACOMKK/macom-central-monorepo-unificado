@@ -136,6 +136,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [importCollaboratorsOpen, setImportCollaboratorsOpen] = useState(false);
   const [importCollaboratorsFile, setImportCollaboratorsFile] = useState(null);
   const [importCollaboratorsPreview, setImportCollaboratorsPreview] = useState([]);
+  const [collaboratorsImportReport, setCollaboratorsImportReport] = useState(null);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [importContactsFile, setImportContactsFile] = useState(null);
   const [importContactsPreview, setImportContactsPreview] = useState([]);
@@ -457,6 +458,18 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportCollaboratorsPreview([]);
   };
 
+  const handleCollaboratorsImportReport = ({ created = [], errors = [] }) => {
+    setCollaboratorsImportReport({
+      created: created.map((item) => ({
+        id: item.id,
+        name: item.nome || item.email || 'Colaborador importado',
+        email: item.email || '',
+      })),
+      errors,
+      generatedAt: new Date().toISOString(),
+    });
+  };
+
   const resetImportContactsDialog = () => {
     setImportContactsOpen(false);
     setImportContactsFile(null);
@@ -526,6 +539,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     normalizeText,
     onAssignAssetSuccess: () => setAssigningAsset(null),
     onAssignCorporateLineSuccess: () => setAssigningCorporateLine(null),
+    onCollaboratorsImportReport: handleCollaboratorsImportReport,
     onPasswordSuccess: () => {
       setPasswordRecord(null);
       setPasswordForm({ password: '', confirmPassword: '' });
@@ -807,6 +821,61 @@ export default function CatalogManager({ lockedEntityKey }) {
         subtitle={entityMeta[lockedEntityKey].subtitle}
         title={entityMeta[lockedEntityKey].title}
       />
+
+      {lockedEntityKey === 'colaboradores' && collaboratorsImportReport ? (
+        <Card className="border-border p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Relatorio do import de colaboradores</p>
+              <p className="text-xs text-muted-foreground">
+                {collaboratorsImportReport.created.length} importado(s) com sucesso · {collaboratorsImportReport.errors.length} erro(s)
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => setCollaboratorsImportReport(null)}
+            >
+              Fechar
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Importados com sucesso</p>
+              {collaboratorsImportReport.created.length ? (
+                <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+                  {collaboratorsImportReport.created.map((item) => (
+                    <div key={item.id || item.email || item.name} className="rounded-lg bg-white/80 px-3 py-2 text-sm">
+                      <p className="font-medium text-foreground">{item.name}</p>
+                      {item.email ? <p className="text-xs text-muted-foreground">{item.email}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-emerald-700">Nenhum colaborador importado.</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-destructive">Erros encontrados</p>
+              {collaboratorsImportReport.errors.length ? (
+                <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+                  {collaboratorsImportReport.errors.map((error) => (
+                    <div key={error} className="rounded-lg bg-white/80 px-3 py-2 text-sm text-destructive">
+                      {error}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">Nenhum erro encontrado.</p>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' ? null : lockedEntityKey === 'ativos' ? (
         <AssetsToolbar
