@@ -121,7 +121,7 @@ export default function HomeHighlightsCarousel({ disabled = false }) {
 
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['announcements-home'],
-    queryFn: () => appClient.entities.Announcement.list('-created_date', 10),
+    queryFn: () => appClient.entities.HomeAnnouncement.list('-created_date', 10),
     enabled: !disabled,
   });
 

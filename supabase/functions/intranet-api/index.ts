@@ -987,6 +987,38 @@ async function listAnnouncements(
   return rows.map((row) => mapAnnouncement(row, creators));
 }
 
+async function listHomeAnnouncements(limit = 10) {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        id,
+        titulo,
+        conteudo,
+        categoria,
+        prioridade,
+        fixado,
+        publica_em,
+        expira_em,
+        imagem_url,
+        imagem_path,
+        imagem_nome,
+        imagem_tipo,
+        imagem_tamanho,
+        criado_em,
+        atualizado_em,
+        criado_por
+      from gestao_intranet.avisos
+      where (publica_em is null or publica_em <= now())
+        and (expira_em is null or expira_em >= now())
+      order by criado_em desc
+      limit $1;
+    `,
+    [limit],
+  );
+
+  return rows.map((row) => mapAnnouncement(row));
+}
+
 async function listAnnouncementComments(filters: Record<string, unknown>, orderBy?: string, limit?: number) {
   const rows = await filterBaseEntity('AnnouncementComment', filters, orderBy, limit);
   const creators = await enrichWithCreators(rows);
@@ -1952,6 +1984,8 @@ async function listEntity(
         includeInactive: Boolean(filters.include_inactive) && Boolean(user) && canEditModule(user as Record<string, unknown>, 'avisos'),
         filters,
       });
+    case 'HomeAnnouncement':
+      return listHomeAnnouncements(limit || 10);
     case 'AnnouncementComment':
       return listAnnouncementComments({}, orderBy, limit);
     case 'AnnouncementReaction':
@@ -1986,6 +2020,7 @@ async function listEntity(
 function getEntityModule(entity: string) {
   switch (entity) {
     case 'Announcement':
+    case 'HomeAnnouncement':
     case 'AnnouncementComment':
     case 'AnnouncementReaction':
       return 'avisos';
