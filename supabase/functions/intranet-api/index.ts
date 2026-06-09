@@ -1017,6 +1017,21 @@ async function listQuickLinks(orderBy?: string, limit?: number) {
   return rows.map((row) => mapQuickLink(row, creators));
 }
 
+async function listDashboardQuickLinks(limit = 6) {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select *
+      from gestao_intranet.links_uteis
+      where mostrar_na_dashboard = true
+      order by criado_em asc
+      limit $1;
+    `,
+    [limit],
+  );
+
+  return rows.map((row) => mapQuickLink(row));
+}
+
 async function listCalendarEvents(orderBy?: string, limit?: number) {
   const rows = await listBaseEntity('CalendarEvent', orderBy, limit);
   const responsibleIds = rows.map((row) => String(row.responsavel_colaborador_id || '')).filter(Boolean);
@@ -1955,6 +1970,8 @@ async function listEntity(
       return listFeedback(orderBy, limit);
     case 'KnowledgeBase':
       return listKnowledgeBase(orderBy, limit);
+    case 'DashboardQuickLink':
+      return listDashboardQuickLinks(limit || 6);
     case 'QuickLink':
       return listQuickLinks(orderBy, limit);
     case 'User':
@@ -1985,6 +2002,7 @@ function getEntityModule(entity: string) {
       return 'feedback';
     case 'KnowledgeBase':
       return 'conhecimento';
+    case 'DashboardQuickLink':
     case 'QuickLink':
       return 'links';
     case 'UserPermission':
