@@ -114,11 +114,11 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Departamento</Label>
+          <Label>Visibilidade</Label>
           <Select value={form.department || '__none__'} onValueChange={(value) => setForm({ ...form, department: value === '__none__' ? '' : value })}>
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Sem departamento</SelectItem>
+              <SelectItem value="__none__">Geral - todos os setores</SelectItem>
               {departments.map((department) => (
                 <SelectItem key={department.id} value={department.key}>
                   {department.name}

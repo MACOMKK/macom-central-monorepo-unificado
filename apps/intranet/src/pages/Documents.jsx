@@ -14,7 +14,6 @@ import {
   FileText,
   BookOpen,
   GraduationCap,
-  EllipsisVertical,
   DollarSign,
   X,
   Pencil,
@@ -315,6 +314,7 @@ export default function Documents() {
       (document.company || 'macom_motors') === companyFilter;
     const matchDepartment =
       departmentFilter === 'all' ||
+      (departmentFilter === '__general__' && !document.department_id && !document.department) ||
       document.department_id === departmentFilter ||
       document.department === departmentFilter;
     const matchPublishDate =
@@ -335,6 +335,7 @@ export default function Documents() {
       document.description?.toLowerCase().includes(normalizedSearch) ||
       document.file_name?.toLowerCase().includes(normalizedSearch) ||
       document.department_name?.toLowerCase().includes(normalizedSearch) ||
+      (!document.department_id && !document.department_name && 'geral'.includes(normalizedSearch)) ||
       companyLabelMap[document.company || 'macom_motors']?.toLowerCase().includes(normalizedSearch);
     return matchSearch;
   });
@@ -477,6 +478,7 @@ export default function Documents() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Departamento</SelectItem>
+              <SelectItem value="__general__">Geral</SelectItem>
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id || department.key} value={department.id || department.key}>
                   {department.name}
@@ -553,7 +555,7 @@ export default function Documents() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {categoryCards.map((category) => {
                 const Icon = category.config.icon;
                 const isActive = catFilter === category.key;
@@ -563,35 +565,20 @@ export default function Documents() {
                     type="button"
                     key={category.key}
                     onClick={() => setCatFilter((current) => (current === category.key ? 'all' : category.key))}
-                    className={`group rounded-[20px] border bg-card p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                    className={`flex min-w-max items-center gap-3 rounded-xl border bg-card px-3 py-2 text-left shadow-sm transition-colors ${
                       isActive
-                        ? 'border-primary/40 ring-2 ring-primary/10'
-                        : category.config.accent
+                        ? 'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/10'
+                        : 'border-border hover:border-primary/30 hover:bg-muted/50'
                     }`}
                   >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${category.config.iconWrap}`}>
-                        <Icon className="h-4.5 w-4.5" />
-                      </div>
-                      <EllipsisVertical className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground/70" />
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${category.config.iconWrap}`}>
+                      <Icon className="h-4 w-4" />
                     </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <h3 className="text-base font-semibold leading-tight text-foreground">{category.config.label}</h3>
-                        <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{category.config.helper}</p>
-                      </div>
-
-                      <div className="flex flex-wrap items-end gap-3 text-[10px] text-muted-foreground">
-                        <div>
-                          <p className="font-medium">{category.count}</p>
-                          <p>{category.count === 1 ? 'arquivo' : 'arquivos'}</p>
-                        </div>
-                        <div>
-                          <p className="font-medium">Atualizado:</p>
-                          <p>{formatDate(category.latestValue)}</p>
-                        </div>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-tight text-foreground">{category.config.label}</p>
+                      <p className="text-[11px] leading-4 text-muted-foreground">
+                        {category.count} {category.count === 1 ? 'arquivo' : 'arquivos'} · {formatDate(category.latestValue)}
+                      </p>
                     </div>
                   </button>
                 );
@@ -664,6 +651,11 @@ export default function Documents() {
                           {document.department_name && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
                               {document.department_name}
+                            </Badge>
+                          )}
+                          {!document.department_name && (
+                            <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
+                              Geral
                             </Badge>
                           )}
                         </div>

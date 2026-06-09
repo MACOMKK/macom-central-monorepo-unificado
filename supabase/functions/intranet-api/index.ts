@@ -640,6 +640,7 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
     full_name: collaborator.nome || String(authUser.user_metadata?.full_name || authUser.email || 'Usuario'),
     role: access?.nivel_acesso === 'admin' ? 'admin' : access?.nivel_acesso || collaborator.funcao || 'user',
     access_level: access?.nivel_acesso || null,
+    department_id: collaborator.departamento_id || null,
     position: collaborator.cargo || null,
     function_role: collaborator.funcao || null,
     status: collaborator.status || null,
@@ -987,6 +988,26 @@ async function listAnnouncements(
   return rows.map((row) => mapAnnouncement(row, creators));
 }
 
+function canViewAllDocuments(user?: Record<string, unknown>) {
+  return Boolean(user) && (user.role === 'admin' || canEditModule(user, 'documentos'));
+}
+
+function buildDocumentVisibilityClause(user?: Record<string, unknown>, startIndex = 1) {
+  if (canViewAllDocuments(user)) {
+    return { clause: '', values: [] as unknown[] };
+  }
+
+  const departmentId = typeof user?.department_id === 'string' ? user.department_id : null;
+  if (!departmentId) {
+    return { clause: 'departamento_id is null', values: [] as unknown[] };
+  }
+
+  return {
+    clause: `(departamento_id is null or departamento_id = $${startIndex}::uuid)`,
+    values: [departmentId] as unknown[],
+  };
+}
+
 async function listHomeAnnouncements(limit = 10) {
   const rows = await runSql<Record<string, unknown>>(
     `
@@ -1099,8 +1120,22 @@ async function listUpcomingCalendarEvents(limit = 2) {
   }));
 }
 
-async function listDocuments(orderBy?: string, limit?: number) {
-  const rows = await listBaseEntity('Document', orderBy, limit);
+async function listDocuments(orderBy?: string, limit?: number, user?: Record<string, unknown>, filters: Record<string, unknown> = {}) {
+  const { column, ascending } = convertOrder('Document', orderBy);
+  const { clauses, values } = buildWhereClause('Document', filters);
+  const visibility = buildDocumentVisibilityClause(user, values.length + 1);
+
+  if (visibility.clause) {
+    clauses.push(visibility.clause);
+    values.push(...visibility.values);
+  }
+
+  const whereSql = clauses.length ? `where ${clauses.join(' and ')}` : '';
+  const limitSql = limit ? `limit ${Number(limit)}` : '';
+  const rows = await runSql<Record<string, unknown>>(
+    `select * from gestao_intranet.documentos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
+    values,
+  );
   const [departments, creators] = await Promise.all([listDepartments(), enrichWithCreators(rows)]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
   return rows.map((row) => mapDocument(row, departmentsById, creators));
@@ -1995,7 +2030,7 @@ async function listEntity(
     case 'UpcomingCalendarEvent':
       return listUpcomingCalendarEvents(limit || 2);
     case 'Document':
-      return listDocuments(orderBy, limit);
+      return listDocuments(orderBy, limit, user);
     case 'Employee':
       return listEmployees();
     case 'EmployeeBirthday':
@@ -2061,6 +2096,8 @@ async function filterEntity(
       return listAnnouncementComments(filters, orderBy, limit);
     case 'AnnouncementReaction':
       return listAnnouncementReactions(filters, orderBy, limit);
+    case 'Document':
+      return listDocuments(orderBy, limit, user, filters);
     case 'UserPermission':
       return filterUserPermissions(filters, orderBy, limit);
     default:
