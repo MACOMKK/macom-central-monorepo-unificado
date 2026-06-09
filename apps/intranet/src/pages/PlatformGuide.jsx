@@ -23,7 +23,7 @@ const modules = [
   },
   {
     title: 'Documentos',
-    description: 'Arquivos organizados por empresa, categoria e estrutura de pastas.',
+    description: 'Arquivos organizados por empresa, categoria e visibilidade por setor ou geral.',
     icon: FileText,
   },
   {
@@ -59,9 +59,9 @@ const guideSteps = [
   },
   {
     title: '4. Organizar documentos',
-    description: 'Documentos sao separados por empresa, mantendo Macom Motors e Macom Mitsubishi em estruturas proprias.',
+    description: 'Documentos sao separados por empresa e podem ser publicados como gerais ou restritos ao setor do colaborador.',
     visual: 'documents',
-    items: ['Escolher empresa', 'Selecionar categoria', 'Enviar arquivo'],
+    items: ['Escolher empresa', 'Selecionar categoria', 'Definir visibilidade', 'Enviar arquivo'],
   },
 ];
 
@@ -71,6 +71,8 @@ const rules = [
   'Avisos expirados nao sao deletados; ficam ocultos para usuarios comuns.',
   'Avisos e eventos so podem ser alterados pelo criador ou por admin.',
   'Documentos devem ser cadastrados na empresa correta antes do envio.',
+  'Documentos gerais aparecem para todos os setores.',
+  'Documentos com setor definido aparecem apenas para colaboradores daquele setor, exceto admin ou editor de documentos.',
 ];
 
 function VisualMockup({ type }) {
@@ -97,7 +99,7 @@ function VisualMockup({ type }) {
       title: 'Documentos',
       icon: FileText,
       accent: 'bg-blue-500',
-      rows: ['macom_mitsubishi/rh', 'macom_motors/ti', 'macom_mitsubishi/financeiro'],
+      rows: ['Geral - todos os setores', 'Pos-venda - setor restrito', 'Diretoria - setor restrito'],
     },
   }[type];
 
