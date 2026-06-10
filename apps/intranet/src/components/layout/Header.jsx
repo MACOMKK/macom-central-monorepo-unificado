@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bell, ExternalLink, LogOut, Menu } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import { appClient } from '@/api/client';
@@ -24,7 +25,17 @@ export default function Header({ onMenuClick }) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const profileRef = useRef(null);
   const dateLabel = formatDateLabel();
-  const displayName = user?.full_name || user?.email || 'Usuario';
+  const { data: currentProfile } = useQuery({
+    queryKey: ['current-profile'],
+    queryFn: async () => {
+      const rows = await appClient.entities.Profile.list();
+      return rows[0] || null;
+    },
+    enabled: Boolean(user),
+  });
+  const displayName = currentProfile?.name || user?.full_name || user?.email || 'Usuario';
+  const displayEmail = currentProfile?.email || user?.email || '';
+  const photoUrl = currentProfile?.photo_url || '';
   const initials = displayName
     .split(' ')
     .filter(Boolean)
@@ -96,7 +107,11 @@ export default function Header({ onMenuClick }) {
             }`}
             aria-label="Abrir menu da conta"
           >
-            {initials}
+            {photoUrl ? (
+              <img src={photoUrl} alt="" className="h-full w-full rounded-full object-cover" />
+            ) : (
+              initials
+            )}
           </button>
 
           {profileOpen ? (
@@ -104,12 +119,16 @@ export default function Header({ onMenuClick }) {
               <p className="text-xs font-bold uppercase tracking-wider text-[#8f9198]">Conta</p>
 
               <div className="mt-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E30613] text-sm font-bold text-white">
-                  {initials}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E30613] text-sm font-bold text-white">
+                  {photoUrl ? (
+                    <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initials
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">{displayName}</p>
-                  <p className="truncate text-sm text-[#a7a8ad]">{user?.email || ''}</p>
+                  <p className="truncate text-sm text-[#a7a8ad]">{displayEmail}</p>
                 </div>
               </div>
 

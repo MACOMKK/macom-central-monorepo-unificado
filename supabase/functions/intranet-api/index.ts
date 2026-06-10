@@ -24,6 +24,7 @@ const INTRANET_SCHEMA = 'gestao_intranet';
 const INTRANET_SYSTEM_SLUG = 'intranet';
 const ANNOUNCEMENT_IMAGES_STORAGE_BUCKET = 'avisos';
 const DOCUMENTS_STORAGE_BUCKET = 'documentos';
+const AVATARS_STORAGE_BUCKET = 'avatares';
 const DOCUMENT_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
@@ -1236,6 +1237,7 @@ async function getCurrentProfile(user: Record<string, unknown>) {
         c.criado_em,
         c.atualizado_em as colaborador_atualizado_em,
         p.foto_url,
+        p.foto_path,
         p.bio,
         p.frase_status,
         p.linkedin_url,
@@ -1309,6 +1311,7 @@ async function getCurrentProfile(user: Record<string, unknown>) {
     collaborator_created_date: row.criado_em || null,
     collaborator_updated_date: row.colaborador_atualizado_em || null,
     photo_url: row.foto_url || '',
+    photo_path: row.foto_path || '',
     bio: row.bio || '',
     status_message: row.frase_status || '',
     linkedin_url: row.linkedin_url || '',
@@ -1336,6 +1339,68 @@ async function getCurrentProfile(user: Record<string, unknown>) {
         }
       : null,
   };
+}
+
+async function deletePreviousAvatar(previousPath: unknown, nextPath: unknown) {
+  const oldPath = typeof previousPath === 'string' ? previousPath.trim() : '';
+  const newPath = typeof nextPath === 'string' ? nextPath.trim() : '';
+  if (!oldPath || oldPath === newPath) return;
+
+  try {
+    const storageClient = createStorageAdminClient();
+    if (!storageClient) return;
+    const { error } = await storageClient.storage.from(AVATARS_STORAGE_BUCKET).remove([oldPath]);
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to delete previous avatar:', {
+      path: oldPath,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function updateCurrentAvatar(user: Record<string, unknown>, payload: Record<string, unknown>) {
+  const collaboratorId = String(user.collaborator_id || user.id || '');
+  if (!collaboratorId) {
+    throw new Error('Colaborador nao encontrado.');
+  }
+
+  const photoUrl = normalizeOptionalText(payload.photo_url);
+  const photoPath = normalizeOptionalText(payload.photo_path);
+  if (!photoUrl || !photoPath) {
+    throw new Error('Foto do perfil obrigatoria.');
+  }
+
+  const previousRows = await runSql<Record<string, unknown>>(
+    `
+      select foto_path
+      from gestao_intranet.perfis_colaboradores
+      where colaborador_id = $1
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+
+  await runSql(
+    `
+      insert into gestao_intranet.perfis_colaboradores (
+        colaborador_id,
+        foto_url,
+        foto_path,
+        atualizado_em
+      )
+      values ($1,$2,$3,now())
+      on conflict (colaborador_id) do update
+      set foto_url = excluded.foto_url,
+          foto_path = excluded.foto_path,
+          atualizado_em = now();
+    `,
+    [collaboratorId, photoUrl, photoPath],
+  );
+
+  await deletePreviousAvatar(previousRows[0]?.foto_path, photoPath);
+
+  return getCurrentProfile(user);
 }
 
 function normalizeListInput(value: unknown) {
@@ -1507,6 +1572,7 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
       insert into gestao_intranet.perfis_colaboradores (
         colaborador_id,
         foto_url,
+        foto_path,
         bio,
         frase_status,
         linkedin_url,
@@ -1516,9 +1582,10 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
         interesses,
         atualizado_em
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
       on conflict (colaborador_id) do update
       set foto_url = excluded.foto_url,
+          foto_path = excluded.foto_path,
           bio = excluded.bio,
           frase_status = excluded.frase_status,
           linkedin_url = excluded.linkedin_url,
@@ -1531,6 +1598,7 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
     [
       collaboratorId,
       payload.photo_url || null,
+      payload.photo_path || null,
       payload.bio || null,
       payload.status_message || null,
       payload.linkedin_url || null,
@@ -2596,6 +2664,7 @@ function getEntityModule(entity: string) {
     case 'DocumentStorageOrphan':
       return 'documentos';
     case 'Profile':
+    case 'ProfileAvatar':
       return null;
     case 'ProfileChangeRequest':
       return 'admin';
@@ -2682,6 +2751,8 @@ async function updateEntity(
       return updateDocument(authClient, id, payload);
     case 'Profile':
       return updateCurrentProfile(user, payload);
+    case 'ProfileAvatar':
+      return updateCurrentAvatar(user, payload);
     case 'ProfileChangeRequest':
       return updateProfileChangeRequest(user, collaboratorId, id, payload);
     case 'Employee':

@@ -139,6 +139,22 @@ async function uploadAvatar(file, collaboratorId) {
   };
 }
 
+async function deleteAvatar(filePath) {
+  assertSupabaseConfigured();
+  const normalizedPath = String(filePath || '').trim();
+  if (!normalizedPath) return true;
+
+  const { error } = await supabase.storage
+    .from(AVATAR_STORAGE_BUCKET)
+    .remove([normalizedPath]);
+
+  if (error) {
+    throw normalizeFunctionError(error, 'Falha ao remover foto enviada.');
+  }
+
+  return true;
+}
+
 function buildEntityApi(entityName) {
   return {
     list(orderBy, limit) {
@@ -227,6 +243,7 @@ export const appClient = {
     uploadFile,
     uploadAnnouncementImage,
     uploadAvatar,
+    deleteAvatar,
   },
 
   catalogs: {

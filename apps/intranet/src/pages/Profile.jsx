@@ -14,6 +14,7 @@ const EMPTY_FORM = {
   unit_id: '',
   change_request_note: '',
   photo_url: '',
+  photo_path: '',
   bio: '',
   status_message: '',
   linkedin_url: '',
@@ -51,6 +52,7 @@ function buildProfileForm(profile) {
     unit_id: profile.pending_change_request?.unit_id || profile.unit_id || '',
     change_request_note: profile.pending_change_request?.note || '',
     photo_url: profile.photo_url || '',
+    photo_path: profile.photo_path || '',
     bio: profile.bio || '',
     status_message: profile.status_message || '',
     linkedin_url: profile.linkedin_url || '',
@@ -375,6 +377,7 @@ export default function Profile() {
     if (!avatarCropImage) return;
 
     setIsUploadingAvatar(true);
+    let uploadedAvatarPath = '';
     try {
       const croppedFile = await createCroppedAvatarFile({
         imageUrl: avatarCropImage.url,
@@ -383,10 +386,19 @@ export default function Profile() {
         crop: avatarCrop,
       });
       const result = await appClient.storage.uploadAvatar(croppedFile, profile?.id);
-      updateField('photo_url', result.photo_url);
-      setFeedback({ type: 'success', message: 'Foto enviada. Clique em Salvar para confirmar no perfil.' });
+      uploadedAvatarPath = result.photo_path;
+      const updatedProfile = await appClient.entities.ProfileAvatar.update('me', {
+        photo_url: result.photo_url,
+        photo_path: result.photo_path,
+      });
+      queryClient.setQueryData(['current-profile'], updatedProfile);
+      setForm(buildProfileForm(updatedProfile));
+      setFeedback({ type: 'success', message: 'Foto do perfil atualizada.' });
       handleCancelAvatarCrop();
     } catch (error) {
+      if (uploadedAvatarPath) {
+        await appClient.storage.deleteAvatar(uploadedAvatarPath).catch(() => null);
+      }
       setFeedback({ type: 'error', message: error?.message || 'Nao foi possivel enviar a foto.' });
     } finally {
       setIsUploadingAvatar(false);
