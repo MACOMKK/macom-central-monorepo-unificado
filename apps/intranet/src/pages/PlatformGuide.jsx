@@ -10,6 +10,7 @@ import {
   Link2,
   Megaphone,
   ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 
 import { Badge } from '@macom/ui';
@@ -35,6 +36,11 @@ const modules = [
     title: 'Calendario',
     description: 'Eventos internos com controle de criador e permissao administrativa.',
     icon: CalendarDays,
+  },
+  {
+    title: 'Perfil do Colaborador',
+    description: 'Area pessoal para foto, dados basicos, senha e solicitacoes cadastrais.',
+    icon: UserRound,
   },
 ];
 
@@ -63,6 +69,12 @@ const guideSteps = [
     visual: 'documents',
     items: ['Escolher empresa', 'Selecionar categoria', 'Definir visibilidade', 'Enviar arquivo'],
   },
+  {
+    title: '5. Gerenciar perfil do colaborador',
+    description: 'Colaboradores podem atualizar dados permitidos, adicionar foto com recorte e solicitar ajustes de departamento ou unidade.',
+    visual: 'profile',
+    items: ['Enviar foto 400x400 com recorte', 'Atualizar telefone e nascimento', 'Solicitar departamento/unidade', 'Admin aprova em Permissoes'],
+  },
 ];
 
 const rules = [
@@ -73,6 +85,10 @@ const rules = [
   'Documentos devem ser cadastrados na empresa correta antes do envio.',
   'Documentos gerais aparecem para todos os setores.',
   'Documentos com setor definido aparecem apenas para colaboradores daquele setor, exceto admin ou editor de documentos.',
+  'Telefone e data de nascimento podem ser atualizados pelo proprio colaborador no Perfil.',
+  'E-mail so pode ser alterado pelo colaborador quando ainda for temporario de cadastro.',
+  'Departamento e unidade nao mudam diretamente pelo Perfil; geram solicitacao para aprovacao do admin.',
+  'A foto de perfil deve ser enviada pelo avatar do Perfil, com recorte circular antes do upload.',
 ];
 
 function VisualMockup({ type }) {
@@ -100,6 +116,12 @@ function VisualMockup({ type }) {
       icon: FileText,
       accent: 'bg-blue-500',
       rows: ['Geral - todos os setores', 'Pos-venda - setor restrito', 'Diretoria - setor restrito'],
+    },
+    profile: {
+      title: 'Perfil',
+      icon: UserRound,
+      accent: 'bg-rose-500',
+      rows: ['Foto com recorte', 'Dados editaveis', 'Solicitacao pendente'],
     },
   }[type];
 
@@ -167,7 +189,7 @@ export default function PlatformGuide() {
         </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-5">
         {modules.map((module) => {
           const Icon = module.icon;
           return (

@@ -4,9 +4,12 @@ import { assertSupabaseConfigured, supabase } from '@/api/supabaseClient';
 
 const DOCUMENT_STORAGE_BUCKET = 'documentos';
 const ANNOUNCEMENT_IMAGE_STORAGE_BUCKET = 'avisos';
+const AVATAR_STORAGE_BUCKET = 'avatares';
 const ALLOWED_ANNOUNCEMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_AVATAR_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_AVATAR_FILE_SIZE = 2 * 1024 * 1024;
 
 function normalizeFunctionError(error, fallbackMessage) {
   if (!error) {
@@ -97,6 +100,45 @@ async function uploadAnnouncementImage(file) {
   };
 }
 
+async function uploadAvatar(file, collaboratorId) {
+  assertSupabaseConfigured();
+
+  if (!collaboratorId) {
+    throw new Error('Colaborador nao encontrado para enviar foto.');
+  }
+
+  if (file?.type && !ALLOWED_AVATAR_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Formato de imagem nao suportado. Use JPG, PNG ou WebP.');
+  }
+
+  if (Number.isFinite(file?.size) && file.size > MAX_AVATAR_FILE_SIZE) {
+    throw new Error('A foto deve ter no maximo 2 MB.');
+  }
+
+  const fileExt = file.name.split('.').pop() || 'jpg';
+  const filePath = `colaboradores/${collaboratorId}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_STORAGE_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw normalizeFunctionError(uploadError, 'Falha ao enviar foto.');
+  }
+
+  const { data } = supabase.storage
+    .from(AVATAR_STORAGE_BUCKET)
+    .getPublicUrl(filePath);
+
+  return {
+    photo_url: data?.publicUrl || '',
+    photo_path: filePath,
+  };
+}
+
 function buildEntityApi(entityName) {
   return {
     list(orderBy, limit) {
@@ -184,6 +226,7 @@ export const appClient = {
   storage: {
     uploadFile,
     uploadAnnouncementImage,
+    uploadAvatar,
   },
 
   catalogs: {

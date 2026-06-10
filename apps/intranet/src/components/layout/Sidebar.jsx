@@ -1,10 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
-import PasswordChangeForm from '@/components/auth/PasswordChangeForm';
 import {
-  LogOut,
   ShieldCheck,
   BookOpen,
   PanelLeftClose,
@@ -15,7 +12,6 @@ import { canViewNavItem, intranetNavItems } from '@/lib/navigation';
 
 export default function Sidebar({ collapsed = false, onToggle }) {
   const { user } = useAuth();
-  const [passwordDialogOpen, setPasswordDialogOpen] = React.useState(false);
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
   const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
@@ -124,68 +120,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
         )}
       </nav>
 
-      <div className="p-3 border-t border-sidebar-border">
-        <button
-          type="button"
-          onClick={() => setPasswordDialogOpen(true)}
-          className={cn(
-            'w-full rounded-xl text-left transition-colors hover:bg-sidebar-accent',
-            collapsed ? 'flex justify-center px-2 py-2.5' : 'flex items-center gap-3 px-3 py-2.5'
-          )}
-          title={collapsed ? (user?.full_name || 'Usu\u00e1rio') : undefined}
-        >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/20 text-xs font-bold text-sidebar-primary">
-            {(user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U').toUpperCase()}
-          </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sidebar-foreground text-sm font-medium truncate">{user?.full_name || 'Usu\u00e1rio'}</p>
-              <p className="text-sidebar-foreground/40 text-xs truncate">{user?.email || ''}</p>
-              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/35">
-                Trocar senha
-              </p>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              appClient.auth.logout('/login');
-            }}
-            className={cn(
-              'text-sidebar-foreground/30 hover:text-sidebar-foreground/70 transition-colors p-1',
-              collapsed && 'hidden'
-            )}
-            title="Sair"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </button>
-
-        {collapsed && (
-          <div className="mt-1">
-            <button
-              onClick={() => appClient.auth.logout('/login')}
-              className="flex w-full items-center justify-center rounded-xl px-2 py-2.5 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {passwordDialogOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4">
-          <div className="absolute inset-0" onClick={() => setPasswordDialogOpen(false)} />
-          <div className="relative w-full max-w-md">
-            <PasswordChangeForm
-              onCancel={() => setPasswordDialogOpen(false)}
-              onSuccess={() => setPasswordDialogOpen(false)}
-            />
-          </div>
-        </div>
-      ) : null}
+      <div className="h-3 border-t border-sidebar-border" />
     </aside>
   );
 }

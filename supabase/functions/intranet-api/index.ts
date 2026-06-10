@@ -1211,6 +1211,339 @@ async function listDocumentStorageOrphans(user?: Record<string, unknown>) {
   }));
 }
 
+async function getCurrentProfile(user: Record<string, unknown>) {
+  const collaboratorId = String(user.collaborator_id || user.id || '');
+  if (!collaboratorId) {
+    throw new Error('Colaborador nao encontrado.');
+  }
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        c.id,
+        c.nome,
+        c.email,
+        c.telefone,
+        c.departamento_id,
+        d.nome as departamento_nome,
+        c.cargo,
+        c.funcao,
+        c.unidade_id,
+        u.nome as unidade_nome,
+        u.cidade as unidade_cidade,
+        c.data_nascimento,
+        c.status,
+        c.criado_em,
+        c.atualizado_em as colaborador_atualizado_em,
+        p.foto_url,
+        p.bio,
+        p.frase_status,
+        p.linkedin_url,
+        p.whatsapp_url,
+        p.localizacao_interna,
+        p.habilidades,
+        p.interesses,
+        p.preferencias,
+        p.atualizado_em as perfil_atualizado_em
+      from public.colaboradores c
+      left join gestao_intranet.perfis_colaboradores p on p.colaborador_id = c.id
+      left join public.departamentos d on d.id = c.departamento_id
+      left join public.unidades u on u.id = c.unidade_id
+      where c.id = $1
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error('Perfil nao encontrado.');
+  }
+
+  const requestRows = await runSql<Record<string, unknown>>(
+    `
+      select
+        s.id,
+        s.departamento_atual_id,
+        da.nome as departamento_atual_nome,
+        s.departamento_solicitado_id,
+        ds.nome as departamento_solicitado_nome,
+        s.unidade_atual_id,
+        ua.nome as unidade_atual_nome,
+        ua.cidade as unidade_atual_cidade,
+        s.unidade_solicitada_id,
+        us.nome as unidade_solicitada_nome,
+        us.cidade as unidade_solicitada_cidade,
+        s.status,
+        s.observacao,
+        s.criado_em,
+        s.atualizado_em
+      from gestao_intranet.solicitacoes_alteracao_perfil s
+      left join public.departamentos da on da.id = s.departamento_atual_id
+      left join public.departamentos ds on ds.id = s.departamento_solicitado_id
+      left join public.unidades ua on ua.id = s.unidade_atual_id
+      left join public.unidades us on us.id = s.unidade_solicitada_id
+      where s.colaborador_id = $1
+        and s.status = 'pending'
+      order by s.criado_em desc
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+
+  const pendingRequest = requestRows[0] || null;
+
+  return {
+    id: row.id,
+    name: row.nome,
+    email: row.email,
+    phone: row.telefone,
+    position: row.cargo,
+    function_role: row.funcao,
+    department_id: row.departamento_id,
+    department_name: row.departamento_nome || null,
+    unit_id: row.unidade_id,
+    unit_name: row.unidade_cidade || row.unidade_nome || null,
+    birth_date: normalizeDateOnly(row.data_nascimento),
+    status: row.status,
+    collaborator_created_date: row.criado_em || null,
+    collaborator_updated_date: row.colaborador_atualizado_em || null,
+    photo_url: row.foto_url || '',
+    bio: row.bio || '',
+    status_message: row.frase_status || '',
+    linkedin_url: row.linkedin_url || '',
+    whatsapp_url: row.whatsapp_url || '',
+    office_location: row.localizacao_interna || '',
+    skills: Array.isArray(row.habilidades) ? row.habilidades : [],
+    interests: Array.isArray(row.interesses) ? row.interesses : [],
+    preferences: row.preferencias || {},
+    updated_date: row.perfil_atualizado_em || null,
+    pending_change_request: pendingRequest
+      ? {
+          id: pendingRequest.id,
+          status: pendingRequest.status,
+          department_id: pendingRequest.departamento_solicitado_id || null,
+          department_name: pendingRequest.departamento_solicitado_nome || null,
+          current_department_id: pendingRequest.departamento_atual_id || null,
+          current_department_name: pendingRequest.departamento_atual_nome || null,
+          unit_id: pendingRequest.unidade_solicitada_id || null,
+          unit_name: pendingRequest.unidade_solicitada_cidade || pendingRequest.unidade_solicitada_nome || null,
+          current_unit_id: pendingRequest.unidade_atual_id || null,
+          current_unit_name: pendingRequest.unidade_atual_cidade || pendingRequest.unidade_atual_nome || null,
+          note: pendingRequest.observacao || '',
+          created_date: pendingRequest.criado_em || null,
+          updated_date: pendingRequest.atualizado_em || null,
+        }
+      : null,
+  };
+}
+
+function normalizeListInput(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value !== 'string') return [];
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeOptionalText(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed || null;
+}
+
+function normalizeEmail(value: unknown) {
+  const email = normalizeOptionalText(value);
+  return email ? email.toLowerCase() : null;
+}
+
+function isTemporaryCadastroEmail(value: unknown) {
+  const email = normalizeEmail(value);
+  return Boolean(email?.match(/^[^@\s]+@cadastro\.macom\.(local|com\.br)$/));
+}
+
+function assertValidEmail(value: string) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw new Error('Informe um email valido.');
+  }
+}
+
+async function updateCurrentProfile(user: Record<string, unknown>, payload: Record<string, unknown>) {
+  const collaboratorId = String(user.collaborator_id || user.id || '');
+  if (!collaboratorId) {
+    throw new Error('Colaborador nao encontrado.');
+  }
+
+  const currentRows = await runSql<Record<string, unknown>>(
+    `
+      select id, email, telefone, data_nascimento, departamento_id, unidade_id
+      from public.colaboradores
+      where id = $1
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+
+  const currentCollaborator = currentRows[0];
+  if (!currentCollaborator) {
+    throw new Error('Colaborador nao encontrado.');
+  }
+
+  const phone = Object.prototype.hasOwnProperty.call(payload, 'phone')
+    ? normalizeOptionalText(payload.phone)
+    : normalizeOptionalText(currentCollaborator.telefone);
+  const birthDate = Object.prototype.hasOwnProperty.call(payload, 'birth_date')
+    ? normalizeDateOnly(payload.birth_date)
+    : normalizeDateOnly(currentCollaborator.data_nascimento);
+  const currentEmail = normalizeEmail(currentCollaborator.email);
+  const nextEmail = Object.prototype.hasOwnProperty.call(payload, 'email')
+    ? normalizeEmail(payload.email)
+    : currentEmail;
+  const requestedDepartmentId = normalizeOptionalText(payload.department_id);
+  const requestedUnitId = normalizeOptionalText(payload.unit_id);
+
+  if (nextEmail && nextEmail !== currentEmail) {
+    if (!isTemporaryCadastroEmail(currentEmail)) {
+      throw new Error('O email so pode ser alterado pela intranet quando ainda for temporario.');
+    }
+
+    if (isTemporaryCadastroEmail(nextEmail)) {
+      throw new Error('Informe um email definitivo para substituir o email temporario.');
+    }
+
+    assertValidEmail(nextEmail);
+
+    const duplicatedRows = await runSql<Record<string, unknown>>(
+      `
+        select id
+        from public.colaboradores
+        where lower(trim(email)) = lower(trim($1))
+          and id <> $2
+        limit 1;
+      `,
+      [nextEmail, collaboratorId],
+    );
+
+    if (duplicatedRows[0]) {
+      throw new Error('Ja existe um colaborador com este email.');
+    }
+
+    const authAdmin = createStorageAdminClient();
+    if (!authAdmin) {
+      throw new Error('Servico de autenticacao indisponivel para atualizar email.');
+    }
+
+    const { error: updateEmailError } = await authAdmin.auth.admin.updateUserById(collaboratorId, {
+      email: nextEmail,
+      email_confirm: true,
+    });
+
+    if (updateEmailError) {
+      throw new Error(updateEmailError.message || 'Falha ao atualizar email de acesso.');
+    }
+  }
+
+  await runSql(
+    `
+      update public.colaboradores
+      set email = $2,
+          telefone = $3,
+          data_nascimento = $4,
+          atualizado_em = now()
+      where id = $1;
+    `,
+    [collaboratorId, nextEmail, phone, birthDate],
+  );
+
+  const shouldRequestDepartmentChange = Boolean(requestedDepartmentId)
+    && requestedDepartmentId !== String(currentCollaborator.departamento_id || '');
+  const shouldRequestUnitChange = Boolean(requestedUnitId)
+    && requestedUnitId !== String(currentCollaborator.unidade_id || '');
+
+  if (shouldRequestDepartmentChange || shouldRequestUnitChange) {
+    await runSql(
+      `
+        with updated as (
+          update gestao_intranet.solicitacoes_alteracao_perfil
+          set departamento_atual_id = $2,
+              departamento_solicitado_id = $3,
+              unidade_atual_id = $4,
+              unidade_solicitada_id = $5,
+              observacao = $6,
+              atualizado_em = now()
+          where colaborador_id = $1
+            and status = 'pending'
+          returning id
+        )
+        insert into gestao_intranet.solicitacoes_alteracao_perfil (
+          colaborador_id,
+          departamento_atual_id,
+          departamento_solicitado_id,
+          unidade_atual_id,
+          unidade_solicitada_id,
+          observacao
+        )
+        select $1,$2,$3,$4,$5,$6
+        where not exists (select 1 from updated);
+      `,
+      [
+        collaboratorId,
+        currentCollaborator.departamento_id || null,
+        shouldRequestDepartmentChange ? requestedDepartmentId : currentCollaborator.departamento_id || null,
+        currentCollaborator.unidade_id || null,
+        shouldRequestUnitChange ? requestedUnitId : currentCollaborator.unidade_id || null,
+        normalizeOptionalText(payload.change_request_note),
+      ],
+    );
+  }
+
+  await runSql(
+    `
+      insert into gestao_intranet.perfis_colaboradores (
+        colaborador_id,
+        foto_url,
+        bio,
+        frase_status,
+        linkedin_url,
+        whatsapp_url,
+        localizacao_interna,
+        habilidades,
+        interesses,
+        atualizado_em
+      )
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+      on conflict (colaborador_id) do update
+      set foto_url = excluded.foto_url,
+          bio = excluded.bio,
+          frase_status = excluded.frase_status,
+          linkedin_url = excluded.linkedin_url,
+          whatsapp_url = excluded.whatsapp_url,
+          localizacao_interna = excluded.localizacao_interna,
+          habilidades = excluded.habilidades,
+          interesses = excluded.interesses,
+          atualizado_em = now();
+    `,
+    [
+      collaboratorId,
+      payload.photo_url || null,
+      payload.bio || null,
+      payload.status_message || null,
+      payload.linkedin_url || null,
+      payload.whatsapp_url || null,
+      payload.office_location || null,
+      normalizeListInput(payload.skills),
+      normalizeListInput(payload.interests),
+    ],
+  );
+
+  return getCurrentProfile(user);
+}
+
 async function listEmployees() {
   const [employees, profiles, departments, units, accessRows, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
@@ -1328,6 +1661,58 @@ async function filterUserPermissions(filters: Record<string, unknown>, orderBy?:
   const collaboratorIds = rows.map((row) => String(row.colaborador_id || '')).filter(Boolean);
   const collaborators = await fetchCollaboratorsByIds(collaboratorIds);
   return rows.map((row) => mapPermissionRow(row, collaborators));
+}
+
+function mapProfileChangeRequest(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    collaborator_id: row.colaborador_id,
+    collaborator_name: row.colaborador_nome || null,
+    collaborator_email: row.colaborador_email || null,
+    current_department_id: row.departamento_atual_id || null,
+    current_department_name: row.departamento_atual_nome || null,
+    requested_department_id: row.departamento_solicitado_id || null,
+    requested_department_name: row.departamento_solicitado_nome || null,
+    current_unit_id: row.unidade_atual_id || null,
+    current_unit_name: row.unidade_atual_cidade || row.unidade_atual_nome || null,
+    requested_unit_id: row.unidade_solicitada_id || null,
+    requested_unit_name: row.unidade_solicitada_cidade || row.unidade_solicitada_nome || null,
+    status: row.status,
+    note: row.observacao || '',
+    created_date: row.criado_em,
+    updated_date: row.atualizado_em,
+    reviewed_by: row.analisado_por || null,
+    reviewed_date: row.analisado_em || null,
+  };
+}
+
+async function listProfileChangeRequests(user: Record<string, unknown>) {
+  assertAdmin(user);
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        s.*,
+        c.nome as colaborador_nome,
+        c.email as colaborador_email,
+        da.nome as departamento_atual_nome,
+        ds.nome as departamento_solicitado_nome,
+        ua.nome as unidade_atual_nome,
+        ua.cidade as unidade_atual_cidade,
+        us.nome as unidade_solicitada_nome,
+        us.cidade as unidade_solicitada_cidade
+      from gestao_intranet.solicitacoes_alteracao_perfil s
+      join public.colaboradores c on c.id = s.colaborador_id
+      left join public.departamentos da on da.id = s.departamento_atual_id
+      left join public.departamentos ds on ds.id = s.departamento_solicitado_id
+      left join public.unidades ua on ua.id = s.unidade_atual_id
+      left join public.unidades us on us.id = s.unidade_solicitada_id
+      where s.status = 'pending'
+      order by s.criado_em asc;
+    `,
+  );
+
+  return rows.map(mapProfileChangeRequest);
 }
 
 async function createAnnouncement(payload: Record<string, unknown>, collaboratorId: string | null) {
@@ -2015,6 +2400,69 @@ async function updateUserPermission(id: string, payload: Record<string, unknown>
   return mapPermissionRow(rows[0], collaborators);
 }
 
+async function updateProfileChangeRequest(
+  user: Record<string, unknown>,
+  reviewerCollaboratorId: string | null,
+  id: string,
+  payload: Record<string, unknown>,
+) {
+  assertAdmin(user);
+
+  const status = String(payload.status || '').toLowerCase();
+  if (status !== 'approved' && status !== 'rejected') {
+    throw new Error('Status invalido para a solicitacao.');
+  }
+
+  const requestRows = await runSql<Record<string, unknown>>(
+    `
+      select *
+      from gestao_intranet.solicitacoes_alteracao_perfil
+      where id = $1
+        and status = 'pending'
+      limit 1;
+    `,
+    [id],
+  );
+
+  const request = requestRows[0];
+  if (!request) {
+    throw new Error('Solicitacao pendente nao encontrada.');
+  }
+
+  if (status === 'approved') {
+    await runSql(
+      `
+        update public.colaboradores
+        set departamento_id = $2,
+            unidade_id = $3,
+            atualizado_em = now()
+        where id = $1;
+      `,
+      [
+        request.colaborador_id,
+        request.departamento_solicitado_id || request.departamento_atual_id || null,
+        request.unidade_solicitada_id || request.unidade_atual_id || null,
+      ],
+    );
+  }
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      update gestao_intranet.solicitacoes_alteracao_perfil
+      set status = $2,
+          observacao = coalesce($3, observacao),
+          analisado_por = $4,
+          analisado_em = now(),
+          atualizado_em = now()
+      where id = $1
+      returning *;
+    `,
+    [id, status, normalizeOptionalText(payload.review_note), reviewerCollaboratorId],
+  );
+
+  return mapProfileChangeRequest(rows[0]);
+}
+
 async function deleteBaseEntity(entityName: keyof typeof ENTITY_CONFIG, id: string) {
   const config = ENTITY_CONFIG[entityName];
   await runSql(`delete from ${config.schema}.${config.table} where id = $1;`, [id]);
@@ -2109,6 +2557,10 @@ async function listEntity(
       return listDocuments(orderBy, limit, user);
     case 'DocumentStorageOrphan':
       return listDocumentStorageOrphans(user);
+    case 'Profile':
+      return [await getCurrentProfile(user as Record<string, unknown>)];
+    case 'ProfileChangeRequest':
+      return listProfileChangeRequests(user as Record<string, unknown>);
     case 'Employee':
       return listEmployees();
     case 'EmployeeBirthday':
@@ -2143,6 +2595,10 @@ function getEntityModule(entity: string) {
     case 'Document':
     case 'DocumentStorageOrphan':
       return 'documentos';
+    case 'Profile':
+      return null;
+    case 'ProfileChangeRequest':
+      return 'admin';
     case 'Employee':
     case 'EmployeeBirthday':
     case 'User':
@@ -2224,6 +2680,10 @@ async function updateEntity(
       return updateCalendarEvent(user, collaboratorId, id, payload);
     case 'Document':
       return updateDocument(authClient, id, payload);
+    case 'Profile':
+      return updateCurrentProfile(user, payload);
+    case 'ProfileChangeRequest':
+      return updateProfileChangeRequest(user, collaboratorId, id, payload);
     case 'Employee':
       return updateEmployee(id, payload);
     case 'Feedback':

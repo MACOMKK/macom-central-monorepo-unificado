@@ -21,6 +21,7 @@ import Feedback from './pages/Feedback';
 import KnowledgeBase from './pages/KnowledgeBase';
 import Login from './pages/Login';
 import PlatformGuide from './pages/PlatformGuide';
+import Profile from './pages/Profile';
 
 const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
@@ -104,6 +105,7 @@ function App() {
                 <Route path="/documentos" element={<ModuleRoute module="documentos"><Documents /></ModuleRoute>} />
                 <Route path="/calendario" element={<ModuleRoute module="calendario"><Calendar /></ModuleRoute>} />
                 <Route path="/permissoes" element={<Permissions />} />
+                <Route path="/perfil" element={<Profile />} />
                 <Route path="/guia" element={<PlatformGuide />} />
                 <Route path="/feedback" element={<ModuleRoute module="feedback"><Feedback /></ModuleRoute>} />
                 <Route path="/conhecimento" element={<ModuleRoute module="conhecimento"><KnowledgeBase /></ModuleRoute>} />
