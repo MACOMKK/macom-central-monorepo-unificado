@@ -1182,6 +1182,35 @@ async function listDocuments(orderBy?: string, limit?: number, user?: Record<str
   return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, creators)));
 }
 
+async function listDocumentStorageOrphans(user?: Record<string, unknown>) {
+  assertModuleEdit(user as Record<string, unknown>, 'documentos');
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        object_id,
+        bucket_id,
+        file_path,
+        file_size,
+        created_at,
+        updated_at,
+        last_accessed_at
+      from gestao_intranet.list_document_storage_orphans();
+    `,
+  );
+
+  return rows.map((row) => ({
+    id: row.object_id,
+    object_id: row.object_id,
+    bucket_id: row.bucket_id,
+    file_path: row.file_path,
+    file_size: row.file_size,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_accessed_at: row.last_accessed_at,
+  }));
+}
+
 async function listEmployees() {
   const [employees, profiles, departments, units, accessRows, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
@@ -2078,6 +2107,8 @@ async function listEntity(
       return listUpcomingCalendarEvents(limit || 2);
     case 'Document':
       return listDocuments(orderBy, limit, user);
+    case 'DocumentStorageOrphan':
+      return listDocumentStorageOrphans(user);
     case 'Employee':
       return listEmployees();
     case 'EmployeeBirthday':
@@ -2110,6 +2141,7 @@ function getEntityModule(entity: string) {
     case 'UpcomingCalendarEvent':
       return 'calendario';
     case 'Document':
+    case 'DocumentStorageOrphan':
       return 'documentos';
     case 'Employee':
     case 'EmployeeBirthday':
