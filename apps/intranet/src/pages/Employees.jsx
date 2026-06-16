@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Mail, MapPin, Users, Pencil, Building } from 'lucide-react';
+import { Search, Mail, MapPin, Users, Pencil, Building, MessageCircle } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skeleton } from '@macom/ui';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import { usePermissions } from '@/lib/usePermissions';
@@ -11,6 +11,30 @@ import Pagination, { usePaginatedItems } from '../components/Pagination';
 function replaceEmployee(employees, employee) {
   if (!employee?.id) return employees;
   return employees.map((item) => (item.id === employee.id ? { ...item, ...employee } : item));
+}
+
+function getWhatsappUrl(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const normalized = digits.startsWith('55') ? digits : `55${digits}`;
+  return `https://wa.me/${normalized}`;
+}
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
 }
 
 export default function Employees() {
@@ -96,6 +120,17 @@ export default function Employees() {
     setEditingEmployee(null);
   };
 
+  const handleCopyEmail = async (email) => {
+    if (!email) return;
+
+    try {
+      await copyText(email);
+      toast.success('E-mail copiado!');
+    } catch (_error) {
+      toast.error('Nao foi possivel copiar o e-mail.');
+    }
+  };
+
   const getInitials = (name) => {
     if (!name) return 'U';
     return name
@@ -168,9 +203,16 @@ export default function Employees() {
               >
                 <div className="relative border-b border-slate-100 px-4 pb-5 pt-6 text-center sm:p-6">
                   {employee.phone ? (
-                    <div className="absolute right-3 top-3 max-w-[132px] truncate rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold leading-none text-slate-500">
+                    <a
+                      href={getWhatsappUrl(employee.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="absolute right-3 top-3 flex max-w-[150px] items-center gap-1 truncate rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold leading-none text-emerald-700 transition-colors hover:bg-emerald-100"
+                      title={`Abrir WhatsApp para ${employee.phone}`}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                       {employee.phone}
-                    </div>
+                    </a>
                   ) : null}
 
                   {canEdit ? (
@@ -203,15 +245,17 @@ export default function Employees() {
 
                 <div className="space-y-3 bg-slate-50 p-4">
                   {employee.email ? (
-                    <a
-                      href={`mailto:${employee.email}`}
-                      className="flex items-center gap-3 text-sm text-slate-600 transition-colors hover:text-foreground"
+                    <button
+                      type="button"
+                      onClick={() => handleCopyEmail(employee.email)}
+                      className="flex w-full items-center gap-3 text-left text-sm text-slate-600 transition-colors hover:text-foreground"
+                      title={`Copiar ${employee.email}`}
                     >
                       <div className="rounded-md bg-white p-1.5 text-slate-400 shadow-sm">
                         <Mail size={16} />
                       </div>
                       <span className="truncate" title={employee.email}>{employee.email}</span>
-                    </a>
+                    </button>
                   ) : null}
 
                   <div className="flex items-center gap-3 text-sm text-slate-600">
