@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck, ExternalLink, LogOut, Menu } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import { appClient } from '@/api/client';
+import { supabase } from '@/api/supabaseClient';
 import PasswordChangeForm from '@/components/auth/PasswordChangeForm';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -89,6 +91,37 @@ export default function Header({ onMenuClick }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const collaboratorId = user?.collaborator_id || user?.id;
+    if (!collaboratorId || !supabase) return undefined;
+
+    const channel = supabase
+      .channel(`intranet-notifications:${collaboratorId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'gestao_intranet',
+          table: 'notificacoes',
+          filter: `colaborador_id=eq.${collaboratorId}`,
+        },
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          const notification = payload.new || {};
+          if (notification.titulo) {
+            toast.info(notification.titulo, {
+              description: notification.mensagem || undefined,
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, user?.collaborator_id, user?.id]);
 
   const handleOpenPassword = () => {
     setProfileOpen(false);
