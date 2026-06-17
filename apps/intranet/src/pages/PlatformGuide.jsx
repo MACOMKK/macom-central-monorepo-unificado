@@ -33,7 +33,7 @@ const modules = [
     icon: Link2,
   },
   {
-    title: 'Calendario',
+    title: 'Agenda',
     description: 'Eventos internos com controle de criador e permissao administrativa.',
     icon: CalendarDays,
   },

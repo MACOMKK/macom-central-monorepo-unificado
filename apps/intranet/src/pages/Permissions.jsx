@@ -12,7 +12,7 @@ const MODULES = [
   { key: 'links', label: 'Links Uteis' },
   { key: 'colaboradores', label: 'Colaboradores' },
   { key: 'documentos', label: 'Documentos' },
-  { key: 'calendario', label: 'Calendario' },
+  { key: 'calendario', label: 'Agenda' },
   { key: 'conhecimento', label: 'Base de Conhecimento' },
   { key: 'feedback', label: 'Feedback' },
 ];

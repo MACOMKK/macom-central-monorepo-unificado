@@ -29,6 +29,12 @@ const DOCUMENT_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_ANNOUNCEMENT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+const GOOGLE_CALENDAR_API_URL = 'https://www.googleapis.com/calendar/v3';
+const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
 
 const ENTITY_CONFIG = {
   Announcement: {
@@ -126,8 +132,8 @@ const ENTITY_CONFIG = {
       type: 'tipo',
       date: 'data_evento',
     },
-    createFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
-    updateFields: ['title', 'description', 'date', 'time', 'type', 'location', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
+    createFields: ['title', 'description', 'date', 'time', 'type', 'location', 'recurrence', 'recurrence_until', 'participants', 'participant_ids', 'add_google_meet', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
+    updateFields: ['title', 'description', 'date', 'time', 'type', 'location', 'recurrence', 'recurrence_until', 'recurrence_active', 'recurrence_cancelled_dates', 'participants', 'participant_ids', 'add_google_meet', 'department', 'department_id', 'unit', 'unit_id', 'responsible_collaborator_id', 'responsible_id'],
   },
   Document: {
     schema: INTRANET_SCHEMA,
@@ -838,17 +844,114 @@ function normalizeDateOnly(value: unknown) {
   return String(value);
 }
 
+function normalizeRecurrence(value: unknown) {
+  const recurrence = String(value || 'none');
+  return ['none', 'weekly', 'monthly'].includes(recurrence) ? recurrence : 'none';
+}
+
+function normalizeDateArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => normalizeDateOnly(item)).filter(Boolean)));
+}
+
+function normalizeIdArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
+function parseDateOnlyUtc(value: unknown) {
+  const normalized = normalizeDateOnly(value);
+  if (!normalized) return null;
+  const [year, month, day] = normalized.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateOnlyUtc(date: Date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function addDaysUtc(date: Date, days: number) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function addMonthsClampedUtc(date: Date, months: number) {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + months;
+  const day = date.getUTCDate();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDay)));
+}
+
+function getNextOccurrenceDate(date: Date, recurrence: string) {
+  if (recurrence === 'weekly') return addDaysUtc(date, 7);
+  if (recurrence === 'monthly') return addMonthsClampedUtc(date, 1);
+  return null;
+}
+
+function expandCalendarRows(rows: Record<string, unknown>[], startDate: Date, endDate: Date) {
+  const occurrences: Record<string, unknown>[] = [];
+
+  rows.forEach((row) => {
+    const firstDate = parseDateOnlyUtc(row.data_evento);
+    if (!firstDate) return;
+
+    const recurrence = normalizeRecurrence(row.recorrencia_tipo);
+    const active = row.recorrencia_ativa !== false;
+    const recurrenceEnd = parseDateOnlyUtc(row.recorrencia_fim);
+    const cancelledDates = normalizeDateArray(row.recorrencia_cancelamentos);
+    const finalDate = recurrenceEnd && recurrenceEnd < endDate ? recurrenceEnd : endDate;
+
+    if (recurrence === 'none' || !active) {
+      const firstDateKey = formatDateOnlyUtc(firstDate);
+      if (firstDate >= startDate && firstDate <= endDate && !cancelledDates.includes(firstDateKey)) {
+        occurrences.push(row);
+      }
+      return;
+    }
+
+    let occurrenceDate = firstDate;
+    let guard = 0;
+    while (occurrenceDate <= finalDate && guard < 370) {
+      const occurrenceDateKey = formatDateOnlyUtc(occurrenceDate);
+      if (occurrenceDate >= startDate && !cancelledDates.includes(occurrenceDateKey)) {
+        occurrences.push({
+          ...row,
+          occurrence_date: occurrenceDateKey,
+        });
+      }
+
+      const nextDate = getNextOccurrenceDate(occurrenceDate, recurrence);
+      if (!nextDate || nextDate <= occurrenceDate) break;
+      occurrenceDate = nextDate;
+      guard += 1;
+    }
+  });
+
+  return occurrences.sort((a, b) => {
+    const dateA = String(a.occurrence_date || normalizeDateOnly(a.data_evento) || '');
+    const dateB = String(b.occurrence_date || normalizeDateOnly(b.data_evento) || '');
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return String(a.horario || '').localeCompare(String(b.horario || ''));
+  });
+}
+
 function mapCalendarEvent(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
   unitsById: Map<string, Record<string, unknown>>,
   creatorMap = new Map<string, Record<string, unknown>>(),
   responsibleMap = new Map<string, Record<string, unknown>>(),
+  participantsMap = new Map<string, Record<string, unknown>[]>(),
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const responsible = responsibleMap.get(String(row.responsavel_colaborador_id));
   const department = departmentsById.get(String(row.departamento_id));
   const unit = unitsById.get(String(row.unidade_id));
+  const participants = participantsMap.get(String(row.id)) || [];
 
   return {
     id: row.id,
@@ -858,6 +961,12 @@ function mapCalendarEvent(
     time: row.horario,
     type: row.tipo,
     location: row.local,
+    recurrence: normalizeRecurrence(row.recorrencia_tipo),
+    recurrence_until: normalizeDateOnly(row.recorrencia_fim),
+    recurrence_active: row.recorrencia_ativa !== false,
+    recurrence_cancelled_dates: normalizeDateArray(row.recorrencia_cancelamentos),
+    occurrence_date: normalizeDateOnly(row.occurrence_date),
+    is_recurring_occurrence: Boolean(row.occurrence_date),
     department_id: row.departamento_id,
     department: department?.key || null,
     department_name: department?.name || null,
@@ -868,6 +977,11 @@ function mapCalendarEvent(
     responsible_id: row.responsavel_colaborador_id || null,
     responsible_name: responsible?.nome || null,
     responsible_email: responsible?.email || null,
+    participants,
+    participant_ids: participants.map((participant) => participant.collaborator_id || participant.id),
+    google_meet_url: row.google_meet_url || null,
+    google_calendar_event_id: row.google_calendar_event_id || null,
+    google_calendar_organizer_id: row.google_calendar_organizer_id || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -977,6 +1091,327 @@ async function mapDocumentWithSignedUrl(
 async function enrichWithCreators(rows: Record<string, unknown>[]) {
   const creatorIds = rows.map((row) => String(row.criado_por || '')).filter(Boolean);
   return fetchCollaboratorsByIds(creatorIds);
+}
+
+async function fetchCalendarParticipants(eventIds: string[]) {
+  const ids = normalizeIdArray(eventIds);
+  if (ids.length === 0) return new Map<string, Record<string, unknown>[]>();
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select
+        p.evento_id,
+        p.colaborador_id,
+        p.status,
+        c.nome,
+        c.email
+      from gestao_intranet.eventos_calendario_participantes p
+      left join public.colaboradores c on c.id = p.colaborador_id
+      where p.evento_id = any($1::uuid[])
+      order by c.nome asc nulls last, c.email asc nulls last;
+    `,
+    [ids],
+  );
+
+  const participantsByEvent = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((row) => {
+    const eventId = String(row.evento_id || '');
+    const participants = participantsByEvent.get(eventId) || [];
+    participants.push({
+      id: row.colaborador_id,
+      collaborator_id: row.colaborador_id,
+      name: row.nome,
+      email: row.email,
+      status: row.status || 'convidado',
+    });
+    participantsByEvent.set(eventId, participants);
+  });
+
+  return participantsByEvent;
+}
+
+async function syncCalendarParticipants(eventId: string, participantIds: unknown) {
+  if (!eventId) return;
+  const ids = normalizeIdArray(participantIds);
+
+  await runSql(
+    'delete from gestao_intranet.eventos_calendario_participantes where evento_id = $1;',
+    [eventId],
+  );
+
+  if (ids.length === 0) return;
+
+  await runSql(
+    `
+      insert into gestao_intranet.eventos_calendario_participantes (evento_id, colaborador_id, status)
+      select $1::uuid, unnest($2::uuid[]), 'convidado'
+      on conflict (evento_id, colaborador_id) do nothing;
+    `,
+    [eventId, ids],
+  );
+}
+
+function getGoogleOAuthConfig(request?: Request) {
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || Deno.env.get('GMAIL_CLIENT_ID');
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || Deno.env.get('GMAIL_CLIENT_SECRET');
+  const requestUrl = request ? new URL(request.url) : null;
+  const redirectUri = Deno.env.get('GOOGLE_CALENDAR_REDIRECT_URI')
+    || (requestUrl ? `${requestUrl.origin}${requestUrl.pathname}` : '');
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Configuracao Google Calendar incompleta.');
+  }
+
+  return { clientId, clientSecret, redirectUri };
+}
+
+async function getGoogleCalendarIntegration(collaboratorId: string | null) {
+  if (!collaboratorId) return null;
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id, colaborador_id, google_email, refresh_token, escopos, conectado_em, atualizado_em
+      from gestao_intranet.integracoes_google_calendar
+      where colaborador_id = $1::uuid
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+  return rows[0] || null;
+}
+
+async function getGoogleCalendarStatus(collaboratorId: string | null) {
+  const integration = await getGoogleCalendarIntegration(collaboratorId);
+  return {
+    connected: Boolean(integration),
+    google_email: integration?.google_email || null,
+    scopes: integration?.escopos || [],
+    connected_at: integration?.conectado_em || null,
+    updated_at: integration?.atualizado_em || null,
+  };
+}
+
+async function startGoogleCalendarOAuth(request: Request, collaboratorId: string | null, redirectTo: unknown) {
+  if (!collaboratorId) throw new Error('Colaborador nao encontrado.');
+  const { clientId, redirectUri } = getGoogleOAuthConfig(request);
+  const state = crypto.randomUUID();
+  const safeRedirect = typeof redirectTo === 'string' && /^https?:\/\//i.test(redirectTo)
+    ? redirectTo
+    : '/perfil';
+
+  await runSql(
+    `
+      insert into gestao_intranet.integracoes_google_oauth_state (state, colaborador_id, redirect_to)
+      values ($1, $2::uuid, $3);
+    `,
+    [state, collaboratorId, safeRedirect],
+  );
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: GOOGLE_CALENDAR_SCOPE,
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state,
+  });
+
+  return { authorization_url: `${GOOGLE_OAUTH_AUTH_URL}?${params.toString()}` };
+}
+
+async function exchangeGoogleCode(request: Request, code: string) {
+  const { clientId, clientSecret, redirectUri } = getGoogleOAuthConfig(request);
+  const response = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error_description || payload?.error || 'Falha ao conectar Google Agenda.');
+  }
+  return payload as Record<string, unknown>;
+}
+
+async function refreshGoogleAccessToken(refreshToken: unknown) {
+  const { clientId, clientSecret } = getGoogleOAuthConfig();
+  const response = await fetch(GOOGLE_OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: String(refreshToken || ''),
+      grant_type: 'refresh_token',
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error_description || payload?.error || 'Falha ao renovar token Google.');
+  }
+  return String(payload.access_token || '');
+}
+
+async function fetchGoogleUserEmail(accessToken: string) {
+  const response = await fetch(GOOGLE_USERINFO_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  return typeof payload.email === 'string' ? payload.email : null;
+}
+
+async function handleGoogleOAuthCallback(request: Request) {
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+
+  if (!code || !state) {
+    return new Response(null, { status: 302, headers: { Location: '/perfil?googleCalendar=error' } });
+  }
+
+  const stateRows = await runSql<Record<string, unknown>>(
+    `
+      delete from gestao_intranet.integracoes_google_oauth_state
+      where state = $1 and expira_em > now()
+      returning colaborador_id, redirect_to;
+    `,
+    [state],
+  );
+  const stateRow = stateRows[0];
+  if (!stateRow?.colaborador_id) {
+    return new Response(null, { status: 302, headers: { Location: '/perfil?googleCalendar=expired' } });
+  }
+
+  try {
+    const tokenPayload = await exchangeGoogleCode(request, code);
+    const refreshToken = tokenPayload.refresh_token;
+    if (!refreshToken) throw new Error('Google nao retornou refresh_token. Tente conectar novamente.');
+    const accessToken = String(tokenPayload.access_token || '');
+    const googleEmail = accessToken ? await fetchGoogleUserEmail(accessToken) : null;
+    const scopes = String(tokenPayload.scope || GOOGLE_CALENDAR_SCOPE).split(/\s+/).filter(Boolean);
+
+    await runSql(
+      `
+        insert into gestao_intranet.integracoes_google_calendar (
+          colaborador_id, google_email, refresh_token, escopos, conectado_em, atualizado_em
+        ) values ($1::uuid, $2, $3, $4::text[], now(), now())
+        on conflict (colaborador_id) do update set
+          google_email = excluded.google_email,
+          refresh_token = excluded.refresh_token,
+          escopos = excluded.escopos,
+          atualizado_em = now();
+      `,
+      [stateRow.colaborador_id, googleEmail, refreshToken, scopes],
+    );
+
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${stateRow.redirect_to || '/perfil'}?googleCalendar=connected` },
+    });
+  } catch (_error) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${stateRow.redirect_to || '/perfil'}?googleCalendar=error` },
+    });
+  }
+}
+
+async function disconnectGoogleCalendar(collaboratorId: string | null) {
+  if (!collaboratorId) throw new Error('Colaborador nao encontrado.');
+  await runSql(
+    'delete from gestao_intranet.integracoes_google_calendar where colaborador_id = $1::uuid;',
+    [collaboratorId],
+  );
+  return { success: true };
+}
+
+function buildGoogleCalendarDateTime(dateValue: unknown, timeValue: unknown, addHours = 0) {
+  const date = normalizeDateOnly(dateValue);
+  const time = typeof timeValue === 'string' && timeValue ? timeValue : '';
+  if (!date) return null;
+
+  if (!time) {
+    if (addHours <= 0) return { date };
+    const parsedDate = parseDateOnlyUtc(date);
+    return parsedDate ? { date: formatDateOnlyUtc(addDaysUtc(parsedDate, 1)) } : { date };
+  }
+
+  const [hours, minutes] = time.split(':').map(Number);
+  const parsed = parseDateOnlyUtc(date);
+  if (!parsed || !Number.isFinite(hours) || !Number.isFinite(minutes)) return { date };
+  parsed.setUTCHours(hours + addHours, minutes, 0, 0);
+
+  const localDate = normalizeDateOnly(parsed);
+  const localTime = `${String(parsed.getUTCHours()).padStart(2, '0')}:${String(parsed.getUTCMinutes()).padStart(2, '0')}:00`;
+  return {
+    dateTime: `${localDate}T${localTime}`,
+    timeZone: DEFAULT_TIME_ZONE,
+  };
+}
+
+async function createGoogleMeetForCalendarEvent(
+  collaboratorId: string | null,
+  eventPayload: Record<string, unknown>,
+  participants: Record<string, unknown>[],
+) {
+  const integration = await getGoogleCalendarIntegration(collaboratorId);
+  if (!integration?.refresh_token) {
+    throw new Error('Conecte sua Google Agenda antes de gerar Google Meet.');
+  }
+
+  const accessToken = await refreshGoogleAccessToken(integration.refresh_token);
+  const calendarId = Deno.env.get('GOOGLE_CALENDAR_ID') || 'primary';
+  const start = buildGoogleCalendarDateTime(eventPayload.date, eventPayload.time);
+  const end = buildGoogleCalendarDateTime(eventPayload.date, eventPayload.time, 1);
+  if (!start || !end) throw new Error('Data obrigatoria para criar evento no Google Agenda.');
+
+  const attendees = participants
+    .map((participant) => participant.email)
+    .filter((email): email is string => typeof email === 'string' && Boolean(email))
+    .map((email) => ({ email }));
+
+  const response = await fetch(
+    `${GOOGLE_CALENDAR_API_URL}/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1&sendUpdates=all`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        summary: eventPayload.title || 'Evento',
+        description: eventPayload.description || '',
+        location: eventPayload.location || '',
+        start,
+        end,
+        attendees,
+        conferenceData: {
+          createRequest: {
+            requestId: crypto.randomUUID(),
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+      }),
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || 'Falha ao criar Google Meet.');
+  }
+
+  return {
+    google_meet_url: payload.hangoutLink || payload.conferenceData?.entryPoints?.find((entry: Record<string, unknown>) => entry.entryPointType === 'video')?.uri || null,
+    google_calendar_event_id: payload.id || null,
+    google_calendar_organizer_id: collaboratorId,
+  };
 }
 
 async function listBaseEntity(entityName: keyof typeof ENTITY_CONFIG, orderBy?: string, limit?: number) {
@@ -1130,35 +1565,47 @@ async function listDashboardQuickLinks(limit = 6) {
 async function listCalendarEvents(orderBy?: string, limit?: number) {
   const rows = await listBaseEntity('CalendarEvent', orderBy, limit);
   const responsibleIds = rows.map((row) => String(row.responsavel_colaborador_id || '')).filter(Boolean);
-  const [departments, units, creators, responsibleMap] = await Promise.all([
+  const eventIds = rows.map((row) => String(row.id || '')).filter(Boolean);
+  const [departments, units, creators, responsibleMap, participantsMap] = await Promise.all([
     listDepartments(),
     listUnits(),
     enrichWithCreators(rows),
     fetchCollaboratorsByIds(responsibleIds),
+    fetchCalendarParticipants(eventIds),
   ]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
   const unitsById = new Map(units.map((item) => [String(item.id), item]));
-  return rows.map((row) => mapCalendarEvent(row, departmentsById, unitsById, creators, responsibleMap));
+  return rows.map((row) => mapCalendarEvent(row, departmentsById, unitsById, creators, responsibleMap, participantsMap));
 }
 
 async function listUpcomingCalendarEvents(limit = 2) {
+  const today = parseDateOnlyUtc(new Date()) || new Date();
+  const horizon = addDaysUtc(today, 366);
   const rows = await runSql<Record<string, unknown>>(
     `
-      select id, titulo, data_evento, horario, tipo
+      select id, titulo, data_evento, horario, tipo, recorrencia_tipo, recorrencia_fim, recorrencia_ativa, recorrencia_cancelamentos
       from gestao_intranet.eventos_calendario
-      where data_evento >= current_date
+      where data_evento <= $2
+        and (
+          data_evento >= $1
+          or (
+            recorrencia_ativa = true
+            and recorrencia_tipo in ('weekly', 'monthly')
+            and (recorrencia_fim is null or recorrencia_fim >= $1)
+          )
+        )
       order by data_evento asc, horario asc nulls last
-      limit $1;
     `,
-    [limit],
+    [formatDateOnlyUtc(today), formatDateOnlyUtc(horizon)],
   );
 
-  return rows.map((row) => ({
+  return expandCalendarRows(rows, today, horizon).slice(0, limit).map((row) => ({
     id: row.id,
     title: row.titulo,
-    date: normalizeDateOnly(row.data_evento),
+    date: normalizeDateOnly(row.occurrence_date || row.data_evento),
     time: row.horario,
     type: row.tipo,
+    recurrence: normalizeRecurrence(row.recorrencia_tipo),
   }));
 }
 
@@ -2108,8 +2555,8 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.eventos_calendario (
-        titulo, descricao, data_evento, horario, tipo, local, departamento_id, unidade_id, responsavel_colaborador_id, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        titulo, descricao, data_evento, horario, tipo, local, recorrencia_tipo, recorrencia_fim, recorrencia_ativa, departamento_id, unidade_id, responsavel_colaborador_id, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       returning *;
     `,
     [
@@ -2119,20 +2566,53 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
       payload.time || null,
       payload.type || 'evento',
       payload.location || null,
+      normalizeRecurrence(payload.recurrence),
+      payload.recurrence_until || null,
+      payload.recurrence_active !== false,
       department?.id || null,
       unit?.id || null,
       responsibleId || null,
       collaboratorId,
     ],
   );
+  if ('participants' in payload || 'participant_ids' in payload) {
+    await syncCalendarParticipants(String(rows[0].id), payload.participant_ids || payload.participants || []);
+  }
   const collaboratorIds = [String(rows[0].criado_por || ''), String(rows[0].responsavel_colaborador_id || '')];
-  const [departments, units, collaborators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds(collaboratorIds)]);
+  const [departments, units, collaborators, participantsMap] = await Promise.all([
+    listDepartments(),
+    listUnits(),
+    fetchCollaboratorsByIds(collaboratorIds),
+    fetchCalendarParticipants([String(rows[0].id)]),
+  ]);
+  let eventRow = rows[0];
+  if (payload.add_google_meet && !eventRow.google_meet_url) {
+    const meet = await createGoogleMeetForCalendarEvent(
+      collaboratorId,
+      { ...payload, date: eventRow.data_evento, time: eventRow.horario },
+      participantsMap.get(String(eventRow.id)) || [],
+    );
+    const meetRows = await runSql<Record<string, unknown>>(
+      `
+        update gestao_intranet.eventos_calendario
+        set google_meet_url = $2,
+            google_calendar_event_id = $3,
+            google_calendar_organizer_id = $4::uuid,
+            atualizado_em = now()
+        where id = $1
+        returning *;
+      `,
+      [eventRow.id, meet.google_meet_url, meet.google_calendar_event_id, meet.google_calendar_organizer_id],
+    );
+    eventRow = meetRows[0] || eventRow;
+  }
   return mapCalendarEvent(
-    rows[0],
+    eventRow,
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(units.map((item) => [String(item.id), item])),
     collaborators,
     collaborators,
+    participantsMap,
   );
 }
 
@@ -2163,6 +2643,10 @@ async function updateCalendarEvent(
   if ('time' in payload) assign('horario', payload.time);
   if ('type' in payload) assign('tipo', payload.type);
   if ('location' in payload) assign('local', payload.location);
+  if ('recurrence' in payload) assign('recorrencia_tipo', normalizeRecurrence(payload.recurrence));
+  if ('recurrence_until' in payload) assign('recorrencia_fim', payload.recurrence_until || null);
+  if ('recurrence_active' in payload) assign('recorrencia_ativa', payload.recurrence_active !== false);
+  if ('recurrence_cancelled_dates' in payload) assign('recorrencia_cancelamentos', normalizeDateArray(payload.recurrence_cancelled_dates));
   if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
   if ('unit' in payload || 'unit_id' in payload) assign('unidade_id', unit?.id || null);
   if ('responsible_collaborator_id' in payload || 'responsible_id' in payload) {
@@ -2174,14 +2658,44 @@ async function updateCalendarEvent(
     `update gestao_intranet.eventos_calendario set ${updates.join(', ')} where id = $1 returning *;`,
     values,
   );
+  if ('participants' in payload || 'participant_ids' in payload) {
+    await syncCalendarParticipants(id, payload.participant_ids || payload.participants || []);
+  }
   const collaboratorIds = [String(rows[0].criado_por || ''), String(rows[0].responsavel_colaborador_id || '')];
-  const [departments, units, collaborators] = await Promise.all([listDepartments(), listUnits(), fetchCollaboratorsByIds(collaboratorIds)]);
+  const [departments, units, collaborators, participantsMap] = await Promise.all([
+    listDepartments(),
+    listUnits(),
+    fetchCollaboratorsByIds(collaboratorIds),
+    fetchCalendarParticipants([String(rows[0].id)]),
+  ]);
+  let eventRow = rows[0];
+  if (payload.add_google_meet && !eventRow.google_meet_url) {
+    const meet = await createGoogleMeetForCalendarEvent(
+      collaboratorId,
+      { ...eventRow, title: eventRow.titulo, description: eventRow.descricao, date: eventRow.data_evento, time: eventRow.horario, location: eventRow.local },
+      participantsMap.get(String(eventRow.id)) || [],
+    );
+    const meetRows = await runSql<Record<string, unknown>>(
+      `
+        update gestao_intranet.eventos_calendario
+        set google_meet_url = $2,
+            google_calendar_event_id = $3,
+            google_calendar_organizer_id = $4::uuid,
+            atualizado_em = now()
+        where id = $1
+        returning *;
+      `,
+      [eventRow.id, meet.google_meet_url, meet.google_calendar_event_id, meet.google_calendar_organizer_id],
+    );
+    eventRow = meetRows[0] || eventRow;
+  }
   return mapCalendarEvent(
-    rows[0],
+    eventRow,
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(units.map((item) => [String(item.id), item])),
     collaborators,
     collaborators,
+    participantsMap,
   );
 }
 
@@ -2813,6 +3327,14 @@ Deno.serve(async (request) => {
       return json({ error: 'Secrets da function nao configurados.' }, 500);
     }
 
+    if (request.method === 'GET') {
+      const url = new URL(request.url);
+      if (url.searchParams.has('code') && url.searchParams.has('state')) {
+        return handleGoogleOAuthCallback(request);
+      }
+      return json({ error: 'Metodo invalido.' }, 405);
+    }
+
     const authHeader = request.headers.get('Authorization') || '';
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -2833,6 +3355,7 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({}));
     const action = String(body.action || '');
+    const resource = typeof body.resource === 'string' ? body.resource : '';
     const entity = typeof body.entity === 'string' ? body.entity : '';
     const orderBy = typeof body.orderBy === 'string' ? body.orderBy : undefined;
     const limit = typeof body.limit === 'number' ? body.limit : undefined;
@@ -2849,6 +3372,19 @@ Deno.serve(async (request) => {
 
     if (action === 'me') {
       return json({ user: context.user });
+    }
+
+    if (resource === 'googleCalendar') {
+      if (action === 'status') {
+        return json({ data: await getGoogleCalendarStatus(context.collaboratorId) });
+      }
+      if (action === 'start') {
+        return json({ data: await startGoogleCalendarOAuth(request, context.collaboratorId, payload.redirect_to) });
+      }
+      if (action === 'disconnect') {
+        return json({ data: await disconnectGoogleCalendar(context.collaboratorId) });
+      }
+      return json({ error: 'Acao Google Calendar invalida.' }, 400);
     }
 
     if (action === 'catalog') {

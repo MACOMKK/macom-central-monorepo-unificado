@@ -52,6 +52,21 @@ function formatDateOnly(value: unknown) {
   return String(value).slice(0, 10) || null;
 }
 
+function normalizeRecurrence(value: unknown) {
+  const recurrence = String(value || "none");
+  return ["none", "weekly", "monthly"].includes(recurrence) ? recurrence : "none";
+}
+
+function normalizeDateArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => formatDateOnly(item)).filter(Boolean)));
+}
+
+function normalizeIdArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((item) => String(item || "").trim()).filter(Boolean)));
+}
+
 function normalizeNullableTextInput(value: unknown) {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -627,6 +642,51 @@ async function listQuickLinks(sql: SqlClient, orderBy?: string, limit?: number) 
   }));
 }
 
+async function listCalendarParticipants(sql: SqlClient, eventIds: string[]) {
+  const ids = normalizeIdArray(eventIds);
+  if (ids.length === 0) return new Map<string, Record<string, any>[]>();
+
+  const rows = await sql<Array<Record<string, any>>>`
+    select
+      p.evento_id,
+      p.colaborador_id,
+      p.status,
+      c.nome,
+      c.email
+    from gestao_intranet.eventos_calendario_participantes p
+    left join public.colaboradores c on c.id = p.colaborador_id
+    where p.evento_id = any(${ids}::uuid[])
+    order by c.nome asc nulls last, c.email asc nulls last
+  `;
+
+  const participantsByEvent = new Map<string, Record<string, any>[]>();
+  rows.forEach((row) => {
+    const eventId = String(row.evento_id || "");
+    const participants = participantsByEvent.get(eventId) || [];
+    participants.push({
+      id: row.colaborador_id,
+      collaborator_id: row.colaborador_id,
+      name: row.nome,
+      email: row.email,
+      status: row.status || "convidado",
+    });
+    participantsByEvent.set(eventId, participants);
+  });
+  return participantsByEvent;
+}
+
+async function syncCalendarParticipants(sql: SqlClient, eventId: string, participantIds: unknown) {
+  const ids = normalizeIdArray(participantIds);
+  await sql`delete from gestao_intranet.eventos_calendario_participantes where evento_id = ${eventId}::uuid`;
+  if (ids.length === 0) return;
+
+  await sql`
+    insert into gestao_intranet.eventos_calendario_participantes (evento_id, colaborador_id, status)
+    select ${eventId}::uuid, unnest(${ids}::uuid[]), 'convidado'
+    on conflict (evento_id, colaborador_id) do nothing
+  `;
+}
+
 async function listCalendarEvents(sql: SqlClient, orderBy?: string, limit?: number) {
   const rows = await sql<Array<Record<string, any>>>`
     select
@@ -637,6 +697,10 @@ async function listCalendarEvents(sql: SqlClient, orderBy?: string, limit?: numb
       e.horario,
       e.tipo,
       e.local,
+      e.recorrencia_tipo,
+      e.recorrencia_fim,
+      e.recorrencia_ativa,
+      e.recorrencia_cancelamentos,
       e.departamento_id,
       d.nome as department_name,
       d.descricao as department_description,
@@ -661,6 +725,8 @@ async function listCalendarEvents(sql: SqlClient, orderBy?: string, limit?: numb
     limit ${limitValue(limit, 200)}
   `;
 
+  const participantsByEvent = await listCalendarParticipants(sql, rows.map((row) => String(row.id)));
+
   return rows.map((row) => ({
     id: row.id,
     title: row.titulo,
@@ -669,12 +735,18 @@ async function listCalendarEvents(sql: SqlClient, orderBy?: string, limit?: numb
     time: row.horario,
     type: row.tipo,
     location: row.local,
+    recurrence: normalizeRecurrence(row.recorrencia_tipo),
+    recurrence_until: formatDateOnly(row.recorrencia_fim),
+    recurrence_active: row.recorrencia_ativa !== false,
+    recurrence_cancelled_dates: normalizeDateArray(row.recorrencia_cancelamentos),
     department_id: row.departamento_id,
     department: row.department_name ? departmentKeyFromRecord({ nome: row.department_name, descricao: row.department_description }) : null,
     department_name: row.department_name || null,
     unit_id: row.unidade_id,
     unit: row.unit_city || row.unit_name ? unitKeyFromRecord({ nome: row.unit_name, cidade: row.unit_city }) : null,
     unit_name: row.unit_city || row.unit_name || null,
+    participants: participantsByEvent.get(String(row.id)) || [],
+    participant_ids: (participantsByEvent.get(String(row.id)) || []).map((participant) => participant.collaborator_id || participant.id),
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: row.created_by_email || row.created_by_name || null,
@@ -1032,9 +1104,9 @@ async function createCalendarEvent(sql: SqlClient, currentUser: CurrentUser, pay
   assertModuleEdit(currentUser, "calendario");
   const departmentId = await resolveDepartmentId(sql, payload.department || payload.department_id);
   const unitId = await resolveUnitId(sql, payload.unit || payload.unit_id);
-  await sql`
+  const rows = await sql<Array<{ id: string }>>`
     insert into gestao_intranet.eventos_calendario (
-      titulo, descricao, data_evento, horario, tipo, local, departamento_id, unidade_id, criado_por
+      titulo, descricao, data_evento, horario, tipo, local, recorrencia_tipo, recorrencia_fim, recorrencia_ativa, departamento_id, unidade_id, criado_por
     )
     values (
       ${payload.title},
@@ -1043,12 +1115,19 @@ async function createCalendarEvent(sql: SqlClient, currentUser: CurrentUser, pay
       ${payload.time || null},
       ${payload.type || "evento"},
       ${payload.location || null},
+      ${normalizeRecurrence(payload.recurrence)},
+      ${payload.recurrence_until || null},
+      ${payload.recurrence_active !== false},
       ${departmentId}::uuid,
       ${unitId}::uuid,
       ${currentUser.collaborator_id}::uuid
     )
+    returning id
   `;
-  return null;
+  if ("participants" in payload || "participant_ids" in payload) {
+    await syncCalendarParticipants(sql, rows[0]?.id, payload.participant_ids || payload.participants || []);
+  }
+  return (await listCalendarEvents(sql, "date", 1000)).find((item) => item.id === rows[0]?.id) || null;
 }
 
 async function updateCalendarEvent(sql: SqlClient, currentUser: CurrentUser, id: string, payload: Record<string, any>) {
@@ -1069,12 +1148,19 @@ async function updateCalendarEvent(sql: SqlClient, currentUser: CurrentUser, id:
       horario = coalesce(${payload.time ?? null}, horario),
       tipo = coalesce(${payload.type ?? null}, tipo),
       local = coalesce(${payload.location ?? null}, local),
+      recorrencia_tipo = coalesce(${payload.recurrence === undefined ? null : normalizeRecurrence(payload.recurrence)}, recorrencia_tipo),
+      recorrencia_fim = ${"recurrence_until" in payload ? sql`${payload.recurrence_until || null}::date` : sql`recorrencia_fim`},
+      recorrencia_ativa = ${"recurrence_active" in payload ? sql`${payload.recurrence_active !== false}` : sql`recorrencia_ativa`},
+      recorrencia_cancelamentos = ${"recurrence_cancelled_dates" in payload ? sql`${normalizeDateArray(payload.recurrence_cancelled_dates)}::date[]` : sql`recorrencia_cancelamentos`},
       departamento_id = ${departmentId === undefined ? sql`departamento_id` : sql`${departmentId}::uuid`},
       unidade_id = ${unitId === undefined ? sql`unidade_id` : sql`${unitId}::uuid`},
       atualizado_em = now()
     where id = ${id}::uuid
   `;
-  return (await listCalendarEvents(sql, "date", 200)).find((item) => item.id === id) || null;
+  if ("participants" in payload || "participant_ids" in payload) {
+    await syncCalendarParticipants(sql, id, payload.participant_ids || payload.participants || []);
+  }
+  return (await listCalendarEvents(sql, "date", 1000)).find((item) => item.id === id) || null;
 }
 
 async function createDocument(sql: SqlClient, currentUser: CurrentUser, payload: Record<string, any>) {

@@ -3,8 +3,8 @@ import { supabase } from '@/api/supabaseClient';
 import { Button, Input, Label, useToast } from '@macom/ui';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { MACOM_LOGO_URL } from '@/config/branding';
 
-const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
 const prefetchDashboardRoute = () => import('@/pages/Dashboard');
 
 export default function Login({ loading = false }) {

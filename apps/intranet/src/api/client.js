@@ -256,6 +256,20 @@ export const appClient = {
     },
   },
 
+  googleCalendar: {
+    status() {
+      return intranetApi.googleCalendar.status();
+    },
+
+    start(redirectTo) {
+      return intranetApi.googleCalendar.start(redirectTo);
+    },
+
+    disconnect() {
+      return intranetApi.googleCalendar.disconnect();
+    },
+  },
+
   entities: new Proxy(
     {},
     {

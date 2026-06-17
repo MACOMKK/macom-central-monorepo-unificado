@@ -182,11 +182,49 @@ create table if not exists gestao_intranet.eventos_calendario (
   horario text,
   tipo text default 'evento',
   local text,
+  recorrencia_tipo text not null default 'none'
+    check (recorrencia_tipo in ('none', 'weekly', 'monthly')),
+  recorrencia_fim date,
+  recorrencia_ativa boolean not null default true,
+  recorrencia_cancelamentos date[] not null default '{}',
+  google_meet_url text,
+  google_calendar_event_id text,
+  google_calendar_organizer_id uuid references public.colaboradores(id) on delete set null,
   departamento_id uuid references public.departamentos (id) on delete set null,
   unidade_id uuid references public.unidades (id) on delete set null,
   criado_por uuid references public.colaboradores (id) on delete set null,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
+);
+
+create table if not exists gestao_intranet.eventos_calendario_participantes (
+  id uuid primary key default gen_random_uuid(),
+  evento_id uuid not null references gestao_intranet.eventos_calendario(id) on delete cascade,
+  colaborador_id uuid not null references public.colaboradores(id) on delete cascade,
+  status text not null default 'convidado'
+    check (status in ('convidado', 'confirmado', 'recusado', 'talvez')),
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  unique (evento_id, colaborador_id)
+);
+
+create table if not exists gestao_intranet.integracoes_google_calendar (
+  id uuid primary key default gen_random_uuid(),
+  colaborador_id uuid not null references public.colaboradores(id) on delete cascade,
+  google_email text,
+  refresh_token text not null,
+  escopos text[] not null default '{}',
+  conectado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  unique (colaborador_id)
+);
+
+create table if not exists gestao_intranet.integracoes_google_oauth_state (
+  state text primary key,
+  colaborador_id uuid not null references public.colaboradores(id) on delete cascade,
+  redirect_to text,
+  criado_em timestamptz not null default now(),
+  expira_em timestamptz not null default (now() + interval '10 minutes')
 );
 
 create table if not exists gestao_intranet.documentos (

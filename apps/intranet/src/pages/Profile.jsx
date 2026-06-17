@@ -296,6 +296,11 @@ export default function Profile() {
     queryFn: () => appClient.catalogs.listUnits(),
   });
 
+  const googleCalendarQuery = useQuery({
+    queryKey: ['google-calendar-status'],
+    queryFn: () => appClient.googleCalendar.status(),
+  });
+
   const profile = profileQuery.data;
   const canEditEmail = isTemporaryCadastroEmail(profile?.email);
   const pendingRequest = profile?.pending_change_request;
@@ -331,6 +336,29 @@ export default function Profile() {
     },
     onError: (error) => {
       setFeedback({ type: 'error', message: error?.message || 'Nao foi possivel salvar o perfil.' });
+    },
+  });
+
+  const startGoogleCalendarMutation = useMutation({
+    mutationFn: () => appClient.googleCalendar.start('/perfil'),
+    onSuccess: (result) => {
+      if (result?.authorization_url) {
+        window.location.assign(result.authorization_url);
+      }
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error?.message || 'Nao foi possivel iniciar a conexao com Google Agenda.' });
+    },
+  });
+
+  const disconnectGoogleCalendarMutation = useMutation({
+    mutationFn: () => appClient.googleCalendar.disconnect(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
+      setFeedback({ type: 'success', message: 'Google Agenda desconectada.' });
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error?.message || 'Nao foi possivel desconectar a Google Agenda.' });
     },
   });
 
@@ -635,6 +663,49 @@ export default function Profile() {
                     : 'Este email ja e definitivo. Alteracoes devem ser feitas pela administracao.'}
                 </span>
               </label>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Google Agenda"
+              description="Conecte sua conta Google para gerar links do Google Meet nos eventos que voce criar."
+            >
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+                {googleCalendarQuery.data?.connected ? (
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Google Agenda conectada</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {googleCalendarQuery.data.google_email || 'Conta Google autorizada'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => disconnectGoogleCalendarMutation.mutate()}
+                      disabled={disconnectGoogleCalendarMutation.isPending}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {disconnectGoogleCalendarMutation.isPending ? 'Desconectando...' : 'Desconectar'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Google Agenda nao conectada</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Necessario para criar links do Google Meet pela sua propria conta.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startGoogleCalendarMutation.mutate()}
+                      disabled={startGoogleCalendarMutation.isPending}
+                      className="inline-flex h-10 items-center justify-center rounded-xl bg-[#E30613] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#c90510] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {startGoogleCalendarMutation.isPending ? 'Conectando...' : 'Conectar Google Agenda'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </CollapsibleSection>
 
             <CollapsibleSection

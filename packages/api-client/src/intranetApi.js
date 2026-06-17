@@ -139,6 +139,33 @@ export const intranetApi = {
       return result.rows || result.data || [];
     },
   },
+  googleCalendar: {
+    async status() {
+      const result = await invokeIntranet({
+        resource: 'googleCalendar',
+        action: 'status',
+      });
+      return result.data || result;
+    },
+    async start(redirectTo = '/perfil') {
+      const redirectUrl = redirectTo?.startsWith('http')
+        ? redirectTo
+        : `${window.location.origin}${redirectTo || '/perfil'}`;
+      const result = await invokeIntranet({
+        resource: 'googleCalendar',
+        action: 'start',
+        payload: { redirect_to: redirectUrl },
+      });
+      return result.data || result;
+    },
+    async disconnect() {
+      const result = await invokeIntranet({
+        resource: 'googleCalendar',
+        action: 'disconnect',
+      });
+      return result.data || result;
+    },
+  },
   entities: new Proxy(
     {},
     {

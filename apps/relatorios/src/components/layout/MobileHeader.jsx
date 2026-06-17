@@ -1,8 +1,7 @@
 import React from 'react';
 import { Menu, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
-
-const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
+import { MACOM_LOGO_URL } from '@/config/branding';
 
 export default function MobileHeader({ user, onMenuOpen }) {
   const { logout } = useAuth();

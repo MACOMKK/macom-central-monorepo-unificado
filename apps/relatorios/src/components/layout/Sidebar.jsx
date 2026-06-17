@@ -5,8 +5,7 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label,
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
 import { canReportsFunction } from '@/api/dataClient';
-
-const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
+import { MACOM_LOGO_URL } from '@/config/branding';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },

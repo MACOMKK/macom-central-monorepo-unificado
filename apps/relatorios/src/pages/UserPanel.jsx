@@ -6,8 +6,7 @@ import { supabase } from '@/api/supabaseClient';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Skeleton, useToast } from '@macom/ui';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-
-const MACOM_LOGO_URL = 'https://svlhklfzwtcvaospmhxy.supabase.co/storage/v1/object/public/Imagens%20macom/image_macom.png';
+import { MACOM_LOGO_URL } from '@/config/branding';
 
 const categoryLabels = {
   gerencial: 'Gerencial', financeiro: 'Financeiro', operacional: 'Operacional',

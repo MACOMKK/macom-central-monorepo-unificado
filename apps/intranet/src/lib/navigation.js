@@ -15,7 +15,7 @@ export const intranetNavItems = [
   { path: '/links', label: 'Links Úteis', icon: Link2, module: 'links' },
   { path: '/colaboradores', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
   { path: '/documentos', label: 'Documentos', icon: FileText, module: 'documentos' },
-  { path: '/calendario', label: 'Calendário', icon: CalendarDays, module: 'calendario' },
+  { path: '/calendario', label: 'Agenda', icon: CalendarDays, module: 'calendario' },
   { path: '/feedback', label: 'Feedback & Sugestões', icon: MessageSquarePlus, module: 'feedback' },
   { path: '/conhecimento', label: 'Base de Conhecimento', icon: BookOpen, module: 'conhecimento' },
 ];

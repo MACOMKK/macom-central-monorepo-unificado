@@ -138,17 +138,6 @@ function formatDate(value) {
   return date.toLocaleDateString('pt-BR');
 }
 
-function formatDateKey(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
 function getPreviewType(document) {
   const fileType = String(document?.file_type || '').toLowerCase();
   const fileName = String(document?.file_name || document?.title || '').toLowerCase();
@@ -185,7 +174,6 @@ export default function Documents() {
   const [companyFilter, setCompanyFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [publishDateFilter, setPublishDateFilter] = useState('');
   const queryClient = useQueryClient();
 
   const {
@@ -317,10 +305,7 @@ export default function Documents() {
       (departmentFilter === '__general__' && !document.department_id && !document.department) ||
       document.department_id === departmentFilter ||
       document.department === departmentFilter;
-    const matchPublishDate =
-      !publishDateFilter ||
-      formatDateKey(document.created_date) === publishDateFilter;
-    return matchCompany && matchDepartment && matchPublishDate;
+    return matchCompany && matchDepartment;
   });
 
   const categoryScopedDocuments = departmentScopedDocuments.filter((document) => {
@@ -367,10 +352,10 @@ export default function Documents() {
     totalItems,
     totalPages,
     paginatedItems: paginatedDocuments,
-  } = usePaginatedItems(filtered, pageSize, [search, catFilter, companyFilter, departmentFilter, publishDateFilter]);
+  } = usePaginatedItems(filtered, pageSize, [search, catFilter, companyFilter, departmentFilter]);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
-  const hasAdvancedFilters = companyFilter !== 'all' || departmentFilter !== 'all' || Boolean(publishDateFilter);
+  const hasAdvancedFilters = companyFilter !== 'all' || departmentFilter !== 'all';
 
   const handleConfirmDelete = () => {
     if (!documentToDelete) return;
@@ -380,7 +365,6 @@ export default function Documents() {
   const clearAdvancedFilters = () => {
     setCompanyFilter('all');
     setDepartmentFilter('all');
-    setPublishDateFilter('');
   };
 
   const openCreateDialog = () => {
@@ -486,15 +470,6 @@ export default function Documents() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="w-[150px]">
-          <Input
-            type="date"
-            value={publishDateFilter}
-            onChange={(event) => setPublishDateFilter(event.target.value)}
-            className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none"
-          />
         </div>
 
         {hasAdvancedFilters ? (
