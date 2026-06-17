@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, ExternalLink, LogOut, Menu } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Bell, CheckCheck, ExternalLink, LogOut, Menu } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import { appClient } from '@/api/client';
@@ -18,12 +18,26 @@ function formatDateLabel() {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
+function formatNotificationDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function Header({ onMenuClick }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const profileRef = useRef(null);
+  const notificationsRef = useRef(null);
   const dateLabel = formatDateLabel();
   const { data: currentProfile } = useQuery({
     queryKey: ['current-profile'],
@@ -32,6 +46,12 @@ export default function Header({ onMenuClick }) {
       return rows[0] || null;
     },
     enabled: Boolean(user),
+  });
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => appClient.notifications.list(20),
+    enabled: Boolean(user),
+    refetchInterval: 60000,
   });
   const displayName = currentProfile?.name || user?.full_name || user?.email || 'Usuario';
   const displayEmail = currentProfile?.email || user?.email || '';
@@ -43,11 +63,26 @@ export default function Header({ onMenuClick }) {
     .map((part) => part[0])
     .join('')
     .toUpperCase() || 'U';
+  const notifications = Array.isArray(notificationsData?.items) ? notificationsData.items : [];
+  const unreadCount = Number(notificationsData?.unread_count || 0);
+
+  const markReadMutation = useMutation({
+    mutationFn: (id) => appClient.notifications.markRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => appClient.notifications.markAllRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  });
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!profileRef.current?.contains(event.target)) {
         setProfileOpen(false);
+      }
+      if (!notificationsRef.current?.contains(event.target)) {
+        setNotificationsOpen(false);
       }
     };
 
@@ -63,6 +98,16 @@ export default function Header({ onMenuClick }) {
   const handleOpenProfile = () => {
     setProfileOpen(false);
     navigate('/perfil');
+  };
+
+  const handleOpenNotification = (notification) => {
+    if (!notification?.read) {
+      markReadMutation.mutate(notification.id);
+    }
+    setNotificationsOpen(false);
+    if (notification?.link) {
+      navigate(notification.link);
+    }
   };
 
   return (
@@ -88,13 +133,77 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#141414]"
-          aria-label="Notificacoes"
-        >
-          <Bell className="h-4 w-4" />
-        </button>
+        <div ref={notificationsRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setNotificationsOpen((current) => !current);
+              setProfileOpen(false);
+            }}
+            className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+              notificationsOpen ? 'bg-slate-100 text-[#141414]' : 'text-slate-500 hover:bg-slate-100 hover:text-[#141414]'
+            }`}
+            aria-label="Notificacoes"
+          >
+            <Bell className="h-4 w-4" />
+            {unreadCount > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E30613] px-1 text-[10px] font-bold leading-none text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            ) : null}
+          </button>
+
+          {notificationsOpen ? (
+            <div className="absolute right-0 top-[46px] z-50 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-md border border-slate-200 bg-white text-slate-800 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <p className="text-sm font-bold">Notificacoes</p>
+                  <p className="text-xs text-slate-500">{unreadCount} nao lida{unreadCount === 1 ? '' : 's'}</p>
+                </div>
+                {unreadCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => markAllReadMutation.mutate()}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#E30613] transition-colors hover:bg-red-50"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Ler todas
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="max-h-[420px] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-slate-500">
+                    Nenhuma notificacao por enquanto.
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <button
+                      key={notification.id}
+                      type="button"
+                      onClick={() => handleOpenNotification(notification)}
+                      className={`flex w-full gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 ${
+                        notification.read ? 'bg-white' : 'bg-red-50/45'
+                      }`}
+                    >
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${notification.read ? 'bg-slate-200' : 'bg-[#E30613]'}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">{notification.title}</span>
+                        {notification.message ? (
+                          <span className="mt-0.5 line-clamp-2 block text-xs leading-5 text-slate-600">{notification.message}</span>
+                        ) : null}
+                        <span className="mt-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                          {notification.type} {notification.created_date ? `- ${formatNotificationDate(notification.created_date)}` : ''}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         <div ref={profileRef} className="relative">
           <button

@@ -859,6 +859,285 @@ function normalizeIdArray(value: unknown) {
   return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean)));
 }
 
+function uniqIds(values: unknown[]) {
+  return Array.from(new Set(values.map((item) => String(item || '').trim()).filter(Boolean)));
+}
+
+function notificationReferenceId(value: unknown) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+}
+
+function mapNotification(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    collaborator_id: row.colaborador_id,
+    type: row.tipo || 'geral',
+    title: row.titulo,
+    message: row.mensagem || '',
+    link: row.link || null,
+    reference_type: row.referencia_tipo || null,
+    reference_id: row.referencia_id || null,
+    read_at: row.lida_em || null,
+    created_by_id: row.criado_por || null,
+    created_date: row.criado_em,
+    read: Boolean(row.lida_em),
+  };
+}
+
+async function listNotifications(collaboratorId: string | null, limit = 20) {
+  if (!collaboratorId) return { items: [], unread_count: 0 };
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select *
+      from gestao_intranet.notificacoes
+      where colaborador_id = $1::uuid
+      order by criado_em desc
+      limit $2;
+    `,
+    [collaboratorId, Math.min(Math.max(Number(limit) || 20, 1), 50)],
+  );
+  const countRows = await runSql<Record<string, unknown>>(
+    `
+      select count(*)::int as total
+      from gestao_intranet.notificacoes
+      where colaborador_id = $1::uuid
+        and lida_em is null;
+    `,
+    [collaboratorId],
+  );
+  return {
+    items: rows.map(mapNotification),
+    unread_count: Number(countRows[0]?.total || 0),
+  };
+}
+
+async function markNotificationRead(collaboratorId: string | null, id: string) {
+  if (!collaboratorId || !id) return null;
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      update gestao_intranet.notificacoes
+      set lida_em = coalesce(lida_em, now())
+      where id = $1::uuid
+        and colaborador_id = $2::uuid
+      returning *;
+    `,
+    [id, collaboratorId],
+  );
+  return rows[0] ? mapNotification(rows[0]) : null;
+}
+
+async function markAllNotificationsRead(collaboratorId: string | null) {
+  if (!collaboratorId) return { success: true };
+  await runSql(
+    `
+      update gestao_intranet.notificacoes
+      set lida_em = coalesce(lida_em, now())
+      where colaborador_id = $1::uuid
+        and lida_em is null;
+    `,
+    [collaboratorId],
+  );
+  return { success: true };
+}
+
+async function createNotifications(
+  recipientIds: unknown[],
+  payload: {
+    type: string;
+    title: string;
+    message?: string;
+    link?: string;
+    referenceType?: string;
+    referenceId?: unknown;
+    createdBy?: string | null;
+    excludeIds?: unknown[];
+  },
+) {
+  const excluded = new Set(uniqIds(payload.excludeIds || []));
+  const recipients = uniqIds(recipientIds).filter((id) => !excluded.has(id));
+  if (recipients.length === 0 || !payload.title) return;
+
+  await runSql(
+    `
+      insert into gestao_intranet.notificacoes (
+        colaborador_id, tipo, titulo, mensagem, link, referencia_tipo, referencia_id, criado_por
+      )
+      select unnest($1::uuid[]), $2, $3, $4, $5, $6, $7::uuid, $8::uuid;
+    `,
+    [
+      recipients,
+      payload.type || 'geral',
+      payload.title,
+      payload.message || null,
+      payload.link || null,
+      payload.referenceType || null,
+      notificationReferenceId(payload.referenceId),
+      payload.createdBy || null,
+    ],
+  );
+}
+
+async function fetchActiveCollaboratorIds(filters: { departmentId?: unknown } = {}) {
+  const values: unknown[] = [];
+  const clauses = ["coalesce(status, 'ativo') = 'ativo'"];
+  if (filters.departmentId) {
+    values.push(filters.departmentId);
+    clauses.push(`departamento_id = $${values.length}::uuid`);
+  }
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id
+      from public.colaboradores
+      where ${clauses.join(' and ')};
+    `,
+    values,
+  );
+  return rows.map((row) => String(row.id || '')).filter(Boolean);
+}
+
+async function fetchAdminCollaboratorIds() {
+  const intranetSystem = await getIntranetSystem();
+  if (!intranetSystem?.id) return [];
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select distinct colaborador_id as id
+      from public.acessos_usuario_sistema
+      where sistema_id = $1
+        and ativo = true
+        and nivel_acesso = 'admin';
+    `,
+    [intranetSystem.id],
+  );
+  return rows.map((row) => String(row.id || '')).filter(Boolean);
+}
+
+async function notifyDocumentAudience(
+  document: Record<string, unknown> | null | undefined,
+  action: 'created' | 'updated' | 'deleted',
+  actorId: string | null,
+) {
+  if (!document?.id) return;
+  const recipients = await fetchActiveCollaboratorIds({ departmentId: document.departamento_id || undefined });
+  const titleByAction = {
+    created: 'Novo documento publicado',
+    updated: 'Documento atualizado',
+    deleted: 'Documento removido',
+  };
+  const messageByAction = {
+    created: `Documento "${document.titulo || 'Sem titulo'}" foi publicado na intranet.`,
+    updated: `Documento "${document.titulo || 'Sem titulo'}" foi atualizado.`,
+    deleted: `Documento "${document.titulo || 'Sem titulo'}" foi removido.`,
+  };
+  await createNotifications(recipients, {
+    type: 'documento',
+    title: titleByAction[action],
+    message: messageByAction[action],
+    link: '/documentos',
+    referenceType: 'Document',
+    referenceId: document.id,
+    createdBy: actorId,
+    excludeIds: [actorId],
+  });
+}
+
+async function notifyAnnouncementAudience(
+  announcement: Record<string, unknown> | null | undefined,
+  action: 'created' | 'updated' | 'deleted',
+  actorId: string | null,
+) {
+  if (!announcement?.id) return;
+  const recipients = await fetchActiveCollaboratorIds();
+  const titleByAction = {
+    created: 'Novo aviso publicado',
+    updated: 'Aviso atualizado',
+    deleted: 'Aviso removido',
+  };
+  const messageByAction = {
+    created: `Aviso "${announcement.titulo || 'Sem titulo'}" foi publicado.`,
+    updated: `Aviso "${announcement.titulo || 'Sem titulo'}" foi atualizado.`,
+    deleted: `Aviso "${announcement.titulo || 'Sem titulo'}" foi removido.`,
+  };
+  await createNotifications(recipients, {
+    type: 'aviso',
+    title: titleByAction[action],
+    message: messageByAction[action],
+    link: '/avisos',
+    referenceType: 'Announcement',
+    referenceId: announcement.id,
+    createdBy: actorId,
+    excludeIds: [actorId],
+  });
+}
+
+async function notifyCalendarAudience(
+  event: Record<string, unknown> | null | undefined,
+  participants: Record<string, unknown>[] = [],
+  action: 'created' | 'updated' | 'deleted' | 'meet_created',
+  actorId: string | null,
+) {
+  if (!event?.id) return;
+  const participantIds = participants.map((participant) => participant.collaborator_id || participant.id);
+  const recipients = uniqIds([...participantIds, event.responsavel_colaborador_id]);
+  const titleByAction = {
+    created: 'Voce foi convidado para um evento',
+    updated: 'Evento atualizado',
+    deleted: 'Evento cancelado',
+    meet_created: 'Google Meet disponivel',
+  };
+  const messageByAction = {
+    created: `Evento "${event.titulo || 'Sem titulo'}" em ${normalizeDateOnly(event.data_evento) || 'data indefinida'}${event.horario ? ` as ${event.horario}` : ''}.`,
+    updated: `Evento "${event.titulo || 'Sem titulo'}" teve alteracoes.`,
+    deleted: `Evento "${event.titulo || 'Sem titulo'}" foi cancelado.`,
+    meet_created: `Link do Google Meet foi gerado para "${event.titulo || 'Sem titulo'}".`,
+  };
+  await createNotifications(recipients, {
+    type: 'agenda',
+    title: titleByAction[action],
+    message: messageByAction[action],
+    link: '/calendario',
+    referenceType: 'CalendarEvent',
+    referenceId: event.id,
+    createdBy: actorId,
+    excludeIds: [actorId],
+  });
+}
+
+async function notifyFeedbackAudience(
+  feedback: Record<string, unknown> | null | undefined,
+  action: 'created' | 'updated',
+  actorId: string | null,
+) {
+  if (!feedback?.id) return;
+
+  if (action === 'created') {
+    const adminIds = await fetchAdminCollaboratorIds();
+    await createNotifications(adminIds, {
+      type: 'feedback',
+      title: 'Novo feedback recebido',
+      message: `Feedback "${feedback.titulo || 'Sem titulo'}" foi enviado.`,
+      link: '/feedback',
+      referenceType: 'Feedback',
+      referenceId: feedback.id,
+      createdBy: actorId,
+      excludeIds: [actorId],
+    });
+    return;
+  }
+
+  await createNotifications([feedback.criado_por], {
+    type: 'feedback',
+    title: 'Feedback atualizado',
+    message: `Seu feedback "${feedback.titulo || 'Sem titulo'}" foi atualizado.`,
+    link: '/feedback',
+    referenceType: 'Feedback',
+    referenceId: feedback.id,
+    createdBy: actorId,
+    excludeIds: [actorId],
+  });
+}
+
 function parseDateOnlyUtc(value: unknown) {
   const normalized = normalizeDateOnly(value);
   if (!normalized) return null;
@@ -2012,6 +2291,17 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
         normalizeOptionalText(payload.change_request_note),
       ],
     );
+    const adminIds = await fetchAdminCollaboratorIds();
+    await createNotifications(adminIds, {
+      type: 'perfil',
+      title: 'Solicitacao de perfil pendente',
+      message: `${user.full_name || user.email || 'Um colaborador'} solicitou alteracao de departamento ou unidade.`,
+      link: '/permissoes',
+      referenceType: 'ProfileChangeRequest',
+      referenceId: collaboratorId,
+      createdBy: collaboratorId,
+      excludeIds: [collaboratorId],
+    });
   }
 
   await runSql(
@@ -2259,6 +2549,7 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
   );
 
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  await notifyAnnouncementAudience(rows[0], 'created', collaboratorId);
   return mapAnnouncement(rows[0], creators);
 }
 
@@ -2362,6 +2653,7 @@ async function updateAnnouncement(
     );
   }
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  await notifyAnnouncementAudience(rows[0], 'updated', collaboratorId);
   return mapAnnouncement(rows[0], creators);
 }
 
@@ -2474,10 +2766,11 @@ async function createFeedback(payload: Record<string, unknown>, collaboratorId: 
     ],
   );
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  await notifyFeedbackAudience(rows[0], 'created', collaboratorId);
   return mapFeedback(rows[0], creators);
 }
 
-async function updateFeedback(id: string, payload: Record<string, unknown>) {
+async function updateFeedback(id: string, payload: Record<string, unknown>, collaboratorId: string | null) {
   const updates: string[] = [];
   const values: unknown[] = [id];
   const assign = (column: string, value: unknown) => {
@@ -2499,6 +2792,7 @@ async function updateFeedback(id: string, payload: Record<string, unknown>) {
     values,
   );
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  await notifyFeedbackAudience(rows[0], 'updated', collaboratorId);
   return mapFeedback(rows[0], creators);
 }
 
@@ -2586,6 +2880,7 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
     fetchCalendarParticipants([String(rows[0].id)]),
   ]);
   let eventRow = rows[0];
+  let meetCreated = false;
   if (payload.add_google_meet && !eventRow.google_meet_url) {
     const meet = await createGoogleMeetForCalendarEvent(
       collaboratorId,
@@ -2605,6 +2900,12 @@ async function createCalendarEvent(payload: Record<string, unknown>, collaborato
       [eventRow.id, meet.google_meet_url, meet.google_calendar_event_id, meet.google_calendar_organizer_id],
     );
     eventRow = meetRows[0] || eventRow;
+    meetCreated = Boolean(eventRow.google_meet_url);
+  }
+  const participants = participantsMap.get(String(eventRow.id)) || [];
+  await notifyCalendarAudience(eventRow, participants, 'created', collaboratorId);
+  if (meetCreated) {
+    await notifyCalendarAudience(eventRow, participants, 'meet_created', collaboratorId);
   }
   return mapCalendarEvent(
     eventRow,
@@ -2669,6 +2970,7 @@ async function updateCalendarEvent(
     fetchCalendarParticipants([String(rows[0].id)]),
   ]);
   let eventRow = rows[0];
+  let meetCreated = false;
   if (payload.add_google_meet && !eventRow.google_meet_url) {
     const meet = await createGoogleMeetForCalendarEvent(
       collaboratorId,
@@ -2688,6 +2990,12 @@ async function updateCalendarEvent(
       [eventRow.id, meet.google_meet_url, meet.google_calendar_event_id, meet.google_calendar_organizer_id],
     );
     eventRow = meetRows[0] || eventRow;
+    meetCreated = Boolean(eventRow.google_meet_url);
+  }
+  const participants = participantsMap.get(String(eventRow.id)) || [];
+  await notifyCalendarAudience(eventRow, participants, 'updated', collaboratorId);
+  if (meetCreated) {
+    await notifyCalendarAudience(eventRow, participants, 'meet_created', collaboratorId);
   }
   return mapCalendarEvent(
     eventRow,
@@ -2727,6 +3035,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
     ],
   );
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  await notifyDocumentAudience(rows[0], 'created', collaboratorId);
   return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
@@ -2759,7 +3068,12 @@ async function deleteStorageFile(
   }
 }
 
-async function updateDocument(authClient: ReturnType<typeof createClient>, id: string, payload: Record<string, unknown>) {
+async function updateDocument(
+  authClient: ReturnType<typeof createClient>,
+  id: string,
+  payload: Record<string, unknown>,
+  collaboratorId: string | null,
+) {
   const department = await resolveDepartment(payload.department || payload.department_id);
   if ('file_size' in payload) {
     validateDocumentFileSize(payload.file_size);
@@ -2805,6 +3119,7 @@ async function updateDocument(authClient: ReturnType<typeof createClient>, id: s
     );
   }
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  await notifyDocumentAudience(rows[0], 'updated', collaboratorId);
   return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
 }
 
@@ -3042,6 +3357,19 @@ async function updateProfileChangeRequest(
     [id, status, normalizeOptionalText(payload.review_note), reviewerCollaboratorId],
   );
 
+  await createNotifications([request.colaborador_id], {
+    type: 'perfil',
+    title: status === 'approved' ? 'Solicitacao de perfil aprovada' : 'Solicitacao de perfil recusada',
+    message: status === 'approved'
+      ? 'Sua solicitacao de alteracao de perfil foi aprovada.'
+      : 'Sua solicitacao de alteracao de perfil foi recusada.',
+    link: '/perfil',
+    referenceType: 'ProfileChangeRequest',
+    referenceId: id,
+    createdBy: reviewerCollaboratorId,
+    excludeIds: [reviewerCollaboratorId],
+  });
+
   return mapProfileChangeRequest(rows[0]);
 }
 
@@ -3051,13 +3379,14 @@ async function deleteBaseEntity(entityName: keyof typeof ENTITY_CONFIG, id: stri
   return { success: true };
 }
 
-async function deleteDocument(authClient: ReturnType<typeof createClient>, id: string) {
+async function deleteDocument(authClient: ReturnType<typeof createClient>, id: string, collaboratorId: string | null) {
   const rows = await runSql<Record<string, unknown>>(
     'select * from gestao_intranet.documentos where id = $1 limit 1;',
     [id],
   );
   const document = rows[0];
 
+  await notifyDocumentAudience(document, 'deleted', collaboratorId);
   await deleteBaseEntity('Document', id);
 
   if (document?.arquivo_path) {
@@ -3084,6 +3413,7 @@ async function deleteAnnouncement(
   const announcement = rows[0];
   assertAnnouncementOwnerOrAdmin(user, collaboratorId, announcement);
 
+  await notifyAnnouncementAudience(announcement, 'deleted', collaboratorId);
   await deleteBaseEntity('Announcement', id);
 
   if (announcement?.imagem_path) {
@@ -3106,8 +3436,11 @@ async function deleteCalendarEvent(
     'select * from gestao_intranet.eventos_calendario where id = $1 limit 1;',
     [id],
   );
-  assertCalendarEventOwnerOrAdmin(user, collaboratorId, rows[0]);
+  const event = rows[0];
+  assertCalendarEventOwnerOrAdmin(user, collaboratorId, event);
 
+  const participantsMap = await fetchCalendarParticipants([id]);
+  await notifyCalendarAudience(event, participantsMap.get(id) || [], 'deleted', collaboratorId);
   await deleteBaseEntity('CalendarEvent', id);
   return { success: true };
 }
@@ -3262,7 +3595,7 @@ async function updateEntity(
     case 'CalendarEvent':
       return updateCalendarEvent(user, collaboratorId, id, payload);
     case 'Document':
-      return updateDocument(authClient, id, payload);
+      return updateDocument(authClient, id, payload, collaboratorId);
     case 'Profile':
       return updateCurrentProfile(user, payload);
     case 'ProfileAvatar':
@@ -3272,7 +3605,7 @@ async function updateEntity(
     case 'Employee':
       return updateEmployee(id, payload);
     case 'Feedback':
-      return updateFeedback(id, payload);
+      return updateFeedback(id, payload, collaboratorId);
     case 'KnowledgeBase':
       return updateKnowledgeBase(id, payload);
     case 'QuickLink':
@@ -3301,7 +3634,7 @@ async function deleteEntity(
     case 'CalendarEvent':
       return deleteCalendarEvent(user, collaboratorId, id);
     case 'Document':
-      return deleteDocument(authClient, id);
+      return deleteDocument(authClient, id, collaboratorId);
     case 'Employee':
       return deleteEmployee(id);
     case 'Feedback':
@@ -3372,6 +3705,19 @@ Deno.serve(async (request) => {
 
     if (action === 'me') {
       return json({ user: context.user });
+    }
+
+    if (resource === 'notifications') {
+      if (action === 'list') {
+        return json({ data: await listNotifications(context.collaboratorId, limit || 20) });
+      }
+      if (action === 'mark_read') {
+        return json({ data: await markNotificationRead(context.collaboratorId, id || String(payload.id || '')) });
+      }
+      if (action === 'mark_all_read') {
+        return json({ data: await markAllNotificationsRead(context.collaboratorId) });
+      }
+      return json({ error: 'Acao de notificacao invalida.' }, 400);
     }
 
     if (resource === 'googleCalendar') {

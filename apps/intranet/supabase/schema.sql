@@ -227,6 +227,20 @@ create table if not exists gestao_intranet.integracoes_google_oauth_state (
   expira_em timestamptz not null default (now() + interval '10 minutes')
 );
 
+create table if not exists gestao_intranet.notificacoes (
+  id uuid primary key default gen_random_uuid(),
+  colaborador_id uuid not null references public.colaboradores(id) on delete cascade,
+  tipo text not null default 'geral',
+  titulo text not null,
+  mensagem text,
+  link text,
+  referencia_tipo text,
+  referencia_id uuid,
+  lida_em timestamptz,
+  criado_por uuid references public.colaboradores(id) on delete set null,
+  criado_em timestamptz not null default now()
+);
+
 create table if not exists gestao_intranet.documentos (
   id uuid primary key default gen_random_uuid(),
   titulo text not null,

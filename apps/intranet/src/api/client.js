@@ -270,6 +270,20 @@ export const appClient = {
     },
   },
 
+  notifications: {
+    list(limit) {
+      return intranetApi.notifications.list(limit);
+    },
+
+    markRead(id) {
+      return intranetApi.notifications.markRead(id);
+    },
+
+    markAllRead() {
+      return intranetApi.notifications.markAllRead();
+    },
+  },
+
   entities: new Proxy(
     {},
     {
