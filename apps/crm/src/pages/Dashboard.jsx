@@ -1,165 +1,107 @@
-import React, { useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
-import { dataClient } from '@/api/dataClient';
-import { BarChart3, Building2, Search, TrendingUp } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import ReportCard from '@/components/dashboard/ReportCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tag, DollarSign, ThumbsUp, ThumbsDown, TrendingUp } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { useEmpresa } from '@/context/EmpresaContext';
 
-const categoryLabels = {
-  gerencial: 'Gerencial',
-  financeiro: 'Financeiro',
-  operacional: 'Operacional',
-  comercial: 'Comercial',
-  rh: 'RH',
-  outros: 'Outros',
-};
+const CORES_STATUS = ['#94a3b8', '#3b82f6', '#16a34a', '#E30613'];
 
 export default function Dashboard() {
-  const { user } = useOutletContext();
-  const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
-  const isAdmin = user?.role === 'admin';
+  const { empresa } = useEmpresa();
+  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => base44.entities.Evento.list('-created_date', 500) });
+  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => base44.entities.Lead.list('-created_date', 500) });
 
-  const { data: allReports = [], isLoading: loadingReports } = useQuery({
-    queryKey: ['reports'],
-    queryFn: () => dataClient.entities.Report.filter({ active: true }),
-  });
+  const evs = eventos.filter((e) => empresa === 'Todas' || e.empresa === empresa);
+  const lds = leads.filter((l) => empresa === 'Todas' || l.empresa === empresa);
 
-  const { data: permissions = [], isLoading: loadingPermissions } = useQuery({
-    queryKey: ['permissions', user?.email],
-    queryFn: () => dataClient.entities.ReportPermission.filter({ user_email: user?.email }),
-    enabled: !!user?.email && !isAdmin,
-  });
+  const statusData = [
+    { name: 'Aguardando', value: evs.filter((e) => e.status === 'aguardando').length },
+    { name: 'Andamento', value: evs.filter((e) => e.status === 'andamento').length },
+    { name: 'Sucesso', value: evs.filter((e) => e.status === 'sucesso').length },
+    { name: 'Insucesso', value: evs.filter((e) => e.status === 'insucesso').length },
+  ];
 
-  const allowedReportIds = permissions.map(p => p.report_id);
-  const reports = isAdmin ? allReports : allReports.filter(r => allowedReportIds.includes(r.id));
+  const origemData = ['telefone', 'whatsapp', 'site', 'showroom', 'indicacao'].map((o) => ({
+    name: o.charAt(0).toUpperCase() + o.slice(1),
+    total: evs.filter((e) => e.origem === o).length,
+  }));
 
-  const filteredReports = reports.filter(r => {
-    const matchSearch =
-      r.title?.toLowerCase().includes(search.toLowerCase()) ||
-      r.unit_name?.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = activeCategory === 'all' || r.category === activeCategory;
-    return matchSearch && matchCategory;
-  });
+  const taxaSucesso = evs.length > 0
+    ? Math.round((evs.filter((e) => e.status === 'sucesso').length / evs.length) * 100)
+    : 0;
 
-  const categories = ['all', ...new Set(reports.map(r => r.category).filter(Boolean))];
-  const isLoading = loadingReports || (!isAdmin && loadingPermissions);
-  const unitCount = new Set(reports.map(r => r.unit_name).filter(Boolean)).size;
+  const cards = [
+    { label: 'Total de Eventos', value: evs.length, icon: Tag, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
+    { label: 'Total de Leads', value: lds.length, icon: DollarSign, color: 'text-blue-600', border: 'border-l-blue-600' },
+    { label: 'Eventos com Sucesso', value: statusData[2].value, icon: ThumbsUp, color: 'text-green-600', border: 'border-l-green-600' },
+    { label: 'Eventos Insucesso', value: statusData[3].value, icon: ThumbsDown, color: 'text-primary', border: 'border-l-primary' },
+  ];
 
   return (
-    <div className="min-h-screen" style={{ background: '#f2f2f2' }}>
-      {/* Hero Header — estilo MACOM */}
-      <div className="relative overflow-hidden" style={{ background: '#141414', minHeight: 180 }}>
-        {/* Diagonal accent */}
-        <div
-          className="absolute right-0 top-0 h-full"
-          style={{
-            width: '35%',
-            background: '#E30613',
-            clipPath: 'polygon(15% 0, 100% 0, 100% 100%, 0% 100%)',
-            opacity: 0.12,
-          }}
-        />
-        <div className="relative px-4 sm:px-6 lg:px-10 py-8">
-          <div className="flex items-start justify-between">
+    <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5">
+      <div className="mb-5">
+        <h1 className="text-xl font-black uppercase tracking-widest">Dashboard</h1>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Indicadores gerais</p>
+      </div>
+
+      {/* Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {cards.map((c) => (
+          <div key={c.label} className={`bg-white shadow-sm border-l-4 ${c.border} p-5 flex items-center justify-between`}>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: '#E30613' }}>
-                Portal de Relatórios
-              </p>
-              <h1 className="text-2xl lg:text-4xl font-black text-white uppercase tracking-tight leading-none">
-                Olá, {user?.full_name?.split(' ')[0] || 'Usuário'}
-              </h1>
-              <p className="mt-2 text-xs sm:text-sm" style={{ color: '#888' }}>
-                {isAdmin ? 'Acesso completo a todos os relatórios' : `${reports.length} relatório(s) disponíveis para você`}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{c.label}</p>
+              <p className="text-3xl font-black mt-1">{c.value}</p>
             </div>
+            <c.icon className={`w-9 h-9 ${c.color} opacity-20`} />
           </div>
-
-          {/* Stats */}
-          <div className="mt-6 grid grid-cols-3 gap-3 max-w-sm sm:max-w-lg">
-            {[
-              { icon: BarChart3, label: 'Relatórios', value: reports.length },
-              { icon: Building2, label: 'Unidades', value: unitCount },
-              { icon: TrendingUp, label: 'Categorias', value: categories.length - 1 },
-            ].map(stat => (
-              <div key={stat.label} className="flex items-center gap-3">
-                <div style={{ width: 2, height: 36, background: '#E30613' }} />
-                <div>
-                  <p className="text-2xl font-black text-white leading-none">{stat.value}</p>
-                  <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: '#666' }}>{stat.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="px-4 sm:px-6 lg:px-10 py-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-white border-b" style={{ borderColor: '#e5e5e5' }}>
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#999' }} />
-          <Input
-            placeholder="Buscar relatório..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 border-0 bg-gray-50 focus-visible:ring-1"
-            style={{ borderRadius: 2 }}
-          />
+      {/* Taxa de sucesso */}
+      <div className="bg-[#1a1a1a] text-white p-5 mb-6 flex items-center justify-between flex-wrap gap-4 shadow-sm">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Taxa de Conversão</p>
+          <p className="text-4xl font-black mt-1">{taxaSucesso}%</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all"
-              style={{
-                background: activeCategory === cat ? '#E30613' : 'transparent',
-                color: activeCategory === cat ? '#fff' : '#555',
-                border: activeCategory === cat ? '2px solid #E30613' : '2px solid #ddd',
-                borderRadius: 2,
-              }}
-            >
-              {cat === 'all' ? 'Todos' : categoryLabels[cat] || cat}
-            </button>
-          ))}
-        </div>
+        <TrendingUp className="w-12 h-12 text-primary opacity-60" />
       </div>
 
-      {/* Reports Grid */}
-      <div className="px-4 sm:px-6 lg:px-10 py-6">
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array(8).fill(0).map((_, i) => (
-              <div key={i} className="bg-white p-5" style={{ borderLeft: '4px solid #E30613' }}>
-                <Skeleton className="h-4 w-3/4 mb-3" />
-                <Skeleton className="h-3 w-1/2 mb-5" />
-                <Skeleton className="h-8 w-full" />
-              </div>
-            ))}
+      {/* Gráficos */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="bg-white shadow-sm">
+          <div className="bg-[#1a1a1a] px-5 py-3">
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Eventos por Status</p>
           </div>
-        ) : filteredReports.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center" style={{ background: '#E30613' }}>
-              <BarChart3 className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-black uppercase tracking-wider text-foreground mb-1">
-              Nenhum relatório encontrado
-            </h3>
-            <p className="text-sm" style={{ color: '#888' }}>
-              {search ? 'Tente outro termo de busca.' : 'Você ainda não tem relatórios atribuídos.'}
-            </p>
+          <div className="p-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85}>
+                  {statusData.map((_, i) => <Cell key={i} fill={CORES_STATUS[i]} />)}
+                </Pie>
+                <Tooltip contentStyle={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }} />
+                <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredReports.map(report => (
-              <ReportCard key={report.id} report={report} />
-            ))}
+        </div>
+
+        <div className="bg-white shadow-sm">
+          <div className="bg-[#1a1a1a] px-5 py-3">
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Eventos por Origem</p>
           </div>
-        )}
+          <div className="p-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={origemData} barCategoryGap="35%">
+                <XAxis dataKey="name" fontSize={10} fontWeight={700} tickLine={false} axisLine={false} style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} />
+                <YAxis allowDecimals={false} fontSize={10} fontWeight={700} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }} />
+                <Bar dataKey="total" fill="#E30613" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-

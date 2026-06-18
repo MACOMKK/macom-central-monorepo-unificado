@@ -1,24 +1,27 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import AppLayout from '@/components/layout/AppLayout';
+import ScrollToTop from './components/ScrollToTop';
+// Add page imports here
+import { Navigate } from 'react-router-dom';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Layout from '@/components/Layout';
+import Eventos from '@/pages/Eventos';
+import Leads from '@/pages/Leads';
 import Dashboard from '@/pages/Dashboard';
-import ReportViewer from '@/pages/ReportViewer';
-import ManageReports from '@/pages/admin/ManageReports';
-import ManageUnits from '@/pages/admin/ManageUnits';
-import ManagePermissions from '@/pages/admin/ManagePermissions';
-import Settings from '@/pages/admin/Settings';
-import UserPanel from '@/pages/UserPanel';
 import Login from '@/pages/Login';
-import SetPassword from '@/pages/SetPassword';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
+  // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -27,48 +30,32 @@ const AuthenticatedApp = () => {
     );
   }
 
+  // Handle authentication errors
   if (authError) {
-    if (authError.type === 'config') {
-      return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
-          <div className="max-w-xl w-full bg-white border border-slate-200 p-6 rounded">
-            <h1 className="text-lg font-bold mb-2">Configuração pendente do Supabase</h1>
-            <p className="text-sm text-slate-700 mb-4">
-              Crie o arquivo <code>.env.local</code> com as variáveis abaixo e reinicie o <code>npm run dev</code>.
-            </p>
-            <pre className="text-xs bg-slate-100 p-3 rounded overflow-auto">
-{`VITE_SUPABASE_URL=https://SEU_PROJETO.supabase.co
-VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
-            </pre>
-          </div>
-        </div>
-      );
-    }
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
+    } else if (authError.type === 'auth_required') {
+      // Redirect to login automatically
+      navigateToLogin();
+      return null;
     }
   }
 
+  // Render the main app
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/set-password" element={<SetPassword />} />
-      {!isAuthenticated ? (
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      ) : (
-        <>
-      <Route path="/painel" element={<UserPanel />} />
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/report/:id" element={<ReportViewer />} />
-          <Route path="/admin/reports" element={<ManageReports />} />
-          <Route path="/admin/units" element={<ManageUnits />} />
-          <Route path="/admin/permissions" element={<ManagePermissions />} />
-          <Route path="/admin/settings" element={<Settings />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Eventos />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Route>
-        <Route path="*" element={<PageNotFound />} />
-        </>
-      )}
+      </Route>
+      <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
 };
@@ -80,6 +67,7 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <Router>
+          <ScrollToTop />
           <AuthenticatedApp />
         </Router>
         <Toaster />

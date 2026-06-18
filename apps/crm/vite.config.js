@@ -1,17 +1,11 @@
-import react from '@vitejs/plugin-react'
-import path from 'node:path'
-import { defineConfig } from 'vite'
+import { createAppConfig } from '../../scripts/vite/createAppConfig.js';
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
+export default createAppConfig(import.meta.url, {
   server: {
     host: true,
-    allowedHosts: ['.ngrok-free.app']
+    port: 5172,
+    strictPort: true,
+    allowedHosts: ['.ngrok-free.app'],
   },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  }
+  includeTestConfig: false,
 });

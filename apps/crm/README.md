@@ -1,46 +1,39 @@
-# MACOM BI (Supabase)
-teste
-Este projeto foi desacoplado do Base44 e agora usa Supabase para autenticação e banco.
+**Welcome to your Base44 project** 
 
-## Setup local
+**About**
 
-1. Instale dependências:
-   `npm install`
-2. Crie o arquivo `.env.local` com base em `.env.example`:
+View and Edit  your app on [Base44.com](http://Base44.com) 
 
-```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+This project contains everything you need to run your app locally.
+
+**Edit the code in your local development environment**
+
+Any change pushed to the repo will also be reflected in the Base44 Builder.
+
+**Prerequisites:** 
+
+1. Clone the repository using the project's Git URL 
+2. Navigate to the project directory
+3. Install dependencies: `npm install`
+4. Create an `.env.local` file and set the right environment variables
+
+```
+VITE_BASE44_APP_ID=your_app_id
+VITE_BASE44_APP_BASE_URL=your_backend_url
+
+e.g.
+VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
+VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
 ```
 
-3. No Supabase SQL Editor, rode o script:
-   `supabase/schema.sql`
-4. Inicie o projeto:
-   `npm run dev`
+Run the app: `npm run dev`
 
-## Convite de usuário com criação de senha
+**Publish your changes**
 
-Para o fluxo de "primeiro acesso" com definição de senha, este projeto usa a Edge Function `invite-user`.
+Open [Base44.com](http://Base44.com) and click on Publish.
 
-1. Deploy da função:
-   `supabase functions deploy invite-user --no-verify-jwt`
-2. No Dashboard do Supabase, em **Authentication > URL Configuration**, adicione a URL do app (ex: `http://localhost:5173`) em Redirect URLs.
-3. O botão **Convidar Usuário** envia convite com redirecionamento para:
-   `/set-password`
+**Docs & Support**
 
-No primeiro acesso pelo link do email, o usuário define a senha e depois passa a logar por email/senha normalmente.
+Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
 
-## Estrutura de dados
-
-As tabelas principais usadas pela aplicação:
-
-- `profiles`
-- `units`
-- `reports`
-- `report_permissions`
-
-## Observações
-
-- Login é feito via `supabase.auth.signInWithPassword`.
-- O botão "Convidar usuário" chama a Edge Function `invite-user` para enviar convite de primeiro acesso.
-- As permissões iniciais em `supabase/schema.sql` são funcionais, mas você pode endurecer as regras RLS conforme sua política.
+Support: [https://app.base44.com/support](https://app.base44.com/support)
