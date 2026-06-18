@@ -1,0 +1,28 @@
+{
+  "name": "Cliente",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome do cliente"
+    },
+    "telefone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "empresa": {
+      "type": "string",
+      "enum": [
+        "Macom Ananindeua",
+        "Macom Bel\u00e9m",
+        "Macom Paragominas"
+      ],
+      "default": "Macom Ananindeua"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}

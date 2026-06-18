@@ -1,0 +1,51 @@
+{
+  "name": "Lead",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string"
+    },
+    "telefone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "origem": {
+      "type": "string",
+      "enum": [
+        "telefone",
+        "whatsapp",
+        "site",
+        "showroom",
+        "indicacao"
+      ],
+      "default": "site"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "novo",
+        "em_atendimento",
+        "convertido",
+        "perdido"
+      ],
+      "default": "novo"
+    },
+    "modelo_interesse": {
+      "type": "string"
+    },
+    "empresa": {
+      "type": "string",
+      "enum": [
+        "Macom Ananindeua",
+        "Macom Bel\u00e9m",
+        "Macom Paragominas"
+      ],
+      "default": "Macom Ananindeua"
+    }
+  },
+  "required": [
+    "nome"
+  ]
+}
