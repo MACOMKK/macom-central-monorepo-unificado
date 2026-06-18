@@ -24,6 +24,8 @@ const STATUS_LABEL = {
   perdido: 'Perdido',
 };
 
+const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export default function Leads() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -38,17 +40,65 @@ export default function Leads() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data) => editing
-      ? localCrmDb.entities.Lead.update(editing.id, data)
+    mutationFn: ({ id, data }) => id
+      ? localCrmDb.entities.Lead.update(id, data)
       : localCrmDb.entities.Lead.create(data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData(['leads']);
+      const now = new Date().toISOString();
+      const tempId = createTempId();
+
+      queryClient.setQueryData(['leads'], (current = []) => {
+        if (id) {
+          return current.map((lead) => (
+            lead.id === id
+              ? { ...lead, ...data, updated_date: now }
+              : lead
+          ));
+        }
+
+        return [
+          {
+            id: tempId,
+            created_date: now,
+            updated_date: now,
+            status: 'novo',
+            origem: 'site',
+            empresa: 'Macom Ananindeua',
+            ...data,
+          },
+          ...current,
+        ];
+      });
+
+      setFormOpen(false);
+      setEditing(null);
+      return { previousLeads, tempId, id };
+    },
+    onSuccess: (saved, _data, context) => {
+      queryClient.setQueryData(['leads'], (current = []) => {
+        if (!saved) return current;
+        if (context?.tempId) {
+          return current.map((lead) => lead.id === context.tempId ? saved : lead);
+        }
+        return current.map((lead) => lead.id === saved.id ? saved : lead);
+      });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
-      setFormOpen(false);
-      setEditing(null);
+      toast({
+        title: context?.id ? 'Lead atualizado' : 'Lead criado',
+        description: context?.id
+          ? 'As informacoes do lead foram salvas.'
+          : 'O lead foi cadastrado na central.',
+        variant: 'success',
+      });
     },
-    onError: (error) => {
+    onError: (error, _data, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
       toast({
         title: 'Nao foi possivel salvar o lead',
         description: error.message || 'Revise os dados informados.',
@@ -59,12 +109,26 @@ export default function Leads() {
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => localCrmDb.entities.Lead.update(id, { status }),
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData(['leads']);
+
+      queryClient.setQueryData(['leads'], (current = []) =>
+        current.map((lead) => lead.id === id ? { ...lead, status } : lead)
+      );
+
+      return { previousLeads };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+
       toast({
         title: 'Nao foi possivel atualizar o lead',
         description: error.message || 'Revise os dados informados.',
@@ -199,7 +263,13 @@ export default function Leads() {
       )}
 
       {formOpen && (
-        <LeadForm key={editing?.id || 'new'} open={formOpen} onOpenChange={setFormOpen} lead={editing} onSave={(d) => saveMutation.mutate(d)} />
+        <LeadForm
+          key={editing?.id || 'new'}
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          lead={editing}
+          onSave={(data) => saveMutation.mutate({ id: editing?.id || null, data })}
+        />
       )}
     </div>
   );

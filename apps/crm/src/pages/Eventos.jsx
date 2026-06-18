@@ -11,6 +11,8 @@ import { useEmpresa } from '@/context/EmpresaContext';
 import { isToday, isBefore, startOfToday } from 'date-fns';
 import { toast } from '@/components/ui/use-toast';
 
+const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export default function Eventos() {
   const [statusTab, setStatusTab] = useState('aguardando');
   const [busca, setBusca] = useState('');
@@ -42,8 +44,74 @@ export default function Eventos() {
     mutationFn: (data) => editing
       ? localCrmDb.entities.Evento.update(editing.id, data)
       : localCrmDb.entities.Evento.create(data),
-    onSuccess: invalidate,
-    onError: (error) => {
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: ['eventos'] });
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+
+      const previousEventos = queryClient.getQueryData(['eventos']);
+      const previousLeads = queryClient.getQueryData(['leads']);
+      const now = new Date().toISOString();
+      const editingEvento = editing;
+      const tempId = createTempId();
+      const linkedLead = leads.find((lead) => lead.id === data.lead_id);
+
+      queryClient.setQueryData(['eventos'], (current = []) => {
+        if (editingEvento) {
+          return current.map((evento) => (
+            evento.id === editingEvento.id
+              ? { ...evento, ...data, updated_date: now }
+              : evento
+          ));
+        }
+
+        return [
+          {
+            id: tempId,
+            created_date: now,
+            updated_date: now,
+            cliente_id: linkedLead?.cliente_id || data.cliente_id || '',
+            cliente_nome: linkedLead?.nome || data.cliente_nome || '',
+            telefone: linkedLead?.telefone || data.telefone || '',
+            telefone_normalizado: linkedLead?.telefone_normalizado || data.telefone_normalizado || '',
+            origem: linkedLead?.origem || data.origem || '',
+            empresa: linkedLead?.empresa || data.empresa || 'Macom Ananindeua',
+            modelo_interesse: linkedLead?.modelo_interesse || data.modelo_interesse || '',
+            status: 'aguardando',
+            tipo_evento: 'venda',
+            temperatura: 'morno',
+            ...data,
+          },
+          ...current,
+        ];
+      });
+
+      if (linkedLead?.status === 'novo') {
+        queryClient.setQueryData(['leads'], (current = []) =>
+          current.map((lead) => lead.id === linkedLead.id ? { ...lead, status: 'em_atendimento' } : lead)
+        );
+      }
+
+      setFormOpen(false);
+      setEditing(null);
+      return { previousEventos, previousLeads, tempId, editingEvento };
+    },
+    onSuccess: (saved, _data, context) => {
+      queryClient.setQueryData(['eventos'], (current = []) => {
+        if (!saved) return current;
+        if (context?.tempId) {
+          return current.map((evento) => evento.id === context.tempId ? saved : evento);
+        }
+        return current.map((evento) => evento.id === saved.id ? saved : evento);
+      });
+      invalidate();
+    },
+    onError: (error, _data, context) => {
+      if (context?.previousEventos) {
+        queryClient.setQueryData(['eventos'], context.previousEventos);
+      }
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
       toast({
         title: 'Nao foi possivel salvar o atendimento',
         description: error.message || 'Revise os dados informados.',
@@ -54,7 +122,25 @@ export default function Eventos() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => localCrmDb.entities.Evento.delete(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['eventos'] });
+      const previousEventos = queryClient.getQueryData(['eventos']);
+      queryClient.setQueryData(['eventos'], (current = []) => current.filter((evento) => evento.id !== id));
+      setFormOpen(false);
+      setEditing(null);
+      return { previousEventos };
+    },
     onSuccess: invalidate,
+    onError: (error, _id, context) => {
+      if (context?.previousEventos) {
+        queryClient.setQueryData(['eventos'], context.previousEventos);
+      }
+      toast({
+        title: 'Nao foi possivel excluir o atendimento',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const porEmpresa = eventos.filter((e) => empresa === 'Todas' || e.empresa === empresa);

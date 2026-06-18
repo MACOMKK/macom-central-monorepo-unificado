@@ -114,18 +114,48 @@ export default function Clientes() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => localCrmDb.entities.Cliente.update(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['clientes'] });
+      const previousClientes = queryClient.getQueryData(['clientes']);
+      const previousSelected = selected;
+      const optimistic = {
+        ...selected,
+        ...data,
+        id,
+        updated_date: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData(['clientes'], (current = []) =>
+        current.map((cliente) => cliente.id === id ? { ...cliente, ...optimistic } : cliente)
+      );
+      setSelected(optimistic);
+      setFormData(optimistic);
+      setEditing(false);
+
+      return { previousClientes, previousSelected };
+    },
     onSuccess: (updated) => {
+      queryClient.setQueryData(['clientes'], (current = []) =>
+        current.map((cliente) => cliente.id === updated.id ? updated : cliente)
+      );
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
       setSelected(updated);
       setFormData(updated);
-      setEditing(false);
       toast({
         title: 'Cliente atualizado',
         description: 'As informacoes do cliente foram salvas.',
+        variant: 'success',
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousClientes) {
+        queryClient.setQueryData(['clientes'], context.previousClientes);
+      }
+      if (context?.previousSelected) {
+        setSelected(context.previousSelected);
+        setFormData(context.previousSelected);
+      }
       toast({
         title: 'Nao foi possivel atualizar o cliente',
         description: error.message || 'Revise os dados informados.',

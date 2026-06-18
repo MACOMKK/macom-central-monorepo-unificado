@@ -1,5 +1,4 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { localCrmDb } from '@/api/localCrmDb';
 import {
   BarChart3,
   Bell,
@@ -21,9 +20,11 @@ import {
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useEmpresa } from '@/context/EmpresaContext';
+import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 
 const EMPRESAS = ['Todas', 'Macom Ananindeua', 'Macom Belém', 'Macom Paragominas'];
+const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
 function NavMenu({ label, items }) {
   const navigate = useNavigate();
@@ -74,29 +75,29 @@ function NavMenu({ label, items }) {
 
 export default function Navbar() {
   const { empresa, setEmpresa } = useEmpresa();
+  const { logout, user } = useAuth();
+  const userInitial = (user?.name || user?.email || 'U').slice(0, 1).toUpperCase();
 
   return (
     <header className="bg-[#1a1a1a] px-6">
       <div className="flex h-14 items-center">
-        <Link to="/" className="mr-6 flex shrink-0 items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-sm bg-primary">
-            <span className="text-sm font-black text-white">M</span>
-          </div>
-          <span className="text-sm font-black uppercase tracking-widest text-white">Macom</span>
-          <span className="mx-1 text-white/30">|</span>
-          <span className="text-xs font-semibold uppercase tracking-widest text-white/60">CRM</span>
+        <Link to="/leads" className="mr-6 flex shrink-0 items-center">
+          <img src={MACOM_LOGO_URL} alt="MACOM" className="h-8 w-8 object-contain" />
+          <span className="ml-2 text-sm font-black uppercase tracking-widest text-white">MACOM</span>
+          <span className="mx-2 text-white/30">|</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-white/60">REVVO CRM</span>
         </Link>
 
         <nav className="hidden h-full items-center md:flex">
           <NavMenu label="Vendas" items={[
-            { label: 'Atendimentos', icon: Tag, path: '/' },
+            { label: 'Atendimentos', icon: Tag, path: '/atendimentos' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Clientes', icon: Users, path: '/clientes' },
             { label: 'Estoque', icon: Columns3 },
             { label: 'Recepção', icon: Headphones },
           ]} />
           <NavMenu label="Pós-Vendas" items={[
-            { label: 'Atendimentos', icon: Tag, path: '/' },
+            { label: 'Atendimentos', icon: Tag, path: '/atendimentos' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Agenda Online', icon: Calendar },
             { label: 'Agenda V2', icon: CalendarDays },
@@ -151,10 +152,10 @@ export default function Navbar() {
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white transition-colors hover:bg-primary/80">
-              K
+              {userInitial}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-none">
-              <DropdownMenuItem className="cursor-pointer gap-2 text-xs font-semibold uppercase" onClick={() => localCrmDb.auth.logout()}>
+              <DropdownMenuItem className="cursor-pointer gap-2 text-xs font-semibold uppercase" onClick={() => logout()}>
                 <LogOut className="h-3.5 w-3.5" /> Sair
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -1,72 +1,48 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { localCrmDb } from "@/api/localCrmDb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { Eye, EyeOff, Lock, Loader2, LogIn, Mail } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
+import { useAuth } from "@/lib/AuthContext";
 
-export default function Login() {
+export default function Login({ loading = false }) {
+  const { authError, login } = useAuth();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const isBusy = loading || submitting;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (isBusy) return;
+
+    setSubmitting(true);
     try {
-      await localCrmDb.auth.login(email, password);
-      window.location.href = "/";
-    } catch (err) {
-      setError(err.message || "Invalid email or password");
+      await login(email, password);
+    } catch (error) {
+      toast({
+        title: "Acesso indisponivel",
+        description: error.message || "Nao foi possivel entrar no CRM.",
+      });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
-
-  const handleGoogle = () => {
-    localCrmDb.auth.loginWithProvider("google", "/");
   };
 
   return (
     <AuthLayout
       icon={LogIn}
-      title="Welcome back"
-      subtitle="Log in to your account"
-      footer={
-        <>
-          Don't have an account?{" "}
-          <Link to="/register" className="text-primary font-medium hover:underline">
-            Create one
-          </Link>
-        </>
-      }
+      title="Acessar REVVO CRM"
+      subtitle="Use o mesmo login interno da Macom"
+      footer="Caso nao tenha acesso, solicite a liberacao do REVVO CRM ao administrador."
     >
-      <Button
-        variant="outline"
-        className="w-full h-12 text-sm font-medium mb-6"
-        onClick={handleGoogle}
-      >
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
-      </Button>
-
-      <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-3 text-muted-foreground">or</span>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
+      {authError?.type === "config" && (
+        <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {authError.message}
         </div>
       )}
 
@@ -74,49 +50,55 @@ export default function Login() {
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               id="email"
               type="email"
               autoComplete="email"
               autoFocus
-              placeholder="you@example.com"
+              placeholder="seu.nome@macom.com.br"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="pl-10 h-12"
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-12 pl-10"
               required
             />
           </div>
         </div>
+
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
-            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
-              Forgot password?
-            </Link>
-          </div>
+          <Label htmlFor="password">Senha</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Sua senha"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 h-12"
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-12 pl-10 pr-10"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              disabled={isBusy}
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
+
+        <Button type="submit" className="h-12 w-full font-medium" disabled={isBusy}>
+          {isBusy ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Logging in...
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Entrando...
             </>
           ) : (
-            "Log in"
+            "Entrar"
           )}
         </Button>
       </form>
