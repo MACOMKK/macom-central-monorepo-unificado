@@ -9,8 +9,16 @@
     "telefone": {
       "type": "string"
     },
+    "telefone_normalizado": {
+      "type": "string",
+      "description": "Telefone somente com digitos. Chave de identificacao do cliente."
+    },
     "email": {
       "type": "string"
+    },
+    "email_normalizado": {
+      "type": "string",
+      "description": "E-mail normalizado para comparacao quando informado."
     },
     "empresa": {
       "type": "string",
@@ -20,9 +28,20 @@
         "Macom Paragominas"
       ],
       "default": "Macom Ananindeua"
+    },
+    "status_relacionamento": {
+      "type": "string",
+      "enum": [
+        "lead",
+        "cliente",
+        "pos_venda"
+      ],
+      "default": "lead"
     }
   },
   "required": [
-    "nome"
+    "nome",
+    "telefone",
+    "telefone_normalizado"
   ]
 }

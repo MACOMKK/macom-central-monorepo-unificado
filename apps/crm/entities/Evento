@@ -6,7 +6,18 @@
       "type": "string",
       "description": "Nome do cliente"
     },
+    "cliente_id": {
+      "type": "string",
+      "description": "Cliente vinculado ao atendimento"
+    },
+    "lead_id": {
+      "type": "string",
+      "description": "Lead comercial que originou o atendimento"
+    },
     "telefone": {
+      "type": "string"
+    },
+    "telefone_normalizado": {
       "type": "string"
     },
     "titulo": {
@@ -75,6 +86,9 @@
   },
   "required": [
     "cliente_nome",
+    "lead_id",
+    "telefone",
+    "telefone_normalizado",
     "titulo"
   ]
 }

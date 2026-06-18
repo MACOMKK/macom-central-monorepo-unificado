@@ -37,7 +37,7 @@ export default function LeadForm({ open, onOpenChange, lead, onSave }) {
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Telefone">
-              <Input value={data.telefone} onChange={(e) => set('telefone', e.target.value)} className="rounded-none h-9 text-sm" />
+              <Input required value={data.telefone} onChange={(e) => set('telefone', e.target.value)} className="rounded-none h-9 text-sm" />
             </Field>
             <Field label="E-mail">
               <Input type="email" value={data.email} onChange={(e) => set('email', e.target.value)} className="rounded-none h-9 text-sm" />

@@ -1,7 +1,6 @@
 import { localCrmDb } from '@/api/localCrmDb';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tag, DollarSign, ThumbsUp, ThumbsDown, TrendingUp } from 'lucide-react';
+import { Tag, DollarSign, ThumbsUp, Users, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useEmpresa } from '@/context/EmpresaContext';
 
@@ -11,9 +10,11 @@ export default function Dashboard() {
   const { empresa } = useEmpresa();
   const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => localCrmDb.entities.Evento.list('-created_date', 500) });
   const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => localCrmDb.entities.Lead.list('-created_date', 500) });
+  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => localCrmDb.entities.Cliente.list('-created_date', 500) });
 
   const evs = eventos.filter((e) => empresa === 'Todas' || e.empresa === empresa);
   const lds = leads.filter((l) => empresa === 'Todas' || l.empresa === empresa);
+  const cls = clientes.filter((c) => empresa === 'Todas' || c.empresa === empresa);
 
   const statusData = [
     { name: 'Aguardando', value: evs.filter((e) => e.status === 'aguardando').length },
@@ -27,15 +28,16 @@ export default function Dashboard() {
     total: evs.filter((e) => e.origem === o).length,
   }));
 
-  const taxaSucesso = evs.length > 0
-    ? Math.round((evs.filter((e) => e.status === 'sucesso').length / evs.length) * 100)
+  const leadsConvertidos = lds.filter((lead) => lead.status === 'convertido').length;
+  const taxaConversao = lds.length > 0
+    ? Math.round((leadsConvertidos / lds.length) * 100)
     : 0;
 
   const cards = [
-    { label: 'Total de Eventos', value: evs.length, icon: Tag, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
-    { label: 'Total de Leads', value: lds.length, icon: DollarSign, color: 'text-blue-600', border: 'border-l-blue-600' },
-    { label: 'Eventos com Sucesso', value: statusData[2].value, icon: ThumbsUp, color: 'text-green-600', border: 'border-l-green-600' },
-    { label: 'Eventos Insucesso', value: statusData[3].value, icon: ThumbsDown, color: 'text-primary', border: 'border-l-primary' },
+    { label: 'Clientes', value: cls.length, icon: Users, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
+    { label: 'Leads', value: lds.length, icon: DollarSign, color: 'text-blue-600', border: 'border-l-blue-600' },
+    { label: 'Atendimentos', value: evs.length, icon: Tag, color: 'text-primary', border: 'border-l-primary' },
+    { label: 'Leads Convertidos', value: leadsConvertidos, icon: ThumbsUp, color: 'text-green-600', border: 'border-l-green-600' },
   ];
 
   return (
@@ -58,11 +60,11 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Taxa de sucesso */}
+      {/* Taxa de conversao */}
       <div className="bg-[#1a1a1a] text-white p-5 mb-6 flex items-center justify-between flex-wrap gap-4 shadow-sm">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Taxa de Conversão</p>
-          <p className="text-4xl font-black mt-1">{taxaSucesso}%</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Taxa de Conversao de Leads</p>
+          <p className="text-4xl font-black mt-1">{taxaConversao}%</p>
         </div>
         <TrendingUp className="w-12 h-12 text-primary opacity-60" />
       </div>
@@ -71,7 +73,7 @@ export default function Dashboard() {
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="bg-white shadow-sm">
           <div className="bg-[#1a1a1a] px-5 py-3">
-            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Eventos por Status</p>
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atendimentos por Status</p>
           </div>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -88,7 +90,7 @@ export default function Dashboard() {
 
         <div className="bg-white shadow-sm">
           <div className="bg-[#1a1a1a] px-5 py-3">
-            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Eventos por Origem</p>
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atendimentos por Origem</p>
           </div>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">

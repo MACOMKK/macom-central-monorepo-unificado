@@ -1,6 +1,6 @@
 import { ChevronRight, AlarmClock } from 'lucide-react';
 
-const SECOES = ['Funil', 'Etapas do Funil', 'Tipos Evento', 'Origens', 'Mídias', 'Modelos de Interesse', 'Motivos Insucesso', 'Motivos Andamento', 'Empresas', 'Temperatura', 'Tipo de Ação'];
+const SECOES = ['Funil', 'Etapas do Funil', 'Tipos de Atendimento', 'Origens', 'Midias', 'Modelos de Interesse', 'Motivos Insucesso', 'Motivos Andamento', 'Empresas', 'Temperatura', 'Tipo de Acao'];
 
 export default function PainelLateral({ counts }) {
   return (
@@ -9,7 +9,7 @@ export default function PainelLateral({ counts }) {
         {/* Header */}
         <div className="bg-[#1a1a1a] px-4 py-3 flex items-center gap-2">
           <ChevronRight className="w-4 h-4 text-primary" />
-          <span className="text-white text-xs font-bold uppercase tracking-widest">Painel de Eventos</span>
+          <span className="text-white text-xs font-bold uppercase tracking-widest">Painel de Atendimentos</span>
         </div>
 
         {/* Contadores */}
@@ -33,8 +33,17 @@ export default function PainelLateral({ counts }) {
 
         {/* Filtros */}
         {SECOES.map((s) => (
-          <button key={s} className="w-full flex items-center gap-2 px-4 py-2.5 border-b last:border-0 text-[11px] font-bold uppercase tracking-wider text-foreground/60 hover:text-primary hover:bg-red-50 transition-colors group">
-            <ChevronRight className="w-3 h-3 group-hover:text-primary" /> {s}
+          <button
+            key={s}
+            type="button"
+            disabled
+            className="w-full cursor-not-allowed border-b px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 last:border-0"
+          >
+            <span className="flex items-center gap-2">
+              <ChevronRight className="w-3 h-3 text-slate-300" />
+              {s}
+              <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-slate-300">Sem acesso</span>
+            </span>
           </button>
         ))}
       </div>

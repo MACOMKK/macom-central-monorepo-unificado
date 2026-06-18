@@ -8,6 +8,7 @@ import LeadForm from '@/components/leads/LeadForm';
 import LeadsKanban from '@/components/leads/LeadsKanban';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/use-toast';
 
 const STATUS_STYLES = {
   novo: 'bg-blue-600 text-white',
@@ -42,14 +43,34 @@ export default function Leads() {
       : localCrmDb.entities.Lead.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
       setFormOpen(false);
       setEditing(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel salvar o lead',
+        description: error.message || 'Revise os dados informados.',
+        variant: 'destructive',
+      });
     },
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => localCrmDb.entities.Lead.update(id, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel atualizar o lead',
+        description: error.message || 'Revise os dados informados.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const handleDragEnd = (result) => {
@@ -76,7 +97,7 @@ export default function Leads() {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-black uppercase tracking-widest">Central de Leads</h1>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Gestão de oportunidades</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Funil comercial de captacao e conversao</p>
         </div>
         <div className="flex items-center gap-2">
           {/* View toggle */}
