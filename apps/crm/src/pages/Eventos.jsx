@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { localCrmDb } from '@/api/localCrmDb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ export default function Eventos() {
 
   const { data: eventos = [] } = useQuery({
     queryKey: ['eventos'],
-    queryFn: () => base44.entities.Evento.list('-updated_date', 200),
+    queryFn: () => localCrmDb.entities.Evento.list('-updated_date', 200),
   });
 
   const invalidate = () => {
@@ -32,13 +32,13 @@ export default function Eventos() {
 
   const saveMutation = useMutation({
     mutationFn: (data) => editing
-      ? base44.entities.Evento.update(editing.id, data)
-      : base44.entities.Evento.create(data),
+      ? localCrmDb.entities.Evento.update(editing.id, data)
+      : localCrmDb.entities.Evento.create(data),
     onSuccess: invalidate,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Evento.delete(id),
+    mutationFn: (id) => localCrmDb.entities.Evento.delete(id),
     onSuccess: invalidate,
   });
 

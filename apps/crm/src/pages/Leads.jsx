@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { localCrmDb } from '@/api/localCrmDb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,13 +33,13 @@ export default function Leads() {
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => base44.entities.Lead.list('-created_date', 200),
+    queryFn: () => localCrmDb.entities.Lead.list('-created_date', 200),
   });
 
   const saveMutation = useMutation({
     mutationFn: (data) => editing
-      ? base44.entities.Lead.update(editing.id, data)
-      : base44.entities.Lead.create(data),
+      ? localCrmDb.entities.Lead.update(editing.id, data)
+      : localCrmDb.entities.Lead.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       setFormOpen(false);
@@ -48,7 +48,7 @@ export default function Leads() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }) => base44.entities.Lead.update(id, { status }),
+    mutationFn: ({ id, status }) => localCrmDb.entities.Lead.update(id, { status }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['leads'] }),
   });
 

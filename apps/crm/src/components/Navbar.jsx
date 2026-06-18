@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { localCrmDb } from '@/api/localCrmDb';
 import { ChevronDown, Bell, Settings, Tag, DollarSign, Columns3, Headphones, Calendar, CalendarDays, PieChart, LayoutDashboard, BarChart3, GraduationCap, Lock, LogOut, MapPin, Phone } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useEmpresa } from '@/context/EmpresaContext';
@@ -70,7 +70,7 @@ export default function Navbar() {
           <DropdownMenu>
             <DropdownMenuTrigger className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-[10px] font-bold hover:bg-primary/80 transition-colors">K</DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-none">
-              <DropdownMenuItem className="cursor-pointer gap-2 text-xs font-semibold uppercase" onClick={() => base44.auth.logout()}>
+              <DropdownMenuItem className="cursor-pointer gap-2 text-xs font-semibold uppercase" onClick={() => localCrmDb.auth.logout()}>
                 <LogOut className="w-3.5 h-3.5" /> Sair
               </DropdownMenuItem>
             </DropdownMenuContent>

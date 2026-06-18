@@ -1,39 +1,33 @@
-**Welcome to your Base44 project** 
+# MACOM CRM
 
-**About**
+Aplicacao CRM em fase de normalizacao dentro do monorepo MACOM.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+## Desenvolvimento
 
-This project contains everything you need to run your app locally.
+Rode a partir da raiz do monorepo:
 
-**Edit the code in your local development environment**
-
-Any change pushed to the repo will also be reflected in the Base44 Builder.
-
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
-
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+```bash
+npm run dev:crm
 ```
 
-Run the app: `npm run dev`
+A aplicacao abre em:
 
-**Publish your changes**
+```text
+http://localhost:5172/
+```
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+## Dados locais
 
-**Docs & Support**
+Nesta etapa inicial, o CRM usa uma camada local em `src/api/localCrmDb.js`.
+Os dados e a sessao ficam no `localStorage` do navegador.
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+Essa camada existe para desacoplar o app do codigo original importado e preparar a troca futura por Supabase.
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+## Proxima etapa
+
+Quando o schema do CRM estiver definido, a camada `localCrmDb` deve ser substituida por:
+
+- Supabase Auth compartilhado com a Central;
+- Edge Function `crm-api`;
+- tabelas no schema `gestao_crm`;
+- policies de RLS e permissoes via sistema `crm`.

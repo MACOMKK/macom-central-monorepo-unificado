@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+import { localCrmDb } from '@/api/localCrmDb';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tag, DollarSign, ThumbsUp, ThumbsDown, TrendingUp } from 'lucide-react';
@@ -9,8 +9,8 @@ const CORES_STATUS = ['#94a3b8', '#3b82f6', '#16a34a', '#E30613'];
 
 export default function Dashboard() {
   const { empresa } = useEmpresa();
-  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => base44.entities.Evento.list('-created_date', 500) });
-  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => base44.entities.Lead.list('-created_date', 500) });
+  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => localCrmDb.entities.Evento.list('-created_date', 500) });
+  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => localCrmDb.entities.Lead.list('-created_date', 500) });
 
   const evs = eventos.filter((e) => empresa === 'Todas' || e.empresa === empresa);
   const lds = leads.filter((l) => empresa === 'Todas' || l.empresa === empresa);

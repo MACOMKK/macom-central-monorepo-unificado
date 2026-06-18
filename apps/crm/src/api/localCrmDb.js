@@ -1,6 +1,6 @@
-const AUTH_TOKEN_KEY = 'macom_crm_dev_token';
-const USER_KEY = 'macom_crm_dev_user';
-const STORE_PREFIX = 'macom_crm_dev_entity_';
+const AUTH_TOKEN_KEY = 'macom_crm_local_token';
+const USER_KEY = 'macom_crm_local_user';
+const STORE_PREFIX = 'macom_crm_local_entity_';
 
 const initialData = {
   Lead: [
@@ -47,16 +47,14 @@ function writeJson(key, value) {
 }
 
 function getCollection(entityName) {
-  const key = `${STORE_PREFIX}${entityName}`;
-  const fallback = initialData[entityName] || [];
-  return readJson(key, fallback);
+  return readJson(`${STORE_PREFIX}${entityName}`, initialData[entityName] || []);
 }
 
 function setCollection(entityName, rows) {
   writeJson(`${STORE_PREFIX}${entityName}`, rows);
 }
 
-function createEntityApi(entityName) {
+function createRepository(entityName) {
   return {
     async list(orderBy = '-created_date', limit = 100) {
       const rows = [...getCollection(entityName)];
@@ -85,8 +83,7 @@ function createEntityApi(entityName) {
     },
 
     async update(id, data) {
-      const rows = getCollection(entityName);
-      const updated = rows.map((row) => (
+      const updated = getCollection(entityName).map((row) => (
         row.id === id
           ? { ...row, ...data, updated_date: new Date().toISOString() }
           : row
@@ -108,16 +105,16 @@ function getStoredUser() {
 
 function setSession(email = 'crm@macom.local') {
   const user = {
-    id: 'dev-user',
+    id: 'local-user',
     email,
     full_name: 'Usuario CRM',
   };
-  window.localStorage.setItem(AUTH_TOKEN_KEY, 'dev-token');
+  window.localStorage.setItem(AUTH_TOKEN_KEY, 'local-token');
   writeJson(USER_KEY, user);
   return user;
 }
 
-export const base44 = {
+export const localCrmDb = {
   auth: {
     async me() {
       const user = getStoredUser();
@@ -129,7 +126,7 @@ export const base44 = {
       return user;
     },
 
-    async loginViaEmailPassword(email) {
+    async login(email) {
       return setSession(email);
     },
 
@@ -145,7 +142,7 @@ export const base44 = {
 
     async verifyOtp({ email }) {
       setSession(email);
-      return { access_token: 'dev-token' };
+      return { access_token: 'local-token' };
     },
 
     async resendOtp() {
@@ -153,6 +150,10 @@ export const base44 = {
     },
 
     async resetPassword() {
+      return { ok: true };
+    },
+
+    async resetPasswordRequest() {
       return { ok: true };
     },
 
@@ -173,8 +174,8 @@ export const base44 = {
     },
   },
   entities: {
-    Cliente: createEntityApi('Cliente'),
-    Evento: createEntityApi('Evento'),
-    Lead: createEntityApi('Lead'),
+    Cliente: createRepository('Cliente'),
+    Evento: createRepository('Evento'),
+    Lead: createRepository('Lead'),
   },
 };
