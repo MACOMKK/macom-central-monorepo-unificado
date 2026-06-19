@@ -910,13 +910,13 @@ async function getTrustedIpContext(request: Request) {
     collaborator_id: null,
     email: null,
     full_name: mapped.name || 'Acesso automatico por rede',
-    role: mapped.access_level === 'admin' ? 'admin' : 'user',
-    access_level: mapped.access_level,
+    role: 'user',
+    access_level: 'usuario',
     department_id: null,
     position: 'Rede liberada',
     function_role: 'trusted_ip',
     status: 'ativo',
-    permissions: mapped.modules,
+    permissions: defaultModulePermissions(),
     auth_mode: 'trusted_ip',
     trusted_ip_access_id: mapped.id,
     client_ip: clientIp,
@@ -3423,14 +3423,14 @@ async function updateUserPermission(id: string, payload: Record<string, unknown>
 }
 
 function normalizeTrustedIpPayload(payload: Record<string, unknown>) {
-  const modules = (payload.modules || {}) as Record<string, unknown>;
+  const ipCidr = String(payload.ip_cidr || '').trim();
   return {
-    name: String(payload.name || '').trim(),
-    description: payload.description ? String(payload.description).trim() : null,
-    ipCidr: String(payload.ip_cidr || '').trim(),
-    accessLevel: payload.access_level === 'admin' ? 'admin' : 'usuario',
-    active: payload.active === undefined ? true : Boolean(payload.active),
-    modules,
+    name: String(payload.name || ipCidr).trim(),
+    description: null,
+    ipCidr,
+    accessLevel: 'usuario',
+    active: true,
+    modules: defaultModulePermissions(),
   };
 }
 

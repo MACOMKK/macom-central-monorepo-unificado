@@ -2,27 +2,10 @@
   "name": "TrustedIpAccess",
   "type": "object",
   "properties": {
-    "name": {
-      "type": "string",
-      "description": "Nome da rede liberada"
-    },
     "ip_cidr": {
       "type": "string",
       "description": "IP publico ou faixa CIDR liberada"
-    },
-    "access_level": {
-      "type": "string",
-      "enum": ["usuario", "admin"],
-      "default": "usuario"
-    },
-    "active": {
-      "type": "boolean",
-      "default": true
-    },
-    "modules": {
-      "type": "object",
-      "description": "Permissoes por modulo"
     }
   },
-  "required": ["name", "ip_cidr"]
+  "required": ["ip_cidr"]
 }

@@ -45,10 +45,6 @@ function normalizeAccessLevel(value: string | null | undefined) {
   return value;
 }
 
-function normalizePermissionLevel(value: unknown) {
-  return ["none", "view", "edit"].includes(String(value)) ? String(value) : "view";
-}
-
 function formatDateOnly(value: unknown) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -297,26 +293,24 @@ async function resolveTrustedIpUser(req: Request, sql: SqlClient): Promise<Curre
       where id = ${row.id}::uuid
     `;
 
-    const accessLevel = normalizeAccessLevel(row.nivel_acesso);
-
     return {
       id: TRUSTED_IP_USER_ID,
       collaborator_id: null,
       email: null,
       full_name: row.nome || "Acesso automatico por rede",
-      role: accessLevel,
-      access_level: row.nivel_acesso || null,
+      role: "user",
+      access_level: "usuario",
       position: "Rede liberada",
       function_role: "trusted_ip",
       status: "ativo",
       permissions: {
-        avisos: normalizePermissionLevel(row.mod_avisos),
-        links: normalizePermissionLevel(row.mod_links),
-        colaboradores: normalizePermissionLevel(row.mod_colaboradores),
-        documentos: normalizePermissionLevel(row.mod_documentos),
-        calendario: normalizePermissionLevel(row.mod_calendario),
-        conhecimento: normalizePermissionLevel(row.mod_conhecimento),
-        feedback: normalizePermissionLevel(row.mod_feedback),
+        avisos: "view",
+        links: "view",
+        colaboradores: "view",
+        documentos: "view",
+        calendario: "view",
+        conhecimento: "view",
+        feedback: "view",
       },
       backend_status: "ok",
       backend_reason: null,
@@ -1539,13 +1533,22 @@ async function resolveCollaboratorIdByEmail(sql: SqlClient, email?: string) {
 }
 
 function normalizeTrustedIpPayload(payload: Record<string, any>) {
+  const ipCidr = String(payload.ip_cidr || payload.ip || "").trim();
   return {
-    name: String(payload.name || payload.nome || "").trim(),
-    description: normalizeNullableTextInput(payload.description || payload.descricao),
-    ipCidr: String(payload.ip_cidr || payload.ip || "").trim(),
-    accessLevel: payload.access_level === "admin" ? "admin" : "usuario",
-    active: payload.active === undefined ? true : Boolean(payload.active),
-    modules: payload.modules && typeof payload.modules === "object" ? payload.modules : {},
+    name: String(payload.name || payload.nome || ipCidr).trim(),
+    description: null,
+    ipCidr,
+    accessLevel: "usuario",
+    active: true,
+    modules: {
+      avisos: "view",
+      links: "view",
+      colaboradores: "view",
+      documentos: "view",
+      calendario: "view",
+      conhecimento: "view",
+      feedback: "view",
+    },
   };
 }
 
