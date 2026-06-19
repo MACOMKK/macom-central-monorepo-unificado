@@ -16,12 +16,12 @@ import QuickLinks from './pages/QuickLinks';
 import Employees from './pages/Employees';
 import Documents from './pages/Documents';
 import Calendar from './pages/Calendar';
-import Permissions from './pages/Permissions';
 import Feedback from './pages/Feedback';
 import KnowledgeBase from './pages/KnowledgeBase';
 import Login from './pages/Login';
 import PlatformGuide from './pages/PlatformGuide';
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 
 const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
@@ -104,7 +104,8 @@ function App() {
                 <Route path="/colaboradores" element={<ModuleRoute module="colaboradores"><Employees /></ModuleRoute>} />
                 <Route path="/documentos" element={<ModuleRoute module="documentos"><Documents /></ModuleRoute>} />
                 <Route path="/calendario" element={<ModuleRoute module="calendario"><Calendar /></ModuleRoute>} />
-                <Route path="/permissoes" element={<Permissions />} />
+                <Route path="/permissoes" element={<Navigate to="/configuracoes" replace />} />
+                <Route path="/configuracoes" element={<Settings />} />
                 <Route path="/perfil" element={<Profile />} />
                 <Route path="/guia" element={<PlatformGuide />} />
                 <Route path="/feedback" element={<ModuleRoute module="feedback"><Feedback /></ModuleRoute>} />

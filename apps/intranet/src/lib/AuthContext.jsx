@@ -4,6 +4,7 @@ import { appClient } from '@/api/client';
 const AuthContext = createContext();
 const DEFAULT_INITIAL_PASSWORD = 'Kmacom.123';
 const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
+const TRUSTED_IP_ACCESS_STORAGE_KEY = 'intranet:trusted-ip-access';
 
 const INTRANET_ACCESS_DENIED_CODES = new Set([
   'INTRANET_COLLABORATOR_NOT_FOUND',
@@ -57,6 +58,18 @@ function writePasswordChangeRequired(user, required) {
   }
 }
 
+function writeTrustedIpAccessEnabled(enabled) {
+  try {
+    if (enabled) {
+      window.localStorage.setItem(TRUSTED_IP_ACCESS_STORAGE_KEY, 'true');
+    } else {
+      window.localStorage.removeItem(TRUSTED_IP_ACCESS_STORAGE_KEY);
+    }
+  } catch {
+    // Best effort only; the backend still validates the trusted IP.
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -75,11 +88,25 @@ export const AuthProvider = ({ children }) => {
         if (!active) return;
 
         if (!session?.access_token) {
-          setUser(null);
-          setIsAuthenticated(false);
-          setAuthError(null);
-          setAuthChecked(true);
-          setIsLoadingAuth(false);
+          try {
+            const trustedIpUser = await appClient.auth.trustedIpAccess();
+            if (!active) return;
+            writeTrustedIpAccessEnabled(Boolean(trustedIpUser));
+            setUser(trustedIpUser);
+            setMustChangePassword(false);
+            setIsAuthenticated(Boolean(trustedIpUser));
+            setAuthError(null);
+            setAuthChecked(true);
+            setIsLoadingAuth(false);
+          } catch {
+            if (!active) return;
+            writeTrustedIpAccessEnabled(false);
+            setUser(null);
+            setIsAuthenticated(false);
+            setAuthError(null);
+            setAuthChecked(true);
+            setIsLoadingAuth(false);
+          }
           return;
         }
 
@@ -134,6 +161,7 @@ export const AuthProvider = ({ children }) => {
   const isIntranetAccessDenied = (error) => INTRANET_ACCESS_DENIED_CODES.has(error?.code);
 
   const clearIntranetSession = async () => {
+    writeTrustedIpAccessEnabled(false);
     try {
       await appClient.auth.clearSession();
     } catch (clearError) {
@@ -148,6 +176,7 @@ export const AuthProvider = ({ children }) => {
       }
       setAuthError(null);
       const currentUser = await appClient.auth.me();
+      writeTrustedIpAccessEnabled(currentUser?.auth_mode === 'trusted_ip');
       setUser(currentUser);
       setMustChangePassword(readPasswordChangeRequired(currentUser));
       setIsAuthenticated(Boolean(currentUser));
@@ -155,7 +184,26 @@ export const AuthProvider = ({ children }) => {
       if (!silent) {
         setIsLoadingAuth(false);
       }
+      return currentUser;
     } catch (error) {
+      if (isUnauthenticatedSessionError(error)) {
+        try {
+          const trustedIpUser = await appClient.auth.trustedIpAccess();
+          writeTrustedIpAccessEnabled(Boolean(trustedIpUser));
+          setUser(trustedIpUser);
+          setMustChangePassword(false);
+          setIsAuthenticated(Boolean(trustedIpUser));
+          setAuthError(null);
+          setAuthChecked(true);
+          if (!silent) {
+            setIsLoadingAuth(false);
+          }
+          return trustedIpUser;
+        } catch {
+          writeTrustedIpAccessEnabled(false);
+        }
+      }
+
       if (isIntranetAccessDenied(error)) {
         console.warn('Intranet access denied during auth check:', {
           code: error?.code || null,
@@ -167,6 +215,7 @@ export const AuthProvider = ({ children }) => {
       if (isIntranetAccessDenied(error) || isInvalidSessionClaimError(error) || isUnauthenticatedSessionError(error)) {
         await clearIntranetSession();
       }
+      writeTrustedIpAccessEnabled(false);
       setUser(null);
       setMustChangePassword(false);
       setIsAuthenticated(false);
@@ -183,6 +232,7 @@ export const AuthProvider = ({ children }) => {
       if (!silent) {
         setIsLoadingAuth(false);
       }
+      return null;
     }
   };
 
@@ -192,6 +242,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const currentUser = await appClient.auth.signIn(credentials);
+      writeTrustedIpAccessEnabled(false);
       const shouldRequirePasswordChange = credentials?.password === DEFAULT_INITIAL_PASSWORD;
       writePasswordChangeRequired(currentUser, shouldRequirePasswordChange);
       setUser(currentUser);
@@ -219,6 +270,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (shouldRedirect = true) => {
+    writeTrustedIpAccessEnabled(false);
     if (shouldRedirect) {
       appClient.auth.logout('/login');
     } else {

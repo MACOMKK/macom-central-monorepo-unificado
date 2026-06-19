@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, LockKeyhole, Mail } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LockKeyhole, Mail, Wifi } from 'lucide-react';
 import { Alert, AlertDescription, Button, Input, Label } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
@@ -40,9 +40,10 @@ function getSignInErrorMessage(error) {
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, isLoadingAuth, authError, signIn } = useAuth();
+  const { isAuthenticated, isLoadingAuth, authError, signIn, checkUserAuth } = useAuth();
   const [signInForm, setSignInForm] = useState(INITIAL_SIGN_IN);
   const [submitting, setSubmitting] = useState(false);
+  const [trustedIpSubmitting, setTrustedIpSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const redirectTo = new URLSearchParams(location.search).get('redirectTo') || '/';
@@ -63,6 +64,21 @@ export default function Login() {
       toast.error(getSignInErrorMessage(error));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleTrustedIpAccess = async () => {
+    setTrustedIpSubmitting(true);
+    try {
+      const currentUser = await checkUserAuth();
+      if (!currentUser) {
+        throw new Error('trusted_ip_access_denied');
+      }
+      navigate(redirectTo, { replace: true });
+    } catch {
+      toast.error('Esta rede nao esta liberada para acesso automatico.');
+    } finally {
+      setTrustedIpSubmitting(false);
     }
   };
 
@@ -135,6 +151,19 @@ export default function Login() {
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
             </Button>
           </form>
+
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full border border-white/50 bg-white/20 text-white hover:bg-white/30"
+              disabled={trustedIpSubmitting || submitting}
+              onClick={handleTrustedIpAccess}
+            >
+              {trustedIpSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+              Acessar pela rede liberada
+            </Button>
+          </div>
         </div>
       </div>
     </div>

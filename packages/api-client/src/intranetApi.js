@@ -20,15 +20,24 @@ function toError(message, status = 500, code, details, hint) {
   return error;
 }
 
-async function invokeIntranet(body = {}, accessTokenOverride) {
+function readTrustedIpAccessEnabled() {
+  try {
+    return window.localStorage.getItem('intranet:trusted-ip-access') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function invokeIntranet(body = {}, accessTokenOverride, options = {}) {
   assertSupabaseConfigured();
 
   const { data } = accessTokenOverride
     ? { data: { session: { access_token: accessTokenOverride } } }
     : await supabase.auth.getSession();
   const token = data?.session?.access_token;
+  const allowAnonymous = options.allowAnonymous || readTrustedIpAccessEnabled();
 
-  if (!token) {
+  if (!token && !allowAnonymous) {
     throw toError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
@@ -37,7 +46,7 @@ async function invokeIntranet(body = {}, accessTokenOverride) {
     headers: {
       'Content-Type': 'application/json',
       apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify(body),
   });
@@ -120,6 +129,14 @@ export const intranetApi = {
         resource: 'auth',
         action: 'me',
       }, accessToken);
+      return result.user || result.data || null;
+    },
+
+    async trustedIpAccess() {
+      const result = await invokeIntranet({
+        resource: 'auth',
+        action: 'trustedIpAccess',
+      }, undefined, { allowAnonymous: true });
       return result.user || result.data || null;
     },
   },

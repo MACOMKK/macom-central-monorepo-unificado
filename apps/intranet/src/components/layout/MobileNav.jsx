@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  ShieldCheck,
   BookOpen,
   X,
   LogOut
@@ -89,20 +88,6 @@ export default function MobileNav({ open = false, onClose }) {
               >
                 <BookOpen className="h-5 w-5" />
                 <span>Guia</span>
-              </Link>
-
-              <Link
-                to="/permissoes"
-                onClick={onClose}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors',
-                  location.pathname === '/permissoes'
-                    ? 'bg-sidebar-primary text-white'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
-                )}
-              >
-                <ShieldCheck className="h-5 w-5" />
-                <span>Permissoes</span>
               </Link>
             </>
           ) : null}

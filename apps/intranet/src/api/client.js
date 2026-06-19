@@ -185,6 +185,10 @@ export const appClient = {
       return intranetApi.auth.me();
     },
 
+    trustedIpAccess() {
+      return intranetApi.auth.trustedIpAccess();
+    },
+
     async signIn({ email, password }) {
       assertSupabaseConfigured();
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });

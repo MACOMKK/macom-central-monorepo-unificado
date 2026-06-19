@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bell, CheckCheck, ExternalLink, LogOut, Menu } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCheck, ExternalLink, LogOut, Menu, Settings } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -130,6 +130,11 @@ export default function Header({ onMenuClick }) {
   const handleOpenProfile = () => {
     setProfileOpen(false);
     navigate('/perfil');
+  };
+
+  const handleOpenSettings = () => {
+    setProfileOpen(false);
+    navigate('/configuracoes');
   };
 
   const handleOpenNotification = (notification) => {
@@ -342,6 +347,17 @@ export default function Header({ onMenuClick }) {
                 Gerenciar conta
                 <ExternalLink className="h-4 w-4" />
               </button>
+
+              {user?.role === 'admin' ? (
+                <button
+                  type="button"
+                  onClick={handleOpenSettings}
+                  className="mt-4 flex w-full items-center justify-between text-left text-sm font-medium text-[#d7d7db] transition-colors hover:text-white"
+                >
+                  Configuracoes
+                  <Settings className="h-4 w-4" />
+                </button>
+              ) : null}
 
               <div className="my-6 h-px bg-[#3a3a3d]" />
 

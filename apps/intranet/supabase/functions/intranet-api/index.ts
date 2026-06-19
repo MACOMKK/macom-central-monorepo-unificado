@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import postgres from "npm:postgres@3.4.7";
 
 const INTRANET_SYSTEM_SLUG = "intranet";
+const TRUSTED_IP_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,6 +31,9 @@ type CurrentUser = {
   backend_status: "ok";
   backend_reason: null;
   backend_error_detail: null;
+  auth_mode?: "supabase" | "trusted_ip";
+  trusted_ip_access_id?: string | null;
+  client_ip?: string | null;
 };
 
 let sqlClient: SqlClient | null = null;
@@ -39,6 +43,10 @@ function normalizeAccessLevel(value: string | null | undefined) {
   if (value === "admin") return "admin";
   if (value === "usuario") return "user";
   return value;
+}
+
+function normalizePermissionLevel(value: unknown) {
+  return ["none", "view", "edit"].includes(String(value)) ? String(value) : "view";
 }
 
 function formatDateOnly(value: unknown) {
@@ -120,6 +128,33 @@ function normalizeError(error: unknown) {
     code: null,
     status: 500,
   };
+}
+
+function getForwardedIp(value: string | null) {
+  if (!value) return null;
+
+  const firstValue = value.split(",").map((item) => item.trim()).find(Boolean);
+  if (!firstValue) return null;
+
+  if (firstValue.startsWith("[") && firstValue.includes("]")) {
+    return firstValue.slice(1, firstValue.indexOf("]"));
+  }
+
+  const withoutForwardedPrefix = firstValue.match(/for="?([^";,\s]+)"?/i)?.[1] || firstValue;
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(withoutForwardedPrefix)) {
+    return withoutForwardedPrefix.slice(0, withoutForwardedPrefix.lastIndexOf(":"));
+  }
+
+  return withoutForwardedPrefix.replace(/^"|"$/g, "");
+}
+
+function getClientIp(req: Request) {
+  return (
+    getForwardedIp(req.headers.get("cf-connecting-ip")) ||
+    getForwardedIp(req.headers.get("x-real-ip")) ||
+    getForwardedIp(req.headers.get("x-forwarded-for")) ||
+    getForwardedIp(req.headers.get("forwarded"))
+  );
 }
 
 function createAuthSupabaseClient(req: Request) {
@@ -228,11 +263,92 @@ async function getCurrentAuthUser(req: Request) {
   return user as AuthUser | null;
 }
 
-async function resolveCurrentUser(req: Request): Promise<CurrentUser | null> {
-  const authUser = await getCurrentAuthUser(req);
-  if (!authUser) return null;
+async function resolveTrustedIpUser(req: Request, sql: SqlClient): Promise<CurrentUser | null> {
+  const clientIp = getClientIp(req);
+  if (!clientIp) return null;
 
+  try {
+    const rows = await sql<Array<Record<string, any>>>`
+      select
+        id,
+        nome,
+        nivel_acesso,
+        mod_avisos,
+        mod_links,
+        mod_colaboradores,
+        mod_documentos,
+        mod_calendario,
+        mod_conhecimento,
+        mod_feedback
+      from gestao_intranet.acessos_ip_confiavel
+      where ativo = true
+        and ${clientIp}::inet <<= ip_cidr
+      order by criado_em desc
+      limit 1
+    `;
+
+    const row = rows[0];
+    if (!row) return null;
+
+    await sql`
+      update gestao_intranet.acessos_ip_confiavel
+      set ultimo_ip = ${clientIp},
+          ultimo_acesso_em = now()
+      where id = ${row.id}::uuid
+    `;
+
+    const accessLevel = normalizeAccessLevel(row.nivel_acesso);
+
+    return {
+      id: TRUSTED_IP_USER_ID,
+      collaborator_id: null,
+      email: null,
+      full_name: row.nome || "Acesso automatico por rede",
+      role: accessLevel,
+      access_level: row.nivel_acesso || null,
+      position: "Rede liberada",
+      function_role: "trusted_ip",
+      status: "ativo",
+      permissions: {
+        avisos: normalizePermissionLevel(row.mod_avisos),
+        links: normalizePermissionLevel(row.mod_links),
+        colaboradores: normalizePermissionLevel(row.mod_colaboradores),
+        documentos: normalizePermissionLevel(row.mod_documentos),
+        calendario: normalizePermissionLevel(row.mod_calendario),
+        conhecimento: normalizePermissionLevel(row.mod_conhecimento),
+        feedback: normalizePermissionLevel(row.mod_feedback),
+      },
+      backend_status: "ok",
+      backend_reason: null,
+      backend_error_detail: null,
+      auth_mode: "trusted_ip",
+      trusted_ip_access_id: row.id,
+      client_ip: clientIp,
+    };
+  } catch (error) {
+    const normalized = normalizeError(error);
+    if (normalized.code === "42P01") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function resolveCurrentUser(req: Request): Promise<CurrentUser | null> {
   const sql = getSqlClient();
+  let authUser: AuthUser | null = null;
+
+  try {
+    authUser = await getCurrentAuthUser(req);
+  } catch (error) {
+    const trustedIpUser = await resolveTrustedIpUser(req, sql);
+    if (trustedIpUser) return trustedIpUser;
+    throw error;
+  }
+
+  if (!authUser) {
+    return resolveTrustedIpUser(req, sql);
+  }
 
   const rowsById = await sql<Array<Record<string, any>>>`
     select
@@ -345,6 +461,9 @@ async function resolveCurrentUser(req: Request): Promise<CurrentUser | null> {
     backend_status: "ok",
     backend_reason: null,
     backend_error_detail: null,
+    auth_mode: "supabase",
+    trusted_ip_access_id: null,
+    client_ip: getClientIp(req),
   };
 }
 
@@ -977,6 +1096,53 @@ async function listUserPermissions(sql: SqlClient) {
   return rows.map(mapPermissionRow);
 }
 
+async function listTrustedIpAccesses(sql: SqlClient) {
+  const rows = await sql<Array<Record<string, any>>>`
+    select
+      id,
+      nome,
+      descricao,
+      ip_cidr::text as ip_cidr,
+      nivel_acesso,
+      mod_avisos,
+      mod_links,
+      mod_colaboradores,
+      mod_documentos,
+      mod_calendario,
+      mod_conhecimento,
+      mod_feedback,
+      ativo,
+      ultimo_ip,
+      ultimo_acesso_em,
+      criado_em,
+      atualizado_em
+    from gestao_intranet.acessos_ip_confiavel
+    order by nome asc
+  `;
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.nome,
+    description: row.descricao || null,
+    ip_cidr: row.ip_cidr,
+    access_level: row.nivel_acesso,
+    active: Boolean(row.ativo),
+    last_ip: row.ultimo_ip || null,
+    last_access_date: row.ultimo_acesso_em || null,
+    modules: {
+      avisos: row.mod_avisos || "view",
+      links: row.mod_links || "view",
+      colaboradores: row.mod_colaboradores || "view",
+      documentos: row.mod_documentos || "view",
+      calendario: row.mod_calendario || "view",
+      conhecimento: row.mod_conhecimento || "view",
+      feedback: row.mod_feedback || "view",
+    },
+    created_date: row.criado_em,
+    updated_date: row.atualizado_em,
+  }));
+}
+
 async function filterUserPermissions(sql: SqlClient, filters?: Record<string, unknown>) {
   if (filters?.collaborator_id) {
     const rows = await sql<Array<Record<string, any>>>`
@@ -1372,6 +1538,94 @@ async function resolveCollaboratorIdByEmail(sql: SqlClient, email?: string) {
   return rows[0]?.id || null;
 }
 
+function normalizeTrustedIpPayload(payload: Record<string, any>) {
+  return {
+    name: String(payload.name || payload.nome || "").trim(),
+    description: normalizeNullableTextInput(payload.description || payload.descricao),
+    ipCidr: String(payload.ip_cidr || payload.ip || "").trim(),
+    accessLevel: payload.access_level === "admin" ? "admin" : "usuario",
+    active: payload.active === undefined ? true : Boolean(payload.active),
+    modules: payload.modules && typeof payload.modules === "object" ? payload.modules : {},
+  };
+}
+
+async function createTrustedIpAccess(sql: SqlClient, currentUser: CurrentUser, payload: Record<string, any>) {
+  assertAdmin(currentUser);
+  const data = normalizeTrustedIpPayload(payload);
+  if (!data.name) {
+    throw new Error("Informe um nome para a rede liberada.");
+  }
+  if (!data.ipCidr) {
+    throw new Error("Informe o IP ou faixa CIDR da rede.");
+  }
+
+  const rows = await sql<Array<{ id: string }>>`
+    insert into gestao_intranet.acessos_ip_confiavel (
+      nome,
+      descricao,
+      ip_cidr,
+      nivel_acesso,
+      mod_avisos,
+      mod_links,
+      mod_colaboradores,
+      mod_documentos,
+      mod_calendario,
+      mod_conhecimento,
+      mod_feedback,
+      ativo
+    )
+    values (
+      ${data.name},
+      ${data.description ?? null},
+      ${data.ipCidr}::cidr,
+      ${data.accessLevel},
+      ${data.modules.avisos || "view"},
+      ${data.modules.links || "view"},
+      ${data.modules.colaboradores || "view"},
+      ${data.modules.documentos || "view"},
+      ${data.modules.calendario || "view"},
+      ${data.modules.conhecimento || "view"},
+      ${data.modules.feedback || "view"},
+      ${data.active}
+    )
+    returning id
+  `;
+
+  return (await listTrustedIpAccesses(sql)).find((item) => item.id === rows[0]?.id) || null;
+}
+
+async function updateTrustedIpAccess(sql: SqlClient, currentUser: CurrentUser, id: string, payload: Record<string, any>) {
+  assertAdmin(currentUser);
+  const data = normalizeTrustedIpPayload(payload);
+  if (!data.name) {
+    throw new Error("Informe um nome para a rede liberada.");
+  }
+  if (!data.ipCidr) {
+    throw new Error("Informe o IP ou faixa CIDR da rede.");
+  }
+
+  await sql`
+    update gestao_intranet.acessos_ip_confiavel
+    set
+      nome = ${data.name},
+      descricao = ${data.description ?? null},
+      ip_cidr = ${data.ipCidr}::cidr,
+      nivel_acesso = ${data.accessLevel},
+      mod_avisos = ${data.modules.avisos || "view"},
+      mod_links = ${data.modules.links || "view"},
+      mod_colaboradores = ${data.modules.colaboradores || "view"},
+      mod_documentos = ${data.modules.documentos || "view"},
+      mod_calendario = ${data.modules.calendario || "view"},
+      mod_conhecimento = ${data.modules.conhecimento || "view"},
+      mod_feedback = ${data.modules.feedback || "view"},
+      ativo = ${data.active},
+      atualizado_em = now()
+    where id = ${id}::uuid
+  `;
+
+  return (await listTrustedIpAccesses(sql)).find((item) => item.id === id) || null;
+}
+
 async function createUserPermission(sql: SqlClient, currentUser: CurrentUser, payload: Record<string, any>) {
   assertAdmin(currentUser);
   const collaboratorId = payload.collaborator_id || await resolveCollaboratorIdByEmail(sql, payload.user_email);
@@ -1494,6 +1748,9 @@ async function handleEntityRequest(sql: SqlClient, currentUser: CurrentUser, bod
         case "UserPermission":
           assertAdmin(currentUser);
           return listUserPermissions(sql);
+        case "TrustedIpAccess":
+          assertAdmin(currentUser);
+          return listTrustedIpAccesses(sql);
         default:
           throw new Error(`Unknown entity for list: ${entity}`);
       }
@@ -1529,6 +1786,8 @@ async function handleEntityRequest(sql: SqlClient, currentUser: CurrentUser, bod
           return createQuickLink(sql, currentUser, body.payload || {});
         case "UserPermission":
           return createUserPermission(sql, currentUser, body.payload || {});
+        case "TrustedIpAccess":
+          return createTrustedIpAccess(sql, currentUser, body.payload || {});
         default:
           throw new Error(`Unknown entity for create: ${entity}`);
       }
@@ -1550,6 +1809,8 @@ async function handleEntityRequest(sql: SqlClient, currentUser: CurrentUser, bod
           return updateQuickLink(sql, currentUser, body.id, body.payload || {});
         case "UserPermission":
           return updateUserPermission(sql, currentUser, body.id, body.payload || {});
+        case "TrustedIpAccess":
+          return updateTrustedIpAccess(sql, currentUser, body.id, body.payload || {});
         default:
           throw new Error(`Unknown entity for update: ${entity}`);
       }
@@ -1580,6 +1841,9 @@ async function handleEntityRequest(sql: SqlClient, currentUser: CurrentUser, bod
         case "UserPermission":
           assertAdmin(currentUser);
           return deleteById(sql, "gestao_intranet.permissoes_usuario", body.id);
+        case "TrustedIpAccess":
+          assertAdmin(currentUser);
+          return deleteById(sql, "gestao_intranet.acessos_ip_confiavel", body.id);
         case "Employee":
           {
             const error = new Error("A exclusao de colaboradores nao e permitida pela intranet.");
@@ -1608,7 +1872,7 @@ Deno.serve(async (req) => {
 
     switch (body.resource) {
       case "auth":
-        if (body.action !== "me") {
+        if (!["me", "trustedIpAccess"].includes(body.action)) {
           throw new Error(`Unknown auth action: ${body.action}`);
         }
         data = currentUser;
