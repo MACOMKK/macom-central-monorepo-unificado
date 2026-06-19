@@ -71,6 +71,12 @@ create table if not exists gestao_crm.leads (
   convertido_em timestamptz,
   perdido_em timestamptz,
   motivo_perda text,
+  responsavel_id uuid references public.colaboradores(id) on delete set null,
+  atribuido_em timestamptz,
+  primeiro_contato_em timestamptz,
+  sla_primeiro_contato_em timestamptz,
+  previsao_fechamento date,
+  observacoes text,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   criado_por uuid references public.colaboradores(id) on delete set null
@@ -100,7 +106,7 @@ create table if not exists gestao_crm.historico_atendimentos (
   lead_id uuid references gestao_crm.leads(id) on delete set null,
   atendimento_id uuid references gestao_crm.atendimentos(id) on delete set null,
   tipo text not null
-    check (tipo in ('entrada_lead', 'atendimento', 'conversao_lead', 'observacao')),
+    check (tipo in ('entrada_lead', 'atendimento', 'conversao_lead', 'observacao', 'atualizacao_lead', 'atribuicao_lead')),
   descricao text not null,
   entidade text,
   entidade_id uuid,
@@ -139,6 +145,13 @@ create index if not exists idx_crm_leads_empresa_status
 
 create index if not exists idx_crm_leads_origem
   on gestao_crm.leads (origem);
+
+create index if not exists idx_crm_leads_responsavel_status
+  on gestao_crm.leads (responsavel_id, status);
+
+create index if not exists idx_crm_leads_sla_primeiro_contato
+  on gestao_crm.leads (sla_primeiro_contato_em)
+  where primeiro_contato_em is null and status in ('novo', 'em_atendimento');
 
 create index if not exists idx_crm_atendimentos_lead_id
   on gestao_crm.atendimentos (lead_id);

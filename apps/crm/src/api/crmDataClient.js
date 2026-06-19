@@ -1,5 +1,4 @@
 import { crmApi } from '@macom/api-client/crmApi';
-import { supabase, assertSupabaseConfigured } from '@macom/api-client/supabaseClient';
 
 const ACTIVE_LEAD_STATUSES = new Set(['novo', 'em_atendimento']);
 
@@ -89,6 +88,14 @@ function mapClienteRow(row = {}) {
 }
 
 function mapLeadRow(row = {}) {
+  const slaDeadline = row.sla_primeiro_contato_em || null;
+  const firstContact = row.primeiro_contato_em || null;
+  const slaStatus = firstContact
+    ? 'concluido'
+    : slaDeadline && new Date(slaDeadline).getTime() < Date.now()
+      ? 'atrasado'
+      : 'no_prazo';
+
   return {
     id: row.id,
     cliente_id: row.cliente_id || '',
@@ -104,6 +111,15 @@ function mapLeadRow(row = {}) {
     convertido_em: row.convertido_em || null,
     perdido_em: row.perdido_em || null,
     motivo_perda: row.motivo_perda || '',
+    responsavel_id: row.responsavel_id || '',
+    responsavel: row.responsavel || null,
+    responsavel_nome: row.responsavel?.nome || '',
+    atribuido_em: row.atribuido_em || null,
+    primeiro_contato_em: firstContact,
+    sla_primeiro_contato_em: slaDeadline,
+    sla_status: slaStatus,
+    previsao_fechamento: row.previsao_fechamento || '',
+    observacoes: row.observacoes || '',
     ...mapBaseDates(row),
   };
 }
@@ -168,6 +184,10 @@ function mapLeadPayload(data = {}, clienteId) {
   const phone = requireNormalizedPhone(data.telefone, 'Lead');
   const email = normalizeEmail(data.email);
 
+  if (data.status === 'perdido' && !String(data.motivo_perda || '').trim()) {
+    throw new Error('Informe o motivo da perda para encerrar este lead.');
+  }
+
   return {
     cliente_id: clienteId || data.cliente_id,
     nome: data.nome || '',
@@ -185,7 +205,10 @@ function mapLeadPayload(data = {}, clienteId) {
     perdido_em: data.status === 'perdido'
       ? (data.perdido_em || new Date().toISOString())
       : (data.perdido_em || null),
-    motivo_perda: data.motivo_perda || null,
+    motivo_perda: data.status === 'perdido' ? String(data.motivo_perda).trim() : null,
+    responsavel_id: data.responsavel_id || null,
+    previsao_fechamento: data.previsao_fechamento || null,
+    observacoes: data.observacoes || null,
   };
 }
 
@@ -344,19 +367,13 @@ const LeadRepository = {
     const row = await crmApi.leads.update(id, payload);
     const lead = mapLeadRow(row);
 
-    if (lead.status === 'convertido' && current.status !== 'convertido') {
-      await addHistoricoAtendimento({
-        cliente_id: lead.cliente_id,
-        lead_id: lead.id,
-        tipo: 'conversao_lead',
-        descricao: `Lead convertido em cliente: ${lead.nome}`,
-        entidade: 'Lead',
-        entidade_id: lead.id,
-        status: lead.status,
-      });
-    }
-
     return lead;
+  },
+};
+
+const ResponsavelRepository = {
+  async list() {
+    return crmApi.responsaveis.list();
   },
 };
 
@@ -418,92 +435,12 @@ const HistoricoAtendimentoRepository = createListRepository(
   mapHistoricoRow,
 );
 
-export const localCrmDb = {
-  auth: {
-    async me() {
-      assertSupabaseConfigured();
-      const { data, error } = await supabase.auth.getSession();
-      const session = data?.session || null;
-      if (error || !session?.user || !session?.access_token) {
-        const authError = toError(error, 'Authentication required');
-        authError.status = 401;
-        throw authError;
-      }
-      return crmApi.auth.me(session.access_token);
-    },
-
-    async login(email, password) {
-      assertSupabaseConfigured();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw toError(error, 'Nao foi possivel entrar.');
-      return data.user;
-    },
-
-    async loginWithProvider(provider = 'google', redirectTo = '/') {
-      assertSupabaseConfigured();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: `${window.location.origin}${redirectTo}` },
-      });
-      if (error) throw toError(error, 'Nao foi possivel iniciar login.');
-    },
-
-    async register({ email, password }) {
-      assertSupabaseConfigured();
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw toError(error, 'Nao foi possivel criar usuario.');
-      return { ok: true };
-    },
-
-    async verifyOtp({ email, otpCode }) {
-      assertSupabaseConfigured();
-      const { data, error } = await supabase.auth.verifyOtp({ email, token: otpCode, type: 'signup' });
-      if (error) throw toError(error, 'Codigo invalido.');
-      return { access_token: data?.session?.access_token };
-    },
-
-    async resendOtp(email) {
-      assertSupabaseConfigured();
-      const { error } = await supabase.auth.resend({ type: 'signup', email });
-      if (error) throw toError(error, 'Nao foi possivel reenviar codigo.');
-      return { ok: true };
-    },
-
-    async resetPassword({ newPassword }) {
-      assertSupabaseConfigured();
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw toError(error, 'Nao foi possivel redefinir senha.');
-      return { ok: true };
-    },
-
-    async resetPasswordRequest(email) {
-      assertSupabaseConfigured();
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
-      if (error) throw toError(error, 'Nao foi possivel enviar recuperacao.');
-      return { ok: true };
-    },
-
-    setToken() {
-      return null;
-    },
-
-    async logout(redirectUrl) {
-      assertSupabaseConfigured();
-      await supabase.auth.signOut();
-      if (redirectUrl) {
-        window.location.href = '/entrar';
-      }
-    },
-
-    redirectToLogin() {
-      window.location.href = '/entrar';
-    },
-  },
-
+export const crmDataClient = {
   entities: {
     Cliente: ClienteRepository,
     Evento: EventoRepository,
     HistoricoAtendimento: HistoricoAtendimentoRepository,
     Lead: LeadRepository,
+    Responsavel: ResponsavelRepository,
   },
 };

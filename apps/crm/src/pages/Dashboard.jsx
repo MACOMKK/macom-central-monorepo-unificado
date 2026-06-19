@@ -1,4 +1,4 @@
-import { localCrmDb } from '@/api/localCrmDb';
+import { crmDataClient } from '@/api/crmDataClient';
 import { useQuery } from '@tanstack/react-query';
 import { Tag, DollarSign, ThumbsUp, Users, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -8,9 +8,9 @@ const CORES_STATUS = ['#94a3b8', '#3b82f6', '#16a34a', '#E30613'];
 
 export default function Dashboard() {
   const { empresa } = useEmpresa();
-  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => localCrmDb.entities.Evento.list('-created_date', 500) });
-  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => localCrmDb.entities.Lead.list('-created_date', 500) });
-  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => localCrmDb.entities.Cliente.list('-created_date', 500) });
+  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => crmDataClient.entities.Evento.list('-created_date', 500) });
+  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => crmDataClient.entities.Lead.list('-created_date', 500) });
+  const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => crmDataClient.entities.Cliente.list('-created_date', 500) });
 
   const evs = eventos.filter((e) => empresa === 'Todas' || e.empresa === empresa);
   const lds = leads.filter((l) => empresa === 'Todas' || l.empresa === empresa);

@@ -1,6 +1,6 @@
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { cn } from '@/lib/utils';
-import { Phone, Car, Building2 } from 'lucide-react';
+import { Phone, Car, Building2, CalendarClock, UserRound } from 'lucide-react';
 
 const COLUNAS = [
   { key: 'novo', label: 'Novo', color: 'border-t-blue-500', headerBg: 'bg-blue-500', dot: 'bg-blue-500' },
@@ -10,6 +10,17 @@ const COLUNAS = [
 ];
 
 function LeadCard({ lead, index, onClick }) {
+  const slaLabel = lead.sla_status === 'concluido'
+    ? 'Primeiro contato realizado'
+    : lead.sla_status === 'atrasado'
+      ? 'SLA atrasado'
+      : 'SLA no prazo';
+  const slaStyle = lead.sla_status === 'concluido'
+    ? 'text-green-700'
+    : lead.sla_status === 'atrasado'
+      ? 'text-red-700'
+      : 'text-blue-700';
+
   return (
     <Draggable draggableId={lead.id} index={index}>
       {(provided, snapshot) => (
@@ -40,6 +51,14 @@ function LeadCard({ lead, index, onClick }) {
                 <Building2 className="w-3 h-3" />{lead.empresa}
               </p>
             )}
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <UserRound className="w-3 h-3" />{lead.responsavel_nome || 'Distribuicao automatica'}
+            </p>
+            {['novo', 'em_atendimento'].includes(lead.status) ? (
+              <p className={cn('flex items-center gap-1 text-[11px] font-semibold', slaStyle)}>
+                <CalendarClock className="h-3 w-3" />{slaLabel}
+              </p>
+            ) : null}
           </div>
           <div className="mt-2 pt-2 border-t border-dashed border-border">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{lead.origem}</span>

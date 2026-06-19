@@ -117,6 +117,12 @@ export const crmApi = {
       };
     },
   },
+  responsaveis: {
+    async list() {
+      const result = await invokeCrm({ action: 'list_responsaveis' });
+      return result.rows || [];
+    },
+  },
   clientes: buildEntity('clientes'),
   leads: buildEntity('leads'),
   atendimentos: buildEntity('atendimentos'),

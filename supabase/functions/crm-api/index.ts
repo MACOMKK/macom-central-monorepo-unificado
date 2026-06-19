@@ -43,6 +43,11 @@ const ENTITY_CONFIG = {
       'convertido_em',
       'perdido_em',
       'motivo_perda',
+      'responsavel_id',
+      'primeiro_contato_em',
+      'sla_primeiro_contato_em',
+      'previsao_fechamento',
+      'observacoes',
     ],
   },
   atendimentos: {
@@ -128,6 +133,10 @@ function mapDatabaseError(error: unknown) {
     return 'Ja existe outro cliente com este e-mail.';
   }
 
+  if (message.includes('Motivo da perda e obrigatorio')) {
+    return 'Informe o motivo da perda para encerrar este lead.';
+  }
+
   return message || 'Falha ao consultar o CRM.';
 }
 
@@ -208,6 +217,24 @@ function buildUpdateQuery(schema: string, table: string, id: string, payload: Re
 }
 
 function buildListSelect(entity: EntityName) {
+  if (entity === 'leads') {
+    return `
+      select
+        l.*,
+        case
+          when r.id is null then null
+          else json_build_object(
+            'id', r.id,
+            'nome', r.nome,
+            'email', r.email,
+            'unidade_id', r.unidade_id
+          )
+        end as responsavel
+      from ${CRM_SCHEMA}.leads l
+      left join public.colaboradores r on r.id = l.responsavel_id
+    `;
+  }
+
   if (entity !== 'atendimentos') {
     return `select * from ${CRM_SCHEMA}.${ENTITY_CONFIG[entity].table}`;
   }
@@ -224,7 +251,9 @@ function buildListSelect(entity: EntityName) {
 }
 
 function baseAlias(entity: EntityName) {
-  return entity === 'atendimentos' ? 'a' : '';
+  if (entity === 'atendimentos') return 'a';
+  if (entity === 'leads') return 'l';
+  return '';
 }
 
 function scopedColumn(entity: EntityName, column: string) {
@@ -324,6 +353,33 @@ Deno.serve(async (request) => {
       return json({ row: collaborator, access });
     }
 
+    if (action === 'list_responsaveis') {
+      const rows = await sql.unsafe(
+        `
+          select distinct
+            c.id,
+            c.nome,
+            c.email,
+            c.unidade_id,
+            u.nome as unidade_nome,
+            aus.nivel_acesso
+          from public.colaboradores c
+          join public.acessos_usuario_sistema aus
+            on aus.colaborador_id = c.id
+            and aus.ativo = true
+          join public.sistemas s
+            on s.id = aus.sistema_id
+            and s.slug = $1
+            and s.ativo = true
+          left join public.unidades u on u.id = c.unidade_id
+          where c.status <> 'inativo'
+          order by c.nome;
+        `,
+        [CRM_SYSTEM_SLUG],
+      );
+      return json({ rows });
+    }
+
     const entity = String(body.entity || '') as EntityName;
     const config = ENTITY_CONFIG[entity];
 
@@ -359,6 +415,7 @@ Deno.serve(async (request) => {
     if (action === 'create') {
       const payload = sanitizePayload(entity, body.payload || {});
       if (!Object.keys(payload).length) return json({ error: 'Payload vazio.' }, 400);
+      if (collaborator?.id) payload.criado_por = collaborator.id;
       const query = buildInsertQuery(CRM_SCHEMA, config.table, payload);
       const rows = await sql.unsafe(query.text, query.values);
       return json({ row: rows[0] || null });

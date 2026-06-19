@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { localCrmDb } from '@/api/localCrmDb';
+import { crmDataClient } from '@/api/crmDataClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,12 @@ export default function Eventos() {
 
   const { data: eventos = [] } = useQuery({
     queryKey: ['eventos'],
-    queryFn: () => localCrmDb.entities.Evento.list('-updated_date', 200),
+    queryFn: () => crmDataClient.entities.Evento.list('-updated_date', 200),
   });
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => localCrmDb.entities.Lead.list('-updated_date', 500),
+    queryFn: () => crmDataClient.entities.Lead.list('-updated_date', 500),
   });
 
   const invalidate = () => {
@@ -42,8 +42,8 @@ export default function Eventos() {
 
   const saveMutation = useMutation({
     mutationFn: (data) => editing
-      ? localCrmDb.entities.Evento.update(editing.id, data)
-      : localCrmDb.entities.Evento.create(data),
+      ? crmDataClient.entities.Evento.update(editing.id, data)
+      : crmDataClient.entities.Evento.create(data),
     onMutate: async (data) => {
       await queryClient.cancelQueries({ queryKey: ['eventos'] });
       await queryClient.cancelQueries({ queryKey: ['leads'] });
@@ -121,7 +121,7 @@ export default function Eventos() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => localCrmDb.entities.Evento.delete(id),
+    mutationFn: (id) => crmDataClient.entities.Evento.delete(id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: ['eventos'] });
       const previousEventos = queryClient.getQueryData(['eventos']);

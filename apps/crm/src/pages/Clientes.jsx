@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { localCrmDb } from '@/api/localCrmDb';
+import { crmDataClient } from '@/api/crmDataClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -66,22 +66,22 @@ export default function Clientes() {
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
-    queryFn: () => localCrmDb.entities.Cliente.list('-updated_date', 500),
+    queryFn: () => crmDataClient.entities.Cliente.list('-updated_date', 500),
   });
 
   const { data: historico = [] } = useQuery({
     queryKey: ['historico-atendimento'],
-    queryFn: () => localCrmDb.entities.HistoricoAtendimento.list('-created_date', 1000),
+    queryFn: () => crmDataClient.entities.HistoricoAtendimento.list('-created_date', 1000),
   });
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => localCrmDb.entities.Lead.list('-created_date', 1000),
+    queryFn: () => crmDataClient.entities.Lead.list('-created_date', 1000),
   });
 
   const { data: atendimentos = [] } = useQuery({
     queryKey: ['eventos'],
-    queryFn: () => localCrmDb.entities.Evento.list('-created_date', 1000),
+    queryFn: () => crmDataClient.entities.Evento.list('-created_date', 1000),
   });
 
   const filtrados = useMemo(() => {
@@ -113,7 +113,7 @@ export default function Clientes() {
   const activeLead = selectedLeads.find((lead) => ACTIVE_LEAD_STATUSES.has(lead.status));
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => localCrmDb.entities.Cliente.update(id, data),
+    mutationFn: ({ id, data }) => crmDataClient.entities.Cliente.update(id, data),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['clientes'] });
       const previousClientes = queryClient.getQueryData(['clientes']);

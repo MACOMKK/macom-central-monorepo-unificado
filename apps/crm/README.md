@@ -1,33 +1,24 @@
-# MACOM CRM
+# REVVO CRM
 
-Aplicacao CRM em fase de normalizacao dentro do monorepo MACOM.
+CRM comercial automotivo do monorepo MACOM.
 
 ## Desenvolvimento
 
-Rode a partir da raiz do monorepo:
+Na raiz do monorepo, execute:
 
 ```bash
 npm run dev:crm
 ```
 
-A aplicacao abre em:
+O app abre em `http://localhost:5172/`.
 
-```text
-http://localhost:5172/
-```
+## Arquitetura
 
-## Dados locais
+- autenticacao compartilhada pelo Supabase Auth;
+- autorizacao pelo acesso ativo ao sistema `crm`;
+- frontend consumindo a Edge Function `crm-api`;
+- dados persistidos no schema `gestao_crm`;
+- migrations em `supabase/migrations`;
+- contrato do banco em `apps/crm/supabase/schema.sql`.
 
-Nesta etapa inicial, o CRM usa uma camada local em `src/api/localCrmDb.js`.
-Os dados e a sessao ficam no `localStorage` do navegador.
-
-Essa camada existe para desacoplar o app do codigo original importado e preparar a troca futura por Supabase.
-
-## Proxima etapa
-
-Quando o schema do CRM estiver definido, a camada `localCrmDb` deve ser substituida por:
-
-- Supabase Auth compartilhado com a Central;
-- Edge Function `crm-api`;
-- tabelas no schema `gestao_crm`;
-- policies de RLS e permissoes via sistema `crm`.
+Toda leitura e gravacao de dados passa pela `crm-api` e pelo Supabase.
