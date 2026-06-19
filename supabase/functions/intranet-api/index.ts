@@ -35,6 +35,7 @@ const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GOOGLE_CALENDAR_API_URL = 'https://www.googleapis.com/calendar/v3';
 const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
+const TRUSTED_IP_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 const ENTITY_CONFIG = {
   Announcement: {
@@ -225,6 +226,23 @@ const ENTITY_CONFIG = {
     },
     createFields: ['collaborator_id', 'user_email', 'modules'],
     updateFields: ['modules'],
+  },
+  TrustedIpAccess: {
+    schema: INTRANET_SCHEMA,
+    table: 'acessos_ip_confiavel',
+    defaultOrder: 'name',
+    orderMap: {
+      name: 'nome',
+      created_date: 'criado_em',
+      updated_date: 'atualizado_em',
+      last_access_date: 'ultimo_acesso_em',
+    },
+    filterMap: {
+      id: 'id',
+      active: 'ativo',
+    },
+    createFields: ['name', 'description', 'ip_cidr', 'access_level', 'active', 'modules'],
+    updateFields: ['name', 'description', 'ip_cidr', 'access_level', 'active', 'modules'],
   },
 } as const;
 
@@ -551,6 +569,29 @@ function assertAdmin(user: Record<string, unknown>) {
   }
 }
 
+function normalizeForwardedIp(value: string | null) {
+  if (!value) return null;
+  const first = value.split(',').map((item) => item.trim()).find(Boolean);
+  if (!first) return null;
+  if (first.startsWith('[') && first.includes(']')) {
+    return first.slice(1, first.indexOf(']'));
+  }
+  const forwarded = first.match(/for="?([^";,\s]+)"?/i)?.[1] || first;
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(forwarded)) {
+    return forwarded.slice(0, forwarded.lastIndexOf(':'));
+  }
+  return forwarded.replace(/^"|"$/g, '');
+}
+
+function getClientIp(request: Request) {
+  return (
+    normalizeForwardedIp(request.headers.get('cf-connecting-ip')) ||
+    normalizeForwardedIp(request.headers.get('x-real-ip')) ||
+    normalizeForwardedIp(request.headers.get('x-forwarded-for')) ||
+    normalizeForwardedIp(request.headers.get('forwarded'))
+  );
+}
+
 function assertAnnouncementOwnerOrAdmin(
   user: Record<string, unknown>,
   collaboratorId: string | null,
@@ -656,6 +697,30 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
     permissions: permission,
     backend_status: 'ok',
     backend_reason: null,
+  };
+}
+
+function mapTrustedIpAccessRow(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    name: row.nome,
+    description: row.descricao || null,
+    ip_cidr: row.ip_cidr,
+    access_level: row.nivel_acesso || 'usuario',
+    active: Boolean(row.ativo),
+    last_ip: row.ultimo_ip || null,
+    last_access_date: row.ultimo_acesso_em || null,
+    created_date: row.criado_em,
+    updated_date: row.atualizado_em,
+    modules: {
+      avisos: row.mod_avisos || 'view',
+      links: row.mod_links || 'view',
+      colaboradores: row.mod_colaboradores || 'view',
+      documentos: row.mod_documentos || 'view',
+      calendario: row.mod_calendario || 'view',
+      conhecimento: row.mod_conhecimento || 'view',
+      feedback: row.mod_feedback || 'view',
+    },
   };
 }
 
@@ -808,6 +873,61 @@ function mapQuickLink(row: Record<string, unknown>, creatorMap = new Map<string,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
     created_by_id: row.criado_por || null,
+  };
+}
+
+async function getTrustedIpContext(request: Request) {
+  const clientIp = getClientIp(request);
+  if (!clientIp) return null;
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select *, ip_cidr::text as ip_cidr
+      from gestao_intranet.acessos_ip_confiavel
+      where ativo = true
+        and $1::inet <<= ip_cidr
+      order by criado_em desc
+      limit 1;
+    `,
+    [clientIp],
+  );
+  const access = rows[0];
+  if (!access) return null;
+
+  await runSql(
+    `
+      update gestao_intranet.acessos_ip_confiavel
+      set ultimo_ip = $2,
+          ultimo_acesso_em = now()
+      where id = $1;
+    `,
+    [access.id, clientIp],
+  );
+
+  const mapped = mapTrustedIpAccessRow(access);
+  const user = {
+    id: TRUSTED_IP_USER_ID,
+    collaborator_id: null,
+    email: null,
+    full_name: mapped.name || 'Acesso automatico por rede',
+    role: mapped.access_level === 'admin' ? 'admin' : 'user',
+    access_level: mapped.access_level,
+    department_id: null,
+    position: 'Rede liberada',
+    function_role: 'trusted_ip',
+    status: 'ativo',
+    permissions: mapped.modules,
+    auth_mode: 'trusted_ip',
+    trusted_ip_access_id: mapped.id,
+    client_ip: clientIp,
+    backend_status: 'ok',
+    backend_reason: null,
+  };
+
+  return {
+    user,
+    collaboratorId: null,
+    isAdmin: user.role === 'admin',
   };
 }
 
@@ -2468,6 +2588,11 @@ async function filterUserPermissions(filters: Record<string, unknown>, orderBy?:
   return rows.map((row) => mapPermissionRow(row, collaborators));
 }
 
+async function listTrustedIpAccesses(orderBy?: string, limit?: number) {
+  const rows = await listBaseEntity('TrustedIpAccess', orderBy, limit);
+  return rows.map(mapTrustedIpAccessRow);
+}
+
 function mapProfileChangeRequest(row: Record<string, unknown>) {
   return {
     id: row.id,
@@ -3297,6 +3422,94 @@ async function updateUserPermission(id: string, payload: Record<string, unknown>
   return mapPermissionRow(rows[0], collaborators);
 }
 
+function normalizeTrustedIpPayload(payload: Record<string, unknown>) {
+  const modules = (payload.modules || {}) as Record<string, unknown>;
+  return {
+    name: String(payload.name || '').trim(),
+    description: payload.description ? String(payload.description).trim() : null,
+    ipCidr: String(payload.ip_cidr || '').trim(),
+    accessLevel: payload.access_level === 'admin' ? 'admin' : 'usuario',
+    active: payload.active === undefined ? true : Boolean(payload.active),
+    modules,
+  };
+}
+
+async function createTrustedIpAccess(payload: Record<string, unknown>) {
+  const data = normalizeTrustedIpPayload(payload);
+  if (!data.name) throw new Error('Nome da rede obrigatorio.');
+  if (!data.ipCidr) throw new Error('IP ou CIDR obrigatorio.');
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      insert into gestao_intranet.acessos_ip_confiavel (
+        nome, descricao, ip_cidr, nivel_acesso, ativo,
+        mod_avisos, mod_links, mod_colaboradores, mod_documentos,
+        mod_calendario, mod_conhecimento, mod_feedback
+      ) values ($1,$2,$3::cidr,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      returning *, ip_cidr::text as ip_cidr;
+    `,
+    [
+      data.name,
+      data.description,
+      data.ipCidr,
+      data.accessLevel,
+      data.active,
+      data.modules.avisos || 'view',
+      data.modules.links || 'view',
+      data.modules.colaboradores || 'view',
+      data.modules.documentos || 'view',
+      data.modules.calendario || 'view',
+      data.modules.conhecimento || 'view',
+      data.modules.feedback || 'view',
+    ],
+  );
+  return mapTrustedIpAccessRow(rows[0]);
+}
+
+async function updateTrustedIpAccess(id: string, payload: Record<string, unknown>) {
+  const data = normalizeTrustedIpPayload(payload);
+  if (!data.name) throw new Error('Nome da rede obrigatorio.');
+  if (!data.ipCidr) throw new Error('IP ou CIDR obrigatorio.');
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      update gestao_intranet.acessos_ip_confiavel
+      set nome = $2,
+          descricao = $3,
+          ip_cidr = $4::cidr,
+          nivel_acesso = $5,
+          ativo = $6,
+          mod_avisos = $7,
+          mod_links = $8,
+          mod_colaboradores = $9,
+          mod_documentos = $10,
+          mod_calendario = $11,
+          mod_conhecimento = $12,
+          mod_feedback = $13,
+          atualizado_em = now()
+      where id = $1
+      returning *, ip_cidr::text as ip_cidr;
+    `,
+    [
+      id,
+      data.name,
+      data.description,
+      data.ipCidr,
+      data.accessLevel,
+      data.active,
+      data.modules.avisos || 'view',
+      data.modules.links || 'view',
+      data.modules.colaboradores || 'view',
+      data.modules.documentos || 'view',
+      data.modules.calendario || 'view',
+      data.modules.conhecimento || 'view',
+      data.modules.feedback || 'view',
+    ],
+  );
+  if (!rows[0]) throw new Error('Acesso por rede nao encontrado.');
+  return mapTrustedIpAccessRow(rows[0]);
+}
+
 async function updateProfileChangeRequest(
   user: Record<string, unknown>,
   reviewerCollaboratorId: string | null,
@@ -3492,6 +3705,8 @@ async function listEntity(
       return listUsers();
     case 'UserPermission':
       return listUserPermissions(orderBy, limit);
+    case 'TrustedIpAccess':
+      return listTrustedIpAccesses(orderBy, limit);
     default:
       throw new Error('Entidade invalida.');
   }
@@ -3527,6 +3742,7 @@ function getEntityModule(entity: string) {
     case 'QuickLink':
       return 'links';
     case 'UserPermission':
+    case 'TrustedIpAccess':
       return 'admin';
     default:
       return null;
@@ -3576,6 +3792,8 @@ async function createEntity(entity: string, payload: Record<string, unknown>, co
       return createQuickLink(payload, collaboratorId);
     case 'UserPermission':
       return createUserPermission(payload);
+    case 'TrustedIpAccess':
+      return createTrustedIpAccess(payload);
     default:
       throw new Error('Criacao nao suportada para esta entidade.');
   }
@@ -3612,6 +3830,8 @@ async function updateEntity(
       return updateQuickLink(id, payload);
     case 'UserPermission':
       return updateUserPermission(id, payload);
+    case 'TrustedIpAccess':
+      return updateTrustedIpAccess(id, payload);
     default:
       throw new Error('Atualizacao nao suportada para esta entidade.');
   }
@@ -3645,6 +3865,8 @@ async function deleteEntity(
       return deleteBaseEntity('QuickLink', id);
     case 'UserPermission':
       return deleteBaseEntity('UserPermission', id);
+    case 'TrustedIpAccess':
+      return deleteBaseEntity('TrustedIpAccess', id);
     default:
       throw new Error('Remocao nao suportada para esta entidade.');
   }
@@ -3668,6 +3890,7 @@ Deno.serve(async (request) => {
       return json({ error: 'Metodo invalido.' }, 405);
     }
 
+    const body = await request.json().catch(() => ({}));
     const authHeader = request.headers.get('Authorization') || '';
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -3682,11 +3905,6 @@ Deno.serve(async (request) => {
       error: authError,
     } = await authClient.auth.getUser();
 
-    if (authError || !user) {
-      return json({ error: 'Nao autenticado.', code: 'auth_required' }, 401);
-    }
-
-    const body = await request.json().catch(() => ({}));
     const action = String(body.action || '');
     const resource = typeof body.resource === 'string' ? body.resource : '';
     const entity = typeof body.entity === 'string' ? body.entity : '';
@@ -3697,13 +3915,19 @@ Deno.serve(async (request) => {
     const filters = body.filters && typeof body.filters === 'object' ? body.filters : {};
     const catalog = typeof body.catalog === 'string' ? body.catalog : '';
 
-    const context = await getContext({
-      id: user.id,
-      email: user.email,
-      user_metadata: user.user_metadata,
-    });
+    const context = !authError && user
+      ? await getContext({
+          id: user.id,
+          email: user.email,
+          user_metadata: user.user_metadata,
+        })
+      : await getTrustedIpContext(request);
 
-    if (action === 'me') {
+    if (!context) {
+      return json({ error: 'Nao autenticado.', code: 'auth_required' }, 401);
+    }
+
+    if (action === 'me' || action === 'trustedIpAccess') {
       return json({ user: context.user });
     }
 
