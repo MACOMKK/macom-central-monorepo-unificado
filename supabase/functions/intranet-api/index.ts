@@ -499,11 +499,21 @@ async function fetchCollaboratorsByIds(ids: string[]) {
 
   const rows = await runSql<Record<string, unknown>>(
     `
-      select id, nome, email, funcao
-      from public.colaboradores
-      where id = any($1::uuid[]);
+      select
+        c.id,
+        c.nome,
+        c.email,
+        c.funcao,
+        a.nivel_acesso as intranet_nivel_acesso
+      from public.colaboradores c
+      left join public.sistemas s on s.slug = $2
+      left join public.acessos_usuario_sistema a
+        on a.colaborador_id = c.id
+       and a.sistema_id = s.id
+       and a.ativo = true
+      where c.id = any($1::uuid[]);
     `,
-    [uniqueIds],
+    [uniqueIds, INTRANET_SYSTEM_SLUG],
   );
 
   return new Map(rows.map((row) => [String(row.id), row]));
@@ -519,7 +529,8 @@ function normalizeFunctionRole(value: unknown) {
 
 function canReceiveModuleEditPermission(collaborator?: Record<string, unknown> | null) {
   const functionRole = normalizeFunctionRole(collaborator?.funcao);
-  return functionRole === 'admin' || functionRole === 'gestor';
+  const accessRole = normalizeFunctionRole(collaborator?.intranet_nivel_acesso);
+  return functionRole === 'admin' || functionRole === 'gestor' || accessRole === 'admin' || accessRole === 'gestor';
 }
 
 function restrictModulePermissionsForCollaborator(
@@ -557,6 +568,7 @@ function mapPermissionRow(row: Record<string, unknown>, collaboratorMap = new Ma
     user_email: collaborator?.email || null,
     full_name: collaborator?.nome || null,
     function_role: collaborator?.funcao || null,
+    access_level: collaborator?.intranet_nivel_acesso || null,
     created_by_id: row.criado_por || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,

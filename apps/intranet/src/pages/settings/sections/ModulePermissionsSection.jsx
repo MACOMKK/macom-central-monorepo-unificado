@@ -36,13 +36,15 @@ function normalizeFunctionRole(value) {
 }
 
 function canReceiveEditPermission(user) {
-  const functionRole = normalizeFunctionRole(user.function_role || user.role);
-  return user.role === 'admin' || functionRole === 'admin' || functionRole === 'gestor';
+  const accessRole = normalizeFunctionRole(user.access_level || user.role);
+  const functionRole = normalizeFunctionRole(user.function_role);
+  return accessRole === 'admin' || accessRole === 'gestor' || functionRole === 'admin' || functionRole === 'gestor';
 }
 
 function getUserKind(user) {
-  const functionRole = normalizeFunctionRole(user.function_role || user.role);
-  if (user.role === 'admin' || functionRole === 'admin') {
+  const accessRole = normalizeFunctionRole(user.access_level || user.role);
+  const functionRole = normalizeFunctionRole(user.function_role);
+  if (accessRole === 'admin' || functionRole === 'admin') {
     return {
       label: 'Admin',
       helper: 'Acesso total',
@@ -50,7 +52,7 @@ function getUserKind(user) {
     };
   }
 
-  if (functionRole === 'gestor') {
+  if (accessRole === 'gestor' || functionRole === 'gestor') {
     return {
       label: 'Gestor',
       helper: 'Pode receber edicao',
@@ -251,7 +253,8 @@ export default function ModulePermissionsSection() {
     id: perm.collaborator_id || perm.id,
     email: perm.user_email,
     full_name: perm.full_name,
-    role: 'user',
+    role: perm.access_level || 'user',
+    access_level: perm.access_level || null,
     function_role: perm.function_role || null,
   }));
   const allRows = [...userRows, ...extraRows];
