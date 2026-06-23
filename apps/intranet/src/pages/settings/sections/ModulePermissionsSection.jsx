@@ -40,6 +40,31 @@ function canReceiveEditPermission(user) {
   return user.role === 'admin' || functionRole === 'admin' || functionRole === 'gestor';
 }
 
+function getUserKind(user) {
+  const functionRole = normalizeFunctionRole(user.function_role || user.role);
+  if (user.role === 'admin' || functionRole === 'admin') {
+    return {
+      label: 'Admin',
+      helper: 'Acesso total',
+      className: 'border-primary/20 bg-primary/10 text-primary',
+    };
+  }
+
+  if (functionRole === 'gestor') {
+    return {
+      label: 'Gestor',
+      helper: 'Pode receber edicao',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+
+  return {
+    label: 'Usuario',
+    helper: 'Somente visualizacao',
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+}
+
 function restrictModulesForUser(modules, user) {
   if (canReceiveEditPermission(user)) return modules;
   return Object.fromEntries(
@@ -70,6 +95,7 @@ function upsertPermission(perms, permission) {
 
 function PermissionRow({ user, existingPerm, onSave, isSaving }) {
   const canEditModules = canReceiveEditPermission(user);
+  const userKind = getUserKind(user);
   const [modules, setModules] = useState(() => restrictModulesForUser(existingPerm?.modules || DEFAULT_MODULES, user));
 
   useEffect(() => {
@@ -90,7 +116,9 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
           <p className="font-medium text-sm">{user.full_name || user.email}</p>
           <p className="text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <Badge className="bg-primary/10 text-primary sm:self-auto self-start">Admin - acesso total</Badge>
+        <Badge variant="outline" className={`sm:self-auto self-start ${userKind.className}`}>
+          {userKind.label} - {userKind.helper}
+        </Badge>
       </div>
     );
   }
@@ -99,8 +127,14 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
     <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{user.full_name || user.email}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold">{user.full_name || user.email}</p>
+            <Badge variant="outline" className={`rounded-full px-2 py-0.5 text-[10px] ${userKind.className}`}>
+              {userKind.label}
+            </Badge>
+          </div>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{userKind.helper}</p>
           {!canEditModules ? (
             <p className="mt-1 text-xs text-muted-foreground">Usuarios comuns ficam limitados a visualizacao.</p>
           ) : null}
