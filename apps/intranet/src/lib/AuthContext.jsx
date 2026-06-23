@@ -5,6 +5,7 @@ const AuthContext = createContext();
 const DEFAULT_INITIAL_PASSWORD = 'Kmacom.123';
 const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
 const TRUSTED_IP_ACCESS_STORAGE_KEY = 'intranet:trusted-ip-access';
+const TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY = 'intranet:trusted-ip-auto-suppressed';
 
 const INTRANET_ACCESS_DENIED_CODES = new Set([
   'INTRANET_COLLABORATOR_NOT_FOUND',
@@ -61,12 +62,41 @@ function writePasswordChangeRequired(user, required) {
 function writeTrustedIpAccessEnabled(enabled) {
   try {
     if (enabled) {
-      window.localStorage.setItem(TRUSTED_IP_ACCESS_STORAGE_KEY, 'true');
+      window.sessionStorage.setItem(TRUSTED_IP_ACCESS_STORAGE_KEY, 'true');
     } else {
+      window.sessionStorage.removeItem(TRUSTED_IP_ACCESS_STORAGE_KEY);
       window.localStorage.removeItem(TRUSTED_IP_ACCESS_STORAGE_KEY);
     }
   } catch {
     // Best effort only; the backend still validates the trusted IP.
+  }
+}
+
+function readTrustedIpAccessEnabled() {
+  try {
+    return window.sessionStorage.getItem(TRUSTED_IP_ACCESS_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function readTrustedIpAutoSuppressed() {
+  try {
+    return window.sessionStorage.getItem(TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeTrustedIpAutoSuppressed(suppressed) {
+  try {
+    if (suppressed) {
+      window.sessionStorage.setItem(TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY, 'true');
+    } else {
+      window.sessionStorage.removeItem(TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY);
+    }
+  } catch {
+    // Session storage only avoids immediate re-entry after a manual logout.
   }
 }
 
@@ -88,6 +118,17 @@ export const AuthProvider = ({ children }) => {
         if (!active) return;
 
         if (!session?.access_token) {
+          if (readTrustedIpAutoSuppressed() || !readTrustedIpAccessEnabled()) {
+            writeTrustedIpAccessEnabled(false);
+            setUser(null);
+            setMustChangePassword(false);
+            setIsAuthenticated(false);
+            setAuthError(null);
+            setAuthChecked(true);
+            setIsLoadingAuth(false);
+            return;
+          }
+
           try {
             const trustedIpUser = await appClient.auth.trustedIpAccess();
             if (!active) return;
@@ -169,7 +210,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const checkUserAuth = async ({ silent = false } = {}) => {
+  const checkUserAuth = async ({ silent = false, forceTrustedIpAccess = false } = {}) => {
     try {
       if (!silent) {
         setIsLoadingAuth(true);
@@ -186,9 +227,10 @@ export const AuthProvider = ({ children }) => {
       }
       return currentUser;
     } catch (error) {
-      if (isUnauthenticatedSessionError(error)) {
+      if (isUnauthenticatedSessionError(error) && forceTrustedIpAccess) {
         try {
           const trustedIpUser = await appClient.auth.trustedIpAccess();
+          writeTrustedIpAutoSuppressed(false);
           writeTrustedIpAccessEnabled(Boolean(trustedIpUser));
           setUser(trustedIpUser);
           setMustChangePassword(false);
@@ -242,6 +284,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const currentUser = await appClient.auth.signIn(credentials);
+      writeTrustedIpAutoSuppressed(false);
       writeTrustedIpAccessEnabled(false);
       const shouldRequirePasswordChange = credentials?.password === DEFAULT_INITIAL_PASSWORD;
       writePasswordChangeRequired(currentUser, shouldRequirePasswordChange);
@@ -270,6 +313,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = (shouldRedirect = true) => {
+    writeTrustedIpAutoSuppressed(true);
     writeTrustedIpAccessEnabled(false);
     if (shouldRedirect) {
       appClient.auth.logout('/login');

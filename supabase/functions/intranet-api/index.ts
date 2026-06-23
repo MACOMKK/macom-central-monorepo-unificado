@@ -25,6 +25,7 @@ const INTRANET_SYSTEM_SLUG = 'intranet';
 const ANNOUNCEMENT_IMAGES_STORAGE_BUCKET = 'avisos';
 const DOCUMENTS_STORAGE_BUCKET = 'documentos';
 const AVATARS_STORAGE_BUCKET = 'avatares';
+const ANNOUNCEMENT_IMAGE_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const DOCUMENT_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024;
@@ -792,6 +793,41 @@ function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<stri
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
     created_by_id: row.criado_por || null,
+  };
+}
+
+async function createAnnouncementImageSignedUrl(announcement: Record<string, unknown>) {
+  const storageClient = createStorageAdminClient();
+  const imagePath = typeof announcement.imagem_path === 'string' ? announcement.imagem_path.trim() : '';
+  if (!storageClient || !imagePath) {
+    return typeof announcement.imagem_url === 'string' ? announcement.imagem_url : null;
+  }
+
+  const bucket = resolveAnnouncementStorageBucket(announcement);
+  const { data, error } = await storageClient.storage
+    .from(bucket)
+    .createSignedUrl(imagePath, ANNOUNCEMENT_IMAGE_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    console.error('Failed to create signed announcement image URL:', {
+      bucket,
+      imagePath,
+      message: error.message,
+    });
+    return typeof announcement.imagem_url === 'string' ? announcement.imagem_url : null;
+  }
+
+  return data?.signedUrl || null;
+}
+
+async function mapAnnouncementWithSignedUrl(
+  row: Record<string, unknown>,
+  creatorMap = new Map<string, Record<string, unknown>>(),
+) {
+  const signedImageUrl = await createAnnouncementImageSignedUrl(row);
+  return {
+    ...mapAnnouncement(row, creatorMap),
+    image_url: signedImageUrl,
   };
 }
 
@@ -1861,7 +1897,7 @@ async function listAnnouncements(
     values,
   );
   const creators = await enrichWithCreators(rows);
-  return rows.map((row) => mapAnnouncement(row, creators));
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, creators)));
 }
 
 function canViewAllDocuments(user?: Record<string, unknown>) {
@@ -1913,7 +1949,7 @@ async function listHomeAnnouncements(limit = 10) {
     [limit],
   );
 
-  return rows.map((row) => mapAnnouncement(row));
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row)));
 }
 
 async function listAnnouncementComments(filters: Record<string, unknown>, orderBy?: string, limit?: number) {
@@ -2675,7 +2711,7 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
 
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
   await notifyAnnouncementAudience(rows[0], 'created', collaboratorId);
-  return mapAnnouncement(rows[0], creators);
+  return mapAnnouncementWithSignedUrl(rows[0], creators);
 }
 
 function validateAnnouncementImage(payload: Record<string, unknown>) {
@@ -2697,8 +2733,8 @@ function validateAnnouncementImage(payload: Record<string, unknown>) {
   const hasAnyImageValue = Boolean(imageUrl || imagePath || imageName || imageType || imageSize);
   if (!hasAnyImageValue) return;
 
-  if (!imageUrl || !imagePath || !imageName) {
-    throw new Error('A imagem do aviso precisa conter URL, caminho e nome do arquivo.');
+  if (!imagePath || !imageName) {
+    throw new Error('A imagem do aviso precisa conter caminho e nome do arquivo.');
   }
 
   if (imageType && !ALLOWED_ANNOUNCEMENT_IMAGE_TYPES.has(imageType)) {
@@ -2779,7 +2815,7 @@ async function updateAnnouncement(
   }
   const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
   await notifyAnnouncementAudience(rows[0], 'updated', collaboratorId);
-  return mapAnnouncement(rows[0], creators);
+  return mapAnnouncementWithSignedUrl(rows[0], creators);
 }
 
 async function createComment(payload: Record<string, unknown>, collaboratorId: string | null) {

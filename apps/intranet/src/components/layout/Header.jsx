@@ -30,7 +30,7 @@ function formatNotificationDate(value) {
 }
 
 export default function Header({ onMenuClick }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -363,7 +363,7 @@ export default function Header({ onMenuClick }) {
 
               <button
                 type="button"
-                onClick={() => appClient.auth.logout('/login')}
+                onClick={() => logout()}
                 className="flex items-center gap-3 text-sm font-bold uppercase tracking-[0.18em] text-[#d7d7db] transition-colors hover:text-[#E30613]"
               >
                 <LogOut className="h-5 w-5" />

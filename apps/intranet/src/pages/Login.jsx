@@ -70,7 +70,7 @@ export default function Login() {
   const handleTrustedIpAccess = async () => {
     setTrustedIpSubmitting(true);
     try {
-      const currentUser = await checkUserAuth();
+      const currentUser = await checkUserAuth({ forceTrustedIpAccess: true });
       if (!currentUser) {
         throw new Error('trusted_ip_access_denied');
       }

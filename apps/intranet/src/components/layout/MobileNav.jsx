@@ -5,7 +5,6 @@ import {
   X,
   LogOut
 } from 'lucide-react';
-import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
 import { cn } from '@/lib/utils';
 import { canViewNavItem, intranetNavItems } from '@/lib/navigation';
@@ -14,7 +13,7 @@ const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_aut
 
 export default function MobileNav({ open = false, onClose }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isAdmin = user?.role === 'admin';
   const visibleNavItems = intranetNavItems.filter((item) => canViewNavItem(item, user));
 
@@ -96,7 +95,7 @@ export default function MobileNav({ open = false, onClose }) {
         <div className="border-t border-sidebar-border p-3">
           <button
             type="button"
-            onClick={() => appClient.auth.logout('/login')}
+            onClick={() => logout()}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <LogOut className="w-5 h-5" />
