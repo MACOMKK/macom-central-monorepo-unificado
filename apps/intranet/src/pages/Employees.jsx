@@ -82,6 +82,8 @@ export default function Employees() {
       ));
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       queryClient.invalidateQueries({ queryKey: ['employee-birthdays'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       setEditingEmployee(null);
       setDialogOpen(false);
       toast.success('Colaborador atualizado!');

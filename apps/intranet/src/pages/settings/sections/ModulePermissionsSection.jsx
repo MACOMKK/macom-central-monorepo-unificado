@@ -155,11 +155,15 @@ export default function ModulePermissionsSection() {
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => appClient.entities.User.list('full_name', 500),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const { data: perms = [], isLoading: permsLoading } = useQuery({
     queryKey: ['user-permissions'],
     queryFn: () => appClient.entities.UserPermission.list(),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const saveMutation = useMutation({
