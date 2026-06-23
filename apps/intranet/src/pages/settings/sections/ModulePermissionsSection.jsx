@@ -27,6 +27,26 @@ const DEFAULT_MODULES = {
   feedback: 'view',
 };
 
+function normalizeFunctionRole(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function canReceiveEditPermission(user) {
+  const functionRole = normalizeFunctionRole(user.function_role || user.role);
+  return user.role === 'admin' || functionRole === 'admin' || functionRole === 'gestor';
+}
+
+function restrictModulesForUser(modules, user) {
+  if (canReceiveEditPermission(user)) return modules;
+  return Object.fromEntries(
+    Object.entries({ ...DEFAULT_MODULES, ...modules }).map(([key, value]) => [key, value === 'edit' ? 'view' : value])
+  );
+}
+
 const PERMISSION_OPTIONS = [
   { value: 'none', label: 'Sem', activeClass: 'bg-slate-200 text-slate-700' },
   { value: 'view', label: 'Ver', activeClass: 'bg-[#141414]/8 text-[#141414]' },
@@ -49,17 +69,18 @@ function upsertPermission(perms, permission) {
 }
 
 function PermissionRow({ user, existingPerm, onSave, isSaving }) {
-  const [modules, setModules] = useState(existingPerm?.modules || DEFAULT_MODULES);
+  const canEditModules = canReceiveEditPermission(user);
+  const [modules, setModules] = useState(() => restrictModulesForUser(existingPerm?.modules || DEFAULT_MODULES, user));
 
   useEffect(() => {
-    if (existingPerm?.modules) setModules(existingPerm.modules);
-  }, [existingPerm?.id]);
+    setModules(restrictModulesForUser(existingPerm?.modules || DEFAULT_MODULES, user));
+  }, [existingPerm?.id, user.id, user.role, user.function_role]);
 
   const handleSave = () =>
     onSave({
       collaborator_id: user.id,
       user_email: user.email,
-      modules,
+      modules: restrictModulesForUser(modules, user),
     });
 
   if (user.role === 'admin') {
@@ -80,6 +101,9 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{user.full_name || user.email}</p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          {!canEditModules ? (
+            <p className="mt-1 text-xs text-muted-foreground">Usuarios comuns ficam limitados a visualizacao.</p>
+          ) : null}
         </div>
         <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 rounded-xl sm:w-auto">
           {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
@@ -95,15 +119,19 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
               <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted/40 p-1">
                 {PERMISSION_OPTIONS.map((option) => {
                   const active = (modules[mod.key] || 'view') === option.value;
+                  const disabled = option.value === 'edit' && !canEditModules;
                   return (
                     <button
                       key={option.value}
                       type="button"
+                      disabled={disabled}
                       onClick={() => setModules((prev) => ({ ...prev, [mod.key]: option.value }))}
                       className={`min-h-8 rounded-lg px-1.5 py-1 text-[11px] font-medium transition-colors ${
                         active
                           ? `${option.activeClass} shadow-sm`
-                          : 'text-muted-foreground hover:bg-background/80'
+                          : disabled
+                            ? 'cursor-not-allowed text-muted-foreground/35'
+                            : 'text-muted-foreground hover:bg-background/80'
                       }`}
                     >
                       {option.label}
@@ -186,6 +214,7 @@ export default function ModulePermissionsSection() {
     email: perm.user_email,
     full_name: perm.full_name,
     role: 'user',
+    function_role: perm.function_role || null,
   }));
   const allRows = [...userRows, ...extraRows];
   const normalizedSearch = search.trim().toLowerCase();
@@ -210,7 +239,7 @@ export default function ModulePermissionsSection() {
     <div>
       <div className="mb-4">
         <h2 className="text-base font-bold">Permissoes por modulo</h2>
-        <p className="text-sm text-muted-foreground">Controle quem pode visualizar ou editar cada area da intranet.</p>
+        <p className="text-sm text-muted-foreground">Controle quem pode visualizar cada area. Edicao fica disponivel apenas para gestores e administradores.</p>
       </div>
 
       <div className="relative mb-6 max-w-xl">

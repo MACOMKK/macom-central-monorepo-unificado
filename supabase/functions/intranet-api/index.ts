@@ -499,7 +499,7 @@ async function fetchCollaboratorsByIds(ids: string[]) {
 
   const rows = await runSql<Record<string, unknown>>(
     `
-      select id, nome, email
+      select id, nome, email, funcao
       from public.colaboradores
       where id = any($1::uuid[]);
     `,
@@ -509,17 +509,37 @@ async function fetchCollaboratorsByIds(ids: string[]) {
   return new Map(rows.map((row) => [String(row.id), row]));
 }
 
+function normalizeFunctionRole(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function canReceiveModuleEditPermission(collaborator?: Record<string, unknown> | null) {
+  const functionRole = normalizeFunctionRole(collaborator?.funcao);
+  return functionRole === 'admin' || functionRole === 'gestor';
+}
+
+function restrictModulePermissionsForCollaborator(
+  modules: Record<string, unknown>,
+  collaborator?: Record<string, unknown> | null,
+) {
+  if (canReceiveModuleEditPermission(collaborator)) return modules;
+
+  return Object.fromEntries(
+    Object.entries({ ...defaultModulePermissions(), ...modules }).map(([key, value]) => [
+      key,
+      value === 'edit' ? 'view' : value,
+    ]),
+  );
+}
+
 function mapPermissionRow(row: Record<string, unknown>, collaboratorMap = new Map<string, Record<string, unknown>>()) {
   const collaborator = collaboratorMap.get(String(row.colaborador_id));
-  return {
-    id: row.id,
-    collaborator_id: row.colaborador_id,
-    user_email: collaborator?.email || null,
-    full_name: collaborator?.nome || null,
-    created_by_id: row.criado_por || null,
-    created_date: row.criado_em,
-    updated_date: row.atualizado_em,
-    modules: {
+  const modules = restrictModulePermissionsForCollaborator(
+    {
       avisos: row.mod_avisos || 'view',
       links: row.mod_links || 'view',
       colaboradores: row.mod_colaboradores || 'view',
@@ -528,6 +548,19 @@ function mapPermissionRow(row: Record<string, unknown>, collaboratorMap = new Ma
       conhecimento: row.mod_conhecimento || 'view',
       feedback: row.mod_feedback || 'view',
     },
+    collaborator,
+  );
+
+  return {
+    id: row.id,
+    collaborator_id: row.colaborador_id,
+    user_email: collaborator?.email || null,
+    full_name: collaborator?.nome || null,
+    function_role: collaborator?.funcao || null,
+    created_by_id: row.criado_por || null,
+    created_date: row.criado_em,
+    updated_date: row.atualizado_em,
+    modules,
   };
 }
 
@@ -682,7 +715,8 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
   }
 
   const permissionRow = await getPermissionRowForCollaborator(String(collaborator.id));
-  const permission = permissionRow ? mapPermissionRow(permissionRow).modules : defaultModulePermissions();
+  const collaboratorMap = new Map([[String(collaborator.id), collaborator]]);
+  const permission = permissionRow ? mapPermissionRow(permissionRow, collaboratorMap).modules : defaultModulePermissions();
 
   return {
     id: authUser.id,
@@ -2590,6 +2624,7 @@ async function listUsers() {
     email: employee.email,
     full_name: employee.name,
     role: employee.role,
+    function_role: employee.function_role,
     status: employee.status,
   }));
 }
@@ -3392,7 +3427,12 @@ async function createUserPermission(payload: Record<string, unknown>) {
     throw new Error('Nenhum colaborador encontrado para o e-mail informado.');
   }
 
-  const modules = (payload.modules || {}) as Record<string, unknown>;
+  const collaborators = await fetchCollaboratorsByIds([String(collaboratorId)]);
+  const collaborator = collaborators.get(String(collaboratorId));
+  const modules = restrictModulePermissionsForCollaborator(
+    (payload.modules || {}) as Record<string, unknown>,
+    collaborator,
+  );
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.permissoes_usuario (
@@ -3422,12 +3462,21 @@ async function createUserPermission(payload: Record<string, unknown>) {
       modules.feedback || 'view',
     ],
   );
-  const collaborators = await fetchCollaboratorsByIds([String(rows[0].colaborador_id || '')]);
   return mapPermissionRow(rows[0], collaborators);
 }
 
 async function updateUserPermission(id: string, payload: Record<string, unknown>) {
-  const modules = (payload.modules || {}) as Record<string, unknown>;
+  const existingRows = await runSql<Record<string, unknown>>(
+    'select colaborador_id from gestao_intranet.permissoes_usuario where id = $1 limit 1;',
+    [id],
+  );
+  const collaboratorId = String(existingRows[0]?.colaborador_id || '');
+  const collaborators = await fetchCollaboratorsByIds(collaboratorId ? [collaboratorId] : []);
+  const collaborator = collaborators.get(collaboratorId);
+  const modules = restrictModulePermissionsForCollaborator(
+    (payload.modules || {}) as Record<string, unknown>,
+    collaborator,
+  );
   const rows = await runSql<Record<string, unknown>>(
     `
       update gestao_intranet.permissoes_usuario
@@ -3454,7 +3503,6 @@ async function updateUserPermission(id: string, payload: Record<string, unknown>
       modules.feedback || 'view',
     ],
   );
-  const collaborators = await fetchCollaboratorsByIds([String(rows[0].colaborador_id || '')]);
   return mapPermissionRow(rows[0], collaborators);
 }
 
