@@ -22,7 +22,7 @@ function toError(message, status = 500, code, details, hint) {
 
 function readTrustedIpAccessEnabled() {
   try {
-    return window.localStorage.getItem('intranet:trusted-ip-access') === 'true';
+    return window.sessionStorage.getItem('intranet:trusted-ip-access') === 'true';
   } catch {
     return false;
   }
