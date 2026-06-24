@@ -1,4 +1,4 @@
-import { Building2, FileText, Laptop, MapPinHouse, Network, Phone, UserRound } from 'lucide-react';
+import { BriefcaseBusiness, Building2, FileText, Laptop, MapPinHouse, Network, Phone, UserRound } from 'lucide-react';
 
 export const entityMeta = {
   departamentos: {
@@ -6,6 +6,12 @@ export const entityMeta = {
     singular: 'Departamento',
     subtitle: 'Base institucional para colaboradores e organizacao interna.',
     icon: Building2,
+  },
+  cargos: {
+    title: 'Cargos',
+    singular: 'Cargo',
+    subtitle: 'Cargos vinculados aos departamentos para organizar colaboradores e permissoes futuras.',
+    icon: BriefcaseBusiness,
   },
   unidades: {
     title: 'Unidades / Filiais',

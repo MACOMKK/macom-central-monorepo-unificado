@@ -21,7 +21,9 @@ export const CENTRAL_PERMISSION_MODULES = [
 export const CENTRAL_PERMISSION_MODULE_BY_PATH = CENTRAL_PERMISSION_MODULES.reduce((acc, module) => {
   acc[module.path] = module.key;
   return acc;
-}, {});
+}, {
+  '/cargos': 'departamentos',
+});
 
 export function getCentralPermissionLevel(permissions = [], moduleKey) {
   const permission = permissions.find((item) => item.modulo === moduleKey);

@@ -19,7 +19,7 @@ import DepartmentCardsGrid from '@/pages/catalog-manager/components/DepartmentCa
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import UnitCardsGrid from '@/pages/catalog-manager/components/UnitCardsGrid';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
-import { buildAssetsConfig, buildCollaboratorsConfig, buildContactsConfig, buildCorporateLinesConfig, buildDepartmentsConfig, buildInfrastructureConfig, buildTermsConfig, buildUnitsConfig } from '@/pages/catalog-manager/config/simpleEntityConfigs.jsx';
+import { buildAssetsConfig, buildCollaboratorsConfig, buildContactsConfig, buildCorporateLinesConfig, buildDepartmentsConfig, buildInfrastructureConfig, buildPositionsConfig, buildTermsConfig, buildUnitsConfig } from '@/pages/catalog-manager/config/simpleEntityConfigs.jsx';
 import {
   assetCategoryOptions,
   assetConditionOptions,
@@ -85,6 +85,7 @@ function generatePassword(length = 12) {
 
 const ENTITY_DEPENDENCIES = {
   ativos: ['ativos', 'colaboradores', 'unidades'],
+  cargos: ['cargos', 'departamentos'],
   colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
   contatos: ['contatos', 'unidades'],
   departamentos: ['departamentos', 'ativos', 'colaboradores'],
@@ -172,6 +173,11 @@ export default function CatalogManager({ lockedEntityKey }) {
     queryFn: catalogApi.departamentos.list,
     enabled: requiresEntity('departamentos'),
   });
+  const positionsQuery = useQuery({
+    queryKey: ['cargos'],
+    queryFn: catalogApi.cargos.list,
+    enabled: requiresEntity('cargos'),
+  });
   const unitsQuery = useQuery({
     queryKey: ['unidades'],
     queryFn: catalogApi.unidades.list,
@@ -219,6 +225,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   });
 
   const departments = departmentsQuery.data || [];
+  const positions = positionsQuery.data || [];
   const units = unitsQuery.data || [];
   const collaborators = collaboratorsQuery.data || [];
   const activeCollaborators = collaborators.filter((collaborator) => collaborator.status !== 'inativo');
@@ -309,6 +316,13 @@ export default function CatalogManager({ lockedEntityKey }) {
         departments,
         formatDateTime,
       }),
+      cargos: buildPositionsConfig({
+        Badge,
+        departments,
+        departmentOptions,
+        formatDateTime,
+        positions,
+      }),
       unidades: buildUnitsConfig({
         assetsByUnitId,
         collaboratorsByUnitId,
@@ -391,11 +405,12 @@ export default function CatalogManager({ lockedEntityKey }) {
         terms,
       }),
     };
-  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, systemAccesses, terms, units]);
+  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, positions, systemAccesses, terms, units]);
 
   const queryStatesByEntity = {
     acessos_usuario_sistema: systemAccessesQuery,
     ativos: assetsQuery,
+    cargos: positionsQuery,
     colaboradores: collaboratorsQuery,
     contatos: contactsQuery,
     departamentos: departmentsQuery,

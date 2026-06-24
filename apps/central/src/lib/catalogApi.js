@@ -102,6 +102,9 @@ export const catalogApi = {
   departamentos: {
     ...buildCentralEntity('departamentos'),
   },
+  cargos: {
+    ...buildCentralEntity('cargos'),
+  },
   unidades: {
     ...buildCentralEntity('unidades'),
   },

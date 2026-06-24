@@ -24,6 +24,63 @@ export function buildDepartmentsConfig({
   };
 }
 
+export function buildPositionsConfig({
+  Badge,
+  departments,
+  departmentOptions,
+  formatDateTime,
+  positions,
+}) {
+  return {
+    rows: positions,
+    fields: [
+      { key: 'nome', label: 'Nome do cargo', required: true, fullWidth: true, placeholder: 'Ex.: Vendedor' },
+      {
+        key: 'departamento_id',
+        label: 'Departamento',
+        type: 'select',
+        allowEmpty: true,
+        emptyLabel: 'Sem departamento',
+        fullWidth: true,
+        options: departmentOptions,
+      },
+      { key: 'descricao', label: 'Descricao', fullWidth: true, placeholder: 'Ex.: Responsavel pelo atendimento comercial' },
+      {
+        key: 'ativo',
+        label: 'Status',
+        type: 'select',
+        valueType: 'boolean',
+        defaultValue: true,
+        options: [
+          { value: 'true', label: 'Ativo' },
+          { value: 'false', label: 'Inativo' },
+        ],
+      },
+    ],
+    columns: [
+      { key: 'nome', label: 'Cargo', render: (value) => <span className="font-medium text-foreground">{value || '-'}</span> },
+      {
+        key: 'departamento_id',
+        label: 'Departamento',
+        render: (value) => departments.find((department) => department.id === value)?.nome || 'Sem departamento',
+      },
+      { key: 'descricao', label: 'Descricao', render: (value) => value || '-' },
+      {
+        key: 'ativo',
+        label: 'Status',
+        render: (value) => (
+          <Badge variant="outline" className={value ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
+            {value ? 'Ativo' : 'Inativo'}
+          </Badge>
+        ),
+      },
+      { key: 'atualizado_em', label: 'Atualizado em', render: (value) => formatDateTime(value) },
+    ],
+    searchPlaceholder: 'Buscar por cargo, departamento ou descricao...',
+    queryKey: 'cargos',
+  };
+}
+
 export function buildUnitsConfig({
   assetsByUnitId,
   collaboratorsByUnitId,
