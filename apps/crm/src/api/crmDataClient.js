@@ -321,7 +321,7 @@ async function uploadLeadAttachment({ lead, file }) {
   }
 
   const safeName = sanitizeFileName(file.name);
-  const path = `${lead.id}/${Date.now()}-${safeName}`;
+  const path = `leads/${lead.id}/${Date.now()}-${safeName}`;
   const { error } = await supabase.storage
     .from(CRM_ATTACHMENTS_BUCKET)
     .upload(path, file, {
