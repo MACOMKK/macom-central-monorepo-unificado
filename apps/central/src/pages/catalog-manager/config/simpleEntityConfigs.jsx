@@ -654,13 +654,10 @@ export function buildCollaboratorsConfig({
       }
     }
 
-    return [...positionsById.values()].map((position) => {
-      const department = departments.find((item) => item.id === position.departamento_id);
-      return {
-        value: position.id,
-        label: `${position.nome}${department ? ` - ${department.nome}` : ''}`,
-      };
-    });
+    return [...positionsById.values()].map((position) => ({
+      value: position.id,
+      label: position.nome,
+    }));
   };
 
   return {
