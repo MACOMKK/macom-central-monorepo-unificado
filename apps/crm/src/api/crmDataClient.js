@@ -21,6 +21,18 @@ function normalizeEmail(email) {
   return normalizeText(email);
 }
 
+function normalizeEmpresa(empresa) {
+  const value = String(empresa || '').trim();
+  const plain = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  if (plain.includes('paragominas')) return 'Macom Paragominas';
+  if (plain.includes('belem') || plain.includes('bel')) return 'Macom Belém';
+  return 'Macom Ananindeua';
+}
+
 function normalizeDateOnly(value) {
   if (!value) return '';
   const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
@@ -224,7 +236,7 @@ function mapClientePayload(data = {}) {
     telefone_normalizado: phone,
     email: data.email || null,
     email_normalizado: email || null,
-    empresa: data.empresa || 'Macom Ananindeua',
+    empresa: normalizeEmpresa(data.empresa),
     status_relacionamento: data.status_relacionamento || 'lead',
     observacoes: data.observacoes || null,
   };
@@ -248,7 +260,7 @@ function mapLeadPayload(data = {}, clienteId) {
     origem: data.origem || 'site',
     status: data.status || 'novo',
     modelo_interesse: data.modelo_interesse || null,
-    empresa: data.empresa || 'Macom Ananindeua',
+    empresa: normalizeEmpresa(data.empresa),
     convertido_em: data.status === 'convertido'
       ? (data.convertido_em || new Date().toISOString())
       : (data.convertido_em || null),
@@ -373,6 +385,30 @@ async function openAttachment(attachment) {
 
   window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   return data.signedUrl;
+}
+
+async function deleteAttachment(attachment) {
+  assertSupabaseConfigured();
+
+  const bucket = attachment?.metadados?.bucket || CRM_ATTACHMENTS_BUCKET;
+  const path = attachment?.metadados?.path;
+
+  if (!attachment?.id) {
+    throw new Error('Anexo sem registro para excluir.');
+  }
+
+  if (path) {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([path]);
+
+    if (error) {
+      throw toError(error, 'Nao foi possivel excluir o arquivo do anexo.');
+    }
+  }
+
+  await crmApi.historico_atendimentos.remove(attachment.id);
+  return true;
 }
 
 async function findClienteByContact({ telefone, email }) {
@@ -634,6 +670,10 @@ const HistoricoAtendimentoRepository = {
 
   async openAttachment(attachment) {
     return openAttachment(attachment);
+  },
+
+  async deleteAttachment(attachment) {
+    return deleteAttachment(attachment);
   },
 };
 

@@ -314,6 +314,32 @@ export default function Leads() {
     }
   };
 
+  const deleteAttachmentMutation = useMutation({
+    mutationFn: (attachment) => crmDataClient.entities.HistoricoAtendimento.deleteAttachment(attachment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      toast({
+        title: 'Anexo excluido',
+        description: 'O arquivo foi removido do lead.',
+        variant: 'success',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel excluir o anexo',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteAttachment = (attachment) => {
+    const fileName = attachment.metadados?.nome || attachment.descricao || 'este anexo';
+    const confirmed = window.confirm(`Excluir ${fileName}?`);
+    if (!confirmed) return;
+    deleteAttachmentMutation.mutate(attachment);
+  };
+
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     const { draggableId, destination } = result;
@@ -565,9 +591,11 @@ export default function Leads() {
           attachments={editingAttachments}
           addingNote={noteMutation.isPending}
           uploadingAttachment={attachmentMutation.isPending}
+          deletingAttachment={deleteAttachmentMutation.isPending}
           onAddNote={(text) => editing && noteMutation.mutate({ lead: editing, text })}
           onAddAttachment={(file) => editing && attachmentMutation.mutate({ lead: editing, file })}
           onOpenAttachment={openAttachment}
+          onDeleteAttachment={deleteAttachment}
         />
       )}
     </div>
