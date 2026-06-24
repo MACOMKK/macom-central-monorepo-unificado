@@ -176,7 +176,7 @@ export default function CatalogEntityDialog({
                     <SelectValue placeholder={resolveFieldProp(field, 'placeholder', formState, record) || 'Selecione'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(field.allowEmpty ? [{ value: EMPTY_SELECT_VALUE, label: field.emptyLabel || 'Nenhum' }] : []).concat(field.options || []).map((option) => (
+                    {(field.allowEmpty ? [{ value: EMPTY_SELECT_VALUE, label: field.emptyLabel || 'Nenhum' }] : []).concat(resolveFieldProp(field, 'options', formState, record) || []).map((option) => (
                       <SelectItem key={`${field.key}-${option.value || 'empty'}`} value={option.value}>
                         {option.label}
                       </SelectItem>

@@ -86,7 +86,7 @@ function generatePassword(length = 12) {
 const ENTITY_DEPENDENCIES = {
   ativos: ['ativos', 'colaboradores', 'unidades'],
   cargos: ['cargos', 'departamentos'],
-  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
+  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
   contatos: ['contatos', 'unidades'],
   departamentos: ['departamentos', 'ativos', 'colaboradores'],
   infra_estrutura: ['infra_estrutura', 'unidades'],
@@ -347,6 +347,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         linesByProfileId,
         Monitor,
         onViewLinks: setViewingCollaboratorLinks,
+        positions,
         systemsByProfileId,
         statusTone,
         unitOptions,

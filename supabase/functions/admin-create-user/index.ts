@@ -31,7 +31,7 @@ function json(data: unknown, status = 200) {
 }
 
 function normalizePayload(payload: Record<string, unknown> = {}) {
-  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo', 'data_nascimento', 'data_admissao', 'status', 'unidade_id'];
+  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo_id', 'cargo', 'data_nascimento', 'data_admissao', 'status', 'unidade_id'];
   const normalized = fields.reduce<Record<string, unknown>>((acc, field) => {
     if (field in payload) {
       acc[field] = payload[field];
@@ -622,6 +622,7 @@ Deno.serve(async (request) => {
         cpf: payload.cpf ?? null,
         telefone: payload.telefone ?? null,
         departamento_id: payload.departamento_id ?? null,
+        cargo_id: payload.cargo_id ?? null,
         cargo: payload.cargo ?? null,
         data_nascimento: payload.data_nascimento ?? null,
         data_admissao: payload.data_admissao ?? null,
@@ -639,13 +640,14 @@ Deno.serve(async (request) => {
             cpf,
             telefone,
             departamento_id,
+            cargo_id,
             cargo,
             data_nascimento,
             data_admissao,
             status,
             unidade_id
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
           on conflict (id) do update
           set
             nome = excluded.nome,
@@ -654,6 +656,7 @@ Deno.serve(async (request) => {
             cpf = excluded.cpf,
             telefone = excluded.telefone,
             departamento_id = excluded.departamento_id,
+            cargo_id = excluded.cargo_id,
             cargo = excluded.cargo,
             data_nascimento = excluded.data_nascimento,
             data_admissao = excluded.data_admissao,
@@ -670,6 +673,7 @@ Deno.serve(async (request) => {
           upsertPayload.cpf,
           upsertPayload.telefone,
           upsertPayload.departamento_id,
+          upsertPayload.cargo_id,
           upsertPayload.cargo,
           upsertPayload.data_nascimento,
           upsertPayload.data_admissao,

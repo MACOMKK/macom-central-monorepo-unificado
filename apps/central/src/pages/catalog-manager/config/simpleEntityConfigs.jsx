@@ -586,6 +586,7 @@ export function buildCollaboratorsConfig({
   linesByProfileId,
   Monitor,
   onViewLinks,
+  positions,
   systemsByProfileId,
   statusTone,
   unitOptions,
@@ -600,6 +601,33 @@ export function buildCollaboratorsConfig({
     admin: 'bg-blue-100 text-blue-700',
     gestor: 'bg-amber-100 text-amber-700',
     usuario: 'bg-slate-100 text-slate-700',
+  };
+  const activePositions = positions.filter((position) => position.ativo !== false);
+  const buildPositionOptions = (formState = {}, record = {}) => {
+    const selectedDepartmentId = formState.departamento_id || record.departamento_id || '';
+    const selectedPositionId = formState.cargo_id || record.cargo_id || '';
+    const filteredPositions = activePositions.filter((position) => (
+      !selectedDepartmentId ||
+      !position.departamento_id ||
+      position.departamento_id === selectedDepartmentId ||
+      position.id === selectedPositionId
+    ));
+    const positionsById = new Map(filteredPositions.map((position) => [position.id, position]));
+
+    if (selectedPositionId && !positionsById.has(selectedPositionId)) {
+      const selectedPosition = positions.find((position) => position.id === selectedPositionId);
+      if (selectedPosition) {
+        positionsById.set(selectedPosition.id, selectedPosition);
+      }
+    }
+
+    return [...positionsById.values()].map((position) => {
+      const department = departments.find((item) => item.id === position.departamento_id);
+      return {
+        value: position.id,
+        label: `${position.nome}${department ? ` - ${department.nome}` : ''}`,
+      };
+    });
   };
 
   return {
@@ -655,7 +683,15 @@ export function buildCollaboratorsConfig({
         emptyLabel: 'Sem departamento',
         options: departmentOptions,
       },
-      { key: 'cargo', label: 'Cargo', placeholder: 'Ex.: Analista de TI' },
+      {
+        key: 'cargo_id',
+        label: 'Cargo',
+        type: 'select',
+        allowEmpty: true,
+        emptyLabel: 'Sem cargo',
+        placeholder: 'Selecione um cargo',
+        options: buildPositionOptions,
+      },
       { key: 'data_nascimento', label: 'Data de nascimento', type: 'date' },
       { key: 'data_admissao', label: 'Data de admissao', type: 'date' },
       {
@@ -725,6 +761,11 @@ export function buildCollaboratorsConfig({
           const label = departments.find((item) => item.id === value)?.nome || '—';
           return <span className="rounded-md border border-border px-3 py-1 text-[13px] leading-none">{label}</span>;
         },
+      },
+      {
+        key: 'cargo_id',
+        label: 'Cargo',
+        render: (value, row) => positions.find((item) => item.id === value)?.nome || row.cargo || '—',
       },
       {
         key: 'funcao',
