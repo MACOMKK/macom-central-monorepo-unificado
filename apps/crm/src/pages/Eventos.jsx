@@ -11,6 +11,7 @@ import EventoForm from '@/components/eventos/EventoForm';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { isToday, isBefore, startOfToday } from 'date-fns';
 import { toast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -18,6 +19,21 @@ const toLocalDate = (value) => {
   if (!value) return null;
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateOnly = (date) => date.toISOString().slice(0, 10);
+
+const getAgendaScopeDates = (scope) => {
+  const today = startOfToday();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (scope === 'atrasados') return { proximo_to: formatDateOnly(yesterday) };
+  if (scope === 'hoje') return { proximo_from: formatDateOnly(today), proximo_to: formatDateOnly(today) };
+  if (scope === 'futuros') return { proximo_from: formatDateOnly(tomorrow) };
+  return {};
 };
 
 export default function Eventos() {
@@ -28,6 +44,7 @@ export default function Eventos() {
   const [periodoInicio, setPeriodoInicio] = useState('');
   const [periodoFim, setPeriodoFim] = useState('');
   const [responsavelFiltro, setResponsavelFiltro] = useState('todos');
+  const [agendaFiltro, setAgendaFiltro] = useState('todos');
   const { empresa } = useEmpresa();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -42,15 +59,19 @@ export default function Eventos() {
     ...(periodoInicio ? { proximo_from: periodoInicio } : {}),
     ...(periodoFim ? { proximo_to: periodoFim } : {}),
   }), [baseFilters, periodoFim, periodoInicio, responsavelFiltro]);
+  const agendaScopeFilters = useMemo(() => (
+    agendaFiltro === 'todos' ? {} : getAgendaScopeDates(agendaFiltro)
+  ), [agendaFiltro]);
   const eventosFilters = useMemo(() => ({
     ...resumoFilters,
+    ...agendaScopeFilters,
     status: statusTab,
-  }), [resumoFilters, statusTab]);
+  }), [agendaScopeFilters, resumoFilters, statusTab]);
   const eventosQueryKey = ['eventos', { filters: eventosFilters, busca, page, pageSize }];
 
   useEffect(() => {
     setPage(1);
-  }, [busca, empresa, periodoFim, periodoInicio, responsavelFiltro, statusTab]);
+  }, [agendaFiltro, busca, empresa, periodoFim, periodoInicio, responsavelFiltro, statusTab]);
 
   const { data: eventosPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
     queryKey: eventosQueryKey,
@@ -227,6 +248,12 @@ export default function Eventos() {
     hoje: pendentes.filter(({ data }) => isToday(data)).length,
     futuros: pendentes.filter(({ data }) => !isBefore(data, hoje) && !isToday(data)).length,
   };
+  const selectAgendaFiltro = (scope) => {
+    setAgendaFiltro((current) => current === scope ? 'todos' : scope);
+    setStatusTab('planejada');
+    setPeriodoInicio('');
+    setPeriodoFim('');
+  };
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5">
@@ -249,14 +276,20 @@ export default function Eventos() {
           <Input
             type="date"
             value={periodoInicio}
-            onChange={(event) => setPeriodoInicio(event.target.value)}
+            onChange={(event) => {
+              setAgendaFiltro('todos');
+              setPeriodoInicio(event.target.value);
+            }}
             className="h-9 w-40 rounded-none bg-white text-xs"
             title="Inicio do periodo de proximo contato"
           />
           <Input
             type="date"
             value={periodoFim}
-            onChange={(event) => setPeriodoFim(event.target.value)}
+            onChange={(event) => {
+              setAgendaFiltro('todos');
+              setPeriodoFim(event.target.value);
+            }}
             className="h-9 w-40 rounded-none bg-white text-xs"
             title="Fim do periodo de proximo contato"
           />
@@ -283,27 +316,48 @@ export default function Eventos() {
       </div>
 
       <div className="mb-3 grid gap-2 md:grid-cols-3">
-        <div className="flex items-center gap-3 bg-white px-4 py-3 shadow-sm">
+        <button
+          type="button"
+          onClick={() => selectAgendaFiltro('atrasados')}
+          className={cn(
+            'flex items-center gap-3 bg-white px-4 py-3 text-left shadow-sm transition-colors',
+            agendaFiltro === 'atrasados' ? 'ring-2 ring-red-500' : 'hover:bg-red-50'
+          )}
+        >
           <AlarmClock className="h-4 w-4 text-red-600" />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Atrasados</p>
             <p className="text-lg font-black text-red-600">{painelCounts.atrasados}</p>
           </div>
-        </div>
-        <div className="flex items-center gap-3 bg-white px-4 py-3 shadow-sm">
+        </button>
+        <button
+          type="button"
+          onClick={() => selectAgendaFiltro('hoje')}
+          className={cn(
+            'flex items-center gap-3 bg-white px-4 py-3 text-left shadow-sm transition-colors',
+            agendaFiltro === 'hoje' ? 'ring-2 ring-amber-500' : 'hover:bg-amber-50'
+          )}
+        >
           <AlarmClock className="h-4 w-4 text-amber-500" />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hoje</p>
             <p className="text-lg font-black text-amber-500">{painelCounts.hoje}</p>
           </div>
-        </div>
-        <div className="flex items-center gap-3 bg-white px-4 py-3 shadow-sm">
+        </button>
+        <button
+          type="button"
+          onClick={() => selectAgendaFiltro('futuros')}
+          className={cn(
+            'flex items-center gap-3 bg-white px-4 py-3 text-left shadow-sm transition-colors',
+            agendaFiltro === 'futuros' ? 'ring-2 ring-green-600' : 'hover:bg-green-50'
+          )}
+        >
           <AlarmClock className="h-4 w-4 text-green-600" />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Futuros</p>
             <p className="text-lg font-black text-green-600">{painelCounts.futuros}</p>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="min-w-0">

@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Phone, Calendar, Flame, Building2, Car, UserRound } from 'lucide-react';
+import { Phone, Calendar, Flame, Building2, Car, UserRound, AlarmClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TEMP_COLORS = {
@@ -38,11 +38,20 @@ export default function EventoCard({ evento, onClick }) {
   const formattedContactDate = contactDate && !Number.isNaN(contactDate.getTime())
     ? format(contactDate, 'dd/MM/yyyy')
     : null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isOverdue = evento.status === 'planejada'
+    && contactDate
+    && !Number.isNaN(contactDate.getTime())
+    && contactDate < today;
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-white shadow-sm border-l-4 border-primary hover:shadow-md hover:border-l-[5px] transition-all group"
+      className={cn(
+        'w-full text-left bg-white shadow-sm border-l-4 hover:shadow-md hover:border-l-[5px] transition-all group',
+        isOverdue ? 'border-red-600 bg-red-50/40' : 'border-primary'
+      )}
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -57,6 +66,11 @@ export default function EventoCard({ evento, onClick }) {
               {evento.resultado ? (
                 <span className="bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
                   {RESULT_LABELS[evento.resultado] || evento.resultado}
+                </span>
+              ) : null}
+              {isOverdue ? (
+                <span className="inline-flex items-center gap-1 bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  <AlarmClock className="h-3 w-3" /> Atrasado
                 </span>
               ) : null}
             </div>
@@ -78,7 +92,7 @@ export default function EventoCard({ evento, onClick }) {
             </span>
           )}
           {formattedContactDate && (
-            <span className="flex items-center gap-1 font-semibold text-primary">
+            <span className={cn('flex items-center gap-1 font-semibold', isOverdue ? 'text-red-700' : 'text-primary')}>
               <Calendar className="w-3 h-3" />
               {formattedContactDate}
             </span>
