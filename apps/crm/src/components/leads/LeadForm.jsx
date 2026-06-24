@@ -6,6 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+function formatDate(value) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function companyFromUnit(unitName = '') {
   const normalized = unitName.toLowerCase();
   if (normalized.includes('paragominas')) return 'Macom Paragominas';
@@ -22,12 +33,13 @@ function Field({ label, children }) {
   );
 }
 
-export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], onSave }) {
+export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], notes = [], onSave, onAddNote, addingNote = false }) {
   const [data, setData] = useState(lead || {
     nome: '', telefone: '', email: '', origem: 'site', status: 'novo',
     modelo_interesse: '', empresa: 'Macom Ananindeua', responsavel_id: '',
     previsao_fechamento: '', motivo_perda: '', observacoes: ''
   });
+  const [noteText, setNoteText] = useState('');
   const set = (f, v) => setData((d) => ({ ...d, [f]: v }));
   const unidades = useMemo(() => {
     const unique = new Map();
@@ -60,6 +72,12 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
         ? current.responsavel_id
         : '',
     }));
+  };
+  const saveNote = () => {
+    const text = noteText.trim();
+    if (!text || !onAddNote) return;
+    onAddNote(text);
+    setNoteText('');
   };
 
   return (
@@ -160,6 +178,44 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
               rows={3}
             />
           </Field>
+          {lead ? (
+            <div className="border-t pt-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Notas do lead</Label>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{notes.length} notas</span>
+              </div>
+              <div className="space-y-2">
+                <Textarea
+                  value={noteText}
+                  onChange={(event) => setNoteText(event.target.value)}
+                  placeholder="Registrar nota comercial..."
+                  className="resize-none rounded-none text-sm"
+                  rows={2}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!noteText.trim() || addingNote}
+                    onClick={saveNote}
+                    className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+                  >
+                    {addingNote ? 'Registrando...' : 'Adicionar nota'}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 max-h-40 space-y-2 overflow-y-auto border-t pt-3">
+                {notes.length === 0 ? (
+                  <p className="py-3 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Nenhuma nota registrada</p>
+                ) : notes.map((note) => (
+                  <div key={note.id} className="bg-slate-50 p-3">
+                    <p className="text-sm text-slate-800">{note.descricao}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{formatDate(note.created_date)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button type="button" variant="outline" className="rounded-none text-xs font-bold uppercase tracking-wider" onClick={() => onOpenChange(false)}>
               Cancelar

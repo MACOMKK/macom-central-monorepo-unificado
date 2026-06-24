@@ -539,11 +539,17 @@ const EventoRepository = {
   },
 };
 
-const HistoricoAtendimentoRepository = createListRepository(
-  'HistoricoAtendimento',
-  crmApi.historico_atendimentos,
-  mapHistoricoRow,
-);
+const HistoricoAtendimentoRepository = {
+  ...createListRepository(
+    'HistoricoAtendimento',
+    crmApi.historico_atendimentos,
+    mapHistoricoRow,
+  ),
+
+  async create(data) {
+    return addHistoricoAtendimento(data);
+  },
+};
 
 export const crmDataClient = {
   entities: {

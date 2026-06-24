@@ -219,6 +219,11 @@ export default function Leads() {
     queryFn: () => crmDataClient.entities.Responsavel.list(),
   });
 
+  const { data: historico = [] } = useQuery({
+    queryKey: ['historico-atendimento'],
+    queryFn: () => crmDataClient.entities.HistoricoAtendimento.list('-created_date', 1000),
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => crmDataClient.entities.Lead.update(id, { status }),
     onMutate: async ({ id, status }) => {
@@ -250,6 +255,34 @@ export default function Leads() {
     },
   });
 
+  const noteMutation = useMutation({
+    mutationFn: ({ lead, text }) => crmDataClient.entities.HistoricoAtendimento.create({
+      cliente_id: lead.cliente_id,
+      lead_id: lead.id,
+      tipo: 'observacao',
+      descricao: text,
+      entidade: 'Lead',
+      entidade_id: lead.id,
+      status: lead.status,
+      metadados: { origem: 'lead_note' },
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      toast({
+        title: 'Nota registrada',
+        description: 'A nota foi vinculada ao lead.',
+        variant: 'success',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel registrar a nota',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     const { draggableId, destination } = result;
@@ -273,6 +306,9 @@ export default function Leads() {
   };
 
   const counts = leads.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
+  const editingNotes = editing
+    ? historico.filter((item) => item.lead_id === editing.id && item.tipo === 'observacao' && item.metadados?.origem === 'lead_note')
+    : [];
 
   const STATUS_TABS = ['todos', 'novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
 
@@ -491,6 +527,9 @@ export default function Leads() {
           lead={editing}
           responsaveis={responsaveis}
           onSave={(data) => saveMutation.mutate({ id: editing?.id || null, data })}
+          notes={editingNotes}
+          addingNote={noteMutation.isPending}
+          onAddNote={(text) => editing && noteMutation.mutate({ lead: editing, text })}
         />
       )}
     </div>

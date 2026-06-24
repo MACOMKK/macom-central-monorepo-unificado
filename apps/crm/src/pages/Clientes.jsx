@@ -274,16 +274,19 @@ export default function Clientes() {
       return items;
     });
 
-    const historicoItems = selectedHistorico.map((item) => ({
-      id: `historico-${item.id}`,
-      type: 'historico',
-      date: item.created_date,
-      label: item.tipo || 'Historico',
-      title: item.descricao || 'Registro de historico',
-      description: item.entidade ? `Entidade: ${item.entidade}` : '',
-      status: item.status,
-      icon: History,
-    }));
+    const historicoItems = selectedHistorico.map((item) => {
+      const isLeadNote = item.tipo === 'observacao' && item.metadados?.origem === 'lead_note';
+      return {
+        id: `historico-${item.id}`,
+        type: isLeadNote ? 'nota' : 'historico',
+        date: item.created_date,
+        label: isLeadNote ? 'Nota' : (item.tipo || 'Historico'),
+        title: isLeadNote ? 'Nota vinculada ao lead' : (item.descricao || 'Registro de historico'),
+        description: isLeadNote ? item.descricao : (item.entidade ? `Entidade: ${item.entidade}` : ''),
+        status: item.status,
+        icon: History,
+      };
+    });
 
     return sortTimeline([
       ...clienteItems,
