@@ -152,11 +152,12 @@ const ENTITY_CONFIG = {
       category: 'categoria',
       company: 'empresa',
       department_id: 'departamento_id',
+      position_id: 'cargo_id',
       visibility: 'visibilidade',
       minimum_access_level: 'nivel_minimo',
     },
-    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'visibility', 'minimum_access_level'],
-    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'visibility', 'minimum_access_level'],
+    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'position_id', 'cargo_id', 'visibility', 'minimum_access_level'],
+    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'position_id', 'cargo_id', 'visibility', 'minimum_access_level'],
   },
   Feedback: {
     schema: INTRANET_SCHEMA,
@@ -470,6 +471,25 @@ async function listUnits() {
   }));
 }
 
+async function listPositions() {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select c.id, c.nome, c.descricao, c.departamento_id, d.nome as departamento_nome
+      from public.cargos c
+      left join public.departamentos d on d.id = c.departamento_id
+      order by c.nome asc;
+    `,
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.nome,
+    description: row.descricao,
+    department_id: row.departamento_id || null,
+    department_name: row.departamento_nome || null,
+  }));
+}
+
 async function resolveDepartment(input: unknown) {
   if (!input) return null;
   const departments = await listDepartments();
@@ -491,6 +511,17 @@ async function resolveUnit(input: unknown) {
     units.find((item) => item.key === normalized) ||
     units.find((item) => toKey(item.name) === normalized) ||
     units.find((item) => toKey(item.city) === normalized) ||
+    null
+  );
+}
+
+async function resolvePosition(input: unknown) {
+  if (!input) return null;
+  const positions = await listPositions();
+  const normalized = toKey(String(input));
+  return (
+    positions.find((item) => item.id === input) ||
+    positions.find((item) => toKey(String(item.name || '')) === normalized) ||
     null
   );
 }
@@ -740,6 +771,7 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
     role: access?.nivel_acesso === 'admin' ? 'admin' : access?.nivel_acesso || collaborator.funcao || 'user',
     access_level: access?.nivel_acesso || null,
     department_id: collaborator.departamento_id || null,
+    position_id: collaborator.cargo_id || null,
     position: collaborator.cargo || null,
     function_role: collaborator.funcao || null,
     status: collaborator.status || null,
@@ -997,6 +1029,7 @@ async function getTrustedIpContext(request: Request) {
     role: 'user',
     access_level: 'usuario',
     department_id: null,
+    position_id: null,
     position: 'Rede liberada',
     function_role: 'trusted_ip',
     status: 'ativo',
@@ -1182,12 +1215,16 @@ async function createNotifications(
   );
 }
 
-async function fetchActiveCollaboratorIds(filters: { departmentId?: unknown } = {}) {
+async function fetchActiveCollaboratorIds(filters: { departmentId?: unknown; positionId?: unknown } = {}) {
   const values: unknown[] = [];
   const clauses = ["coalesce(status, 'ativo') = 'ativo'"];
   if (filters.departmentId) {
     values.push(filters.departmentId);
     clauses.push(`departamento_id = $${values.length}::uuid`);
+  }
+  if (filters.positionId) {
+    values.push(filters.positionId);
+    clauses.push(`cargo_id = $${values.length}::uuid`);
   }
 
   const rows = await runSql<Record<string, unknown>>(
@@ -1223,7 +1260,10 @@ async function notifyDocumentAudience(
   actorId: string | null,
 ) {
   if (!document?.id) return;
-  const recipients = await fetchActiveCollaboratorIds({ departmentId: document.departamento_id || undefined });
+  const recipients = await fetchActiveCollaboratorIds({
+    departmentId: document.departamento_id || undefined,
+    positionId: document.cargo_id || undefined,
+  });
   const titleByAction = {
     created: 'Novo documento publicado',
     updated: 'Documento atualizado',
@@ -1475,14 +1515,16 @@ function mapCalendarEvent(
 function mapDocument(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
+  positionsById = new Map<string, Record<string, unknown>>(),
   creatorMap = new Map<string, Record<string, unknown>>(),
   signedFileUrl?: string | null,
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const department = departmentsById.get(String(row.departamento_id));
+  const position = positionsById.get(String(row.cargo_id));
   const visibility = typeof row.visibilidade === 'string' && row.visibilidade
     ? row.visibilidade
-    : (row.departamento_id ? 'setor' : 'geral');
+    : (row.cargo_id ? 'cargo' : row.departamento_id ? 'setor' : 'geral');
 
   return {
     id: row.id,
@@ -1500,6 +1542,8 @@ function mapDocument(
     department_id: row.departamento_id,
     department: department?.key || null,
     department_name: department?.name || null,
+    position_id: row.cargo_id || null,
+    position_name: position?.name || null,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -1570,10 +1614,11 @@ async function createDocumentSignedUrl(document: Record<string, unknown>) {
 async function mapDocumentWithSignedUrl(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
+  positionsById = new Map<string, Record<string, unknown>>(),
   creatorMap = new Map<string, Record<string, unknown>>(),
 ) {
   const signedFileUrl = await createDocumentSignedUrl(row);
-  return mapDocument(row, departmentsById, creatorMap, signedFileUrl);
+  return mapDocument(row, departmentsById, positionsById, creatorMap, signedFileUrl);
 }
 
 async function enrichWithCreators(rows: Record<string, unknown>[]) {
@@ -1971,27 +2016,34 @@ function buildDocumentVisibilityClause(user?: Record<string, unknown>, startInde
   }
 
   const departmentId = typeof user?.department_id === 'string' ? user.department_id : null;
+  const positionId = typeof user?.position_id === 'string' ? user.position_id : null;
   const accessLevel = normalizeIntranetAccessLevel(user);
-  const departmentParam = departmentId ? `$${startIndex}::uuid` : 'null::uuid';
-  const accessLevelParam = `$${departmentId ? startIndex + 1 : startIndex}`;
+  const departmentParam = `$${startIndex}::uuid`;
+  const positionParam = `$${startIndex + 1}::uuid`;
+  const accessLevelParam = `$${startIndex + 2}`;
 
   return {
     clause: `(
-      coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'geral'
+      coalesce(visibilidade, case when cargo_id is not null then 'cargo' when departamento_id is null then 'geral' else 'setor' end) = 'geral'
       or (
-        coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'setor'
+        coalesce(visibilidade, case when cargo_id is not null then 'cargo' when departamento_id is null then 'geral' else 'setor' end) = 'setor'
         and departamento_id is not null
         and departamento_id = ${departmentParam}
       )
       or (
-        coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'nivel'
+        coalesce(visibilidade, case when cargo_id is not null then 'cargo' when departamento_id is null then 'geral' else 'setor' end) = 'cargo'
+        and cargo_id is not null
+        and cargo_id = ${positionParam}
+      )
+      or (
+        coalesce(visibilidade, case when cargo_id is not null then 'cargo' when departamento_id is null then 'geral' else 'setor' end) = 'nivel'
         and (
           ${accessLevelParam} = 'admin'
           or (coalesce(nivel_minimo, 'gestor') = 'gestor' and ${accessLevelParam} = 'gestor')
         )
       )
     )`,
-    values: (departmentId ? [departmentId, accessLevel] : [accessLevel]) as unknown[],
+    values: [departmentId, positionId, accessLevel] as unknown[],
   };
 }
 
@@ -2136,9 +2188,10 @@ async function listDocuments(orderBy?: string, limit?: number, user?: Record<str
     `select * from gestao_intranet.documentos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
     values,
   );
-  const [departments, creators] = await Promise.all([listDepartments(), enrichWithCreators(rows)]);
+  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), enrichWithCreators(rows)]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
-  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, creators)));
+  const positionsById = new Map(positions.map((item) => [String(item.id), item]));
+  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, positionsById, creators)));
 }
 
 async function listDocumentStorageOrphans(user?: Record<string, unknown>) {
@@ -3247,7 +3300,8 @@ async function updateCalendarEvent(
 
 async function createDocument(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
-  const visibilityConfig = resolveDocumentVisibility(payload, department);
+  const position = await resolvePosition(payload.position_id || payload.cargo_id);
+  const visibilityConfig = resolveDocumentVisibility(payload, department, position);
   if (!payload.file_path || !payload.file_name) {
     throw new Error('Arquivo obrigatorio para criar documento.');
   }
@@ -3255,8 +3309,8 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
-        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, visibilidade, nivel_minimo, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, cargo_id, visibilidade, nivel_minimo, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       returning *;
     `,
     [
@@ -3270,25 +3324,32 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
       payload.company || 'macom_motors',
       payload.category || 'outros',
       visibilityConfig.departmentId,
+      visibilityConfig.positionId,
       visibilityConfig.visibility,
       visibilityConfig.minimumAccessLevel,
       collaboratorId,
     ],
   );
-  const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
   await notifyDocumentAudience(rows[0], 'created', collaboratorId);
-  return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
+  return mapDocumentWithSignedUrl(
+    rows[0],
+    new Map(departments.map((item) => [String(item.id), item])),
+    new Map(positions.map((item) => [String(item.id), item])),
+    creators,
+  );
 }
 
 function resolveDocumentVisibility(
   payload: Record<string, unknown>,
   department: Record<string, unknown> | null | undefined,
+  position: Record<string, unknown> | null | undefined,
 ) {
   const hasExplicitVisibility = typeof payload.visibility === 'string' || typeof payload.visibilidade === 'string';
   const rawVisibility = String(payload.visibility || payload.visibilidade || '').toLowerCase();
-  const visibility = ['geral', 'setor', 'nivel'].includes(rawVisibility)
+  const visibility = ['geral', 'setor', 'cargo', 'nivel'].includes(rawVisibility)
     ? rawVisibility
-    : (department?.id ? 'setor' : 'geral');
+    : (position?.id ? 'cargo' : department?.id ? 'setor' : 'geral');
 
   if (visibility === 'setor') {
     if (!department?.id) {
@@ -3297,6 +3358,19 @@ function resolveDocumentVisibility(
     return {
       visibility,
       departmentId: department.id,
+      positionId: null,
+      minimumAccessLevel: null,
+    };
+  }
+
+  if (visibility === 'cargo') {
+    if (!position?.id) {
+      throw new Error('Selecione o cargo para documentos com visibilidade por cargo.');
+    }
+    return {
+      visibility,
+      departmentId: null,
+      positionId: position.id,
       minimumAccessLevel: null,
     };
   }
@@ -3307,6 +3381,7 @@ function resolveDocumentVisibility(
     return {
       visibility,
       departmentId: null,
+      positionId: null,
       minimumAccessLevel,
     };
   }
@@ -3314,6 +3389,7 @@ function resolveDocumentVisibility(
   return {
     visibility: hasExplicitVisibility ? 'geral' : visibility,
     departmentId: null,
+    positionId: null,
     minimumAccessLevel: null,
   };
 }
@@ -3354,14 +3430,17 @@ async function updateDocument(
   collaboratorId: string | null,
 ) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  const position = await resolvePosition(payload.position_id || payload.cargo_id);
   const shouldUpdateVisibility =
     'visibility' in payload ||
     'visibilidade' in payload ||
     'minimum_access_level' in payload ||
     'nivel_minimo' in payload ||
+    'position_id' in payload ||
+    'cargo_id' in payload ||
     'department' in payload ||
     'department_id' in payload;
-  const visibilityConfig = shouldUpdateVisibility ? resolveDocumentVisibility(payload, department) : null;
+  const visibilityConfig = shouldUpdateVisibility ? resolveDocumentVisibility(payload, department, position) : null;
   if ('file_size' in payload) {
     validateDocumentFileSize(payload.file_size);
   }
@@ -3388,6 +3467,7 @@ async function updateDocument(
   if ('category' in payload) assign('categoria', payload.category);
   if (visibilityConfig) {
     assign('departamento_id', visibilityConfig.departmentId);
+    assign('cargo_id', visibilityConfig.positionId);
     assign('visibilidade', visibilityConfig.visibility);
     assign('nivel_minimo', visibilityConfig.minimumAccessLevel);
   }
@@ -3409,9 +3489,14 @@ async function updateDocument(
       resolveDocumentStorageBucket(previousDocument),
     );
   }
-  const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
   await notifyDocumentAudience(rows[0], 'updated', collaboratorId);
-  return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
+  return mapDocumentWithSignedUrl(
+    rows[0],
+    new Map(departments.map((item) => [String(item.id), item])),
+    new Map(positions.map((item) => [String(item.id), item])),
+    creators,
+  );
 }
 
 async function updateEmployee(id: string, payload: Record<string, unknown>) {
@@ -4143,6 +4228,10 @@ Deno.serve(async (request) => {
 
       if (catalog === 'units') {
         return json({ rows: await listUnits() });
+      }
+
+      if (catalog === 'positions') {
+        return json({ rows: await listPositions() });
       }
 
       return json({ error: 'Catalogo invalido.' }, 400);

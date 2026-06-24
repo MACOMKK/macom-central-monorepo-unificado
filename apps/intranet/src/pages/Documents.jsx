@@ -164,11 +164,17 @@ function getErrorMessage(error, fallback) {
 }
 
 function getDocumentVisibility(document) {
-  const visibility = document?.visibility || (document?.department_id || document?.department ? 'setor' : 'geral');
+  const visibility = document?.visibility || (document?.position_id ? 'cargo' : document?.department_id || document?.department ? 'setor' : 'geral');
   if (visibility === 'nivel') {
     return {
       key: 'nivel',
       label: document?.minimum_access_level === 'admin' ? 'Somente Admin' : 'Gestor/Admin',
+    };
+  }
+  if (visibility === 'cargo') {
+    return {
+      key: 'cargo',
+      label: document?.position_name || 'Cargo',
     };
   }
   if (visibility === 'setor') {
@@ -211,6 +217,10 @@ export default function Documents() {
   const { data: departments = [] } = useQuery({
     queryKey: ['catalog-departments'],
     queryFn: () => appClient.catalogs.listDepartments(),
+  });
+  const { data: positions = [] } = useQuery({
+    queryKey: ['catalog-positions'],
+    queryFn: () => appClient.catalogs.listPositions(),
   });
 
   const createMutation = useMutation({
@@ -316,6 +326,21 @@ export default function Documents() {
           ])
       ).values()
     );
+  const positionOptions = positions.length > 0
+    ? positions
+    : Array.from(
+      new Map(
+        documents
+          .filter((document) => document.position_id || document.position_name)
+          .map((document) => [
+            String(document.position_id || document.position_name),
+            {
+              id: document.position_id || document.position_name,
+              name: document.position_name,
+            },
+          ])
+      ).values()
+    );
   const departmentScopedDocuments = documents.filter((document) => {
     const visibility = getDocumentVisibility(document);
     const matchCompany =
@@ -325,6 +350,8 @@ export default function Documents() {
       departmentFilter === 'all' ||
       (departmentFilter === '__general__' && visibility.key === 'geral') ||
       (departmentFilter === '__restricted__' && visibility.key === 'nivel') ||
+      (departmentFilter === '__position__' && visibility.key === 'cargo') ||
+      document.position_id === departmentFilter ||
       document.department_id === departmentFilter ||
       document.department === departmentFilter;
     return matchCompany && matchDepartment;
@@ -342,6 +369,7 @@ export default function Documents() {
       document.description?.toLowerCase().includes(normalizedSearch) ||
       document.file_name?.toLowerCase().includes(normalizedSearch) ||
       document.department_name?.toLowerCase().includes(normalizedSearch) ||
+      document.position_name?.toLowerCase().includes(normalizedSearch) ||
       getDocumentVisibility(document).label.toLowerCase().includes(normalizedSearch) ||
       companyLabelMap[document.company || 'macom_motors']?.toLowerCase().includes(normalizedSearch);
     return matchSearch;
@@ -486,6 +514,12 @@ export default function Documents() {
               <SelectItem value="all">Departamento</SelectItem>
               <SelectItem value="__general__">Geral</SelectItem>
               <SelectItem value="__restricted__">Restritos por nivel</SelectItem>
+              <SelectItem value="__position__">Por cargo</SelectItem>
+              {positionOptions.map((position) => (
+                <SelectItem key={position.id} value={position.id}>
+                  {position.name}
+                </SelectItem>
+              ))}
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id || department.key} value={department.id || department.key}>
                   {department.name}

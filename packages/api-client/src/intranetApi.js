@@ -155,6 +155,13 @@ export const intranetApi = {
       });
       return result.rows || result.data || [];
     },
+    async listPositions() {
+      const result = await invokeIntranet({
+        action: 'catalog',
+        catalog: 'positions',
+      });
+      return result.rows || result.data || [];
+    },
   },
   googleCalendar: {
     async status() {

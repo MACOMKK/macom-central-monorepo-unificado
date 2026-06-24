@@ -12,6 +12,7 @@ const EMPTY_FORM = {
   visibility: 'geral',
   minimum_access_level: 'gestor',
   department: '',
+  position_id: '',
   file_url: '',
   file_path: '',
   file_name: '',
@@ -27,9 +28,10 @@ function normalizeInitialData(initialData) {
     description: initialData.description || '',
     company: initialData.company || 'macom_motors',
     category: initialData.category || 'outros',
-    visibility: initialData.visibility || (initialData.department_id || initialData.department ? 'setor' : 'geral'),
+    visibility: initialData.visibility || (initialData.position_id ? 'cargo' : initialData.department_id || initialData.department ? 'setor' : 'geral'),
     minimum_access_level: initialData.minimum_access_level || 'gestor',
     department: initialData.department || initialData.department_id || '',
+    position_id: initialData.position_id || '',
     file_url: initialData.file_url || '',
     file_path: initialData.file_path || '',
     file_name: initialData.file_name || '',
@@ -45,12 +47,17 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
   const canSubmit = Boolean(
     form.file_path &&
     form.file_name &&
-    (form.visibility !== 'setor' || form.department)
+    (form.visibility !== 'setor' || form.department) &&
+    (form.visibility !== 'cargo' || form.position_id)
   );
 
   const { data: departments = [] } = useQuery({
     queryKey: ['catalog-departments'],
     queryFn: () => appClient.catalogs.listDepartments(),
+  });
+  const { data: positions = [] } = useQuery({
+    queryKey: ['catalog-positions'],
+    queryFn: () => appClient.catalogs.listPositions(),
   });
 
   const handleFileUpload = async (event) => {
@@ -85,6 +92,9 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
     const payload = { ...form };
     if (payload.visibility !== 'setor') {
       payload.department = '';
+    }
+    if (payload.visibility !== 'cargo') {
+      payload.position_id = '';
     }
     if (payload.visibility !== 'nivel') {
       payload.minimum_access_level = null;
@@ -139,6 +149,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
               ...form,
               visibility: value,
               department: value === 'setor' ? form.department : '',
+              position_id: value === 'cargo' ? form.position_id : '',
               minimum_access_level: value === 'nivel' ? form.minimum_access_level || 'gestor' : null,
             })}
           >
@@ -146,6 +157,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
             <SelectContent>
               <SelectItem value="geral">Geral - todos veem</SelectItem>
               <SelectItem value="setor">Por setor</SelectItem>
+              <SelectItem value="cargo">Por cargo</SelectItem>
               <SelectItem value="nivel">Restrito por nivel</SelectItem>
             </SelectContent>
           </Select>
@@ -159,6 +171,21 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
               {departments.map((department) => (
                 <SelectItem key={department.id} value={department.key}>
                   {department.name}
+                </SelectItem>
+              ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {form.visibility === 'cargo' && (
+          <div className="space-y-2">
+            <Label>Cargo</Label>
+            <Select value={form.position_id || ''} onValueChange={(value) => setForm({ ...form, position_id: value })}>
+              <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+              <SelectContent>
+              {positions.map((position) => (
+                <SelectItem key={position.id} value={position.id}>
+                  {position.name}
                 </SelectItem>
               ))}
               </SelectContent>
