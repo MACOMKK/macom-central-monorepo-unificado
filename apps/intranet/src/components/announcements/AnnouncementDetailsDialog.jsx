@@ -1,8 +1,9 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Share2 } from 'lucide-react';
 
-import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle } from '@macom/ui';
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@macom/ui';
 
 const categoryLabels = {
   geral: 'Geral',
@@ -32,7 +33,7 @@ function wasAnnouncementEdited(announcement) {
   return updatedAt - createdAt > 1000;
 }
 
-export default function AnnouncementDetailsDialog({ announcement, open, onOpenChange }) {
+export default function AnnouncementDetailsDialog({ announcement, open, onOpenChange, onShare }) {
   if (!announcement) return null;
 
   return (
@@ -50,13 +51,28 @@ export default function AnnouncementDetailsDialog({ announcement, open, onOpenCh
           ) : null}
 
           <DialogHeader className="border-b border-border pb-4 text-left">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="text-[10px]">
-                {categoryLabels[announcement.category] || announcement.category}
-              </Badge>
-              <Badge variant="outline" className="text-[10px]">
-                {priorityLabels[announcement.priority] || announcement.priority}
-              </Badge>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="text-[10px]">
+                  {categoryLabels[announcement.category] || announcement.category}
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  {priorityLabels[announcement.priority] || announcement.priority}
+                </Badge>
+              </div>
+
+              {onShare ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 rounded-xl sm:w-auto"
+                  onClick={() => onShare(announcement)}
+                >
+                  <Share2 className="h-4 w-4" />
+                  Compartilhar
+                </Button>
+              ) : null}
             </div>
 
             <DialogTitle className="text-xl leading-tight text-foreground sm:text-2xl">

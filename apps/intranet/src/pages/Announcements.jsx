@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Bell, Info, Pencil, Pin, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, Copy, ExternalLink, Info, MessageCircle, Pencil, Pin, Plus, Share2, Trash2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { appClient } from '@/api/client';
 import { useAuth } from '@/lib/AuthContext';
@@ -136,9 +137,12 @@ export default function Announcements() {
   const [filter, setFilter] = useState('all');
   const [announcementToDelete, setAnnouncementToDelete] = useState(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [shareAnnouncement, setShareAnnouncement] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const {
     data: announcements = [],
@@ -308,6 +312,64 @@ export default function Announcements() {
     return createMutation.mutateAsync(data);
   };
 
+  const buildAnnouncementUrl = (announcement) => {
+    const params = new URLSearchParams();
+    params.set('aviso', announcement.id);
+    return `${window.location.origin}/avisos?${params.toString()}`;
+  };
+
+  const openAnnouncement = (announcement, { replace = false } = {}) => {
+    setSelectedAnnouncement(announcement);
+    const params = new URLSearchParams(location.search);
+    params.set('aviso', announcement.id);
+    navigate({ pathname: '/avisos', search: params.toString() }, { replace });
+  };
+
+  const closeAnnouncement = () => {
+    setSelectedAnnouncement(null);
+    const params = new URLSearchParams(location.search);
+    params.delete('aviso');
+    navigate({ pathname: '/avisos', search: params.toString() }, { replace: true });
+  };
+
+  const copyShareLink = async (announcement) => {
+    const shareUrl = buildAnnouncementUrl(announcement);
+    const text = `${announcement.title}\n${shareUrl}`;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setFeedback({ type: 'success', message: 'Link do aviso copiado.' });
+    } catch (error) {
+      setFeedback({ type: 'error', message: 'Nao foi possivel copiar o link.' });
+    }
+  };
+
+  const handleShareAnnouncement = (announcement) => {
+    setShareAnnouncement(announcement);
+  };
+
+  useEffect(() => {
+    const announcementId = new URLSearchParams(location.search).get('aviso');
+    if (!announcementId || !announcements.length) return;
+
+    const announcement = announcements.find((item) => item.id === announcementId);
+    if (announcement) {
+      setSelectedAnnouncement(announcement);
+    }
+  }, [announcements, location.search]);
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -427,7 +489,7 @@ export default function Announcements() {
                           type="button"
                           variant="link"
                           className="mt-2 h-auto px-0 text-sm font-semibold"
-                          onClick={() => setSelectedAnnouncement(announcement)}
+                          onClick={() => openAnnouncement(announcement)}
                         >
                           Ler aviso completo
                         </Button>
@@ -452,8 +514,19 @@ export default function Announcements() {
                         />
                       </div>
 
-                      {canManage ? (
-                        <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+                      <div className="flex shrink-0 items-center gap-1 self-end sm:self-start">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleShareAnnouncement(announcement)}
+                          className="h-8 w-8"
+                          aria-label="Compartilhar aviso"
+                          title="Compartilhar aviso"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                        {canManage ? (
+                          <>
                           <Button variant="ghost" size="icon" onClick={() => togglePin.mutate(announcement)} className="h-8 w-8">
                             <Pin className={`h-4 w-4 ${announcement.pinned ? 'text-primary' : 'text-muted-foreground'}`} />
                           </Button>
@@ -475,8 +548,9 @@ export default function Announcements() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
-                      ) : null}
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -511,8 +585,75 @@ export default function Announcements() {
       <AnnouncementDetailsDialog
         announcement={selectedAnnouncement}
         open={Boolean(selectedAnnouncement)}
-        onOpenChange={(open) => !open && setSelectedAnnouncement(null)}
+        onOpenChange={(open) => !open && closeAnnouncement()}
+        onShare={handleShareAnnouncement}
       />
+
+      <Dialog open={Boolean(shareAnnouncement)} onOpenChange={(open) => !open && setShareAnnouncement(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Compartilhar aviso</DialogTitle>
+          </DialogHeader>
+
+          {shareAnnouncement ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <p className="line-clamp-2 text-sm font-semibold text-foreground">{shareAnnouncement.title}</p>
+                <p className="mt-1 break-all text-xs text-muted-foreground">{buildAnnouncementUrl(shareAnnouncement)}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`${shareAnnouncement.title}\n${buildAnnouncementUrl(shareAnnouncement)}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Facebook
+                </a>
+                <a
+                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  LinkedIn
+                </a>
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareAnnouncement.title)}&url=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  X
+                </a>
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full gap-2 rounded-xl"
+                onClick={() => copyShareLink(shareAnnouncement)}
+              >
+                <Copy className="h-4 w-4" />
+                Copiar link
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <FeedbackToast feedback={feedback} onClose={() => setFeedback(null)} />
     </div>
