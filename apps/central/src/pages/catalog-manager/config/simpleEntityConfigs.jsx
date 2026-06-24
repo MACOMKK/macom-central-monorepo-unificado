@@ -26,11 +26,19 @@ export function buildDepartmentsConfig({
 
 export function buildPositionsConfig({
   Badge,
+  collaborators,
   departments,
   departmentOptions,
   formatDateTime,
   positions,
 }) {
+  const collaboratorsByPositionId = collaborators.reduce((acc, collaborator) => {
+    if (!collaborator.cargo_id) return acc;
+    if (!acc[collaborator.cargo_id]) acc[collaborator.cargo_id] = [];
+    acc[collaborator.cargo_id].push(collaborator);
+    return acc;
+  }, {});
+
   return {
     rows: positions,
     fields: [
@@ -65,6 +73,31 @@ export function buildPositionsConfig({
         render: (value) => departments.find((department) => department.id === value)?.nome || 'Sem departamento',
       },
       { key: 'descricao', label: 'Descricao', render: (value) => value || '-' },
+      {
+        key: 'colaboradores_vinculados',
+        label: 'Colaboradores',
+        render: (_, row) => {
+          const linkedCollaborators = collaboratorsByPositionId[row.id] || [];
+          if (!linkedCollaborators.length) {
+            return <span className="text-sm text-muted-foreground">Nenhum</span>;
+          }
+
+          const visibleNames = linkedCollaborators.slice(0, 3).map((collaborator) => collaborator.nome || collaborator.email);
+          const hiddenCount = linkedCollaborators.length - visibleNames.length;
+
+          return (
+            <div className="max-w-[260px] space-y-1">
+              <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[11px]">
+                {linkedCollaborators.length} {linkedCollaborators.length === 1 ? 'colaborador' : 'colaboradores'}
+              </Badge>
+              <p className="line-clamp-2 text-xs text-muted-foreground">
+                {visibleNames.join(', ')}
+                {hiddenCount > 0 ? ` +${hiddenCount}` : ''}
+              </p>
+            </div>
+          );
+        },
+      },
       {
         key: 'ativo',
         label: 'Status',

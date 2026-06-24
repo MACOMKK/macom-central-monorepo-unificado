@@ -85,7 +85,7 @@ function generatePassword(length = 12) {
 
 const ENTITY_DEPENDENCIES = {
   ativos: ['ativos', 'colaboradores', 'unidades'],
-  cargos: ['cargos', 'departamentos'],
+  cargos: ['cargos', 'departamentos', 'colaboradores'],
   colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
   contatos: ['contatos', 'unidades'],
   departamentos: ['departamentos', 'ativos', 'colaboradores'],
@@ -318,6 +318,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       }),
       cargos: buildPositionsConfig({
         Badge,
+        collaborators,
         departments,
         departmentOptions,
         formatDateTime,
