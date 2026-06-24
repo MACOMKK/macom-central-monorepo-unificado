@@ -2003,10 +2003,9 @@ function canViewAllDocuments(user?: Record<string, unknown>) {
 }
 
 function normalizeIntranetAccessLevel(user?: Record<string, unknown>) {
-  const candidates = [user?.access_level, user?.role, user?.function_role]
-    .map((value) => String(value || '').toLowerCase());
-  if (candidates.includes('admin')) return 'admin';
-  if (candidates.includes('gestor') || candidates.includes('manager')) return 'gestor';
+  const accessLevel = String(user?.access_level || '').toLowerCase();
+  if (accessLevel === 'admin') return 'admin';
+  if (accessLevel === 'gestor' || accessLevel === 'manager') return 'gestor';
   return 'usuario';
 }
 
