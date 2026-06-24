@@ -200,6 +200,7 @@ export default function Documents() {
   const [companyFilter, setCompanyFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [positionFilter, setPositionFilter] = useState('all');
   const queryClient = useQueryClient();
 
   const {
@@ -350,11 +351,13 @@ export default function Documents() {
       departmentFilter === 'all' ||
       (departmentFilter === '__general__' && visibility.key === 'geral') ||
       (departmentFilter === '__restricted__' && visibility.key === 'nivel') ||
-      (departmentFilter === '__position__' && visibility.key === 'cargo') ||
-      document.position_id === departmentFilter ||
       document.department_id === departmentFilter ||
       document.department === departmentFilter;
-    return matchCompany && matchDepartment;
+    const matchPosition =
+      positionFilter === 'all' ||
+      (positionFilter === '__position__' && visibility.key === 'cargo') ||
+      document.position_id === positionFilter;
+    return matchCompany && matchDepartment && matchPosition;
   });
 
   const categoryScopedDocuments = departmentScopedDocuments.filter((document) => {
@@ -402,10 +405,10 @@ export default function Documents() {
     totalItems,
     totalPages,
     paginatedItems: paginatedDocuments,
-  } = usePaginatedItems(filtered, pageSize, [search, catFilter, companyFilter, departmentFilter]);
+  } = usePaginatedItems(filtered, pageSize, [search, catFilter, companyFilter, departmentFilter, positionFilter]);
   const activeCategoryLabel = catFilter === 'all' ? null : (categoryConfig[catFilter] || categoryConfig.outros).label;
   const previewType = previewDocument ? getPreviewType(previewDocument) : null;
-  const hasAdvancedFilters = companyFilter !== 'all' || departmentFilter !== 'all';
+  const hasAdvancedFilters = companyFilter !== 'all' || departmentFilter !== 'all' || positionFilter !== 'all';
 
   const handleConfirmDelete = () => {
     if (!documentToDelete) return;
@@ -415,6 +418,7 @@ export default function Documents() {
   const clearAdvancedFilters = () => {
     setCompanyFilter('all');
     setDepartmentFilter('all');
+    setPositionFilter('all');
   };
 
   const openCreateDialog = () => {
@@ -514,15 +518,26 @@ export default function Documents() {
               <SelectItem value="all">Departamento</SelectItem>
               <SelectItem value="__general__">Geral</SelectItem>
               <SelectItem value="__restricted__">Restritos por nivel</SelectItem>
-              <SelectItem value="__position__">Por cargo</SelectItem>
-              {positionOptions.map((position) => (
-                <SelectItem key={position.id} value={position.id}>
-                  {position.name}
-                </SelectItem>
-              ))}
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id || department.key} value={department.id || department.key}>
                   {department.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="min-w-[190px] max-w-[220px] flex-1 sm:flex-none">
+          <Select value={positionFilter} onValueChange={setPositionFilter}>
+            <SelectTrigger className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs shadow-none">
+              <SelectValue placeholder="Cargo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Cargo</SelectItem>
+              <SelectItem value="__position__">Todos por cargo</SelectItem>
+              {positionOptions.map((position) => (
+                <SelectItem key={position.id} value={position.id}>
+                  {position.name}
                 </SelectItem>
               ))}
             </SelectContent>
