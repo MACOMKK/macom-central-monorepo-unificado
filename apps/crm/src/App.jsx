@@ -12,6 +12,7 @@ import Leads from '@/pages/Leads';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 import ConfiguracaoDistribuicao from '@/pages/ConfiguracaoDistribuicao';
+import { useCrmRealtime } from '@/hooks/useCrmRealtime';
 
 const getFromPath = (search) => {
   const params = new URLSearchParams(search);
@@ -49,6 +50,7 @@ const LoginRoute = () => {
 const CrmRoutes = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
   const location = useLocation();
+  useCrmRealtime(isAuthenticated && !isLoadingAuth);
 
   if (isLoadingAuth) {
     return <LoadingScreen />;
