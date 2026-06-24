@@ -26,7 +26,7 @@ const navItems = [
   { path: '/', label: 'Dashboard', icon: Home, module: 'dashboard' },
   { path: '/ativos', label: 'Ativos', icon: Laptop, module: 'ativos' },
   { path: '/departamentos', label: 'Departamentos', icon: Building2, module: 'departamentos' },
-  { path: '/cargos', label: 'Cargos', icon: BriefcaseBusiness, module: 'departamentos' },
+  { path: '/cargos', label: 'Cargos', icon: BriefcaseBusiness, module: 'cargos' },
   { path: '/unidades', label: 'Unidades', icon: Building2, module: 'unidades' },
   { path: '/colaboradores', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
   { path: '/contatos', label: 'Contatos', icon: Phone, module: 'contatos' },

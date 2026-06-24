@@ -8,6 +8,7 @@ export const CENTRAL_PERMISSION_MODULES = [
   { key: 'dashboard', label: 'Dashboard', path: '/' },
   { key: 'ativos', label: 'Ativos', path: '/ativos' },
   { key: 'departamentos', label: 'Departamentos', path: '/departamentos' },
+  { key: 'cargos', label: 'Cargos', path: '/cargos' },
   { key: 'unidades', label: 'Unidades', path: '/unidades' },
   { key: 'colaboradores', label: 'Colaboradores', path: '/colaboradores' },
   { key: 'contatos', label: 'Contatos', path: '/contatos' },
@@ -21,9 +22,7 @@ export const CENTRAL_PERMISSION_MODULES = [
 export const CENTRAL_PERMISSION_MODULE_BY_PATH = CENTRAL_PERMISSION_MODULES.reduce((acc, module) => {
   acc[module.path] = module.key;
   return acc;
-}, {
-  '/cargos': 'departamentos',
-});
+}, {});
 
 export function getCentralPermissionLevel(permissions = [], moduleKey) {
   const permission = permissions.find((item) => item.modulo === moduleKey);
