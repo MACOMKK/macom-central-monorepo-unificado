@@ -9,22 +9,37 @@ export function useCatalogViewState({
   collaboratorStatusFilter,
   collaboratorUnitFilter,
   config,
+  departments,
   loadingByEntity,
   lockedEntityKey,
+  positionDepartmentFilter,
   search,
 }) {
   const current = config[lockedEntityKey];
 
   const rows = useMemo(() => {
+    const departmentsById = new Map((departments || []).map((department) => [department.id, department]));
+
     return current.rows.filter((row) => {
       const query = search.toLowerCase();
-      const matchesSearch =
+      let matchesSearch =
         !query ||
         Object.values(row).some((value) => String(value || '').toLowerCase().includes(query)) ||
-        collaborators
-          .find((item) => item.id === row.usuario_id)
-          ?.nome?.toLowerCase()
-          .includes(query);
+        collaborators.find((item) => item.id === row.usuario_id)?.nome?.toLowerCase().includes(query);
+
+      if (lockedEntityKey === 'cargos') {
+        const departmentName = departmentsById.get(row.departamento_id)?.nome || 'Sem departamento';
+        matchesSearch =
+          !query ||
+          String(row.nome || '').toLowerCase().includes(query) ||
+          departmentName.toLowerCase().includes(query);
+
+        const matchesDepartment =
+          positionDepartmentFilter === 'all' ||
+          (positionDepartmentFilter === 'none' ? !row.departamento_id : row.departamento_id === positionDepartmentFilter);
+
+        return matchesSearch && matchesDepartment;
+      }
 
       if (lockedEntityKey !== 'ativos') {
         if (lockedEntityKey !== 'colaboradores') {
@@ -53,7 +68,9 @@ export function useCatalogViewState({
     collaboratorUnitFilter,
     collaborators,
     current.rows,
+    departments,
     lockedEntityKey,
+    positionDepartmentFilter,
     search,
   ]);
 

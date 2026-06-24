@@ -29,7 +29,6 @@ export function buildPositionsConfig({
   collaborators,
   departments,
   departmentOptions,
-  formatDateTime,
   onViewCollaborators,
   positions,
 }) {
@@ -54,17 +53,6 @@ export function buildPositionsConfig({
         options: departmentOptions,
       },
       { key: 'descricao', label: 'Descricao', fullWidth: true, placeholder: 'Ex.: Responsavel pelo atendimento comercial' },
-      {
-        key: 'ativo',
-        label: 'Status',
-        type: 'select',
-        valueType: 'boolean',
-        defaultValue: true,
-        options: [
-          { value: 'true', label: 'Ativo' },
-          { value: 'false', label: 'Inativo' },
-        ],
-      },
     ],
     columns: [
       { key: 'nome', label: 'Cargo', render: (value) => <span className="font-medium text-foreground">{value || '-'}</span> },
@@ -73,7 +61,6 @@ export function buildPositionsConfig({
         label: 'Departamento',
         render: (value) => departments.find((department) => department.id === value)?.nome || 'Sem departamento',
       },
-      { key: 'descricao', label: 'Descricao', render: (value) => value || '-' },
       {
         key: 'colaboradores_vinculados',
         label: 'Colaboradores',
@@ -96,18 +83,8 @@ export function buildPositionsConfig({
           );
         },
       },
-      {
-        key: 'ativo',
-        label: 'Status',
-        render: (value) => (
-          <Badge variant="outline" className={value ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
-            {value ? 'Ativo' : 'Inativo'}
-          </Badge>
-        ),
-      },
-      { key: 'atualizado_em', label: 'Atualizado em', render: (value) => formatDateTime(value) },
     ],
-    searchPlaceholder: 'Buscar por cargo, departamento ou descricao...',
+    searchPlaceholder: 'Buscar por cargo ou departamento...',
     queryKey: 'cargos',
   };
 }
@@ -633,11 +610,10 @@ export function buildCollaboratorsConfig({
     gestor: 'bg-amber-100 text-amber-700',
     usuario: 'bg-slate-100 text-slate-700',
   };
-  const activePositions = positions.filter((position) => position.ativo !== false);
   const buildPositionOptions = (formState = {}, record = {}) => {
     const selectedDepartmentId = formState.departamento_id || record.departamento_id || '';
     const selectedPositionId = formState.cargo_id || record.cargo_id || '';
-    const filteredPositions = activePositions.filter((position) => (
+    const filteredPositions = positions.filter((position) => (
       !selectedDepartmentId ||
       !position.departamento_id ||
       position.departamento_id === selectedDepartmentId ||

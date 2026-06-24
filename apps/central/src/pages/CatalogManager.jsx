@@ -30,6 +30,7 @@ import CatalogRecordDialog from '@/pages/catalog-manager/components/CatalogRecor
 import CatalogEntityTable from '@/pages/catalog-manager/components/CatalogEntityTable';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
 import DepartmentCardsGrid from '@/pages/catalog-manager/components/DepartmentCardsGrid';
+import PositionsToolbar from '@/pages/catalog-manager/components/PositionsToolbar';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import UnitCardsGrid from '@/pages/catalog-manager/components/UnitCardsGrid';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
@@ -169,6 +170,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [collaboratorUnitFilter, setCollaboratorUnitFilter] = useState('all');
   const [collaboratorDepartmentFilter, setCollaboratorDepartmentFilter] = useState('all');
   const [collaboratorStatusFilter, setCollaboratorStatusFilter] = useState('all');
+  const [positionDepartmentFilter, setPositionDepartmentFilter] = useState('all');
   const [selectedBulkIds, setSelectedBulkIds] = useState([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -343,7 +345,6 @@ export default function CatalogManager({ lockedEntityKey }) {
         collaborators,
         departments,
         departmentOptions,
-        formatDateTime,
         onViewCollaborators: setViewingPosition,
         positions,
       }),
@@ -459,8 +460,10 @@ export default function CatalogManager({ lockedEntityKey }) {
     collaboratorStatusFilter,
     collaboratorUnitFilter,
     config,
+    departments,
     loadingByEntity,
     lockedEntityKey,
+    positionDepartmentFilter,
     search,
   });
   const shouldPaginate = PAGINATED_ENTITIES.has(lockedEntityKey);
@@ -481,6 +484,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     collaboratorUnitFilter,
     lockedEntityKey,
     pageSize,
+    positionDepartmentFilter,
     search,
   ]);
 
@@ -997,6 +1001,14 @@ export default function CatalogManager({ lockedEntityKey }) {
           onSearchChange={setSearch}
           search={search}
           units={units}
+        />
+      ) : lockedEntityKey === 'cargos' ? (
+        <PositionsToolbar
+          departments={departments}
+          onPositionDepartmentFilterChange={setPositionDepartmentFilter}
+          onSearchChange={setSearch}
+          positionDepartmentFilter={positionDepartmentFilter}
+          search={search}
         />
       ) : (
         <SearchToolbar onSearchChange={setSearch} placeholder={current.searchPlaceholder} search={search} />
