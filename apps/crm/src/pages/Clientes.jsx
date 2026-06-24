@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { cn } from '@/lib/utils';
-import { Building2, Car, Clock3, History, Mail, Pencil, Phone, Save, Search, Tag, UserRound, X } from 'lucide-react';
+import { Building2, Car, Clock3, History, Mail, Paperclip, Pencil, Phone, Save, Search, Tag, UserRound, X } from 'lucide-react';
 
 const EMPRESAS = ['Macom Ananindeua', 'Macom BelÃ©m', 'Macom Paragominas'];
 
@@ -276,15 +276,18 @@ export default function Clientes() {
 
     const historicoItems = selectedHistorico.map((item) => {
       const isLeadNote = item.tipo === 'observacao' && item.metadados?.origem === 'lead_note';
+      const isLeadAttachment = item.tipo === 'observacao' && item.metadados?.origem === 'lead_attachment';
       return {
         id: `historico-${item.id}`,
-        type: isLeadNote ? 'nota' : 'historico',
+        type: isLeadAttachment ? 'anexo' : (isLeadNote ? 'nota' : 'historico'),
         date: item.created_date,
-        label: isLeadNote ? 'Nota' : (item.tipo || 'Historico'),
-        title: isLeadNote ? 'Nota vinculada ao lead' : (item.descricao || 'Registro de historico'),
-        description: isLeadNote ? item.descricao : (item.entidade ? `Entidade: ${item.entidade}` : ''),
+        label: isLeadAttachment ? 'Anexo' : (isLeadNote ? 'Nota' : (item.tipo || 'Historico')),
+        title: isLeadAttachment ? 'Anexo vinculado ao lead' : (isLeadNote ? 'Nota vinculada ao lead' : (item.descricao || 'Registro de historico')),
+        description: isLeadAttachment
+          ? (item.metadados?.nome || item.descricao)
+          : (isLeadNote ? item.descricao : (item.entidade ? `Entidade: ${item.entidade}` : '')),
         status: item.status,
-        icon: History,
+        icon: isLeadAttachment ? Paperclip : History,
       };
     });
 

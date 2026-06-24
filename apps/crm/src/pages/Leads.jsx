@@ -283,6 +283,37 @@ export default function Leads() {
     },
   });
 
+  const attachmentMutation = useMutation({
+    mutationFn: ({ lead, file }) => crmDataClient.entities.HistoricoAtendimento.uploadLeadAttachment({ lead, file }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      toast({
+        title: 'Anexo registrado',
+        description: 'O arquivo foi vinculado ao lead.',
+        variant: 'success',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel anexar o arquivo',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const openAttachment = async (attachment) => {
+    try {
+      await crmDataClient.entities.HistoricoAtendimento.openAttachment(attachment);
+    } catch (error) {
+      toast({
+        title: 'Nao foi possivel abrir o anexo',
+        description: error.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleDragEnd = (result) => {
     if (!result.destination) return;
     const { draggableId, destination } = result;
@@ -308,6 +339,9 @@ export default function Leads() {
   const counts = leads.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
   const editingNotes = editing
     ? historico.filter((item) => item.lead_id === editing.id && item.tipo === 'observacao' && item.metadados?.origem === 'lead_note')
+    : [];
+  const editingAttachments = editing
+    ? historico.filter((item) => item.lead_id === editing.id && item.metadados?.origem === 'lead_attachment')
     : [];
 
   const STATUS_TABS = ['todos', 'novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
@@ -528,8 +562,12 @@ export default function Leads() {
           responsaveis={responsaveis}
           onSave={(data) => saveMutation.mutate({ id: editing?.id || null, data })}
           notes={editingNotes}
+          attachments={editingAttachments}
           addingNote={noteMutation.isPending}
+          uploadingAttachment={attachmentMutation.isPending}
           onAddNote={(text) => editing && noteMutation.mutate({ lead: editing, text })}
+          onAddAttachment={(file) => editing && attachmentMutation.mutate({ lead: editing, file })}
+          onOpenAttachment={openAttachment}
         />
       )}
     </div>

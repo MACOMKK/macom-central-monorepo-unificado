@@ -1,4 +1,7 @@
 import { crmApi } from '@macom/api-client/crmApi';
+import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+
+const CRM_ATTACHMENTS_BUCKET = 'crm-anexos';
 
 const SORT_KEY_MAP = {
   created_date: 'criado_em',
@@ -22,6 +25,15 @@ function normalizeDateOnly(value) {
   if (!value) return '';
   const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
   return match?.[1] || '';
+}
+
+function sanitizeFileName(name = 'anexo') {
+  const normalized = String(name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'anexo';
 }
 
 function requireNormalizedPhone(phone, context) {
@@ -297,6 +309,72 @@ async function addHistoricoAtendimento(entry) {
   return mapHistoricoRow(row);
 }
 
+async function uploadLeadAttachment({ lead, file }) {
+  assertSupabaseConfigured();
+
+  if (!lead?.id || !lead?.cliente_id) {
+    throw new Error('Anexo deve estar vinculado a um lead salvo.');
+  }
+
+  if (!file) {
+    throw new Error('Selecione um arquivo para anexar.');
+  }
+
+  const safeName = sanitizeFileName(file.name);
+  const path = `${lead.id}/${Date.now()}-${safeName}`;
+  const { error } = await supabase.storage
+    .from(CRM_ATTACHMENTS_BUCKET)
+    .upload(path, file, {
+      cacheControl: '3600',
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+
+  if (error) {
+    throw toError(error, 'Nao foi possivel enviar o anexo.');
+  }
+
+  return addHistoricoAtendimento({
+    cliente_id: lead.cliente_id,
+    lead_id: lead.id,
+    tipo: 'observacao',
+    descricao: file.name || safeName,
+    entidade: 'Lead',
+    entidade_id: lead.id,
+    status: lead.status,
+    metadados: {
+      origem: 'lead_attachment',
+      bucket: CRM_ATTACHMENTS_BUCKET,
+      path,
+      nome: file.name || safeName,
+      tipo: file.type || 'application/octet-stream',
+      tamanho: file.size || 0,
+    },
+  });
+}
+
+async function openAttachment(attachment) {
+  assertSupabaseConfigured();
+
+  const bucket = attachment?.metadados?.bucket || CRM_ATTACHMENTS_BUCKET;
+  const path = attachment?.metadados?.path;
+
+  if (!path) {
+    throw new Error('Anexo sem caminho de arquivo.');
+  }
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, 60);
+
+  if (error) {
+    throw toError(error, 'Nao foi possivel abrir o anexo.');
+  }
+
+  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  return data.signedUrl;
+}
+
 async function findClienteByContact({ telefone, email }) {
   const phone = normalizePhone(telefone);
   const normalizedEmail = normalizeEmail(email);
@@ -548,6 +626,14 @@ const HistoricoAtendimentoRepository = {
 
   async create(data) {
     return addHistoricoAtendimento(data);
+  },
+
+  async uploadLeadAttachment(data) {
+    return uploadLeadAttachment(data);
+  },
+
+  async openAttachment(attachment) {
+    return openAttachment(attachment);
   },
 };
 

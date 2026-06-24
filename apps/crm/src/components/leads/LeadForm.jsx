@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ExternalLink, Paperclip, Upload } from 'lucide-react';
 
 function formatDate(value) {
   if (!value) return '-';
@@ -24,6 +25,13 @@ function companyFromUnit(unitName = '') {
   return 'Macom Ananindeua';
 }
 
+function formatBytes(value = 0) {
+  const size = Number(value || 0);
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function Field({ label, children }) {
   return (
     <div className="space-y-1">
@@ -33,7 +41,20 @@ function Field({ label, children }) {
   );
 }
 
-export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], notes = [], onSave, onAddNote, addingNote = false }) {
+export default function LeadForm({
+  open,
+  onOpenChange,
+  lead,
+  responsaveis = [],
+  notes = [],
+  attachments = [],
+  onSave,
+  onAddNote,
+  onAddAttachment,
+  onOpenAttachment,
+  addingNote = false,
+  uploadingAttachment = false,
+}) {
   const [data, setData] = useState(lead || {
     nome: '', telefone: '', email: '', origem: 'site', status: 'novo',
     modelo_interesse: '', empresa: 'Macom Ananindeua', responsavel_id: '',
@@ -78,6 +99,13 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
     if (!text || !onAddNote) return;
     onAddNote(text);
     setNoteText('');
+  };
+  const addAttachment = (event) => {
+    const file = event.target.files?.[0];
+    if (file && onAddAttachment) {
+      onAddAttachment(file);
+    }
+    event.target.value = '';
   };
 
   return (
@@ -179,40 +207,87 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
             />
           </Field>
           {lead ? (
-            <div className="border-t pt-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Notas do lead</Label>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{notes.length} notas</span>
-              </div>
-              <div className="space-y-2">
-                <Textarea
-                  value={noteText}
-                  onChange={(event) => setNoteText(event.target.value)}
-                  placeholder="Registrar nota comercial..."
-                  className="resize-none rounded-none text-sm"
-                  rows={2}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!noteText.trim() || addingNote}
-                    onClick={saveNote}
-                    className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-                  >
-                    {addingNote ? 'Registrando...' : 'Adicionar nota'}
-                  </Button>
+            <div className="space-y-5 border-t pt-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Notas do lead</Label>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{notes.length} notas</span>
+                </div>
+                <div className="space-y-2">
+                  <Textarea
+                    value={noteText}
+                    onChange={(event) => setNoteText(event.target.value)}
+                    placeholder="Registrar nota comercial..."
+                    className="resize-none rounded-none text-sm"
+                    rows={2}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!noteText.trim() || addingNote}
+                      onClick={saveNote}
+                      className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+                    >
+                      {addingNote ? 'Registrando...' : 'Adicionar nota'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-3 max-h-40 space-y-2 overflow-y-auto border-t pt-3">
+                  {notes.length === 0 ? (
+                    <p className="py-3 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Nenhuma nota registrada</p>
+                  ) : notes.map((note) => (
+                    <div key={note.id} className="bg-slate-50 p-3">
+                      <p className="text-sm text-slate-800">{note.descricao}</p>
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{formatDate(note.created_date)}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="mt-3 max-h-40 space-y-2 overflow-y-auto border-t pt-3">
-                {notes.length === 0 ? (
-                  <p className="py-3 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Nenhuma nota registrada</p>
-                ) : notes.map((note) => (
-                  <div key={note.id} className="bg-slate-50 p-3">
-                    <p className="text-sm text-slate-800">{note.descricao}</p>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{formatDate(note.created_date)}</p>
-                  </div>
-                ))}
+
+              <div className="border-t pt-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Anexos do lead</Label>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{attachments.length} anexos</span>
+                </div>
+                <label className="flex cursor-pointer items-center justify-center gap-2 border border-dashed border-border bg-slate-50 px-3 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-slate-100">
+                  {uploadingAttachment ? (
+                    'Enviando...'
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5" />
+                      Adicionar anexo
+                    </>
+                  )}
+                  <input type="file" className="hidden" disabled={uploadingAttachment} onChange={addAttachment} />
+                </label>
+                <div className="mt-3 max-h-40 space-y-2 overflow-y-auto border-t pt-3">
+                  {attachments.length === 0 ? (
+                    <p className="py-3 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Nenhum anexo registrado</p>
+                  ) : attachments.map((attachment) => (
+                    <div key={attachment.id} className="flex items-center justify-between gap-3 bg-slate-50 p-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1 truncate text-sm font-semibold text-slate-800">
+                          <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                          {attachment.metadados?.nome || attachment.descricao}
+                        </p>
+                        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {formatBytes(attachment.metadados?.tamanho)} | {formatDate(attachment.created_date)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-none"
+                        onClick={() => onOpenAttachment?.(attachment)}
+                        title="Abrir anexo"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : null}
