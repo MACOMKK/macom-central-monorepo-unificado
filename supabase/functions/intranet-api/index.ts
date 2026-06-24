@@ -1966,7 +1966,8 @@ function buildDocumentVisibilityClause(user?: Record<string, unknown>, startInde
   };
 }
 
-async function listHomeAnnouncements(limit = 10) {
+async function listHomeAnnouncements(limit = 5) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 5);
   const rows = await runSql<Record<string, unknown>>(
     `
       select
@@ -1992,7 +1993,7 @@ async function listHomeAnnouncements(limit = 10) {
       order by criado_em desc
       limit $1;
     `,
-    [limit],
+    [safeLimit],
   );
 
   return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row)));
@@ -3768,7 +3769,7 @@ async function listEntity(
         filters,
       });
     case 'HomeAnnouncement':
-      return listHomeAnnouncements(limit || 10);
+      return listHomeAnnouncements(limit);
     case 'AnnouncementComment':
       return listAnnouncementComments({}, orderBy, limit);
     case 'AnnouncementReaction':

@@ -40,7 +40,7 @@ export default function RecentAnnouncements() {
     queryFn: () => appClient.entities.HomeAnnouncement.list('-created_date', 5),
   });
 
-  const recentAnnouncements = announcements;
+  const recentAnnouncements = announcements.slice(0, 5);
 
   return (
     <div className="h-full rounded-2xl border border-border bg-card p-5">
