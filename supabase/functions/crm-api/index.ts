@@ -364,6 +364,10 @@ function buildAdvancedFilters(entity: EntityName, filters: Record<string, unknow
       values.push(filters.empresa);
       clauses.push(`(l."empresa" = $${startIndex + values.length - 1} or c."empresa" = $${startIndex + values.length - 1})`);
     }
+    if (filters.responsavel_id) {
+      values.push(filters.responsavel_id);
+      clauses.push(`l."responsavel_id" = $${startIndex + values.length - 1}`);
+    }
   }
 
   return { clauses, values };
@@ -567,10 +571,20 @@ function buildListSelect(entity: EntityName) {
     select
       a.*,
       row_to_json(l) as lead,
-      row_to_json(c) as cliente
+      row_to_json(c) as cliente,
+      case
+        when r.id is null then null
+        else json_build_object(
+          'id', r.id,
+          'nome', r.nome,
+          'email', r.email,
+          'unidade_id', r.unidade_id
+        )
+      end as responsavel
     from ${CRM_SCHEMA}.atendimentos a
     left join ${CRM_SCHEMA}.leads l on l.id = a.lead_id
     left join ${CRM_SCHEMA}.clientes c on c.id = a.cliente_id
+    left join public.colaboradores r on r.id = l.responsavel_id
   `;
 }
 
@@ -879,6 +893,7 @@ Deno.serve(async (request) => {
       const directFilters = { ...filters };
       if (entity === 'atendimentos') {
         delete directFilters.empresa;
+        delete directFilters.responsavel_id;
       }
       const filterParts = buildSqlFilters(directFilters, 1, baseAlias(entity) || undefined);
       const advancedParts = buildAdvancedFilters(entity, filters, filterParts.values.length + 1);

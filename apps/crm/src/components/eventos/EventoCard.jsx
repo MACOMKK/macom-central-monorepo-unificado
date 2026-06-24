@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Phone, Calendar, Flame, Building2, Car } from 'lucide-react';
+import { Phone, Calendar, Flame, Building2, Car, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TEMP_COLORS = {
@@ -81,6 +81,11 @@ export default function EventoCard({ evento, onClick }) {
             <span className="flex items-center gap-1 font-semibold text-primary">
               <Calendar className="w-3 h-3" />
               {formattedContactDate}
+            </span>
+          )}
+          {evento.responsavel_nome && (
+            <span className="flex items-center gap-1">
+              <UserRound className="w-3 h-3" />{evento.responsavel_nome}
             </span>
           )}
           <span className="flex items-center gap-1 ml-auto">

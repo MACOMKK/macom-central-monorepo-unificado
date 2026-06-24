@@ -3,6 +3,7 @@ import { crmDataClient } from '@/api/crmDataClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlarmClock, Plus, Search } from 'lucide-react';
 import StatusTabs from '@/components/eventos/StatusTabs';
 import EventoCard from '@/components/eventos/EventoCard';
@@ -26,6 +27,7 @@ export default function Eventos() {
   const [editing, setEditing] = useState(null);
   const [periodoInicio, setPeriodoInicio] = useState('');
   const [periodoFim, setPeriodoFim] = useState('');
+  const [responsavelFiltro, setResponsavelFiltro] = useState('todos');
   const { empresa } = useEmpresa();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -36,9 +38,10 @@ export default function Eventos() {
   }), [empresa]);
   const resumoFilters = useMemo(() => ({
     ...baseFilters,
+    ...(responsavelFiltro !== 'todos' ? { responsavel_id: responsavelFiltro } : {}),
     ...(periodoInicio ? { proximo_from: periodoInicio } : {}),
     ...(periodoFim ? { proximo_to: periodoFim } : {}),
-  }), [baseFilters, periodoFim, periodoInicio]);
+  }), [baseFilters, periodoFim, periodoInicio, responsavelFiltro]);
   const eventosFilters = useMemo(() => ({
     ...resumoFilters,
     status: statusTab,
@@ -47,7 +50,7 @@ export default function Eventos() {
 
   useEffect(() => {
     setPage(1);
-  }, [busca, empresa, periodoFim, periodoInicio, statusTab]);
+  }, [busca, empresa, periodoFim, periodoInicio, responsavelFiltro, statusTab]);
 
   const { data: eventosPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
     queryKey: eventosQueryKey,
@@ -75,6 +78,11 @@ export default function Eventos() {
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
     queryFn: () => crmDataClient.entities.Lead.list('-updated_date', 500),
+  });
+
+  const { data: responsaveis = [] } = useQuery({
+    queryKey: ['crm-responsaveis'],
+    queryFn: () => crmDataClient.entities.Responsavel.list(),
   });
 
   const invalidate = () => {
@@ -252,6 +260,19 @@ export default function Eventos() {
             className="h-9 w-40 rounded-none bg-white text-xs"
             title="Fim do periodo de proximo contato"
           />
+          <Select value={responsavelFiltro} onValueChange={setResponsavelFiltro}>
+            <SelectTrigger className="h-9 w-52 rounded-none bg-white text-xs">
+              <SelectValue placeholder="Vendedor" />
+            </SelectTrigger>
+            <SelectContent className="rounded-none">
+              <SelectItem value="todos">Todos os vendedores</SelectItem>
+              {responsaveis.map((responsavel) => (
+                <SelectItem key={responsavel.id} value={responsavel.id}>
+                  {responsavel.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             onClick={() => { setEditing(null); setFormOpen(true); }}
             className="h-9 text-xs font-bold uppercase tracking-widest rounded-none px-5 bg-primary hover:bg-primary/90"

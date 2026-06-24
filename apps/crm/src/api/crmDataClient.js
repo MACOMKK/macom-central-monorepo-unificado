@@ -146,6 +146,7 @@ function mapLeadRow(row = {}) {
 function mapEventoRow(row = {}) {
   const lead = row.lead || row.leads || {};
   const cliente = row.cliente || row.clientes || {};
+  const responsavel = row.responsavel || lead.responsavel || null;
   const legacyStatusMap = {
     aguardando: 'planejada',
     andamento: 'planejada',
@@ -173,6 +174,9 @@ function mapEventoRow(row = {}) {
     origem: lead.origem || row.origem || '',
     empresa: lead.empresa || cliente.empresa || row.empresa || 'Macom Ananindeua',
     modelo_interesse: lead.modelo_interesse || row.modelo_interesse || '',
+    responsavel_id: lead.responsavel_id || row.responsavel_id || '',
+    responsavel,
+    responsavel_nome: responsavel?.nome || '',
     proximo_contato: normalizeDateOnly(row.proximo_contato),
     observacoes: row.observacoes || '',
     resultado: normalizedResult,
