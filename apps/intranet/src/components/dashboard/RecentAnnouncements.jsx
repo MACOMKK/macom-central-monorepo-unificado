@@ -37,10 +37,10 @@ function formatDate(dateStr) {
 export default function RecentAnnouncements() {
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['announcements-home'],
-    queryFn: () => appClient.entities.HomeAnnouncement.list('-created_date', 10),
+    queryFn: () => appClient.entities.HomeAnnouncement.list('-created_date', 5),
   });
 
-  const recentAnnouncements = announcements.slice(0, 5);
+  const recentAnnouncements = announcements;
 
   return (
     <div className="h-full rounded-2xl border border-border bg-card p-5">

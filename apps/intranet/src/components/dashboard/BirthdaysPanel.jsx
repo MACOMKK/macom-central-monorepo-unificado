@@ -26,16 +26,22 @@ export default function BirthdaysPanel() {
 
   const today = new Date();
   const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
   const todayStr = format(today, 'MM-dd');
 
   const birthdaysThisMonth = employees
-    .filter((employee) => {
+    .map((employee) => {
       const birthDate = parseBirthDate(employee.birth_date);
-      return birthDate ? birthDate.getMonth() === currentMonth : false;
+      return { ...employee, birthDate };
+    })
+    .filter((employee) => {
+      return employee.birthDate
+        ? employee.birthDate.getMonth() === currentMonth && employee.birthDate.getDate() >= currentDay
+        : false;
     })
     .sort((a, b) => {
-      const dayA = parseBirthDate(a.birth_date)?.getDate() || 0;
-      const dayB = parseBirthDate(b.birth_date)?.getDate() || 0;
+      const dayA = a.birthDate?.getDate() || 0;
+      const dayB = b.birthDate?.getDate() || 0;
       return dayA - dayB;
     })
     .slice(0, 5);
@@ -67,7 +73,7 @@ export default function BirthdaysPanel() {
       ) : (
         <div className="space-y-1 px-4 py-3">
           {birthdaysThisMonth.map((employee, index) => {
-            const birthDate = parseBirthDate(employee.birth_date);
+            const birthDate = employee.birthDate;
             if (!birthDate) return null;
             const employeeDayStr = format(birthDate, 'MM-dd');
             const isBirthday = employeeDayStr === todayStr;
