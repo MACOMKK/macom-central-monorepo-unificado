@@ -112,6 +112,7 @@ const ENTITY_DEPENDENCIES = {
 const DEFAULT_PAGE_SIZE = 10;
 const PAGINATED_ENTITIES = new Set([
   'ativos',
+  'cargos',
   'colaboradores',
   'contatos',
   'infra_estrutura',
@@ -1195,7 +1196,6 @@ export default function CatalogManager({ lockedEntityKey }) {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
-                        <TableHead>Departamento</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1204,9 +1204,6 @@ export default function CatalogManager({ lockedEntityKey }) {
                         <TableRow key={collaborator.id}>
                           <TableCell className="font-medium">{collaborator.nome || '-'}</TableCell>
                           <TableCell className="text-muted-foreground">{collaborator.email || '-'}</TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {departments.find((department) => department.id === collaborator.departamento_id)?.nome || 'Sem departamento'}
-                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={collaborator.status === 'ativo' ? statusTone.ativo : statusTone.inativo}>
                               {collaborator.status === 'ativo' ? 'Ativo' : 'Inativo'}
