@@ -152,9 +152,11 @@ const ENTITY_CONFIG = {
       category: 'categoria',
       company: 'empresa',
       department_id: 'departamento_id',
+      visibility: 'visibilidade',
+      minimum_access_level: 'nivel_minimo',
     },
-    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id'],
-    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id'],
+    createFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'visibility', 'minimum_access_level'],
+    updateFields: ['title', 'description', 'file_url', 'file_path', 'file_name', 'file_type', 'file_size', 'company', 'category', 'department', 'department_id', 'visibility', 'minimum_access_level'],
   },
   Feedback: {
     schema: INTRANET_SCHEMA,
@@ -1478,6 +1480,9 @@ function mapDocument(
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const department = departmentsById.get(String(row.departamento_id));
+  const visibility = typeof row.visibilidade === 'string' && row.visibilidade
+    ? row.visibilidade
+    : (row.departamento_id ? 'setor' : 'geral');
 
   return {
     id: row.id,
@@ -1490,6 +1495,8 @@ function mapDocument(
     file_size: row.arquivo_tamanho || null,
     company: row.empresa || 'macom_motors',
     category: row.categoria,
+    visibility,
+    minimum_access_level: row.nivel_minimo || null,
     department_id: row.departamento_id,
     department: department?.key || null,
     department_name: department?.name || null,
@@ -1947,7 +1954,15 @@ async function listAnnouncements(
 }
 
 function canViewAllDocuments(user?: Record<string, unknown>) {
-  return Boolean(user) && (user.role === 'admin' || canEditModule(user, 'documentos'));
+  return Boolean(user) && normalizeIntranetAccessLevel(user) === 'admin';
+}
+
+function normalizeIntranetAccessLevel(user?: Record<string, unknown>) {
+  const candidates = [user?.access_level, user?.role, user?.function_role]
+    .map((value) => String(value || '').toLowerCase());
+  if (candidates.includes('admin')) return 'admin';
+  if (candidates.includes('gestor') || candidates.includes('manager')) return 'gestor';
+  return 'usuario';
 }
 
 function buildDocumentVisibilityClause(user?: Record<string, unknown>, startIndex = 1) {
@@ -1956,13 +1971,27 @@ function buildDocumentVisibilityClause(user?: Record<string, unknown>, startInde
   }
 
   const departmentId = typeof user?.department_id === 'string' ? user.department_id : null;
-  if (!departmentId) {
-    return { clause: 'departamento_id is null', values: [] as unknown[] };
-  }
+  const accessLevel = normalizeIntranetAccessLevel(user);
+  const departmentParam = departmentId ? `$${startIndex}::uuid` : 'null::uuid';
+  const accessLevelParam = `$${departmentId ? startIndex + 1 : startIndex}`;
 
   return {
-    clause: `(departamento_id is null or departamento_id = $${startIndex}::uuid)`,
-    values: [departmentId] as unknown[],
+    clause: `(
+      coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'geral'
+      or (
+        coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'setor'
+        and departamento_id is not null
+        and departamento_id = ${departmentParam}
+      )
+      or (
+        coalesce(visibilidade, case when departamento_id is null then 'geral' else 'setor' end) = 'nivel'
+        and (
+          ${accessLevelParam} = 'admin'
+          or (coalesce(nivel_minimo, 'gestor') = 'gestor' and ${accessLevelParam} = 'gestor')
+        )
+      )
+    )`,
+    values: (departmentId ? [departmentId, accessLevel] : [accessLevel]) as unknown[],
   };
 }
 
@@ -3218,6 +3247,7 @@ async function updateCalendarEvent(
 
 async function createDocument(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  const visibilityConfig = resolveDocumentVisibility(payload, department);
   if (!payload.file_path || !payload.file_name) {
     throw new Error('Arquivo obrigatorio para criar documento.');
   }
@@ -3225,8 +3255,8 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
-        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, criado_por
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, visibilidade, nivel_minimo, criado_por
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       returning *;
     `,
     [
@@ -3239,13 +3269,53 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
       payload.file_size || null,
       payload.company || 'macom_motors',
       payload.category || 'outros',
-      department?.id || null,
+      visibilityConfig.departmentId,
+      visibilityConfig.visibility,
+      visibilityConfig.minimumAccessLevel,
       collaboratorId,
     ],
   );
   const [departments, creators] = await Promise.all([listDepartments(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
   await notifyDocumentAudience(rows[0], 'created', collaboratorId);
   return mapDocumentWithSignedUrl(rows[0], new Map(departments.map((item) => [String(item.id), item])), creators);
+}
+
+function resolveDocumentVisibility(
+  payload: Record<string, unknown>,
+  department: Record<string, unknown> | null | undefined,
+) {
+  const hasExplicitVisibility = typeof payload.visibility === 'string' || typeof payload.visibilidade === 'string';
+  const rawVisibility = String(payload.visibility || payload.visibilidade || '').toLowerCase();
+  const visibility = ['geral', 'setor', 'nivel'].includes(rawVisibility)
+    ? rawVisibility
+    : (department?.id ? 'setor' : 'geral');
+
+  if (visibility === 'setor') {
+    if (!department?.id) {
+      throw new Error('Selecione o setor para documentos com visibilidade por setor.');
+    }
+    return {
+      visibility,
+      departmentId: department.id,
+      minimumAccessLevel: null,
+    };
+  }
+
+  if (visibility === 'nivel') {
+    const rawLevel = String(payload.minimum_access_level || payload.nivel_minimo || 'gestor').toLowerCase();
+    const minimumAccessLevel = rawLevel === 'admin' ? 'admin' : 'gestor';
+    return {
+      visibility,
+      departmentId: null,
+      minimumAccessLevel,
+    };
+  }
+
+  return {
+    visibility: hasExplicitVisibility ? 'geral' : visibility,
+    departmentId: null,
+    minimumAccessLevel: null,
+  };
 }
 
 function resolveDocumentStorageBucket(document: Record<string, unknown> | null | undefined) {
@@ -3284,6 +3354,14 @@ async function updateDocument(
   collaboratorId: string | null,
 ) {
   const department = await resolveDepartment(payload.department || payload.department_id);
+  const shouldUpdateVisibility =
+    'visibility' in payload ||
+    'visibilidade' in payload ||
+    'minimum_access_level' in payload ||
+    'nivel_minimo' in payload ||
+    'department' in payload ||
+    'department_id' in payload;
+  const visibilityConfig = shouldUpdateVisibility ? resolveDocumentVisibility(payload, department) : null;
   if ('file_size' in payload) {
     validateDocumentFileSize(payload.file_size);
   }
@@ -3308,7 +3386,11 @@ async function updateDocument(
   if ('file_size' in payload) assign('arquivo_tamanho', payload.file_size);
   if ('company' in payload) assign('empresa', payload.company || 'macom_motors');
   if ('category' in payload) assign('categoria', payload.category);
-  if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
+  if (visibilityConfig) {
+    assign('departamento_id', visibilityConfig.departmentId);
+    assign('visibilidade', visibilityConfig.visibility);
+    assign('nivel_minimo', visibilityConfig.minimumAccessLevel);
+  }
   assign('atualizado_em', new Date().toISOString());
 
   const rows = await runSql<Record<string, unknown>>(

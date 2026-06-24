@@ -9,6 +9,8 @@ const EMPTY_FORM = {
   description: '',
   company: 'macom_motors',
   category: 'outros',
+  visibility: 'geral',
+  minimum_access_level: 'gestor',
   department: '',
   file_url: '',
   file_path: '',
@@ -25,6 +27,8 @@ function normalizeInitialData(initialData) {
     description: initialData.description || '',
     company: initialData.company || 'macom_motors',
     category: initialData.category || 'outros',
+    visibility: initialData.visibility || (initialData.department_id || initialData.department ? 'setor' : 'geral'),
+    minimum_access_level: initialData.minimum_access_level || 'gestor',
     department: initialData.department || initialData.department_id || '',
     file_url: initialData.file_url || '',
     file_path: initialData.file_path || '',
@@ -38,6 +42,11 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
   const [uploadError, setUploadError] = useState('');
   const [form, setForm] = useState(() => normalizeInitialData(initialData));
   const [uploading, setUploading] = useState(false);
+  const canSubmit = Boolean(
+    form.file_path &&
+    form.file_name &&
+    (form.visibility !== 'setor' || form.department)
+  );
 
   const { data: departments = [] } = useQuery({
     queryKey: ['catalog-departments'],
@@ -73,7 +82,14 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    onSubmit(form);
+    const payload = { ...form };
+    if (payload.visibility !== 'setor') {
+      payload.department = '';
+    }
+    if (payload.visibility !== 'nivel') {
+      payload.minimum_access_level = null;
+    }
+    onSubmit(payload);
   };
 
   return (
@@ -86,7 +102,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
         <Label>Descrição</Label>
         <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={2} placeholder="Breve descrição..." />
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Empresa</Label>
           <Select value={form.company} onValueChange={(value) => setForm({ ...form, company: value })}>
@@ -113,20 +129,54 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Visibilidade</Label>
-          <Select value={form.department || '__none__'} onValueChange={(value) => setForm({ ...form, department: value === '__none__' ? '' : value })}>
+          <Select
+            value={form.visibility}
+            onValueChange={(value) => setForm({
+              ...form,
+              visibility: value,
+              department: value === 'setor' ? form.department : '',
+              minimum_access_level: value === 'nivel' ? form.minimum_access_level || 'gestor' : null,
+            })}
+          >
             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Geral - todos os setores</SelectItem>
+              <SelectItem value="geral">Geral - todos veem</SelectItem>
+              <SelectItem value="setor">Por setor</SelectItem>
+              <SelectItem value="nivel">Restrito por nivel</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {form.visibility === 'setor' && (
+          <div className="space-y-2">
+            <Label>Setor</Label>
+            <Select value={form.department || ''} onValueChange={(value) => setForm({ ...form, department: value })}>
+              <SelectTrigger><SelectValue placeholder="Selecione o setor" /></SelectTrigger>
+              <SelectContent>
               {departments.map((department) => (
                 <SelectItem key={department.id} value={department.key}>
                   {department.name}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {form.visibility === 'nivel' && (
+          <div className="space-y-2">
+            <Label>Nivel minimo</Label>
+            <Select value={form.minimum_access_level || 'gestor'} onValueChange={(value) => setForm({ ...form, minimum_access_level: value })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gestor">Gestor ou Admin</SelectItem>
+                <SelectItem value="admin">Somente Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
       <div className="space-y-2">
         <Label>Arquivo</Label>
@@ -148,7 +198,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
           <p className="text-xs text-destructive">{uploadError}</p>
         ) : null}
       </div>
-      <Button type="submit" disabled={isLoading || uploading || !form.file_path || !form.file_name} className="w-full">
+      <Button type="submit" disabled={isLoading || uploading || !canSubmit} className="w-full">
         {isLoading ? 'Salvando...' : submitLabel || 'Salvar Documento'}
       </Button>
     </form>

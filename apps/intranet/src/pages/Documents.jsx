@@ -163,6 +163,26 @@ function getErrorMessage(error, fallback) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function getDocumentVisibility(document) {
+  const visibility = document?.visibility || (document?.department_id || document?.department ? 'setor' : 'geral');
+  if (visibility === 'nivel') {
+    return {
+      key: 'nivel',
+      label: document?.minimum_access_level === 'admin' ? 'Somente Admin' : 'Gestor/Admin',
+    };
+  }
+  if (visibility === 'setor') {
+    return {
+      key: 'setor',
+      label: document?.department_name || 'Setor',
+    };
+  }
+  return {
+    key: 'geral',
+    label: 'Geral',
+  };
+}
+
 export default function Documents() {
   const { canEdit } = usePermissions('documentos');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -297,12 +317,14 @@ export default function Documents() {
       ).values()
     );
   const departmentScopedDocuments = documents.filter((document) => {
+    const visibility = getDocumentVisibility(document);
     const matchCompany =
       companyFilter === 'all' ||
       (document.company || 'macom_motors') === companyFilter;
     const matchDepartment =
       departmentFilter === 'all' ||
-      (departmentFilter === '__general__' && !document.department_id && !document.department) ||
+      (departmentFilter === '__general__' && visibility.key === 'geral') ||
+      (departmentFilter === '__restricted__' && visibility.key === 'nivel') ||
       document.department_id === departmentFilter ||
       document.department === departmentFilter;
     return matchCompany && matchDepartment;
@@ -320,7 +342,7 @@ export default function Documents() {
       document.description?.toLowerCase().includes(normalizedSearch) ||
       document.file_name?.toLowerCase().includes(normalizedSearch) ||
       document.department_name?.toLowerCase().includes(normalizedSearch) ||
-      (!document.department_id && !document.department_name && 'geral'.includes(normalizedSearch)) ||
+      getDocumentVisibility(document).label.toLowerCase().includes(normalizedSearch) ||
       companyLabelMap[document.company || 'macom_motors']?.toLowerCase().includes(normalizedSearch);
     return matchSearch;
   });
@@ -463,6 +485,7 @@ export default function Documents() {
             <SelectContent>
               <SelectItem value="all">Departamento</SelectItem>
               <SelectItem value="__general__">Geral</SelectItem>
+              <SelectItem value="__restricted__">Restritos por nivel</SelectItem>
               {departmentOptions.map((department) => (
                 <SelectItem key={department.id || department.key} value={department.id || department.key}>
                   {department.name}
@@ -589,6 +612,7 @@ export default function Documents() {
                 const config = categoryConfig[document.category] || categoryConfig.outros;
                 const Icon = config.icon;
                 const size = formatFileSize(document.file_size);
+                const visibility = getDocumentVisibility(document);
 
                 return (
                   <div
@@ -623,14 +647,14 @@ export default function Documents() {
                           <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
                             {companyLabelMap[document.company || 'macom_motors'] || 'Macom Motors'}
                           </Badge>
-                          {document.department_name && (
+                          {visibility.key === 'nivel' && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
-                              {document.department_name}
+                              {visibility.label}
                             </Badge>
                           )}
-                          {!document.department_name && (
+                          {visibility.key !== 'nivel' && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
-                              Geral
+                              {visibility.label}
                             </Badge>
                           )}
                         </div>
