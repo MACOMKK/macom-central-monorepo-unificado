@@ -560,6 +560,17 @@ export default function CatalogManager({ lockedEntityKey }) {
     });
   };
 
+  const handleDeletePosition = (row) => {
+    const hasLinkedCollaborators = collaborators.some((collaborator) => collaborator.cargo_id === row.id);
+
+    if (hasLinkedCollaborators) {
+      setFeedback({ type: 'error', message: 'Nao e permitido excluir um cargo com colaboradores vinculados.' });
+      return;
+    }
+
+    handleDeleteRow(row);
+  };
+
   const {
     assignCorporateLineMutation,
     assignUserMutation,
@@ -1069,7 +1080,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           columns={current.columns}
           entityKey={lockedEntityKey}
           isLoading={isLoading}
-          onDelete={handleDeleteRow}
+          onDelete={lockedEntityKey === 'cargos' ? handleDeletePosition : handleDeleteRow}
           onEdit={setEditingRecord}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
