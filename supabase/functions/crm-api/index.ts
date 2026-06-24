@@ -44,6 +44,7 @@ const ENTITY_CONFIG = {
       'perdido_em',
       'motivo_perda',
       'responsavel_id',
+      'unidade_id',
       'primeiro_contato_em',
       'sla_primeiro_contato_em',
       'previsao_fechamento',
@@ -63,6 +64,9 @@ const ENTITY_CONFIG = {
       'temperatura',
       'proximo_contato',
       'observacoes',
+      'resultado',
+      'motivo_resultado',
+      'concluido_em',
     ],
   },
   historico_atendimentos: {
@@ -122,7 +126,11 @@ function mapDatabaseError(error: unknown) {
   }
 
   if (message.includes('idx_crm_atendimentos_lead_aberto_unique')) {
-    return 'Este lead ja possui um atendimento em aberto.';
+    return 'Este lead ja possui uma atividade planejada.';
+  }
+
+  if (message.includes('idx_crm_atendimentos_lead_planejada_unique')) {
+    return 'Este lead ja possui uma atividade planejada.';
   }
 
   if (message.includes('idx_crm_clientes_telefone_unique')) {
@@ -135,6 +143,30 @@ function mapDatabaseError(error: unknown) {
 
   if (message.includes('Motivo da perda e obrigatorio')) {
     return 'Informe o motivo da perda para encerrar este lead.';
+  }
+
+  if (message.includes('Informe o resultado para concluir')) {
+    return 'Informe o resultado para concluir a atividade.';
+  }
+
+  if (message.includes('Informe o motivo da perda para concluir')) {
+    return 'Informe o motivo da perda para concluir a atividade.';
+  }
+
+  if (message.includes('Atividade encerrada nao pode ser reaberta')) {
+    return 'Atividade encerrada nao pode ser reaberta.';
+  }
+
+  if (message.includes('Responsavel deve possuir acesso')) {
+    return 'O vendedor selecionado nao pertence a unidade do lead ou nao possui acesso ao CRM.';
+  }
+
+  if (message.includes('Nenhum vendedor elegivel')) {
+    return 'Nenhum vendedor desta unidade esta disponivel para receber o lead.';
+  }
+
+  if (message.includes('Unidade do lead e obrigatoria')) {
+    return 'Selecione a unidade responsavel pelo lead.';
   }
 
   return message || 'Falha ao consultar o CRM.';
@@ -167,9 +199,30 @@ function buildSqlFilters(filters: Record<string, unknown> = {}, startIndex = 1, 
   const clauses: string[] = [];
   const values: unknown[] = [];
   const prefix = tableAlias ? `${tableAlias}.` : '';
+  const reservedFilters = new Set([
+    'created_from',
+    'created_to',
+    'previsao_from',
+    'previsao_to',
+    'proximo_from',
+    'proximo_to',
+    'sla_status',
+  ]);
 
   for (const [field, value] of Object.entries(filters)) {
-    if (value === undefined) continue;
+    if (reservedFilters.has(field)) continue;
+    if (value === undefined || value === null || value === '' || field.includes('.')) continue;
+    if (value === '__NULL__') {
+      clauses.push(`${prefix}${quoteIdentifier(field)} is null`);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (!value.length) continue;
+      const placeholders = value.map((_, index) => `$${startIndex + values.length + index}`).join(', ');
+      clauses.push(`${prefix}${quoteIdentifier(field)} in (${placeholders})`);
+      values.push(...value);
+      continue;
+    }
     clauses.push(`${prefix}${quoteIdentifier(field)} = $${startIndex + values.length}`);
     values.push(value);
   }
@@ -177,17 +230,18 @@ function buildSqlFilters(filters: Record<string, unknown> = {}, startIndex = 1, 
   return { clauses, values };
 }
 
-function parseOrFilter(orFilter: string | undefined, startIndex: number) {
+function parseOrFilter(orFilter: string | undefined, startIndex: number, tableAlias?: string) {
   if (!orFilter) return { clause: '', values: [] as unknown[] };
 
   const values: unknown[] = [];
+  const prefix = tableAlias ? `${tableAlias}.` : '';
   const clauses = orFilter
     .split(',')
     .map((part) => {
       const match = part.match(/^([a-zA-Z0-9_]+)\.eq\.(.*)$/);
       if (!match) return null;
       values.push(match[2]);
-      return `${quoteIdentifier(match[1])} = $${startIndex + values.length - 1}`;
+      return `${prefix}${quoteIdentifier(match[1])} = $${startIndex + values.length - 1}`;
     })
     .filter(Boolean);
 
@@ -195,6 +249,273 @@ function parseOrFilter(orFilter: string | undefined, startIndex: number) {
     clause: clauses.length ? `(${clauses.join(' or ')})` : '',
     values,
   };
+}
+
+function parseInteger(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(Math.trunc(parsed), max));
+}
+
+function appendDateRangeFilter(
+  clauses: string[],
+  values: unknown[],
+  column: string,
+  fromValue: unknown,
+  toValue: unknown,
+  startIndex = 1,
+) {
+  if (fromValue) {
+    values.push(fromValue);
+    clauses.push(`${column} >= $${startIndex + values.length - 1}`);
+  }
+  if (toValue) {
+    values.push(toValue);
+    clauses.push(`${column} <= $${startIndex + values.length - 1}`);
+  }
+}
+
+function buildSearchFilter(entity: EntityName, search: string, startIndex: number) {
+  const term = search.trim();
+  if (!term) return { clause: '', values: [] as unknown[] };
+
+  const normalizedTerm = `%${term.toLowerCase()}%`;
+  const digits = term.replace(/\D/g, '');
+  const values: unknown[] = [];
+  const parts: string[] = [];
+  const pushText = (expression: string) => {
+    values.push(normalizedTerm);
+    parts.push(`lower(coalesce(${expression}, '')) like $${startIndex + values.length - 1}`);
+  };
+  const pushPhone = (expression: string) => {
+    if (!digits) return;
+    values.push(`%${digits}%`);
+    parts.push(`coalesce(${expression}, '') like $${startIndex + values.length - 1}`);
+  };
+
+  if (entity === 'leads') {
+    pushText('l.nome');
+    pushText('l.email');
+    pushText('l.modelo_interesse');
+    pushText('l.origem');
+    pushText('r.nome');
+    pushPhone('l.telefone_normalizado');
+  } else if (entity === 'clientes') {
+    pushText('nome');
+    pushText('email');
+    pushText('empresa');
+    pushPhone('telefone_normalizado');
+    values.push(normalizedTerm);
+    parts.push(`exists (
+      select 1
+      from ${CRM_SCHEMA}.leads l
+      where l.cliente_id = clientes.id
+        and lower(coalesce(l.modelo_interesse, '')) like $${startIndex + values.length - 1}
+    )`);
+  } else if (entity === 'atendimentos') {
+    pushText('a.titulo');
+    pushText('a.observacoes');
+    pushText('l.nome');
+    pushText('l.modelo_interesse');
+    pushText('c.nome');
+    pushPhone('l.telefone_normalizado');
+    pushPhone('c.telefone_normalizado');
+  } else if (entity === 'historico_atendimentos') {
+    pushText('descricao');
+    pushText('tipo');
+    pushText('status');
+  }
+
+  return {
+    clause: parts.length ? `(${parts.join(' or ')})` : '',
+    values,
+  };
+}
+
+function buildAdvancedFilters(entity: EntityName, filters: Record<string, unknown>, startIndex: number) {
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+
+  appendDateRangeFilter(
+    clauses,
+    values,
+    scopedColumn(entity, 'criado_em'),
+    filters.created_from,
+    filters.created_to,
+    startIndex,
+  );
+
+  if (entity === 'leads') {
+    appendDateRangeFilter(clauses, values, 'l."previsao_fechamento"', filters.previsao_from, filters.previsao_to, startIndex);
+    if (filters.sla_status === 'atrasado') {
+      clauses.push(`l."primeiro_contato_em" is null and l."sla_primeiro_contato_em" < now()`);
+    } else if (filters.sla_status === 'alerta') {
+      clauses.push(`l."primeiro_contato_em" is null and l."sla_primeiro_contato_em" >= now() and l."sla_primeiro_contato_em" <= now() + (coalesce(cd."sla_alerta_minutos", 10) * interval '1 minute')`);
+    } else if (filters.sla_status === 'no_prazo') {
+      clauses.push(`l."primeiro_contato_em" is null and (l."sla_primeiro_contato_em" is null or l."sla_primeiro_contato_em" > now() + (coalesce(cd."sla_alerta_minutos", 10) * interval '1 minute'))`);
+    } else if (filters.sla_status === 'concluido') {
+      clauses.push(`l."primeiro_contato_em" is not null`);
+    }
+  }
+
+  if (entity === 'atendimentos') {
+    appendDateRangeFilter(clauses, values, 'a."proximo_contato"', filters.proximo_from, filters.proximo_to, startIndex);
+    if (filters.empresa) {
+      values.push(filters.empresa);
+      clauses.push(`(l."empresa" = $${startIndex + values.length - 1} or c."empresa" = $${startIndex + values.length - 1})`);
+    }
+  }
+
+  return { clauses, values };
+}
+
+function getAccessLevel(access: Record<string, unknown> | null) {
+  return String(access?.nivel_acesso || '');
+}
+
+function buildAccessScope(
+  entity: EntityName,
+  access: Record<string, unknown> | null,
+  collaborator: Record<string, unknown> | null,
+  startIndex: number,
+) {
+  const level = getAccessLevel(access);
+  if (level === 'admin') return { clause: '', values: [] as unknown[] };
+
+  const collaboratorId = String(collaborator?.id || '');
+  const unitId = String(collaborator?.unidade_id || '');
+  if (!collaboratorId) {
+    throw Object.assign(new Error('Colaborador nao identificado.'), { status: 403 });
+  }
+
+  if (level === 'gestor') {
+    if (!unitId) {
+      throw Object.assign(new Error('Gestor sem unidade vinculada.'), { status: 403 });
+    }
+    if (entity === 'leads') {
+      return { clause: `l."unidade_id" = $${startIndex}`, values: [unitId] };
+    }
+    if (entity === 'atendimentos') {
+      return { clause: `l."unidade_id" = $${startIndex}`, values: [unitId] };
+    }
+    if (entity === 'clientes') {
+      return {
+        clause: `(
+          "criado_por" = $${startIndex + 1}
+          or exists (
+            select 1 from ${CRM_SCHEMA}.leads scope_lead
+            where scope_lead.cliente_id = clientes.id
+              and scope_lead.unidade_id = $${startIndex}
+          )
+        )`,
+        values: [unitId, collaboratorId],
+      };
+    }
+    if (entity === 'historico_atendimentos') {
+      return {
+        clause: `(
+          exists (
+            select 1 from ${CRM_SCHEMA}.leads scope_lead
+            where scope_lead.id = historico_atendimentos.lead_id
+              and scope_lead.unidade_id = $${startIndex}
+          )
+          or exists (
+            select 1 from ${CRM_SCHEMA}.leads scope_lead
+            where scope_lead.cliente_id = historico_atendimentos.cliente_id
+              and scope_lead.unidade_id = $${startIndex}
+          )
+        )`,
+        values: [unitId],
+      };
+    }
+  }
+
+  if (entity === 'leads') {
+    return {
+      clause: `(l."responsavel_id" = $${startIndex} or l."criado_por" = $${startIndex})`,
+      values: [collaboratorId],
+    };
+  }
+  if (entity === 'atendimentos') {
+    return {
+      clause: `(l."responsavel_id" = $${startIndex} or a."criado_por" = $${startIndex})`,
+      values: [collaboratorId],
+    };
+  }
+  if (entity === 'clientes') {
+    return {
+      clause: `(
+        "criado_por" = $${startIndex}
+        or exists (
+          select 1 from ${CRM_SCHEMA}.leads scope_lead
+          where scope_lead.cliente_id = clientes.id
+            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
+        )
+      )`,
+      values: [collaboratorId],
+    };
+  }
+  if (entity === 'historico_atendimentos') {
+    return {
+      clause: `(
+        exists (
+          select 1 from ${CRM_SCHEMA}.leads scope_lead
+          where scope_lead.id = historico_atendimentos.lead_id
+            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
+        )
+        or exists (
+          select 1 from ${CRM_SCHEMA}.leads scope_lead
+          where scope_lead.cliente_id = historico_atendimentos.cliente_id
+            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
+        )
+      )`,
+      values: [collaboratorId],
+    };
+  }
+
+  return { clause: '', values: [] as unknown[] };
+}
+
+function applyCreateScope(
+  entity: EntityName,
+  payload: Record<string, unknown>,
+  access: Record<string, unknown> | null,
+  collaborator: Record<string, unknown> | null,
+) {
+  const level = getAccessLevel(access);
+  if (level === 'admin') return payload;
+
+  const collaboratorId = String(collaborator?.id || '');
+  const unitId = String(collaborator?.unidade_id || '');
+
+  if (entity === 'leads') {
+    if (!unitId) throw Object.assign(new Error('Usuario sem unidade vinculada.'), { status: 403 });
+    payload.unidade_id = unitId;
+    if (level === 'usuario') {
+      payload.responsavel_id = collaboratorId;
+    }
+  }
+
+  return payload;
+}
+
+async function ensureEntityAccess(
+  entity: EntityName,
+  id: string,
+  access: Record<string, unknown> | null,
+  collaborator: Record<string, unknown> | null,
+) {
+  const scope = buildAccessScope(entity, access, collaborator, 2);
+  const whereScope = scope.clause ? `and ${scope.clause}` : '';
+  const rows = await sql.unsafe(
+    `${buildListSelect(entity)} where ${scopedColumn(entity, 'id')} = $1 ${whereScope} limit 1;`,
+    [id, ...scope.values],
+  );
+
+  if (!rows[0]) {
+    throw Object.assign(new Error('Registro nao encontrado ou sem permissao.'), { status: 403 });
+  }
+  return rows[0];
 }
 
 function buildInsertQuery(schema: string, table: string, payload: Record<string, unknown>) {
@@ -221,6 +542,8 @@ function buildListSelect(entity: EntityName) {
     return `
       select
         l.*,
+        coalesce(cd.sla_alerta_minutos, 10) as sla_alerta_minutos,
+        coalesce(cd.sla_primeiro_contato_minutos, 30) as sla_primeiro_contato_minutos,
         case
           when r.id is null then null
           else json_build_object(
@@ -232,6 +555,7 @@ function buildListSelect(entity: EntityName) {
         end as responsavel
       from ${CRM_SCHEMA}.leads l
       left join public.colaboradores r on r.id = l.responsavel_id
+      left join ${CRM_SCHEMA}.configuracoes_distribuicao cd on cd.unidade_id = l.unidade_id
     `;
   }
 
@@ -331,6 +655,12 @@ function ensureCanManage(access: Record<string, unknown> | null) {
   }
 }
 
+function ensureCanConfigure(access: Record<string, unknown> | null) {
+  if (!access || !['admin', 'gestor'].includes(String(access.nivel_acesso || ''))) {
+    throw Object.assign(new Error('Apenas administradores e gestores podem configurar a distribuicao.'), { status: 403 });
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -354,6 +684,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'list_responsaveis') {
+      const level = getAccessLevel(access);
+      const scopeUnitId = level === 'admin' ? null : (collaborator?.unidade_id || null);
+      const scopeCollaboratorId = level === 'usuario' ? collaborator?.id : null;
       const rows = await sql.unsafe(
         `
           select distinct
@@ -373,11 +706,145 @@ Deno.serve(async (request) => {
             and s.ativo = true
           left join public.unidades u on u.id = c.unidade_id
           where c.status <> 'inativo'
+            and ($2::uuid is null or c.unidade_id = $2::uuid)
+            and ($3::uuid is null or c.id = $3::uuid)
           order by c.nome;
         `,
-        [CRM_SYSTEM_SLUG],
+        [CRM_SYSTEM_SLUG, scopeUnitId, scopeCollaboratorId],
       );
       return json({ rows });
+    }
+
+    if (action === 'get_distribution_config') {
+      ensureCanConfigure(access);
+      const scopeUnitId = String(access?.nivel_acesso) === 'admin'
+        ? null
+        : (collaborator?.unidade_id || null);
+      const units = await sql.unsafe(`
+        select distinct
+          u.id,
+          u.nome,
+          coalesce(cd.ativa, true) as ativa,
+          coalesce(cd.estrategia, 'menor_carteira') as estrategia,
+          cd.limite_padrao_leads_ativos,
+          coalesce(cd.sla_primeiro_contato_minutos, 30) as sla_primeiro_contato_minutos,
+          coalesce(cd.sla_alerta_minutos, 10) as sla_alerta_minutos
+        from public.unidades u
+        join public.colaboradores c on c.unidade_id = u.id and c.status <> 'inativo'
+        join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id and aus.ativo = true
+        join public.sistemas s on s.id = aus.sistema_id and s.slug = $1 and s.ativo = true
+        left join ${CRM_SCHEMA}.configuracoes_distribuicao cd on cd.unidade_id = u.id
+        where ($2::uuid is null or u.id = $2::uuid)
+        order by u.nome;
+      `, [CRM_SYSTEM_SLUG, scopeUnitId]);
+      const sellers = await sql.unsafe(`
+        select
+          c.id,
+          c.nome,
+          c.email,
+          c.unidade_id,
+          coalesce(vd.ativo, true) as ativo,
+          vd.limite_leads_ativos,
+          vd.ultimo_lead_atribuido_em,
+          count(l.id)::integer as leads_ativos
+        from public.colaboradores c
+        join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id and aus.ativo = true
+        join public.sistemas s on s.id = aus.sistema_id and s.slug = $1 and s.ativo = true
+        left join ${CRM_SCHEMA}.vendedores_distribuicao vd
+          on vd.unidade_id = c.unidade_id and vd.colaborador_id = c.id
+        left join ${CRM_SCHEMA}.leads l
+          on l.responsavel_id = c.id
+         and l.status in ('novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta')
+        where c.status <> 'inativo' and c.unidade_id is not null
+          and ($2::uuid is null or c.unidade_id = $2::uuid)
+        group by c.id, c.nome, c.email, c.unidade_id, vd.ativo,
+          vd.limite_leads_ativos, vd.ultimo_lead_atribuido_em
+        order by c.nome;
+      `, [CRM_SYSTEM_SLUG, scopeUnitId]);
+      return json({ units, sellers });
+    }
+
+    if (action === 'save_distribution_config') {
+      ensureCanConfigure(access);
+      const unitId = String(body.unidade_id || '');
+      const strategy = String(body.estrategia || 'menor_carteira');
+      const defaultLimit = body.limite_padrao_leads_ativos === null || body.limite_padrao_leads_ativos === ''
+        ? null
+        : Number(body.limite_padrao_leads_ativos);
+      const slaFirstContactMinutes = Number(body.sla_primeiro_contato_minutos || 30);
+      const slaAlertMinutes = Number(body.sla_alerta_minutos ?? 10);
+      const sellers = Array.isArray(body.sellers) ? body.sellers : [];
+
+      if (!unitId) return json({ error: 'Unidade obrigatoria.' }, 400);
+      if (String(access?.nivel_acesso) === 'gestor' && String(collaborator?.unidade_id || '') !== unitId) {
+        return json({ error: 'Gestores podem configurar somente a propria unidade.' }, 403);
+      }
+      if (!['menor_carteira', 'rodizio'].includes(strategy)) return json({ error: 'Estrategia invalida.' }, 400);
+      if (defaultLimit !== null && (!Number.isInteger(defaultLimit) || defaultLimit < 1)) {
+        return json({ error: 'O limite padrao deve ser um numero maior que zero.' }, 400);
+      }
+      if (!Number.isInteger(slaFirstContactMinutes) || slaFirstContactMinutes < 1) {
+        return json({ error: 'O SLA de primeiro contato deve ser maior que zero.' }, 400);
+      }
+      if (!Number.isInteger(slaAlertMinutes) || slaAlertMinutes < 0) {
+        return json({ error: 'O alerta de SLA deve ser zero ou maior.' }, 400);
+      }
+
+      await sql.begin(async (transaction) => {
+        await transaction.unsafe(`
+          insert into ${CRM_SCHEMA}.configuracoes_distribuicao
+            (unidade_id, ativa, estrategia, limite_padrao_leads_ativos, sla_primeiro_contato_minutos, sla_alerta_minutos)
+          values ($1, $2, $3, $4, $5, $6)
+          on conflict (unidade_id) do update set
+            ativa = excluded.ativa,
+            estrategia = excluded.estrategia,
+            limite_padrao_leads_ativos = excluded.limite_padrao_leads_ativos,
+            sla_primeiro_contato_minutos = excluded.sla_primeiro_contato_minutos,
+            sla_alerta_minutos = excluded.sla_alerta_minutos;
+        `, [unitId, body.ativa !== false, strategy, defaultLimit, slaFirstContactMinutes, slaAlertMinutes]);
+
+        for (const seller of sellers) {
+          const collaboratorId = String(seller?.colaborador_id || '');
+          const limit = seller?.limite_leads_ativos === null || seller?.limite_leads_ativos === ''
+            ? null
+            : Number(seller.limite_leads_ativos);
+          if (!collaboratorId) continue;
+          if (limit !== null && (!Number.isInteger(limit) || limit < 1)) {
+            throw Object.assign(new Error('O limite individual deve ser maior que zero.'), { status: 400 });
+          }
+          await transaction.unsafe(`
+            insert into ${CRM_SCHEMA}.vendedores_distribuicao
+              (unidade_id, colaborador_id, ativo, limite_leads_ativos)
+            select $1, c.id, $3, $4
+            from public.colaboradores c
+            where c.id = $2 and c.unidade_id = $1
+            on conflict (unidade_id, colaborador_id) do update set
+              ativo = excluded.ativo,
+              limite_leads_ativos = excluded.limite_leads_ativos;
+          `, [unitId, collaboratorId, seller.ativo !== false, limit]);
+        }
+      });
+
+      return json({ success: true });
+    }
+
+    if (action === 'clear_crm_test_data') {
+      if (String(access?.nivel_acesso || '') !== 'admin') {
+        return json({ error: 'Apenas administradores podem limpar os dados do CRM.' }, 403);
+      }
+
+      await sql.begin(async (transaction) => {
+        await transaction.unsafe(`delete from ${CRM_SCHEMA}.historico_atendimentos;`);
+        await transaction.unsafe(`delete from ${CRM_SCHEMA}.atendimentos;`);
+        await transaction.unsafe(`delete from ${CRM_SCHEMA}.leads;`);
+        await transaction.unsafe(`delete from ${CRM_SCHEMA}.clientes;`);
+        await transaction.unsafe(`
+          update ${CRM_SCHEMA}.vendedores_distribuicao
+          set ultimo_lead_atribuido_em = null;
+        `);
+      });
+
+      return json({ success: true });
     }
 
     const entity = String(body.entity || '') as EntityName;
@@ -390,32 +857,89 @@ Deno.serve(async (request) => {
     const id = typeof body.id === 'string' ? body.id : '';
     const filters = typeof body.filters === 'object' && body.filters ? body.filters : {};
     const orFilter = typeof body.or === 'string' ? body.or : undefined;
+    const search = typeof body.search === 'string' ? body.search : '';
     const orderBy = ORDER_FIELD_MAP[String(body.orderBy || '')] || String(body.orderBy || config.orderBy);
-    const orderDirection = body.ascending === false ? 'desc' : String(config.orderDirection || 'asc');
-    const limit = Number.isFinite(Number(body.limit)) ? Math.min(Number(body.limit), 1000) : 100;
+    const orderDirection = body.ascending === true
+      ? 'asc'
+      : body.ascending === false
+        ? 'desc'
+        : String(config.orderDirection || 'asc');
+    const limit = parseInteger(body.limit, 100, 1, 1000);
+    const offset = parseInteger(body.offset, 0, 0, 1000000);
+    const page = parseInteger(body.page, Math.floor(offset / limit) + 1, 1, 1000000);
+    const effectiveOffset = body.page ? (page - 1) * limit : offset;
 
     if (action === 'get') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const rows = await sql.unsafe(`${buildListSelect(entity)} where ${scopedColumn(entity, 'id')} = $1 limit 1;`, [id]);
-      return json({ row: rows[0] || null });
+      const row = await ensureEntityAccess(entity, id, access, collaborator);
+      return json({ row });
     }
 
     if (action === 'list') {
-      const filterParts = buildSqlFilters(filters, 1, baseAlias(entity) || undefined);
-      const orPart = parseOrFilter(orFilter, filterParts.values.length + 1);
-      const clauses = [...filterParts.clauses, orPart.clause].filter(Boolean);
-      const whereClause = clauses.length ? `where ${clauses.join(' and ')}` : '';
-      const rows = await sql.unsafe(
-        `${buildListSelect(entity)} ${whereClause} order by ${scopedColumn(entity, orderBy)} ${orderDirection} limit ${limit};`,
-        [...filterParts.values, ...orPart.values],
+      const directFilters = { ...filters };
+      if (entity === 'atendimentos') {
+        delete directFilters.empresa;
+      }
+      const filterParts = buildSqlFilters(directFilters, 1, baseAlias(entity) || undefined);
+      const advancedParts = buildAdvancedFilters(entity, filters, filterParts.values.length + 1);
+      const orPart = parseOrFilter(
+        orFilter,
+        filterParts.values.length + advancedParts.values.length + 1,
+        baseAlias(entity) || undefined,
       );
-      return json({ rows });
+      const searchPart = buildSearchFilter(
+        entity,
+        search,
+        filterParts.values.length + advancedParts.values.length + orPart.values.length + 1,
+      );
+      const accessPart = buildAccessScope(
+        entity,
+        access,
+        collaborator,
+        filterParts.values.length + advancedParts.values.length + orPart.values.length + searchPart.values.length + 1,
+      );
+      const clauses = [
+        ...filterParts.clauses,
+        ...advancedParts.clauses,
+        orPart.clause,
+        searchPart.clause,
+        accessPart.clause,
+      ].filter(Boolean);
+      const whereClause = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const queryValues = [
+        ...filterParts.values,
+        ...advancedParts.values,
+        ...orPart.values,
+        ...searchPart.values,
+        ...accessPart.values,
+      ];
+      const countRows = await sql.unsafe(
+        `select count(*)::integer as total from (${buildListSelect(entity)} ${whereClause}) crm_count;`,
+        queryValues,
+      );
+      const rows = await sql.unsafe(
+        `${buildListSelect(entity)} ${whereClause} order by ${scopedColumn(entity, orderBy)} ${orderDirection} limit ${limit} offset ${effectiveOffset};`,
+        queryValues,
+      );
+      return json({
+        rows,
+        count: countRows[0]?.total || 0,
+        page,
+        pageSize: limit,
+        offset: effectiveOffset,
+      });
     }
 
     if (action === 'create') {
-      const payload = sanitizePayload(entity, body.payload || {});
+      const payload = applyCreateScope(entity, sanitizePayload(entity, body.payload || {}), access, collaborator);
       if (!Object.keys(payload).length) return json({ error: 'Payload vazio.' }, 400);
       if (collaborator?.id) payload.criado_por = collaborator.id;
+      if (entity === 'atendimentos' && payload.lead_id) {
+        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+      }
+      if (entity === 'historico_atendimentos' && payload.lead_id) {
+        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+      }
       const query = buildInsertQuery(CRM_SCHEMA, config.table, payload);
       const rows = await sql.unsafe(query.text, query.values);
       return json({ row: rows[0] || null });
@@ -423,8 +947,12 @@ Deno.serve(async (request) => {
 
     if (action === 'update') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const payload = sanitizePayload(entity, body.payload || {});
+      await ensureEntityAccess(entity, id, access, collaborator);
+      const payload = applyCreateScope(entity, sanitizePayload(entity, body.payload || {}), access, collaborator);
       if (!Object.keys(payload).length) return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      if (entity === 'atendimentos' && payload.lead_id) {
+        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+      }
       const query = buildUpdateQuery(CRM_SCHEMA, config.table, id, payload);
       const rows = await sql.unsafe(query.text, query.values);
       return json({ row: rows[0] || null });
@@ -432,6 +960,7 @@ Deno.serve(async (request) => {
 
     if (action === 'delete') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+      await ensureEntityAccess(entity, id, access, collaborator);
       await sql.unsafe(`delete from ${CRM_SCHEMA}.${config.table} where id = $1;`, [id]);
       return json({ success: true });
     }

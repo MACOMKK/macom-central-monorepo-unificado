@@ -4,22 +4,89 @@ import { Phone, Car, Building2, CalendarClock, UserRound } from 'lucide-react';
 
 const COLUNAS = [
   { key: 'novo', label: 'Novo', color: 'border-t-blue-500', headerBg: 'bg-blue-500', dot: 'bg-blue-500' },
-  { key: 'em_atendimento', label: 'Em Atendimento', color: 'border-t-amber-500', headerBg: 'bg-amber-500', dot: 'bg-amber-500' },
+  { key: 'tentativa_contato', label: 'Tentativa', color: 'border-t-amber-400', headerBg: 'bg-amber-400', dot: 'bg-amber-400' },
+  { key: 'em_contato', label: 'Em Contato', color: 'border-t-cyan-500', headerBg: 'bg-cyan-500', dot: 'bg-cyan-500' },
+  { key: 'qualificado', label: 'Qualificado', color: 'border-t-violet-500', headerBg: 'bg-violet-500', dot: 'bg-violet-500' },
+  { key: 'proposta', label: 'Proposta', color: 'border-t-orange-500', headerBg: 'bg-orange-500', dot: 'bg-orange-500' },
   { key: 'convertido', label: 'Convertido', color: 'border-t-green-600', headerBg: 'bg-green-600', dot: 'bg-green-600' },
   { key: 'perdido', label: 'Perdido', color: 'border-t-red-600', headerBg: 'bg-red-600', dot: 'bg-red-600' },
 ];
 
+const toLocalDate = (value) => {
+  if (!value) return null;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDate = (value) => {
+  const date = toLocalDate(value);
+  return date ? new Intl.DateTimeFormat('pt-BR').format(date) : '';
+};
+
+const formatShortDate = (value) => {
+  const date = toLocalDate(value);
+  return date
+    ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date)
+    : '';
+};
+
+const getClosingInfo = (lead) => {
+  if (!lead.previsao_fechamento || ['convertido', 'perdido'].includes(lead.status)) return null;
+
+  const dueDate = toLocalDate(lead.previsao_fechamento);
+  if (!dueDate) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((dueDate.getTime() - today.getTime()) / 86400000);
+  const formattedDate = formatDate(lead.previsao_fechamento);
+
+  if (diffDays < 0) {
+    return {
+      label: `Fech. vencido`,
+      title: `Fechamento vencido desde ${formattedDate}`,
+      className: 'border-red-200 bg-red-50 text-red-700',
+    };
+  }
+
+  if (diffDays === 0) {
+    return {
+      label: 'Fech. hoje',
+      title: 'Fechamento previsto para hoje',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+
+  return {
+    label: `Fech. ${formatShortDate(lead.previsao_fechamento)}`,
+    title: `Fechamento em ${formattedDate}`,
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+};
+
 function LeadCard({ lead, index, onClick }) {
   const slaLabel = lead.sla_status === 'concluido'
+    ? 'SLA ok'
+    : lead.sla_status === 'atrasado'
+      ? `SLA ${lead.sla_minutos_restantes ? `${Math.abs(lead.sla_minutos_restantes)}m atrasado` : 'atrasado'}`
+      : lead.sla_status === 'alerta'
+        ? `SLA ${Math.max(0, lead.sla_minutos_restantes || 0)}m`
+        : 'SLA no prazo';
+  const slaStyle = lead.sla_status === 'concluido'
+    ? 'border-green-200 bg-green-50 text-green-700'
+    : lead.sla_status === 'atrasado'
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : lead.sla_status === 'alerta'
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : 'border-blue-200 bg-blue-50 text-blue-700';
+  const slaTitle = lead.sla_status === 'concluido'
     ? 'Primeiro contato realizado'
     : lead.sla_status === 'atrasado'
-      ? 'SLA atrasado'
-      : 'SLA no prazo';
-  const slaStyle = lead.sla_status === 'concluido'
-    ? 'text-green-700'
-    : lead.sla_status === 'atrasado'
-      ? 'text-red-700'
-      : 'text-blue-700';
+      ? 'SLA de primeiro contato atrasado'
+      : lead.sla_status === 'alerta'
+        ? 'SLA de primeiro contato perto do prazo'
+        : 'SLA de primeiro contato no prazo';
+  const closingInfo = getClosingInfo(lead);
 
   return (
     <Draggable draggableId={lead.id} index={index}>
@@ -54,11 +121,24 @@ function LeadCard({ lead, index, onClick }) {
             <p className="text-[11px] text-muted-foreground flex items-center gap-1">
               <UserRound className="w-3 h-3" />{lead.responsavel_nome || 'Distribuicao automatica'}
             </p>
-            {['novo', 'em_atendimento'].includes(lead.status) ? (
-              <p className={cn('flex items-center gap-1 text-[11px] font-semibold', slaStyle)}>
-                <CalendarClock className="h-3 w-3" />{slaLabel}
-              </p>
-            ) : null}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'].includes(lead.status) ? (
+                <span
+                  title={slaTitle}
+                  className={cn('inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider', slaStyle)}
+                >
+                  <CalendarClock className="h-3 w-3" />{slaLabel}
+                </span>
+              ) : null}
+              {closingInfo ? (
+                <span
+                  title={closingInfo.title}
+                  className={cn('inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider', closingInfo.className)}
+                >
+                  <CalendarClock className="h-3 w-3" />{closingInfo.label}
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className="mt-2 pt-2 border-t border-dashed border-border">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{lead.origem}</span>

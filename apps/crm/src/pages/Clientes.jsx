@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { crmDataClient } from '@/api/crmDataClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
@@ -31,29 +31,70 @@ const STATUS_STYLE = {
 
 const LEAD_STATUS_LABEL = {
   novo: 'Novo',
-  em_atendimento: 'Em atendimento',
+  tentativa_contato: 'Tentativa de contato',
+  em_contato: 'Em contato',
+  qualificado: 'Qualificado',
+  proposta: 'Proposta',
   convertido: 'Convertido',
   perdido: 'Perdido',
 };
 
 const LEAD_STATUS_STYLE = {
   novo: 'border-blue-200 bg-blue-50 text-blue-700',
-  em_atendimento: 'border-amber-200 bg-amber-50 text-amber-700',
+  tentativa_contato: 'border-amber-200 bg-amber-50 text-amber-700',
+  em_contato: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  qualificado: 'border-violet-200 bg-violet-50 text-violet-700',
+  proposta: 'border-orange-200 bg-orange-50 text-orange-700',
   convertido: 'border-green-200 bg-green-50 text-green-700',
   perdido: 'border-red-200 bg-red-50 text-red-700',
 };
 
-const ACTIVE_LEAD_STATUSES = new Set(['novo', 'em_atendimento']);
+const ACTIVE_LEAD_STATUSES = new Set(['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta']);
+
+const ATTENDANCE_RESULT_LABEL = {
+  contato_realizado: 'Contato realizado',
+  sem_resposta: 'Sem resposta',
+  visita_agendada: 'Visita agendada',
+  test_drive: 'Test-drive',
+  proposta_enviada: 'Proposta enviada',
+  venda_realizada: 'Venda realizada',
+  lead_perdido: 'Lead perdido',
+};
+
+function toDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function formatDate(value) {
-  if (!value) return '-';
+  const date = toDate(value);
+  if (!date) return '-';
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function dateOnlyAsLocal(value) {
+  if (!value) return null;
+  return `${String(value).slice(0, 10)}T00:00:00`;
+}
+
+function sortTimeline(items) {
+  const seen = new Set();
+  return items
+    .filter((item) => item.date)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .filter((item) => {
+      const key = `${item.type}-${item.date}-${item.title}-${item.description}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 export default function Clientes() {
@@ -61,13 +102,37 @@ export default function Clientes() {
   const [selected, setSelected] = useState(null);
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState(null);
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
   const { empresa } = useEmpresa();
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
-  const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => crmDataClient.entities.Cliente.list('-updated_date', 500),
+  const clienteFilters = useMemo(() => ({
+    ...(empresa !== 'Todas' ? { empresa } : {}),
+    ...(periodoInicio ? { created_from: `${periodoInicio}T00:00:00` } : {}),
+    ...(periodoFim ? { created_to: `${periodoFim}T23:59:59.999` } : {}),
+  }), [empresa, periodoFim, periodoInicio]);
+
+  const clientesQueryKey = ['clientes', { filters: clienteFilters, busca, page, pageSize }];
+
+  useEffect(() => {
+    setPage(1);
+  }, [busca, empresa, periodoFim, periodoInicio]);
+
+  const { data: clientesPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
+    queryKey: clientesQueryKey,
+    queryFn: () => crmDataClient.entities.Cliente.listPage({
+      orderBy: '-updated_date',
+      page,
+      limit: pageSize,
+      filters: clienteFilters,
+      search: busca,
+    }),
   });
+  const clientes = clientesPage.rows;
+  const totalPages = Math.max(1, Math.ceil((clientesPage.count || 0) / pageSize));
 
   const { data: historico = [] } = useQuery({
     queryKey: ['historico-atendimento'],
@@ -81,27 +146,10 @@ export default function Clientes() {
 
   const { data: atendimentos = [] } = useQuery({
     queryKey: ['eventos'],
-    queryFn: () => crmDataClient.entities.Evento.list('-created_date', 1000),
+    queryFn: () => crmDataClient.entities.Atividade.list('-created_date', 1000),
   });
 
-  const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-
-    return clientes.filter((cliente) => {
-      const matchEmpresa = empresa === 'Todas' || cliente.empresa === empresa;
-      const clienteLeads = leads.filter((lead) => (
-        lead.cliente_id === cliente.id || lead.telefone_normalizado === cliente.telefone_normalizado
-      ));
-      const matchBusca = !termo || [
-        cliente.nome,
-        cliente.telefone,
-        cliente.email,
-        ...clienteLeads.flatMap((lead) => [lead.modelo_interesse, lead.origem]),
-      ].some((value) => String(value || '').toLowerCase().includes(termo));
-
-      return matchEmpresa && matchBusca;
-    });
-  }, [busca, clientes, empresa, leads]);
+  const filtrados = clientes;
 
   const selectedHistorico = historico.filter((item) => item.cliente_id === selected?.id);
   const selectedLeads = leads.filter((lead) => (
@@ -111,12 +159,145 @@ export default function Clientes() {
     atendimento.cliente_id === selected?.id || atendimento.telefone_normalizado === selected?.telefone_normalizado
   ));
   const activeLead = selectedLeads.find((lead) => ACTIVE_LEAD_STATUSES.has(lead.status));
+  const selectedTimeline = useMemo(() => {
+    if (!selected) return [];
+
+    const clienteItems = [
+      {
+        id: `cliente-created-${selected.id}`,
+        type: 'cliente',
+        date: selected.created_date,
+        label: 'Cliente',
+        title: 'Cadastro do cliente criado',
+        description: selected.nome,
+        status: STATUS_LABEL[selected.status_relacionamento] || selected.status_relacionamento,
+        icon: UserRound,
+      },
+    ];
+
+    const leadItems = selectedLeads.flatMap((lead) => {
+      const items = [
+        {
+          id: `lead-created-${lead.id}`,
+          type: 'lead',
+          date: lead.created_date,
+          label: 'Lead',
+          title: `Lead criado${lead.modelo_interesse ? ` - ${lead.modelo_interesse}` : ''}`,
+          description: `Origem: ${lead.origem || '-'}${lead.responsavel_nome ? ` | Responsavel: ${lead.responsavel_nome}` : ''}`,
+          status: LEAD_STATUS_LABEL[lead.status] || lead.status,
+          icon: Tag,
+        },
+      ];
+
+      if (lead.primeiro_contato_em) {
+        items.push({
+          id: `lead-first-contact-${lead.id}`,
+          type: 'lead',
+          date: lead.primeiro_contato_em,
+          label: 'Lead',
+          title: 'Primeiro contato registrado',
+          description: lead.modelo_interesse || 'Lead em acompanhamento',
+          status: 'Contato realizado',
+          icon: Phone,
+        });
+      }
+
+      if (lead.convertido_em) {
+        items.push({
+          id: `lead-converted-${lead.id}`,
+          type: 'lead',
+          date: lead.convertido_em,
+          label: 'Conversao',
+          title: 'Lead convertido em cliente',
+          description: lead.modelo_interesse || 'Conversao registrada',
+          status: 'Convertido',
+          icon: Car,
+        });
+      }
+
+      if (lead.perdido_em) {
+        items.push({
+          id: `lead-lost-${lead.id}`,
+          type: 'lead',
+          date: lead.perdido_em,
+          label: 'Perda',
+          title: 'Lead marcado como perdido',
+          description: lead.motivo_perda || 'Motivo nao informado',
+          status: 'Perdido',
+          icon: X,
+        });
+      }
+
+      return items;
+    });
+
+    const atividadeItems = selectedAtendimentos.flatMap((atendimento) => {
+      const items = [
+        {
+          id: `atividade-created-${atendimento.id}`,
+          type: 'atividade',
+          date: atendimento.created_date,
+          label: 'Atividade',
+          title: atendimento.titulo || 'Atividade criada',
+          description: `${atendimento.tipo_evento || 'atividade'}${atendimento.modelo_interesse ? ` | ${atendimento.modelo_interesse}` : ''}`,
+          status: atendimento.status,
+          icon: Clock3,
+        },
+      ];
+
+      if (atendimento.proximo_contato) {
+        items.push({
+          id: `atividade-due-${atendimento.id}`,
+          type: 'atividade',
+          date: dateOnlyAsLocal(atendimento.proximo_contato),
+          label: 'Agenda',
+          title: 'Proximo contato planejado',
+          description: atendimento.titulo || atendimento.cliente_nome || selected.nome,
+          status: atendimento.status,
+          icon: Clock3,
+        });
+      }
+
+      if (atendimento.concluido_em) {
+        items.push({
+          id: `atividade-done-${atendimento.id}`,
+          type: 'atividade',
+          date: atendimento.concluido_em,
+          label: 'Resultado',
+          title: ATTENDANCE_RESULT_LABEL[atendimento.resultado] || 'Atividade concluida',
+          description: atendimento.motivo_resultado || atendimento.observacoes || atendimento.titulo || '',
+          status: atendimento.status,
+          icon: History,
+        });
+      }
+
+      return items;
+    });
+
+    const historicoItems = selectedHistorico.map((item) => ({
+      id: `historico-${item.id}`,
+      type: 'historico',
+      date: item.created_date,
+      label: item.tipo || 'Historico',
+      title: item.descricao || 'Registro de historico',
+      description: item.entidade ? `Entidade: ${item.entidade}` : '',
+      status: item.status,
+      icon: History,
+    }));
+
+    return sortTimeline([
+      ...clienteItems,
+      ...leadItems,
+      ...atividadeItems,
+      ...historicoItems,
+    ]);
+  }, [selected, selectedAtendimentos, selectedHistorico, selectedLeads]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => crmDataClient.entities.Cliente.update(id, data),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['clientes'] });
-      const previousClientes = queryClient.getQueryData(['clientes']);
+      const previousClientes = queryClient.getQueryData(clientesQueryKey);
       const previousSelected = selected;
       const optimistic = {
         ...selected,
@@ -125,9 +306,10 @@ export default function Clientes() {
         updated_date: new Date().toISOString(),
       };
 
-      queryClient.setQueryData(['clientes'], (current = []) =>
-        current.map((cliente) => cliente.id === id ? { ...cliente, ...optimistic } : cliente)
-      );
+      queryClient.setQueryData(clientesQueryKey, (currentPage = clientesPage) => ({
+        ...currentPage,
+        rows: (currentPage.rows || []).map((cliente) => cliente.id === id ? { ...cliente, ...optimistic } : cliente),
+      }));
       setSelected(optimistic);
       setFormData(optimistic);
       setEditing(false);
@@ -135,9 +317,10 @@ export default function Clientes() {
       return { previousClientes, previousSelected };
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(['clientes'], (current = []) =>
-        current.map((cliente) => cliente.id === updated.id ? updated : cliente)
-      );
+      queryClient.setQueryData(clientesQueryKey, (currentPage = clientesPage) => ({
+        ...currentPage,
+        rows: (currentPage.rows || []).map((cliente) => cliente.id === updated.id ? updated : cliente),
+      }));
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
       setSelected(updated);
@@ -150,7 +333,7 @@ export default function Clientes() {
     },
     onError: (error, _variables, context) => {
       if (context?.previousClientes) {
-        queryClient.setQueryData(['clientes'], context.previousClientes);
+        queryClient.setQueryData(clientesQueryKey, context.previousClientes);
       }
       if (context?.previousSelected) {
         setSelected(context.previousSelected);
@@ -192,19 +375,64 @@ export default function Clientes() {
     <div className="mx-auto max-w-[1400px] px-4 py-5 md:px-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black uppercase tracking-widest">Clientes</h1>
+          <h1 className="text-xl font-black uppercase tracking-widest">Contatos e Clientes</h1>
           <p className="mt-0.5 text-xs uppercase tracking-wider text-muted-foreground">
-            Cadastro central e historico comercial
+            Pessoas em prospeccao, clientes convertidos e historico comercial
           </p>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busca}
+              onChange={(event) => setBusca(event.target.value)}
+              placeholder="Buscar cliente..."
+              className="h-9 w-64 rounded-none bg-white pl-9 text-sm"
+            />
+          </div>
           <Input
-            value={busca}
-            onChange={(event) => setBusca(event.target.value)}
-            placeholder="Buscar cliente..."
-            className="h-9 w-64 rounded-none bg-white pl-9 text-sm"
+            type="date"
+            value={periodoInicio}
+            onChange={(event) => setPeriodoInicio(event.target.value)}
+            className="h-9 w-40 rounded-none bg-white text-xs"
+            title="Inicio do periodo de cadastro"
           />
+          <Input
+            type="date"
+            value={periodoFim}
+            onChange={(event) => setPeriodoFim(event.target.value)}
+            className="h-9 w-40 rounded-none bg-white text-xs"
+            title="Fim do periodo de cadastro"
+          />
+        </div>
+      </div>
+
+      <div className="mb-3 flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm">
+        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+          {clientesPage.count || 0} registros {isFetching ? 'carregando...' : ''}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+            disabled={page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            Anterior
+          </Button>
+          <span className="min-w-20 text-center font-bold uppercase tracking-wider">
+            {page}/{totalPages}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+            disabled={page >= totalPages}
+            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+          >
+            Proxima
+          </Button>
         </div>
       </div>
 
@@ -364,8 +592,8 @@ export default function Clientes() {
                 <TabsList className="grid h-auto w-full grid-cols-4 rounded-none bg-slate-100 p-1">
                   <TabsTrigger value="visao" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Resumo</TabsTrigger>
                   <TabsTrigger value="leads" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Leads</TabsTrigger>
-                  <TabsTrigger value="atendimentos" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Atend.</TabsTrigger>
-                  <TabsTrigger value="historico" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Linha</TabsTrigger>
+                  <TabsTrigger value="atendimentos" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Atividades</TabsTrigger>
+                  <TabsTrigger value="historico" className="rounded-none text-[10px] font-bold uppercase tracking-widest">Timeline</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="visao" className="mt-4 space-y-4">
@@ -393,12 +621,12 @@ export default function Clientes() {
                       <p className="mt-1 text-2xl font-black">{selectedLeads.length}</p>
                     </div>
                     <div className="bg-white p-4 shadow-sm">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Atend.</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Atividades</p>
                       <p className="mt-1 text-2xl font-black">{selectedAtendimentos.length}</p>
                     </div>
                     <div className="bg-white p-4 shadow-sm">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Historico</p>
-                      <p className="mt-1 text-2xl font-black">{selectedHistorico.length}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Timeline</p>
+                      <p className="mt-1 text-2xl font-black">{selectedTimeline.length}</p>
                     </div>
                   </div>
                 </TabsContent>
@@ -436,20 +664,21 @@ export default function Clientes() {
                 <TabsContent value="atendimentos" className="mt-4">
                   {selectedAtendimentos.length === 0 ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Nenhum atendimento registrado
+                      Nenhuma atividade registrada
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {selectedAtendimentos.map((atendimento) => (
                         <div key={atendimento.id} className="border-l-4 border-primary bg-white p-4 shadow-sm">
                           <div className="mb-1 flex items-center justify-between gap-3">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-primary">{atendimento.tipo_evento || 'atendimento'}</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-primary">{atendimento.tipo_evento || 'atividade'}</span>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{atendimento.status}</span>
                           </div>
                           <p className="text-sm font-bold">{atendimento.titulo}</p>
                           <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
                             <span>Origem: {atendimento.origem || '-'}</span>
-                            {atendimento.proximo_contato ? <span>Proximo contato: {formatDate(`${atendimento.proximo_contato}T00:00:00`)}</span> : null}
+                            {atendimento.resultado ? <span>Resultado: {ATTENDANCE_RESULT_LABEL[atendimento.resultado] || atendimento.resultado}</span> : null}
+                            {atendimento.proximo_contato ? <span>Proximo contato: {formatDate(`${String(atendimento.proximo_contato).slice(0, 10)}T00:00:00`)}</span> : null}
                             <span>Criado em: {formatDate(atendimento.created_date)}</span>
                           </div>
                         </div>
@@ -459,30 +688,42 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="historico" className="mt-4">
-                  {selectedHistorico.length === 0 ? (
+                  {selectedTimeline.length === 0 ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                      Nenhum historico registrado
+                      Nenhum movimento registrado
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {selectedHistorico.map((item) => (
-                        <div key={item.id} className="border-l-4 border-primary bg-white p-4 shadow-sm">
-                          <div className="mb-1 flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary">
-                              <History className="h-3 w-3" />
-                              {item.tipo}
+                    <div className="relative space-y-0 pl-5 before:absolute before:left-2 before:top-2 before:h-[calc(100%-1rem)] before:w-px before:bg-border">
+                      {selectedTimeline.map((item) => {
+                        const Icon = item.icon || History;
+                        return (
+                          <div key={item.id} className="relative pb-4 last:pb-0">
+                            <span className="absolute -left-[18px] top-4 flex h-5 w-5 items-center justify-center rounded-full border border-primary bg-white text-primary">
+                              <Icon className="h-3 w-3" />
                             </span>
-                            <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                              <Clock3 className="h-3 w-3" />
-                              {formatDate(item.created_date)}
-                            </span>
+                            <div className="bg-white p-4 shadow-sm">
+                              <div className="mb-1 flex items-center justify-between gap-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                  {item.label}
+                                </span>
+                                <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                  <Clock3 className="h-3 w-3" />
+                                  {formatDate(item.date)}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold">{item.title}</p>
+                              {item.description ? (
+                                <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                              ) : null}
+                              {item.status ? (
+                                <p className="mt-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                  Status: {item.status}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
-                          <p className="text-sm font-semibold">{item.descricao}</p>
-                          {item.status ? (
-                            <p className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">Status: {item.status}</p>
-                          ) : null}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </TabsContent>

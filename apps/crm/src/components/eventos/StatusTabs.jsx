@@ -1,11 +1,10 @@
-import { Clock, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Clock, CircleCheck, CircleX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { id: 'aguardando', label: 'Aguardando', icon: Clock },
-  { id: 'andamento', label: 'Andamento', icon: TrendingUp },
-  { id: 'sucesso', label: 'Sucesso', icon: ThumbsUp },
-  { id: 'insucesso', label: 'Insucesso', icon: ThumbsDown },
+  { id: 'planejada', label: 'Planejadas', icon: Clock },
+  { id: 'concluida', label: 'Concluidas', icon: CircleCheck },
+  { id: 'cancelada', label: 'Canceladas', icon: CircleX },
 ];
 
 export default function StatusTabs({ value, onChange, counts = {} }) {

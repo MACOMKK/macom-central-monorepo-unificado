@@ -19,7 +19,7 @@ export default function AuthLayout({ icon: Icon, title, subtitle, footer, childr
             Relacionamento comercial com mais ritmo.
           </h2>
           <p className="mt-5 max-w-lg text-sm font-medium leading-7 text-white/60">
-            Central de leads, clientes e atendimentos para operacao automotiva.
+            Central de leads, contatos e atividades para operacao automotiva.
           </p>
         </div>
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">

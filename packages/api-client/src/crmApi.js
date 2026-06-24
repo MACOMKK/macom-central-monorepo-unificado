@@ -60,12 +60,37 @@ function buildEntity(entity) {
         entity,
         filters: options.filters || {},
         or: options.or,
+        search: options.search,
         orderBy: options.orderBy,
         ascending: options.ascending,
         limit: options.limit,
         offset: options.offset,
+        page: options.page,
       });
       return result.rows || [];
+    },
+
+    async listPage(options = {}) {
+      const result = await invokeCrm({
+        action: 'list',
+        entity,
+        filters: options.filters || {},
+        or: options.or,
+        search: options.search,
+        orderBy: options.orderBy,
+        ascending: options.ascending,
+        limit: options.limit,
+        offset: options.offset,
+        page: options.page,
+      });
+
+      return {
+        rows: result.rows || [],
+        count: result.count || 0,
+        page: result.page || options.page || 1,
+        pageSize: result.pageSize || options.limit || 100,
+        offset: result.offset || options.offset || 0,
+      };
     },
 
     async getById(id) {
@@ -121,6 +146,17 @@ export const crmApi = {
     async list() {
       const result = await invokeCrm({ action: 'list_responsaveis' });
       return result.rows || [];
+    },
+  },
+  distribuicao: {
+    async getConfig() {
+      return invokeCrm({ action: 'get_distribution_config' });
+    },
+    async saveConfig(payload) {
+      return invokeCrm({ action: 'save_distribution_config', ...payload });
+    },
+    async clearTestData() {
+      return invokeCrm({ action: 'clear_crm_test_data' });
     },
   },
   clientes: buildEntity('clientes'),

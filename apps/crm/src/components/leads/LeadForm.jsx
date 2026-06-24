@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-const EMPRESAS = ['Macom Ananindeua', 'Macom Belém', 'Macom Paragominas'];
+function companyFromUnit(unitName = '') {
+  const normalized = unitName.toLowerCase();
+  if (normalized.includes('paragominas')) return 'Macom Paragominas';
+  if (normalized.includes('bel')) return 'Macom Belém';
+  return 'Macom Ananindeua';
+}
 
 function Field({ label, children }) {
   return (
@@ -24,6 +29,38 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
     previsao_fechamento: '', motivo_perda: '', observacoes: ''
   });
   const set = (f, v) => setData((d) => ({ ...d, [f]: v }));
+  const unidades = useMemo(() => {
+    const unique = new Map();
+    responsaveis.forEach((responsavel) => {
+      if (responsavel.unidade_id) {
+        unique.set(responsavel.unidade_id, {
+          id: responsavel.unidade_id,
+          nome: responsavel.unidade_nome || companyFromUnit(responsavel.unidade_nome),
+        });
+      }
+    });
+    return [...unique.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [responsaveis]);
+  const responsaveisDaUnidade = responsaveis.filter((item) => !data.unidade_id || item.unidade_id === data.unidade_id);
+
+  useEffect(() => {
+    if (data.unidade_id || unidades.length === 0) return;
+    const expectedCompany = data.empresa || 'Macom Ananindeua';
+    const matched = unidades.find((item) => companyFromUnit(item.nome) === expectedCompany) || unidades[0];
+    setData((current) => ({ ...current, unidade_id: matched.id, empresa: companyFromUnit(matched.nome) }));
+  }, [data.empresa, data.unidade_id, unidades]);
+
+  const setUnidade = (unidadeId) => {
+    const unidade = unidades.find((item) => item.id === unidadeId);
+    setData((current) => ({
+      ...current,
+      unidade_id: unidadeId,
+      empresa: companyFromUnit(unidade?.nome),
+      responsavel_id: responsaveis.some((item) => item.id === current.responsavel_id && item.unidade_id === unidadeId)
+        ? current.responsavel_id
+        : '',
+    }));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -61,7 +98,10 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
                 <SelectTrigger className="rounded-none h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-none">
                   <SelectItem value="novo">Novo</SelectItem>
-                  <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
+                  <SelectItem value="tentativa_contato">Tentativa de contato</SelectItem>
+                  <SelectItem value="em_contato">Em contato</SelectItem>
+                  <SelectItem value="qualificado">Qualificado</SelectItem>
+                  <SelectItem value="proposta">Proposta</SelectItem>
                   <SelectItem value="convertido">Convertido</SelectItem>
                   <SelectItem value="perdido">Perdido</SelectItem>
                 </SelectContent>
@@ -70,10 +110,10 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
             <Field label="Modelo de Interesse">
               <Input value={data.modelo_interesse} onChange={(e) => set('modelo_interesse', e.target.value)} className="rounded-none h-9 text-sm" />
             </Field>
-            <Field label="Empresa">
-              <Select value={data.empresa} onValueChange={(v) => set('empresa', v)}>
+            <Field label="Unidade *">
+              <Select value={data.unidade_id || ''} onValueChange={setUnidade} required>
                 <SelectTrigger className="rounded-none h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent className="rounded-none">{EMPRESAS.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+                <SelectContent className="rounded-none">{unidades.map((unidade) => <SelectItem key={unidade.id} value={unidade.id}>{unidade.nome}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
             <Field label="Responsavel">
@@ -84,7 +124,7 @@ export default function LeadForm({ open, onOpenChange, lead, responsaveis = [], 
                 <SelectTrigger className="rounded-none h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-none">
                   <SelectItem value="automatico">Distribuicao automatica</SelectItem>
-                  {responsaveis.map((responsavel) => (
+                  {responsaveisDaUnidade.map((responsavel) => (
                     <SelectItem key={responsavel.id} value={responsavel.id}>
                       {responsavel.nome}
                     </SelectItem>

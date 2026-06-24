@@ -9,13 +9,36 @@ const TEMP_COLORS = {
 };
 
 const TIPO_COLORS = {
+  ligacao: 'bg-blue-600 text-white',
+  whatsapp: 'bg-green-600 text-white',
+  email: 'bg-cyan-600 text-white',
+  visita: 'bg-violet-600 text-white',
+  test_drive: 'bg-orange-500 text-white',
+  tarefa: 'bg-slate-600 text-white',
   venda: 'bg-primary text-white',
   pos_venda: 'bg-[#1a1a1a] text-white',
   agendamento: 'bg-slate-500 text-white',
   retorno: 'bg-slate-400 text-white',
 };
 
+const RESULT_LABELS = {
+  contato_realizado: 'Contato realizado',
+  sem_resposta: 'Sem resposta',
+  visita_agendada: 'Visita agendada',
+  test_drive: 'Test-drive',
+  proposta_enviada: 'Proposta enviada',
+  venda_realizada: 'Venda realizada',
+  lead_perdido: 'Lead perdido',
+};
+
 export default function EventoCard({ evento, onClick }) {
+  const contactDate = evento.proximo_contato
+    ? new Date(`${String(evento.proximo_contato).slice(0, 10)}T00:00:00`)
+    : null;
+  const formattedContactDate = contactDate && !Number.isNaN(contactDate.getTime())
+    ? format(contactDate, 'dd/MM/yyyy')
+    : null;
+
   return (
     <button
       onClick={onClick}
@@ -31,6 +54,11 @@ export default function EventoCard({ evento, onClick }) {
               <span className={cn('text-[10px] font-bold uppercase px-2 py-0.5 rounded-sm border', TEMP_COLORS[evento.temperatura] || 'bg-muted')}>
                 <Flame className="w-2.5 h-2.5 inline mr-0.5" />{evento.temperatura}
               </span>
+              {evento.resultado ? (
+                <span className="bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  {RESULT_LABELS[evento.resultado] || evento.resultado}
+                </span>
+              ) : null}
             </div>
             <p className="font-bold text-sm mt-1.5 group-hover:text-primary transition-colors">{evento.cliente_nome}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{evento.titulo}</p>
@@ -49,10 +77,10 @@ export default function EventoCard({ evento, onClick }) {
               <Car className="w-3 h-3" />{evento.modelo_interesse}
             </span>
           )}
-          {evento.proximo_contato && (
+          {formattedContactDate && (
             <span className="flex items-center gap-1 font-semibold text-primary">
               <Calendar className="w-3 h-3" />
-              {format(new Date(evento.proximo_contato + 'T00:00:00'), 'dd/MM/yyyy')}
+              {formattedContactDate}
             </span>
           )}
           <span className="flex items-center gap-1 ml-auto">

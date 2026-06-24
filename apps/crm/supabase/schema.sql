@@ -64,7 +64,7 @@ create table if not exists gestao_crm.leads (
   origem text not null default 'site'
     check (origem in ('telefone', 'whatsapp', 'site', 'showroom', 'indicacao')),
   status text not null default 'novo'
-    check (status in ('novo', 'em_atendimento', 'convertido', 'perdido')),
+    check (status in ('novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido')),
   modelo_interesse text,
   empresa text not null default 'Macom Ananindeua'
     check (empresa in ('Macom Ananindeua', 'Macom Belém', 'Macom Paragominas')),
@@ -72,6 +72,7 @@ create table if not exists gestao_crm.leads (
   perdido_em timestamptz,
   motivo_perda text,
   responsavel_id uuid references public.colaboradores(id) on delete set null,
+  unidade_id uuid references public.unidades(id) on delete restrict,
   atribuido_em timestamptz,
   primeiro_contato_em timestamptz,
   sla_primeiro_contato_em timestamptz,
@@ -87,14 +88,18 @@ create table if not exists gestao_crm.atendimentos (
   lead_id uuid not null references gestao_crm.leads(id) on delete cascade,
   cliente_id uuid not null references gestao_crm.clientes(id) on delete cascade,
   titulo text not null,
-  status text not null default 'aguardando'
-    check (status in ('aguardando', 'andamento', 'sucesso', 'insucesso')),
-  tipo_atendimento text not null default 'venda'
-    check (tipo_atendimento in ('venda', 'pos_venda', 'agendamento', 'retorno')),
+  status text not null default 'planejada'
+    check (status in ('planejada', 'concluida', 'cancelada')),
+  tipo_atendimento text not null default 'ligacao'
+    check (tipo_atendimento in ('ligacao', 'whatsapp', 'email', 'visita', 'test_drive', 'tarefa', 'venda', 'pos_venda', 'agendamento', 'retorno')),
   temperatura text not null default 'morno'
     check (temperatura in ('frio', 'morno', 'quente')),
   proximo_contato date,
   observacoes text,
+  resultado text
+    check (resultado is null or resultado in ('contato_realizado', 'sem_resposta', 'visita_agendada', 'test_drive', 'proposta_enviada', 'venda_realizada', 'lead_perdido')),
+  motivo_resultado text,
+  concluido_em timestamptz,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   criado_por uuid references public.colaboradores(id) on delete set null
@@ -125,11 +130,11 @@ create unique index if not exists idx_crm_clientes_email_unique
 
 create unique index if not exists idx_crm_leads_cliente_ativo_unique
   on gestao_crm.leads (cliente_id)
-  where status in ('novo', 'em_atendimento');
+  where status in ('novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta');
 
-create unique index if not exists idx_crm_atendimentos_lead_aberto_unique
+create unique index if not exists idx_crm_atendimentos_lead_planejada_unique
   on gestao_crm.atendimentos (lead_id)
-  where status in ('aguardando', 'andamento');
+  where status = 'planejada';
 
 create index if not exists idx_crm_clientes_empresa
   on gestao_crm.clientes (empresa);
@@ -149,9 +154,12 @@ create index if not exists idx_crm_leads_origem
 create index if not exists idx_crm_leads_responsavel_status
   on gestao_crm.leads (responsavel_id, status);
 
+create index if not exists idx_crm_leads_unidade_status
+  on gestao_crm.leads (unidade_id, status);
+
 create index if not exists idx_crm_leads_sla_primeiro_contato
   on gestao_crm.leads (sla_primeiro_contato_em)
-  where primeiro_contato_em is null and status in ('novo', 'em_atendimento');
+  where primeiro_contato_em is null and status in ('novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta');
 
 create index if not exists idx_crm_atendimentos_lead_id
   on gestao_crm.atendimentos (lead_id);
@@ -300,3 +308,31 @@ alter default privileges in schema gestao_crm
 grant select, insert, update, delete on tables to service_role;
 
 notify pgrst, 'reload schema';
+
+create or replace function gestao_crm.prevent_activity_when_lead_has_planned_one()
+returns trigger
+language plpgsql
+security definer
+set search_path = gestao_crm, public
+as $$
+begin
+  if exists (
+    select 1
+    from gestao_crm.atendimentos existing
+    where existing.lead_id = new.lead_id
+      and existing.status = 'planejada'
+  ) then
+    raise exception using
+      errcode = '23505',
+      message = 'Este lead ja possui uma atividade planejada.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_crm_activity_guard_planned on gestao_crm.atendimentos;
+create trigger trg_crm_activity_guard_planned
+before insert on gestao_crm.atendimentos
+for each row
+execute function gestao_crm.prevent_activity_when_lead_has_planned_one();

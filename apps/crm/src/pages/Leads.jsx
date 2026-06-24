@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { crmDataClient } from '@/api/crmDataClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -14,33 +14,67 @@ import { toast } from '@/components/ui/use-toast';
 
 const STATUS_STYLES = {
   novo: 'bg-blue-600 text-white',
-  em_atendimento: 'bg-amber-500 text-white',
+  tentativa_contato: 'bg-amber-500 text-white',
+  em_contato: 'bg-cyan-600 text-white',
+  qualificado: 'bg-violet-600 text-white',
+  proposta: 'bg-orange-500 text-white',
   convertido: 'bg-green-600 text-white',
   perdido: 'bg-red-600 text-white',
 };
 
 const STATUS_LABEL = {
   novo: 'Novo',
-  em_atendimento: 'Em Atendimento',
+  tentativa_contato: 'Tentativa de contato',
+  em_contato: 'Em contato',
+  qualificado: 'Qualificado',
+  proposta: 'Proposta',
   convertido: 'Convertido',
   perdido: 'Perdido',
 };
 
 const SLA_STYLES = {
   atrasado: 'bg-red-100 text-red-700',
+  alerta: 'bg-amber-100 text-amber-700',
   no_prazo: 'bg-blue-100 text-blue-700',
   concluido: 'bg-green-100 text-green-700',
 };
 
 const SLA_LABELS = {
-  atrasado: 'Atrasado',
-  no_prazo: 'No prazo',
-  concluido: 'Realizado',
+  atrasado: '1o contato atrasado',
+  alerta: '1o contato perto',
+  no_prazo: '1o contato no prazo',
+  concluido: '1o contato realizado',
 };
 
 const formatDate = (value) => value
   ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T00:00:00`))
   : '-';
+
+const getClosingStatus = (lead) => {
+  if (!lead.previsao_fechamento) {
+    return { label: '-', className: 'text-muted-foreground' };
+  }
+  if (['convertido', 'perdido'].includes(lead.status)) {
+    return { label: formatDate(lead.previsao_fechamento), className: 'text-muted-foreground' };
+  }
+
+  const dueDate = new Date(`${String(lead.previsao_fechamento).slice(0, 10)}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((dueDate.getTime() - today.getTime()) / 86400000);
+
+  if (Number.isNaN(dueDate.getTime())) {
+    return { label: '-', className: 'text-muted-foreground' };
+  }
+
+  if (diffDays < 0) {
+    return { label: `${formatDate(lead.previsao_fechamento)} - vencida`, className: 'text-red-700 font-bold' };
+  }
+  if (diffDays === 0) {
+    return { label: `${formatDate(lead.previsao_fechamento)} - hoje`, className: 'text-amber-700 font-bold' };
+  }
+  return { label: formatDate(lead.previsao_fechamento), className: 'text-muted-foreground' };
+};
 
 const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -53,13 +87,42 @@ export default function Leads() {
   const [responsavelFiltro, setResponsavelFiltro] = useState('todos');
   const [origemFiltro, setOrigemFiltro] = useState('todas');
   const [slaFiltro, setSlaFiltro] = useState('todos');
+  const [periodoInicio, setPeriodoInicio] = useState('');
+  const [periodoFim, setPeriodoFim] = useState('');
   const { empresa } = useEmpresa();
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
-  const { data: leads = [] } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => crmDataClient.entities.Lead.list('-created_date', 200),
+  const filters = useMemo(() => ({
+    ...(empresa !== 'Todas' ? { empresa } : {}),
+    ...(statusFiltro !== 'todos' ? { status: statusFiltro } : {}),
+    ...(responsavelFiltro !== 'todos' && responsavelFiltro !== 'sem_responsavel' ? { responsavel_id: responsavelFiltro } : {}),
+    ...(responsavelFiltro === 'sem_responsavel' ? { responsavel_id: '__NULL__' } : {}),
+    ...(origemFiltro !== 'todas' ? { origem: origemFiltro } : {}),
+    ...(slaFiltro !== 'todos' ? { sla_status: slaFiltro } : {}),
+    ...(periodoInicio ? { created_from: `${periodoInicio}T00:00:00` } : {}),
+    ...(periodoFim ? { created_to: `${periodoFim}T23:59:59.999` } : {}),
+  }), [empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
+
+  const leadsQueryKey = ['leads', { filters, busca, page, pageSize }];
+
+  useEffect(() => {
+    setPage(1);
+  }, [busca, empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
+
+  const { data: leadsPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
+    queryKey: leadsQueryKey,
+    queryFn: () => crmDataClient.entities.Lead.listPage({
+      orderBy: '-created_date',
+      page,
+      limit: pageSize,
+      filters,
+      search: busca,
+    }),
   });
+  const leads = leadsPage.rows;
+  const totalPages = Math.max(1, Math.ceil((leadsPage.count || 0) / pageSize));
 
   const saveMutation = useMutation({
     mutationFn: ({ id, data }) => id
@@ -67,7 +130,7 @@ export default function Leads() {
       : crmDataClient.entities.Lead.create(data),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
-      const previousLeads = queryClient.getQueryData(['leads']);
+      const previousLeads = queryClient.getQueryData(leadsQueryKey);
       const now = new Date().toISOString();
       const tempId = createTempId();
       const selectedResponsavel = responsaveis.find((item) => item.id === data.responsavel_id) || null;
@@ -77,28 +140,34 @@ export default function Leads() {
         responsavel_nome: selectedResponsavel?.nome || '',
       };
 
-      queryClient.setQueryData(['leads'], (current = []) => {
-        if (id) {
-          return current.map((lead) => (
-            lead.id === id
-              ? { ...lead, ...optimisticData, updated_date: now }
-              : lead
-          ));
-        }
+      queryClient.setQueryData(leadsQueryKey, (currentPage = leadsPage) => {
+        const current = currentPage.rows || [];
+        const nextRows = id
+          ? current.map((lead) => (
+              lead.id === id
+                ? { ...lead, ...optimisticData, updated_date: now }
+                : lead
+            ))
+          : [
+              {
+                id: tempId,
+                created_date: now,
+                updated_date: now,
+                status: 'novo',
+                origem: 'site',
+                empresa: data.empresa || 'Macom Ananindeua',
+                ...optimisticData,
+              },
+              ...current,
+            ];
 
-        return [
-          {
-            id: tempId,
-            created_date: now,
-            updated_date: now,
-            status: 'novo',
-            origem: 'site',
-            empresa: 'Macom Ananindeua',
-            ...optimisticData,
-          },
-          ...current,
-        ];
+        return {
+          ...currentPage,
+          rows: nextRows,
+          count: id ? currentPage.count : (currentPage.count || 0) + 1,
+        };
       });
+
 
       setFormOpen(false);
       setEditing(null);
@@ -113,12 +182,14 @@ export default function Leads() {
             responsavel_nome: selectedResponsavel?.nome || saved.responsavel_nome || '',
           }
         : saved;
-      queryClient.setQueryData(['leads'], (current = []) => {
-        if (!hydratedSaved) return current;
-        if (context?.tempId) {
-          return current.map((lead) => lead.id === context.tempId ? hydratedSaved : lead);
-        }
-        return current.map((lead) => lead.id === hydratedSaved.id ? hydratedSaved : lead);
+      queryClient.setQueryData(leadsQueryKey, (currentPage = leadsPage) => {
+        const current = currentPage.rows || [];
+        if (!hydratedSaved) return currentPage;
+        const rows = context?.tempId
+          ? current.map((lead) => lead.id === context.tempId ? hydratedSaved : lead)
+          : current.map((lead) => lead.id === hydratedSaved.id ? hydratedSaved : lead);
+
+        return { ...currentPage, rows };
       });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
@@ -133,7 +204,7 @@ export default function Leads() {
     },
     onError: (error, _data, context) => {
       if (context?.previousLeads) {
-        queryClient.setQueryData(['leads'], context.previousLeads);
+        queryClient.setQueryData(leadsQueryKey, context.previousLeads);
       }
       toast({
         title: 'Nao foi possivel salvar o lead',
@@ -152,11 +223,12 @@ export default function Leads() {
     mutationFn: ({ id, status }) => crmDataClient.entities.Lead.update(id, { status }),
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
-      const previousLeads = queryClient.getQueryData(['leads']);
+      const previousLeads = queryClient.getQueryData(leadsQueryKey);
 
-      queryClient.setQueryData(['leads'], (current = []) =>
-        current.map((lead) => lead.id === id ? { ...lead, status } : lead)
-      );
+      queryClient.setQueryData(leadsQueryKey, (currentPage = leadsPage) => ({
+        ...currentPage,
+        rows: (currentPage.rows || []).map((lead) => lead.id === id ? { ...lead, status } : lead),
+      }));
 
       return { previousLeads };
     },
@@ -167,7 +239,7 @@ export default function Leads() {
     },
     onError: (error, _variables, context) => {
       if (context?.previousLeads) {
-        queryClient.setQueryData(['leads'], context.previousLeads);
+        queryClient.setQueryData(leadsQueryKey, context.previousLeads);
       }
 
       toast({
@@ -188,28 +260,7 @@ export default function Leads() {
     }
   };
 
-  const termoBusca = busca.trim().toLowerCase();
-  const filtrados = leads.filter((lead) => {
-    const matchBusca = !termoBusca || [
-      lead.nome,
-      lead.telefone,
-      lead.email,
-      lead.modelo_interesse,
-      lead.responsavel_nome,
-    ].some((value) => String(value || '').toLowerCase().includes(termoBusca));
-    const matchResponsavel = responsavelFiltro === 'todos'
-      || (responsavelFiltro === 'sem_responsavel' && !lead.responsavel_id)
-      || lead.responsavel_id === responsavelFiltro;
-
-    return (
-      (empresa === 'Todas' || lead.empresa === empresa)
-      && (statusFiltro === 'todos' || lead.status === statusFiltro)
-      && (origemFiltro === 'todas' || lead.origem === origemFiltro)
-      && (slaFiltro === 'todos' || lead.sla_status === slaFiltro)
-      && matchResponsavel
-      && matchBusca
-    );
-  });
+  const filtrados = leads;
 
   const clearFilters = () => {
     setBusca('');
@@ -217,11 +268,13 @@ export default function Leads() {
     setOrigemFiltro('todas');
     setSlaFiltro('todos');
     setStatusFiltro('todos');
+    setPeriodoInicio('');
+    setPeriodoFim('');
   };
 
   const counts = leads.reduce((acc, l) => ({ ...acc, [l.status]: (acc[l.status] || 0) + 1 }), {});
 
-  const STATUS_TABS = ['todos', 'novo', 'em_atendimento', 'convertido', 'perdido'];
+  const STATUS_TABS = ['todos', 'novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
 
   return (
     <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5">
@@ -292,11 +345,26 @@ export default function Leads() {
           <SelectTrigger className="h-9 w-40 rounded-none text-xs"><SelectValue placeholder="SLA" /></SelectTrigger>
           <SelectContent className="rounded-none">
             <SelectItem value="todos">Todos os SLAs</SelectItem>
-            <SelectItem value="atrasado">SLA atrasado</SelectItem>
-            <SelectItem value="no_prazo">SLA no prazo</SelectItem>
-            <SelectItem value="concluido">Contato realizado</SelectItem>
+            <SelectItem value="atrasado">1o contato atrasado</SelectItem>
+            <SelectItem value="alerta">1o contato perto</SelectItem>
+            <SelectItem value="no_prazo">1o contato no prazo</SelectItem>
+            <SelectItem value="concluido">1o contato realizado</SelectItem>
           </SelectContent>
         </Select>
+        <Input
+          type="date"
+          value={periodoInicio}
+          onChange={(event) => setPeriodoInicio(event.target.value)}
+          className="h-9 w-40 rounded-none text-xs"
+          title="Inicio do periodo de cadastro"
+        />
+        <Input
+          type="date"
+          value={periodoFim}
+          onChange={(event) => setPeriodoFim(event.target.value)}
+          className="h-9 w-40 rounded-none text-xs"
+          title="Fim do periodo de cadastro"
+        />
         <Button type="button" variant="outline" size="icon" onClick={clearFilters} title="Limpar filtros" className="h-9 w-9 rounded-none">
           <RotateCcw className="h-3.5 w-3.5" />
         </Button>
@@ -341,7 +409,7 @@ export default function Leads() {
                   <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Modelo</TableHead>
                   <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Empresa</TableHead>
                   <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Responsavel</TableHead>
-                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">SLA</TableHead>
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">SLA 1o contato</TableHead>
                   <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Previsao</TableHead>
                   <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
                 </TableRow>
@@ -353,33 +421,64 @@ export default function Leads() {
                       Nenhum lead encontrado
                     </TableCell>
                   </TableRow>
-                ) : filtrados.map((lead, i) => (
-                  <TableRow
-                    key={lead.id}
-                    className={cn('cursor-pointer hover:bg-red-50 transition-colors', i % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]')}
-                    onClick={() => { setEditing(lead); setFormOpen(true); }}
-                  >
-                    <TableCell className="font-bold text-sm">{lead.nome}</TableCell>
-                    <TableCell className="text-sm">{lead.telefone}</TableCell>
-                    <TableCell className="text-xs font-semibold uppercase">{lead.origem}</TableCell>
-                    <TableCell className="text-sm">{lead.modelo_interesse}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{lead.empresa}</TableCell>
-                    <TableCell className="text-xs font-semibold">{lead.responsavel_nome || 'Automatico'}</TableCell>
-                    <TableCell>
-                      <span className={cn('px-2 py-1 text-[10px] font-bold uppercase tracking-wider', SLA_STYLES[lead.sla_status])}>
-                        {SLA_LABELS[lead.sla_status] || '-'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(lead.previsao_fechamento)}</TableCell>
-                    <TableCell>
-                      <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-sm', STATUS_STYLES[lead.status])}>
-                        {STATUS_LABEL[lead.status]}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                ) : filtrados.map((lead, i) => {
+                  const closingStatus = getClosingStatus(lead);
+                  return (
+                    <TableRow
+                      key={lead.id}
+                      className={cn('cursor-pointer hover:bg-red-50 transition-colors', i % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]')}
+                      onClick={() => { setEditing(lead); setFormOpen(true); }}
+                    >
+                      <TableCell className="font-bold text-sm">{lead.nome}</TableCell>
+                      <TableCell className="text-sm">{lead.telefone}</TableCell>
+                      <TableCell className="text-xs font-semibold uppercase">{lead.origem}</TableCell>
+                      <TableCell className="text-sm">{lead.modelo_interesse}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{lead.empresa}</TableCell>
+                      <TableCell className="text-xs font-semibold">{lead.responsavel_nome || 'Automatico'}</TableCell>
+                      <TableCell>
+                        <span className={cn('px-2 py-1 text-[10px] font-bold uppercase tracking-wider', SLA_STYLES[lead.sla_status])}>
+                          {SLA_LABELS[lead.sla_status] || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell className={cn('text-xs', closingStatus.className)}>{closingStatus.label}</TableCell>
+                      <TableCell>
+                        <span className={cn('text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-sm', STATUS_STYLES[lead.status])}>
+                          {STATUS_LABEL[lead.status]}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
+          </div>
+          <div className="mt-3 flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm">
+            <span className="font-semibold uppercase tracking-wider text-muted-foreground">
+              {leadsPage.count || 0} registros {isFetching ? 'carregando...' : ''}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Anterior
+              </Button>
+              <span className="min-w-20 text-center font-bold uppercase tracking-wider">
+                {page}/{totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                Proxima
+              </Button>
+            </div>
           </div>
         </>
       )}

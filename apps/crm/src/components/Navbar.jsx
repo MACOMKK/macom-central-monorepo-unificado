@@ -90,14 +90,14 @@ export default function Navbar() {
 
         <nav className="hidden h-full items-center md:flex">
           <NavMenu label="Vendas" items={[
-            { label: 'Atendimentos', icon: Tag, path: '/atendimentos' },
+            { label: 'Agenda de Atividades', icon: Tag, path: '/atividades' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
-            { label: 'Clientes', icon: Users, path: '/clientes' },
+            { label: 'Contatos e Clientes', icon: Users, path: '/clientes' },
             { label: 'Estoque', icon: Columns3 },
             { label: 'Recepção', icon: Headphones },
           ]} />
           <NavMenu label="Pós-Vendas" items={[
-            { label: 'Atendimentos', icon: Tag, path: '/atendimentos' },
+            { label: 'Agenda de Atividades', icon: Tag, path: '/atividades' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Agenda Online', icon: Calendar },
             { label: 'Agenda V2', icon: CalendarDays },
@@ -106,14 +106,19 @@ export default function Navbar() {
           <NavMenu label="Marketing" items={null} />
           <NavMenu label="Gestão" items={[
             { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-            { label: 'Clientes', icon: Users, path: '/clientes' },
+            { label: 'Contatos e Clientes', icon: Users, path: '/clientes' },
             { label: "KPI's", icon: BarChart3 },
             { label: 'Treinamentos', icon: GraduationCap },
           ]} />
           <NavMenu label="Configurações" items={[
+            {
+              label: 'Distribuicao de Leads',
+              icon: SlidersHorizontal,
+              path: user?.role === 'admin' || user?.role === 'manager' ? '/configuracoes/distribuicao' : undefined,
+            },
             { label: 'Funil', icon: SlidersHorizontal },
             { label: 'Etapas do Funil', icon: SlidersHorizontal },
-            { label: 'Tipos de Atendimento', icon: SlidersHorizontal },
+            { label: 'Tipos de Atividade', icon: SlidersHorizontal },
             { label: 'Origens', icon: SlidersHorizontal },
             { label: 'Mídias', icon: SlidersHorizontal },
             { label: 'Modelos de Interesse', icon: SlidersHorizontal },

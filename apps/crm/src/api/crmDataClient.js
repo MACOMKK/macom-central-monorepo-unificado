@@ -1,7 +1,5 @@
 import { crmApi } from '@macom/api-client/crmApi';
 
-const ACTIVE_LEAD_STATUSES = new Set(['novo', 'em_atendimento']);
-
 const SORT_KEY_MAP = {
   created_date: 'criado_em',
   updated_date: 'atualizado_em',
@@ -18,6 +16,12 @@ function normalizeText(value) {
 
 function normalizeEmail(email) {
   return normalizeText(email);
+}
+
+function normalizeDateOnly(value) {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] || '';
 }
 
 function requireNormalizedPhone(phone, context) {
@@ -39,7 +43,11 @@ function toError(error, fallbackMessage) {
   }
 
   if (normalized.includes('idx_crm_atendimentos_lead_aberto_unique')) {
-    return new Error('Este lead ja possui um atendimento em aberto.');
+    return new Error('Este lead ja possui uma atividade planejada.');
+  }
+
+  if (normalized.includes('idx_crm_atendimentos_lead_planejada_unique')) {
+    return new Error('Este lead ja possui uma atividade planejada.');
   }
 
   if (normalized.includes('idx_crm_clientes_telefone_unique')) {
@@ -90,10 +98,17 @@ function mapClienteRow(row = {}) {
 function mapLeadRow(row = {}) {
   const slaDeadline = row.sla_primeiro_contato_em || null;
   const firstContact = row.primeiro_contato_em || null;
+  const slaAlertMinutes = Number(row.sla_alerta_minutos ?? 10);
+  const deadlineTime = slaDeadline ? new Date(slaDeadline).getTime() : null;
+  const remainingMinutes = deadlineTime
+    ? Math.ceil((deadlineTime - Date.now()) / 60000)
+    : null;
   const slaStatus = firstContact
     ? 'concluido'
-    : slaDeadline && new Date(slaDeadline).getTime() < Date.now()
+    : deadlineTime && deadlineTime < Date.now()
       ? 'atrasado'
+      : remainingMinutes !== null && remainingMinutes <= slaAlertMinutes
+        ? 'alerta'
       : 'no_prazo';
 
   return {
@@ -114,11 +129,15 @@ function mapLeadRow(row = {}) {
     responsavel_id: row.responsavel_id || '',
     responsavel: row.responsavel || null,
     responsavel_nome: row.responsavel?.nome || '',
+    unidade_id: row.unidade_id || row.responsavel?.unidade_id || '',
     atribuido_em: row.atribuido_em || null,
     primeiro_contato_em: firstContact,
     sla_primeiro_contato_em: slaDeadline,
+    sla_primeiro_contato_minutos: Number(row.sla_primeiro_contato_minutos ?? 30),
+    sla_alerta_minutos: slaAlertMinutes,
+    sla_minutos_restantes: remainingMinutes,
     sla_status: slaStatus,
-    previsao_fechamento: row.previsao_fechamento || '',
+    previsao_fechamento: normalizeDateOnly(row.previsao_fechamento),
     observacoes: row.observacoes || '',
     ...mapBaseDates(row),
   };
@@ -127,6 +146,18 @@ function mapLeadRow(row = {}) {
 function mapEventoRow(row = {}) {
   const lead = row.lead || row.leads || {};
   const cliente = row.cliente || row.clientes || {};
+  const legacyStatusMap = {
+    aguardando: 'planejada',
+    andamento: 'planejada',
+    concluido: 'concluida',
+    cancelado: 'cancelada',
+    sucesso: 'concluida',
+    insucesso: 'concluida',
+  };
+  const normalizedStatus = legacyStatusMap[row.status] || row.status || 'planejada';
+  const normalizedResult = row.resultado
+    || (row.status === 'sucesso' ? 'contato_realizado' : '')
+    || (row.status === 'insucesso' ? 'sem_resposta' : '');
 
   return {
     id: row.id,
@@ -136,14 +167,17 @@ function mapEventoRow(row = {}) {
     telefone: cliente.telefone || lead.telefone || row.telefone || '',
     telefone_normalizado: cliente.telefone_normalizado || lead.telefone_normalizado || row.telefone_normalizado || '',
     titulo: row.titulo || '',
-    status: row.status || 'aguardando',
-    tipo_evento: row.tipo_atendimento || row.tipo_evento || 'venda',
+    status: normalizedStatus,
+    tipo_evento: row.tipo_atendimento || row.tipo_evento || 'ligacao',
     temperatura: row.temperatura || 'morno',
     origem: lead.origem || row.origem || '',
     empresa: lead.empresa || cliente.empresa || row.empresa || 'Macom Ananindeua',
     modelo_interesse: lead.modelo_interesse || row.modelo_interesse || '',
-    proximo_contato: row.proximo_contato || '',
+    proximo_contato: normalizeDateOnly(row.proximo_contato),
     observacoes: row.observacoes || '',
+    resultado: normalizedResult,
+    motivo_resultado: row.motivo_resultado || '',
+    concluido_em: row.concluido_em || null,
     ...mapBaseDates(row),
   };
 }
@@ -207,22 +241,39 @@ function mapLeadPayload(data = {}, clienteId) {
       : (data.perdido_em || null),
     motivo_perda: data.status === 'perdido' ? String(data.motivo_perda).trim() : null,
     responsavel_id: data.responsavel_id || null,
+    unidade_id: data.unidade_id || null,
     previsao_fechamento: data.previsao_fechamento || null,
     observacoes: data.observacoes || null,
   };
 }
 
 function mapEventoPayload(data = {}, lead) {
+  if (data.status === 'concluida' && !data.resultado) {
+    throw new Error('Informe o resultado para concluir a atividade.');
+  }
+
+  if (data.status === 'concluida' && data.resultado === 'lead_perdido' && !String(data.motivo_resultado || '').trim()) {
+    throw new Error('Informe o motivo da perda para concluir a atividade.');
+  }
+
   return {
     lead_id: data.lead_id,
     cliente_id: lead?.cliente_id || data.cliente_id,
     titulo: data.titulo || '',
-    status: data.status || 'aguardando',
-    tipo_atendimento: data.tipo_evento || data.tipo_atendimento || 'venda',
+    status: data.status || 'planejada',
+    tipo_atendimento: data.tipo_evento || data.tipo_atendimento || 'ligacao',
     temperatura: data.temperatura || 'morno',
     proximo_contato: data.proximo_contato || null,
     observacoes: data.observacoes || null,
+    resultado: data.status === 'concluida' ? (data.resultado || null) : null,
+    motivo_resultado: data.status === 'concluida' && data.resultado === 'lead_perdido'
+      ? String(data.motivo_resultado || '').trim()
+      : null,
   };
+}
+
+function isTerminalActivityResult(result) {
+  return ['venda_realizada', 'lead_perdido'].includes(result);
 }
 
 async function addHistoricoAtendimento(entry) {
@@ -293,6 +344,21 @@ function createListRepository(entityName, entityApi, mapper) {
         limit,
       });
       return rows.map(mapper);
+    },
+
+    async listPage(options = {}) {
+      const parsed = parseSort(options.orderBy || '-created_date');
+      const result = await entityApi.listPage({
+        ...options,
+        orderBy: parsed.field,
+        ascending: parsed.ascending,
+        limit: options.limit || options.pageSize || 50,
+      });
+
+      return {
+        ...result,
+        rows: result.rows.map(mapper),
+      };
     },
 
     async delete(id) {
@@ -377,12 +443,24 @@ const ResponsavelRepository = {
   },
 };
 
+const DistribuicaoRepository = {
+  async getConfig() {
+    return crmApi.distribuicao.getConfig();
+  },
+  async saveConfig(data) {
+    return crmApi.distribuicao.saveConfig(data);
+  },
+  async clearTestData() {
+    return crmApi.distribuicao.clearTestData();
+  },
+};
+
 const EventoRepository = {
   ...createListRepository('Evento', crmApi.atendimentos, mapEventoRow),
 
   async create(data) {
     if (!data.lead_id) {
-      throw new Error('Atendimento deve estar vinculado a um lead.');
+      throw new Error('Atividade deve estar vinculada a um lead.');
     }
 
     const lead = await getLead(data.lead_id);
@@ -390,16 +468,12 @@ const EventoRepository = {
     const row = await crmApi.atendimentos.create(payload);
     const evento = mapEventoRow(row);
 
-    if (lead.status === 'novo' && ACTIVE_LEAD_STATUSES.has('em_atendimento')) {
-      await crmApi.leads.update(lead.id, { status: 'em_atendimento' });
-    }
-
     await addHistoricoAtendimento({
       cliente_id: evento.cliente_id,
       lead_id: evento.lead_id,
       atendimento_id: evento.id,
       tipo: 'atendimento',
-      descricao: `${evento.titulo || 'Atendimento'} - ${evento.status}`,
+      descricao: `${evento.titulo || 'Atividade'} - ${evento.status}`,
       entidade: 'Evento',
       entidade_id: evento.id,
       status: evento.status,
@@ -419,11 +493,43 @@ const EventoRepository = {
       lead_id: evento.lead_id,
       atendimento_id: evento.id,
       tipo: 'atendimento',
-      descricao: `${evento.titulo || 'Atendimento'} - ${evento.status}`,
+      descricao: `${evento.titulo || 'Atividade'} - ${evento.status}`,
       entidade: 'Evento',
       entidade_id: evento.id,
       status: evento.status,
     });
+
+    if (
+      data.status === 'concluida'
+      && data.resultado
+      && !isTerminalActivityResult(data.resultado)
+      && data.proxima_atividade?.titulo
+      && data.proxima_atividade?.proximo_contato
+    ) {
+      const nextPayload = mapEventoPayload({
+        lead_id: evento.lead_id,
+        cliente_id: evento.cliente_id,
+        titulo: data.proxima_atividade.titulo,
+        status: 'planejada',
+        tipo_evento: data.proxima_atividade.tipo_evento || 'ligacao',
+        temperatura: data.temperatura || evento.temperatura || 'morno',
+        proximo_contato: data.proxima_atividade.proximo_contato,
+        observacoes: data.proxima_atividade.observacoes || null,
+      }, lead);
+      const nextRow = await crmApi.atendimentos.create(nextPayload);
+      const nextEvento = mapEventoRow(nextRow);
+
+      await addHistoricoAtendimento({
+        cliente_id: nextEvento.cliente_id,
+        lead_id: nextEvento.lead_id,
+        atendimento_id: nextEvento.id,
+        tipo: 'atendimento',
+        descricao: `Proxima atividade planejada: ${nextEvento.titulo}`,
+        entidade: 'Evento',
+        entidade_id: nextEvento.id,
+        status: nextEvento.status,
+      });
+    }
 
     return evento;
   },
@@ -439,8 +545,10 @@ export const crmDataClient = {
   entities: {
     Cliente: ClienteRepository,
     Evento: EventoRepository,
+    Atividade: EventoRepository,
     HistoricoAtendimento: HistoricoAtendimentoRepository,
     Lead: LeadRepository,
     Responsavel: ResponsavelRepository,
+    Distribuicao: DistribuicaoRepository,
   },
 };

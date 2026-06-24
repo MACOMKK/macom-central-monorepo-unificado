@@ -8,7 +8,7 @@ const CORES_STATUS = ['#94a3b8', '#3b82f6', '#16a34a', '#E30613'];
 
 export default function Dashboard() {
   const { empresa } = useEmpresa();
-  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => crmDataClient.entities.Evento.list('-created_date', 500) });
+  const { data: eventos = [] } = useQuery({ queryKey: ['eventos'], queryFn: () => crmDataClient.entities.Atividade.list('-created_date', 500) });
   const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: () => crmDataClient.entities.Lead.list('-created_date', 500) });
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes'], queryFn: () => crmDataClient.entities.Cliente.list('-created_date', 500) });
 
@@ -17,10 +17,9 @@ export default function Dashboard() {
   const cls = clientes.filter((c) => empresa === 'Todas' || c.empresa === empresa);
 
   const statusData = [
-    { name: 'Aguardando', value: evs.filter((e) => e.status === 'aguardando').length },
-    { name: 'Andamento', value: evs.filter((e) => e.status === 'andamento').length },
-    { name: 'Sucesso', value: evs.filter((e) => e.status === 'sucesso').length },
-    { name: 'Insucesso', value: evs.filter((e) => e.status === 'insucesso').length },
+    { name: 'Planejadas', value: evs.filter((e) => e.status === 'planejada').length },
+    { name: 'Concluidas', value: evs.filter((e) => e.status === 'concluida').length },
+    { name: 'Canceladas', value: evs.filter((e) => e.status === 'cancelada').length },
   ];
 
   const origemData = ['telefone', 'whatsapp', 'site', 'showroom', 'indicacao'].map((o) => ({
@@ -34,9 +33,9 @@ export default function Dashboard() {
     : 0;
 
   const cards = [
-    { label: 'Clientes', value: cls.length, icon: Users, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
+    { label: 'Contatos', value: cls.length, icon: Users, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
     { label: 'Leads', value: lds.length, icon: DollarSign, color: 'text-blue-600', border: 'border-l-blue-600' },
-    { label: 'Atendimentos', value: evs.length, icon: Tag, color: 'text-primary', border: 'border-l-primary' },
+    { label: 'Atividades', value: evs.length, icon: Tag, color: 'text-primary', border: 'border-l-primary' },
     { label: 'Leads Convertidos', value: leadsConvertidos, icon: ThumbsUp, color: 'text-green-600', border: 'border-l-green-600' },
   ];
 
@@ -73,7 +72,7 @@ export default function Dashboard() {
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="bg-white shadow-sm">
           <div className="bg-[#1a1a1a] px-5 py-3">
-            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atendimentos por Status</p>
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atividades por Status</p>
           </div>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -90,7 +89,7 @@ export default function Dashboard() {
 
         <div className="bg-white shadow-sm">
           <div className="bg-[#1a1a1a] px-5 py-3">
-            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atendimentos por Origem</p>
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atividades por Origem</p>
           </div>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">

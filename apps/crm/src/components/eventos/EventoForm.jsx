@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Car, Phone, Tag, UserRound } from 'lucide-react';
 
-const ACTIVE_LEAD_STATUSES = new Set(['novo', 'em_atendimento']);
-const OPEN_ATTENDANCE_STATUSES = new Set(['aguardando', 'andamento']);
+const ACTIVE_LEAD_STATUSES = new Set(['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta']);
+const PLANNED_ACTIVITY_STATUSES = new Set(['planejada']);
 
 function Field({ label, children }) {
   return (
@@ -48,14 +48,21 @@ function createInitialData(evento, leads) {
     cliente_nome: '',
     telefone: '',
     titulo: '',
-    status: 'aguardando',
-    tipo_evento: 'venda',
+    status: 'planejada',
+    tipo_evento: 'ligacao',
     origem: '',
     temperatura: 'morno',
     empresa: '',
     modelo_interesse: '',
     proximo_contato: '',
     observacoes: '',
+    resultado: '',
+    motivo_resultado: '',
+    proxima_atividade: {
+      titulo: '',
+      tipo_evento: 'ligacao',
+      proximo_contato: '',
+    },
   });
 }
 
@@ -64,7 +71,7 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
     const hasOpenAttendance = (leadId) => atendimentos.some((atendimento) => (
       atendimento.lead_id === leadId &&
       atendimento.id !== evento?.id &&
-      OPEN_ATTENDANCE_STATUSES.has(atendimento.status)
+      PLANNED_ACTIVITY_STATUSES.has(atendimento.status)
     ));
 
     if (evento?.lead_id) {
@@ -79,13 +86,46 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
 
   const [data, setData] = useState(() => createInitialData(evento, availableLeads.length ? availableLeads : leads));
   const selectedLead = leads.find((lead) => lead.id === data.lead_id);
-  const canSave = Boolean(data.lead_id && data.titulo);
+  const isClosed = ['concluida', 'cancelada'].includes(evento?.status);
+  const needsResult = data.status === 'concluida';
+  const needsLossReason = needsResult && data.resultado === 'lead_perdido';
+  const closesLead = needsResult && ['venda_realizada', 'lead_perdido'].includes(data.resultado);
+  const needsNextActivity = needsResult && data.resultado && !closesLead && ACTIVE_LEAD_STATUSES.has(selectedLead?.status);
+  const needsScheduledDate = data.status === 'planejada';
+  const canSave = Boolean(
+    data.lead_id
+    && data.titulo
+    && (!needsScheduledDate || data.proximo_contato)
+    && (!needsResult || data.resultado)
+    && (!needsLossReason || String(data.motivo_resultado || '').trim())
+    && (!needsNextActivity || (
+      String(data.proxima_atividade?.titulo || '').trim()
+      && data.proxima_atividade?.tipo_evento
+      && data.proxima_atividade?.proximo_contato
+    ))
+  );
 
   const set = (field, value) => setData((current) => ({ ...current, [field]: value }));
+  const setNextActivity = (field, value) => setData((current) => ({
+    ...current,
+    proxima_atividade: {
+      ...(current.proxima_atividade || {}),
+      [field]: value,
+    },
+  }));
 
   function selectLead(leadId) {
     const lead = leads.find((item) => item.id === leadId);
     setData((current) => leadToEvento(lead, current));
+  }
+
+  function setStatus(status) {
+    setData((current) => ({
+      ...current,
+      status,
+      resultado: status === 'concluida' ? current.resultado : '',
+      motivo_resultado: status === 'concluida' ? current.motivo_resultado : '',
+    }));
   }
 
   return (
@@ -93,7 +133,7 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-none p-0 gap-0">
         <DialogHeader className="bg-[#1a1a1a] px-6 py-4">
           <DialogTitle className="text-sm font-black uppercase tracking-widest text-white">
-            {evento ? 'Editar Atendimento' : 'Novo Atendimento'}
+            {evento ? 'Editar Atividade' : 'Nova Atividade'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={(event) => { event.preventDefault(); if (canSave) onSave(data); }} className="space-y-4 p-6">
@@ -111,7 +151,7 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
               </Select>
             ) : (
               <div className="border border-dashed bg-slate-50 px-3 py-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Nao ha lead ativo sem atendimento em aberto.
+                Nao ha lead ativo sem atividade planejada.
               </div>
             )}
           </Field>
@@ -133,24 +173,24 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
               </Field>
             </div>
             <Field label="Status">
-              <Select value={data.status} onValueChange={(value) => set('status', value)}>
+              <Select value={data.status} onValueChange={setStatus} disabled={isClosed}>
                 <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-none">
-                  <SelectItem value="aguardando">Aguardando</SelectItem>
-                  <SelectItem value="andamento">Andamento</SelectItem>
-                  <SelectItem value="sucesso">Sucesso</SelectItem>
-                  <SelectItem value="insucesso">Insucesso</SelectItem>
+                  <SelectItem value="planejada">Planejada</SelectItem>
+                  <SelectItem value="concluida">Concluida</SelectItem>
+                  <SelectItem value="cancelada">Cancelada</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Tipo de atendimento">
+            <Field label="Tipo de atividade">
               <Select value={data.tipo_evento} onValueChange={(value) => set('tipo_evento', value)}>
                 <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-none">
-                  <SelectItem value="venda">Venda</SelectItem>
-                  <SelectItem value="pos_venda">Pos Venda</SelectItem>
-                  <SelectItem value="agendamento">Agendamento</SelectItem>
-                  <SelectItem value="retorno">Retorno</SelectItem>
+                  <SelectItem value="ligacao">Ligacao</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                  <SelectItem value="email">E-mail</SelectItem>
+                  <SelectItem value="visita">Visita</SelectItem>
+                  <SelectItem value="test_drive">Test-drive</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -164,9 +204,84 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Proximo contato">
-              <Input type="date" value={data.proximo_contato} onChange={(event) => set('proximo_contato', event.target.value)} className="h-9 rounded-none text-sm" />
+            <Field label={needsScheduledDate ? 'Data da atividade *' : 'Data da atividade'}>
+              <Input required={needsScheduledDate} type="date" value={data.proximo_contato} onChange={(event) => set('proximo_contato', event.target.value)} className="h-9 rounded-none text-sm" />
             </Field>
+            {needsResult ? (
+              <div className="col-span-2">
+                <Field label="Resultado *">
+                  <Select value={data.resultado || ''} onValueChange={(value) => set('resultado', value)} disabled={isClosed}>
+                    <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue placeholder="Selecione o resultado" /></SelectTrigger>
+                    <SelectContent className="rounded-none">
+                      <SelectItem value="contato_realizado">Contato realizado</SelectItem>
+                      <SelectItem value="sem_resposta">Sem resposta</SelectItem>
+                      <SelectItem value="visita_agendada">Visita agendada</SelectItem>
+                      <SelectItem value="test_drive">Test-drive</SelectItem>
+                      <SelectItem value="proposta_enviada">Proposta enviada</SelectItem>
+                      <SelectItem value="venda_realizada">Venda realizada</SelectItem>
+                      <SelectItem value="lead_perdido">Lead perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            ) : null}
+            {needsLossReason ? (
+              <div className="col-span-2">
+                <Field label="Motivo da perda *">
+                  <Textarea
+                    required
+                    value={data.motivo_resultado || ''}
+                    onChange={(event) => set('motivo_resultado', event.target.value)}
+                    disabled={isClosed}
+                    className="resize-none rounded-none text-sm"
+                    rows={2}
+                  />
+                </Field>
+              </div>
+            ) : null}
+            {needsNextActivity ? (
+              <div className="col-span-2 border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-amber-700">
+                  Proxima atividade obrigatoria
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Field label="Titulo da proxima atividade *">
+                      <Input
+                        required
+                        value={data.proxima_atividade?.titulo || ''}
+                        onChange={(event) => setNextActivity('titulo', event.target.value)}
+                        className="h-9 rounded-none bg-white text-sm"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Acao *">
+                    <Select
+                      value={data.proxima_atividade?.tipo_evento || 'ligacao'}
+                      onValueChange={(value) => setNextActivity('tipo_evento', value)}
+                    >
+                      <SelectTrigger className="h-9 rounded-none bg-white text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="ligacao">Ligacao</SelectItem>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="email">E-mail</SelectItem>
+                        <SelectItem value="visita">Visita</SelectItem>
+                        <SelectItem value="test_drive">Test-drive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Data *">
+                    <Input
+                      required
+                      type="date"
+                      value={data.proxima_atividade?.proximo_contato || ''}
+                      onChange={(event) => setNextActivity('proximo_contato', event.target.value)}
+                      className="h-9 rounded-none bg-white text-sm"
+                    />
+                  </Field>
+                </div>
+              </div>
+            ) : null}
             <div className="col-span-2">
               <Field label="Observacoes">
                 <Textarea value={data.observacoes} onChange={(event) => set('observacoes', event.target.value)} className="resize-none rounded-none text-sm" rows={3} />
