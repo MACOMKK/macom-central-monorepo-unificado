@@ -30,6 +30,7 @@ export function buildPositionsConfig({
   departments,
   departmentOptions,
   formatDateTime,
+  onViewCollaborators,
   positions,
 }) {
   const collaboratorsByPositionId = collaborators.reduce((acc, collaborator) => {
@@ -82,19 +83,16 @@ export function buildPositionsConfig({
             return <span className="text-sm text-muted-foreground">Nenhum</span>;
           }
 
-          const visibleNames = linkedCollaborators.slice(0, 3).map((collaborator) => collaborator.nome || collaborator.email);
-          const hiddenCount = linkedCollaborators.length - visibleNames.length;
-
           return (
-            <div className="max-w-[260px] space-y-1">
-              <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[11px]">
+            <button
+              type="button"
+              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onViewCollaborators?.(row)}
+            >
+              <Badge variant="secondary" className="rounded-full px-2.5 py-1 text-[11px] transition-colors hover:bg-primary hover:text-primary-foreground">
                 {linkedCollaborators.length} {linkedCollaborators.length === 1 ? 'colaborador' : 'colaboradores'}
               </Badge>
-              <p className="line-clamp-2 text-xs text-muted-foreground">
-                {visibleNames.join(', ')}
-                {hiddenCount > 0 ? ` +${hiddenCount}` : ''}
-              </p>
-            </div>
+            </button>
           );
         },
       },

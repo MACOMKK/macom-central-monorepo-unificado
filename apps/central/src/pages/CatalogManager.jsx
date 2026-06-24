@@ -6,6 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import FeedbackToast from '@/components/ui/feedback-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import CatalogAuxDialogs from '@/pages/catalog-manager/components/CatalogAuxDialogs';
 import CatalogActionMenus from '@/pages/catalog-manager/components/CatalogActionMenus';
@@ -125,6 +139,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [editingRecord, setEditingRecord] = useState(null);
   const [assigningAsset, setAssigningAsset] = useState(null);
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
+  const [viewingPosition, setViewingPosition] = useState(null);
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
   const [passwordRecord, setPasswordRecord] = useState(null);
   const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
@@ -285,6 +300,12 @@ export default function CatalogManager({ lockedEntityKey }) {
       return acc;
     }, {});
   }, [systemAccesses, systems]);
+  const viewingPositionCollaborators = useMemo(() => {
+    if (!viewingPosition?.id) return [];
+    return collaborators
+      .filter((collaborator) => collaborator.cargo_id === viewingPosition.id)
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+  }, [collaborators, viewingPosition]);
 
   const config = useMemo(() => {
     const departmentOptions = createSelectOptions(departments);
@@ -322,6 +343,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         departments,
         departmentOptions,
         formatDateTime,
+        onViewCollaborators: setViewingPosition,
         positions,
       }),
       unidades: buildUnitsConfig({
@@ -1151,6 +1173,59 @@ export default function CatalogManager({ lockedEntityKey }) {
           open: passwordRecord !== null,
         }}
       />
+
+      <Dialog open={Boolean(viewingPosition)} onOpenChange={(open) => !open && setViewingPosition(null)}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Colaboradores vinculados</DialogTitle>
+          </DialogHeader>
+          {viewingPosition ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="text-sm font-semibold text-foreground">{viewingPosition.nome}</p>
+                <p className="text-xs text-muted-foreground">
+                  {departments.find((department) => department.id === viewingPosition.departamento_id)?.nome || 'Sem departamento'} - {viewingPositionCollaborators.length} colaborador(es)
+                </p>
+              </div>
+
+              {viewingPositionCollaborators.length ? (
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Departamento</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {viewingPositionCollaborators.map((collaborator) => (
+                        <TableRow key={collaborator.id}>
+                          <TableCell className="font-medium">{collaborator.nome || '-'}</TableCell>
+                          <TableCell className="text-muted-foreground">{collaborator.email || '-'}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {departments.find((department) => department.id === collaborator.departamento_id)?.nome || 'Sem departamento'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={collaborator.status === 'ativo' ? statusTone.ativo : statusTone.inativo}>
+                              {collaborator.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                  Nenhum colaborador vinculado a este cargo.
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <CatalogActionMenus
         assetMenu={assetMenu}
