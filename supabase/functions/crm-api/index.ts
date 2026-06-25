@@ -85,6 +85,26 @@ const ENTITY_CONFIG = {
       'metadados',
     ],
   },
+  veiculos_interesse: {
+    table: 'veiculos_interesse',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFields: [
+      'lead_id',
+      'marca',
+      'modelo',
+      'versao',
+      'ano',
+      'condicao',
+      'faixa_preco_min',
+      'faixa_preco_max',
+      'cor_preferida',
+      'combustivel',
+      'cambio',
+      'principal',
+      'observacoes',
+    ],
+  },
 } as const;
 
 type EntityName = keyof typeof ENTITY_CONFIG;
@@ -299,6 +319,17 @@ function buildSearchFilter(entity: EntityName, search: string, startIndex: numbe
     pushText('l.modelo_interesse');
     pushText('l.origem');
     pushText('r.nome');
+    values.push(normalizedTerm);
+    parts.push(`exists (
+      select 1
+      from ${CRM_SCHEMA}.veiculos_interesse vi
+      where vi.lead_id = l.id
+        and (
+          lower(coalesce(vi.marca, '')) like $${startIndex + values.length - 1}
+          or lower(coalesce(vi.modelo, '')) like $${startIndex + values.length - 1}
+          or lower(coalesce(vi.versao, '')) like $${startIndex + values.length - 1}
+        )
+    )`);
     pushPhone('l.telefone_normalizado');
   } else if (entity === 'clientes') {
     pushText('nome');
@@ -363,6 +394,10 @@ function buildAdvancedFilters(entity: EntityName, filters: Record<string, unknow
     if (filters.empresa) {
       values.push(filters.empresa);
       clauses.push(`(l."empresa" = $${startIndex + values.length - 1} or c."empresa" = $${startIndex + values.length - 1})`);
+    }
+    if (filters.origem) {
+      values.push(filters.origem);
+      clauses.push(`l."origem" = $${startIndex + values.length - 1}`);
     }
     if (filters.responsavel_id) {
       values.push(filters.responsavel_id);
@@ -432,6 +467,16 @@ function buildAccessScope(
         values: [unitId],
       };
     }
+    if (entity === 'veiculos_interesse') {
+      return {
+        clause: `exists (
+          select 1 from ${CRM_SCHEMA}.leads scope_lead
+          where scope_lead.id = veiculos_interesse.lead_id
+            and scope_lead.unidade_id = $${startIndex}
+        )`,
+        values: [unitId],
+      };
+    }
   }
 
   if (entity === 'leads') {
@@ -472,6 +517,16 @@ function buildAccessScope(
           where scope_lead.cliente_id = historico_atendimentos.cliente_id
             and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
         )
+      )`,
+      values: [collaboratorId],
+    };
+  }
+  if (entity === 'veiculos_interesse') {
+    return {
+      clause: `exists (
+        select 1 from ${CRM_SCHEMA}.leads scope_lead
+        where scope_lead.id = veiculos_interesse.lead_id
+          and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
       )`,
       values: [collaboratorId],
     };
@@ -550,16 +605,24 @@ function buildListSelect(entity: EntityName) {
         coalesce(cd.sla_primeiro_contato_minutos, 30) as sla_primeiro_contato_minutos,
         case
           when r.id is null then null
-          else json_build_object(
-            'id', r.id,
-            'nome', r.nome,
-            'email', r.email,
-            'unidade_id', r.unidade_id
-          )
-        end as responsavel
+        else json_build_object(
+          'id', r.id,
+          'nome', r.nome,
+          'email', r.email,
+          'unidade_id', r.unidade_id
+        )
+        end as responsavel,
+        vi_principal.veiculo_interesse
       from ${CRM_SCHEMA}.leads l
       left join public.colaboradores r on r.id = l.responsavel_id
       left join ${CRM_SCHEMA}.configuracoes_distribuicao cd on cd.unidade_id = l.unidade_id
+      left join lateral (
+        select row_to_json(vi) as veiculo_interesse
+        from ${CRM_SCHEMA}.veiculos_interesse vi
+        where vi.lead_id = l.id
+        order by vi.principal desc, vi.criado_em asc
+        limit 1
+      ) vi_principal on true
     `;
   }
 
@@ -893,6 +956,7 @@ Deno.serve(async (request) => {
       const directFilters = { ...filters };
       if (entity === 'atendimentos') {
         delete directFilters.empresa;
+        delete directFilters.origem;
         delete directFilters.responsavel_id;
       }
       const filterParts = buildSqlFilters(directFilters, 1, baseAlias(entity) || undefined);
@@ -955,6 +1019,9 @@ Deno.serve(async (request) => {
       if (entity === 'historico_atendimentos' && payload.lead_id) {
         await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
       }
+      if (entity === 'veiculos_interesse' && payload.lead_id) {
+        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+      }
       const query = buildInsertQuery(CRM_SCHEMA, config.table, payload);
       const rows = await sql.unsafe(query.text, query.values);
       return json({ row: rows[0] || null });
@@ -966,6 +1033,9 @@ Deno.serve(async (request) => {
       const payload = applyCreateScope(entity, sanitizePayload(entity, body.payload || {}), access, collaborator);
       if (!Object.keys(payload).length) return json({ error: 'Nenhum campo para atualizar.' }, 400);
       if (entity === 'atendimentos' && payload.lead_id) {
+        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+      }
+      if (entity === 'veiculos_interesse' && payload.lead_id) {
         await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
       }
       const query = buildUpdateQuery(CRM_SCHEMA, config.table, id, payload);

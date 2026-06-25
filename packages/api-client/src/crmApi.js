@@ -163,4 +163,5 @@ export const crmApi = {
   leads: buildEntity('leads'),
   atendimentos: buildEntity('atendimentos'),
   historico_atendimentos: buildEntity('historico_atendimentos'),
+  veiculos_interesse: buildEntity('veiculos_interesse'),
 };

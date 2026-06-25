@@ -193,7 +193,9 @@ export default function Leads() {
       });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      if (saved?.id) {
+        queryClient.invalidateQueries({ queryKey: ['lead-historico', saved.id] });
+      }
       toast({
         title: context?.id ? 'Lead atualizado' : 'Lead criado',
         description: context?.id
@@ -219,10 +221,17 @@ export default function Leads() {
     queryFn: () => crmDataClient.entities.Responsavel.list(),
   });
 
-  const { data: historico = [] } = useQuery({
-    queryKey: ['historico-atendimento'],
-    queryFn: () => crmDataClient.entities.HistoricoAtendimento.list('-created_date', 1000),
+  const editingId = editing?.id || '';
+  const { data: historicoPage = { rows: [] } } = useQuery({
+    queryKey: ['lead-historico', editingId],
+    enabled: Boolean(editingId),
+    queryFn: () => crmDataClient.entities.HistoricoAtendimento.listPage({
+      orderBy: '-created_date',
+      limit: 200,
+      filters: { lead_id: editingId },
+    }),
   });
+  const historico = historicoPage.rows || [];
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => crmDataClient.entities.Lead.update(id, { status }),
@@ -240,7 +249,7 @@ export default function Leads() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
     },
     onError: (error, _variables, context) => {
       if (context?.previousLeads) {
@@ -267,7 +276,7 @@ export default function Leads() {
       metadados: { origem: 'lead_note' },
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
       toast({
         title: 'Nota registrada',
         description: 'A nota foi vinculada ao lead.',
@@ -286,7 +295,7 @@ export default function Leads() {
   const attachmentMutation = useMutation({
     mutationFn: ({ lead, file }) => crmDataClient.entities.HistoricoAtendimento.uploadLeadAttachment({ lead, file }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
       toast({
         title: 'Anexo registrado',
         description: 'O arquivo foi vinculado ao lead.',
@@ -317,7 +326,7 @@ export default function Leads() {
   const deleteAttachmentMutation = useMutation({
     mutationFn: (attachment) => crmDataClient.entities.HistoricoAtendimento.deleteAttachment(attachment),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
       toast({
         title: 'Anexo excluido',
         description: 'O arquivo foi removido do lead.',

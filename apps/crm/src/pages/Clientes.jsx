@@ -134,30 +134,43 @@ export default function Clientes() {
   const clientes = clientesPage.rows;
   const totalPages = Math.max(1, Math.ceil((clientesPage.count || 0) / pageSize));
 
-  const { data: historico = [] } = useQuery({
-    queryKey: ['historico-atendimento'],
-    queryFn: () => crmDataClient.entities.HistoricoAtendimento.list('-created_date', 1000),
-  });
-
-  const { data: leads = [] } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => crmDataClient.entities.Lead.list('-created_date', 1000),
-  });
-
-  const { data: atendimentos = [] } = useQuery({
-    queryKey: ['eventos'],
-    queryFn: () => crmDataClient.entities.Atividade.list('-created_date', 1000),
-  });
-
   const filtrados = clientes;
+  const selectedId = selected?.id || '';
 
-  const selectedHistorico = historico.filter((item) => item.cliente_id === selected?.id);
-  const selectedLeads = leads.filter((lead) => (
-    lead.cliente_id === selected?.id || lead.telefone_normalizado === selected?.telefone_normalizado
-  ));
-  const selectedAtendimentos = atendimentos.filter((atendimento) => (
-    atendimento.cliente_id === selected?.id || atendimento.telefone_normalizado === selected?.telefone_normalizado
-  ));
+  const { data: selectedLeadsPage = { rows: [] }, isFetching: loadingSelectedLeads } = useQuery({
+    queryKey: ['cliente-leads', selectedId],
+    enabled: Boolean(selectedId),
+    queryFn: () => crmDataClient.entities.Lead.listPage({
+      orderBy: '-created_date',
+      limit: 100,
+      filters: { cliente_id: selectedId },
+    }),
+  });
+
+  const { data: selectedAtendimentosPage = { rows: [] }, isFetching: loadingSelectedAtendimentos } = useQuery({
+    queryKey: ['cliente-atendimentos', selectedId],
+    enabled: Boolean(selectedId),
+    queryFn: () => crmDataClient.entities.Atividade.listPage({
+      orderBy: '-created_date',
+      limit: 100,
+      filters: { cliente_id: selectedId },
+    }),
+  });
+
+  const { data: selectedHistoricoPage = { rows: [] }, isFetching: loadingSelectedHistorico } = useQuery({
+    queryKey: ['cliente-historico', selectedId],
+    enabled: Boolean(selectedId),
+    queryFn: () => crmDataClient.entities.HistoricoAtendimento.listPage({
+      orderBy: '-created_date',
+      limit: 200,
+      filters: { cliente_id: selectedId },
+    }),
+  });
+
+  const selectedHistorico = selectedHistoricoPage.rows || [];
+  const selectedLeads = selectedLeadsPage.rows || [];
+  const selectedAtendimentos = selectedAtendimentosPage.rows || [];
+  const loadingSelectedTimeline = loadingSelectedLeads || loadingSelectedAtendimentos || loadingSelectedHistorico;
   const activeLead = selectedLeads.find((lead) => ACTIVE_LEAD_STATUSES.has(lead.status));
   const selectedTimeline = useMemo(() => {
     if (!selected) return [];
@@ -328,7 +341,7 @@ export default function Clientes() {
         rows: (currentPage.rows || []).map((cliente) => cliente.id === updated.id ? updated : cliente),
       }));
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
+      queryClient.invalidateQueries({ queryKey: ['cliente-historico', updated.id] });
       setSelected(updated);
       setFormData(updated);
       toast({
@@ -462,12 +475,6 @@ export default function Clientes() {
                 </TableCell>
               </TableRow>
             ) : filtrados.map((cliente, index) => {
-              const totalHistorico = historico.filter((item) => item.cliente_id === cliente.id).length;
-              const clienteLeads = leads.filter((lead) => (
-                lead.cliente_id === cliente.id || lead.telefone_normalizado === cliente.telefone_normalizado
-              ));
-              const leadAtivoLinha = clienteLeads.find((lead) => ACTIVE_LEAD_STATUSES.has(lead.status));
-
               return (
                 <TableRow
                   key={cliente.id}
@@ -483,14 +490,7 @@ export default function Clientes() {
                     {cliente.email ? <div className="flex items-center gap-1"><Mail className="h-3 w-3" />{cliente.email}</div> : null}
                   </TableCell>
                   <TableCell className="text-xs">
-                    {leadAtivoLinha ? (
-                      <div>
-                        <div className="font-semibold">{leadAtivoLinha.modelo_interesse || 'Modelo nao informado'}</div>
-                        <div className="mt-0.5 uppercase tracking-wider text-muted-foreground">{leadAtivoLinha.origem || 'sem origem'}</div>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Sem lead ativo</span>
-                    )}
+                    <span className="text-muted-foreground">Carrega ao abrir</span>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{cliente.empresa}</TableCell>
                   <TableCell>
@@ -500,7 +500,7 @@ export default function Clientes() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button type="button" variant="outline" className="h-8 rounded-none text-xs font-bold uppercase tracking-wider">
-                      {totalHistorico} itens
+                      Abrir
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -603,7 +603,11 @@ export default function Clientes() {
                 </TabsList>
 
                 <TabsContent value="visao" className="mt-4 space-y-4">
-                  {activeLead ? (
+                  {loadingSelectedTimeline ? (
+                    <div className="border border-dashed py-6 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Carregando dados do cliente...
+                    </div>
+                  ) : activeLead ? (
                     <div className="border-l-4 border-blue-600 bg-blue-50 p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Lead ativo</p>
@@ -638,7 +642,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="leads" className="mt-4">
-                  {selectedLeads.length === 0 ? (
+                  {loadingSelectedLeads ? (
+                    <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Carregando leads...
+                    </div>
+                  ) : selectedLeads.length === 0 ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Nenhum lead registrado
                     </div>
@@ -668,7 +676,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="atendimentos" className="mt-4">
-                  {selectedAtendimentos.length === 0 ? (
+                  {loadingSelectedAtendimentos ? (
+                    <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Carregando atividades...
+                    </div>
+                  ) : selectedAtendimentos.length === 0 ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Nenhuma atividade registrada
                     </div>
@@ -694,7 +706,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="historico" className="mt-4">
-                  {selectedTimeline.length === 0 ? (
+                  {loadingSelectedTimeline ? (
+                    <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Carregando timeline...
+                    </div>
+                  ) : selectedTimeline.length === 0 ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Nenhum movimento registrado
                     </div>

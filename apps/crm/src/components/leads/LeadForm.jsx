@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import {
   BriefcaseBusiness,
+  Car,
   ExternalLink,
   FileText,
   Paperclip,
@@ -73,6 +74,19 @@ export default function LeadForm({
     origem: 'site',
     status: 'novo',
     modelo_interesse: '',
+    veiculo_interesse: {
+      marca: '',
+      modelo: '',
+      versao: '',
+      ano: '',
+      condicao: 'novo',
+      faixa_preco_min: '',
+      faixa_preco_max: '',
+      cor_preferida: '',
+      combustivel: '',
+      cambio: '',
+      observacoes: '',
+    },
     empresa: 'Macom Ananindeua',
     responsavel_id: '',
     previsao_fechamento: '',
@@ -82,9 +96,17 @@ export default function LeadForm({
   const [noteText, setNoteText] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const set = (field, value) => setData((current) => ({ ...current, [field]: value }));
+  const setVehicle = (field, value) => setData((current) => ({
+    ...current,
+    veiculo_interesse: {
+      ...(current.veiculo_interesse || {}),
+      [field]: value,
+    },
+  }));
 
   const steps = useMemo(() => [
     { key: 'contato', label: 'Contato', icon: UserRound },
+    { key: 'veiculo', label: 'Veiculo', icon: Car },
     { key: 'comercial', label: 'Comercial', icon: BriefcaseBusiness },
     { key: 'responsavel', label: 'Responsavel', icon: Store },
     { key: 'observacoes', label: 'Observacoes', icon: FileText },
@@ -242,15 +264,71 @@ export default function LeadForm({
                     </SelectContent>
                   </Select>
                 </Field>
-                <Field label="Modelo de Interesse">
-                  <Input value={data.modelo_interesse} onChange={(event) => set('modelo_interesse', event.target.value)} className="h-9 rounded-none text-sm" />
-                </Field>
                 <Field label="Previsao de fechamento">
                   <Input
                     type="date"
                     value={data.previsao_fechamento || ''}
                     onChange={(event) => set('previsao_fechamento', event.target.value)}
                     className="h-9 rounded-none text-sm"
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {currentStepKey === 'veiculo' ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Marca">
+                    <Input value={data.veiculo_interesse?.marca || ''} onChange={(event) => setVehicle('marca', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Modelo">
+                    <Input
+                      value={data.veiculo_interesse?.modelo || data.modelo_interesse || ''}
+                      onChange={(event) => {
+                        setVehicle('modelo', event.target.value);
+                        set('modelo_interesse', event.target.value);
+                      }}
+                      className="h-9 rounded-none text-sm"
+                    />
+                  </Field>
+                  <Field label="Versao">
+                    <Input value={data.veiculo_interesse?.versao || ''} onChange={(event) => setVehicle('versao', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Ano">
+                    <Input type="number" min="1900" max="2100" value={data.veiculo_interesse?.ano || ''} onChange={(event) => setVehicle('ano', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Condicao">
+                    <Select value={data.veiculo_interesse?.condicao || 'novo'} onValueChange={(value) => setVehicle('condicao', value)}>
+                      <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="novo">Novo</SelectItem>
+                        <SelectItem value="seminovo">Seminovo</SelectItem>
+                        <SelectItem value="usado">Usado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Cor preferida">
+                    <Input value={data.veiculo_interesse?.cor_preferida || ''} onChange={(event) => setVehicle('cor_preferida', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Preco minimo">
+                    <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_min || ''} onChange={(event) => setVehicle('faixa_preco_min', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Preco maximo">
+                    <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_max || ''} onChange={(event) => setVehicle('faixa_preco_max', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Combustivel">
+                    <Input value={data.veiculo_interesse?.combustivel || ''} onChange={(event) => setVehicle('combustivel', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Cambio">
+                    <Input value={data.veiculo_interesse?.cambio || ''} onChange={(event) => setVehicle('cambio', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                </div>
+                <Field label="Observacoes do veiculo">
+                  <Textarea
+                    value={data.veiculo_interesse?.observacoes || ''}
+                    onChange={(event) => setVehicle('observacoes', event.target.value)}
+                    className="resize-none rounded-none text-sm"
+                    rows={3}
                   />
                 </Field>
               </div>

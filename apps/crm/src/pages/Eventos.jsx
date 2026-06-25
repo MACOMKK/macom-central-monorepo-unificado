@@ -9,17 +9,13 @@ import StatusTabs from '@/components/eventos/StatusTabs';
 import EventoCard from '@/components/eventos/EventoCard';
 import EventoForm from '@/components/eventos/EventoForm';
 import { useEmpresa } from '@/context/EmpresaContext';
-import { isToday, isBefore, startOfToday } from 'date-fns';
+import { startOfToday } from 'date-fns';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
 const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-const toLocalDate = (value) => {
-  if (!value) return null;
-  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+const ACTIVE_LEAD_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'];
+const STATUS_TABS = ['planejada', 'concluida', 'cancelada'];
 
 const formatDateOnly = (date) => date.toISOString().slice(0, 10);
 
@@ -35,6 +31,15 @@ const getAgendaScopeDates = (scope) => {
   if (scope === 'futuros') return { proximo_from: formatDateOnly(tomorrow) };
   return {};
 };
+
+async function countAtividades(filters, search) {
+  const result = await crmDataClient.entities.Atividade.listPage({
+    limit: 1,
+    filters,
+    search,
+  });
+  return result.count || 0;
+}
 
 export default function Eventos() {
   const [statusTab, setStatusTab] = useState('planejada');
@@ -68,6 +73,8 @@ export default function Eventos() {
     status: statusTab,
   }), [agendaScopeFilters, resumoFilters, statusTab]);
   const eventosQueryKey = ['eventos', { filters: eventosFilters, busca, page, pageSize }];
+  const formLeadsQueryKey = ['atividade-leads', { empresa, editingId: editing?.id || null, leadId: editing?.lead_id || null }];
+  const formAtendimentosQueryKey = ['atividade-planejadas', { empresa }];
 
   useEffect(() => {
     setPage(1);
@@ -86,19 +93,60 @@ export default function Eventos() {
   const eventos = eventosPage.rows;
   const totalPages = Math.max(1, Math.ceil((eventosPage.count || 0) / pageSize));
 
-  const { data: eventosResumo = [] } = useQuery({
-    queryKey: ['eventos-resumo', { filters: resumoFilters, busca }],
-    queryFn: () => crmDataClient.entities.Atividade.listPage({
-      orderBy: '-updated_date',
-      limit: 1000,
-      filters: resumoFilters,
-      search: busca,
-    }).then((result) => result.rows),
+  const { data: eventosContadores = {
+    agendaCounts: { atrasados: 0, hoje: 0, futuros: 0 },
+    statusCounts: {},
+  } } = useQuery({
+    queryKey: ['eventos-contadores', { filters: resumoFilters, busca }],
+    queryFn: async () => {
+      const [statusResults, atrasados, hojeCount, futuros] = await Promise.all([
+        Promise.all(STATUS_TABS.map((status) => (
+          countAtividades({ ...resumoFilters, status }, busca).then((count) => [status, count])
+        ))),
+        countAtividades({ ...resumoFilters, status: 'planejada', ...getAgendaScopeDates('atrasados') }, busca),
+        countAtividades({ ...resumoFilters, status: 'planejada', ...getAgendaScopeDates('hoje') }, busca),
+        countAtividades({ ...resumoFilters, status: 'planejada', ...getAgendaScopeDates('futuros') }, busca),
+      ]);
+
+      return {
+        agendaCounts: { atrasados, hoje: hojeCount, futuros },
+        statusCounts: Object.fromEntries(statusResults),
+      };
+    },
   });
 
   const { data: leads = [] } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => crmDataClient.entities.Lead.list('-updated_date', 500),
+    queryKey: formLeadsQueryKey,
+    enabled: formOpen,
+    queryFn: async () => {
+      const filters = {
+        ...baseFilters,
+        ...(editing?.lead_id ? {} : { status: ACTIVE_LEAD_STATUSES }),
+      };
+      const result = await crmDataClient.entities.Lead.listPage({
+        orderBy: '-updated_date',
+        limit: 300,
+        filters,
+      });
+      const rows = result.rows || [];
+
+      if (!editing?.lead_id || rows.some((lead) => lead.id === editing.lead_id)) {
+        return rows;
+      }
+
+      const linkedLead = await crmDataClient.entities.Lead.get(editing.lead_id);
+      return linkedLead ? [linkedLead, ...rows] : rows;
+    },
+  });
+
+  const { data: atendimentosPlanejados = [] } = useQuery({
+    queryKey: formAtendimentosQueryKey,
+    enabled: formOpen,
+    queryFn: () => crmDataClient.entities.Atividade.listPage({
+      orderBy: '-updated_date',
+      limit: 300,
+      filters: { ...baseFilters, status: 'planejada' },
+    }).then((result) => result.rows || []),
   });
 
   const { data: responsaveis = [] } = useQuery({
@@ -108,7 +156,10 @@ export default function Eventos() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['eventos'] });
+    queryClient.invalidateQueries({ queryKey: ['eventos-contadores'] });
     queryClient.invalidateQueries({ queryKey: ['leads'] });
+    queryClient.invalidateQueries({ queryKey: ['atividade-leads'] });
+    queryClient.invalidateQueries({ queryKey: ['atividade-planejadas'] });
     queryClient.invalidateQueries({ queryKey: ['clientes'] });
     queryClient.invalidateQueries({ queryKey: ['historico-atendimento'] });
     setFormOpen(false);
@@ -124,7 +175,7 @@ export default function Eventos() {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
 
       const previousEventos = queryClient.getQueryData(eventosQueryKey);
-      const previousLeads = queryClient.getQueryData(['leads']);
+      const previousLeads = queryClient.getQueryData(formLeadsQueryKey);
       const now = new Date().toISOString();
       const tempId = id ? null : createTempId();
       const linkedLead = leads.find((lead) => lead.id === data.lead_id);
@@ -164,11 +215,11 @@ export default function Eventos() {
       });
 
       if (data.status === 'concluida' && data.resultado === 'venda_realizada') {
-        queryClient.setQueryData(['leads'], (current = []) =>
+        queryClient.setQueryData(formLeadsQueryKey, (current = []) =>
           current.map((lead) => lead.id === data.lead_id ? { ...lead, status: 'convertido' } : lead)
         );
       } else if (data.status === 'concluida' && data.resultado === 'lead_perdido') {
-        queryClient.setQueryData(['leads'], (current = []) =>
+        queryClient.setQueryData(formLeadsQueryKey, (current = []) =>
           current.map((lead) => lead.id === data.lead_id
             ? { ...lead, status: 'perdido', motivo_perda: data.motivo_resultado || '' }
             : lead)
@@ -195,7 +246,7 @@ export default function Eventos() {
         queryClient.setQueryData(eventosQueryKey, context.previousEventos);
       }
       if (context?.previousLeads) {
-        queryClient.setQueryData(['leads'], context.previousLeads);
+        queryClient.setQueryData(formLeadsQueryKey, context.previousLeads);
       }
       toast({
         title: 'Nao foi possivel salvar a atividade',
@@ -232,22 +283,13 @@ export default function Eventos() {
     },
   });
 
-  const porEmpresa = eventosResumo;
-  const leadsDaEmpresa = leads.filter((lead) => empresa === 'Todas' || lead.empresa === empresa);
-  const counts = porEmpresa.reduce((acc, e) => ({ ...acc, [e.status]: (acc[e.status] || 0) + 1 }), {});
+  const porEmpresa = atendimentosPlanejados;
+  const leadsDaEmpresa = leads;
+  const counts = eventosContadores.statusCounts;
 
   const filtrados = eventos;
 
-  const hoje = startOfToday();
-  const pendentes = porEmpresa
-    .filter((e) => e.status === 'planejada')
-    .map((evento) => ({ evento, data: toLocalDate(evento.proximo_contato) }))
-    .filter((item) => item.data);
-  const painelCounts = {
-    atrasados: pendentes.filter(({ data }) => isBefore(data, hoje)).length,
-    hoje: pendentes.filter(({ data }) => isToday(data)).length,
-    futuros: pendentes.filter(({ data }) => !isBefore(data, hoje) && !isToday(data)).length,
-  };
+  const painelCounts = eventosContadores.agendaCounts;
   const selectAgendaFiltro = (scope) => {
     setAgendaFiltro((current) => current === scope ? 'todos' : scope);
     setStatusTab('planejada');

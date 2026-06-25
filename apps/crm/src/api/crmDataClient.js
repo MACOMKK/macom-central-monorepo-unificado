@@ -120,6 +120,8 @@ function mapClienteRow(row = {}) {
 }
 
 function mapLeadRow(row = {}) {
+  const vehicle = mapVeiculoInteresseRow(row.veiculo_interesse || row.veiculo_principal || {});
+  const vehicleLabel = formatVehicleLabel(vehicle);
   const slaDeadline = row.sla_primeiro_contato_em || null;
   const firstContact = row.primeiro_contato_em || null;
   const slaAlertMinutes = Number(row.sla_alerta_minutos ?? 10);
@@ -145,7 +147,8 @@ function mapLeadRow(row = {}) {
     email_normalizado: row.email_normalizado || normalizeEmail(row.email),
     origem: row.origem || 'site',
     status: row.status || 'novo',
-    modelo_interesse: row.modelo_interesse || '',
+    modelo_interesse: vehicleLabel || row.modelo_interesse || '',
+    veiculo_interesse: vehicle.id ? vehicle : null,
     empresa: row.empresa || 'Macom Ananindeua',
     convertido_em: row.convertido_em || null,
     perdido_em: row.perdido_em || null,
@@ -162,6 +165,35 @@ function mapLeadRow(row = {}) {
     sla_minutos_restantes: remainingMinutes,
     sla_status: slaStatus,
     previsao_fechamento: normalizeDateOnly(row.previsao_fechamento),
+    observacoes: row.observacoes || '',
+    ...mapBaseDates(row),
+  };
+}
+
+function formatVehicleLabel(vehicle = {}) {
+  return [
+    vehicle.marca,
+    vehicle.modelo,
+    vehicle.versao,
+    vehicle.ano,
+  ].filter(Boolean).join(' ');
+}
+
+function mapVeiculoInteresseRow(row = {}) {
+  return {
+    id: row.id || '',
+    lead_id: row.lead_id || '',
+    marca: row.marca || '',
+    modelo: row.modelo || '',
+    versao: row.versao || '',
+    ano: row.ano || '',
+    condicao: row.condicao || 'novo',
+    faixa_preco_min: row.faixa_preco_min ?? '',
+    faixa_preco_max: row.faixa_preco_max ?? '',
+    cor_preferida: row.cor_preferida || '',
+    combustivel: row.combustivel || '',
+    cambio: row.cambio || '',
+    principal: row.principal !== false,
     observacoes: row.observacoes || '',
     ...mapBaseDates(row),
   };
@@ -259,7 +291,7 @@ function mapLeadPayload(data = {}, clienteId) {
     email_normalizado: email || null,
     origem: data.origem || 'site',
     status: data.status || 'novo',
-    modelo_interesse: data.modelo_interesse || null,
+    modelo_interesse: data.modelo_interesse || formatVehicleLabel(data.veiculo_interesse) || null,
     empresa: normalizeEmpresa(data.empresa),
     convertido_em: data.status === 'convertido'
       ? (data.convertido_em || new Date().toISOString())
@@ -273,6 +305,49 @@ function mapLeadPayload(data = {}, clienteId) {
     previsao_fechamento: data.previsao_fechamento || null,
     observacoes: data.observacoes || null,
   };
+}
+
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mapVeiculoInteressePayload(data = {}, leadId) {
+  const vehicle = data.veiculo_interesse || {};
+  return {
+    lead_id: leadId || vehicle.lead_id,
+    marca: vehicle.marca || null,
+    modelo: vehicle.modelo || data.modelo_interesse || null,
+    versao: vehicle.versao || null,
+    ano: toNullableNumber(vehicle.ano),
+    condicao: vehicle.condicao || 'novo',
+    faixa_preco_min: toNullableNumber(vehicle.faixa_preco_min),
+    faixa_preco_max: toNullableNumber(vehicle.faixa_preco_max),
+    cor_preferida: vehicle.cor_preferida || null,
+    combustivel: vehicle.combustivel || null,
+    cambio: vehicle.cambio || null,
+    principal: true,
+    observacoes: vehicle.observacoes || null,
+  };
+}
+
+function hasVehicleInterest(data = {}) {
+  const vehicle = data.veiculo_interesse || {};
+  return Boolean(
+    vehicle.marca
+    || vehicle.modelo
+    || vehicle.versao
+    || vehicle.ano
+    || vehicle.condicao
+    || vehicle.faixa_preco_min
+    || vehicle.faixa_preco_max
+    || vehicle.cor_preferida
+    || vehicle.combustivel
+    || vehicle.cambio
+    || vehicle.observacoes
+    || data.modelo_interesse
+  );
 }
 
 function mapEventoPayload(data = {}, lead) {
@@ -451,6 +526,33 @@ async function getLead(id) {
   return mapLeadRow(row);
 }
 
+async function saveLeadVehicleInterest(lead, data = {}) {
+  if (!lead?.id || !hasVehicleInterest(data)) return null;
+
+  const payload = mapVeiculoInteressePayload(data, lead.id);
+  const vehicleId = data.veiculo_interesse?.id || lead.veiculo_interesse?.id;
+
+  if (vehicleId) {
+    const row = await crmApi.veiculos_interesse.update(vehicleId, payload);
+    return mapVeiculoInteresseRow(row);
+  }
+
+  const existing = await crmApi.veiculos_interesse.list({
+    filters: { lead_id: lead.id },
+    orderBy: 'criado_em',
+    ascending: true,
+    limit: 1,
+  });
+
+  if (existing?.[0]?.id) {
+    const row = await crmApi.veiculos_interesse.update(existing[0].id, payload);
+    return mapVeiculoInteresseRow(row);
+  }
+
+  const row = await crmApi.veiculos_interesse.create(payload);
+  return mapVeiculoInteresseRow(row);
+}
+
 function createListRepository(entityName, entityApi, mapper) {
 
   return {
@@ -512,6 +614,10 @@ const ClienteRepository = {
 const LeadRepository = {
   ...createListRepository('Lead', crmApi.leads, mapLeadRow),
 
+  async get(id) {
+    return getLead(id);
+  },
+
   async create(data) {
     const cliente = await upsertCliente({
       nome: data.nome,
@@ -522,7 +628,15 @@ const LeadRepository = {
     });
     const payload = mapLeadPayload(data, cliente.id);
     const row = await crmApi.leads.create(payload);
-    const lead = mapLeadRow(row);
+    let lead = mapLeadRow(row);
+    const vehicle = await saveLeadVehicleInterest(lead, data);
+    if (vehicle) {
+      lead = {
+        ...lead,
+        veiculo_interesse: vehicle,
+        modelo_interesse: formatVehicleLabel(vehicle) || lead.modelo_interesse,
+      };
+    }
 
     await addHistoricoAtendimento({
       cliente_id: lead.cliente_id,
@@ -549,9 +663,31 @@ const LeadRepository = {
     });
     const payload = mapLeadPayload(nextData, cliente.id);
     const row = await crmApi.leads.update(id, payload);
-    const lead = mapLeadRow(row);
+    let lead = mapLeadRow(row);
+    const vehicle = await saveLeadVehicleInterest(lead, data);
+    if (vehicle) {
+      lead = {
+        ...lead,
+        veiculo_interesse: vehicle,
+        modelo_interesse: formatVehicleLabel(vehicle) || lead.modelo_interesse,
+      };
+    }
 
     return lead;
+  },
+};
+
+const VeiculoInteresseRepository = {
+  ...createListRepository('VeiculoInteresse', crmApi.veiculos_interesse, mapVeiculoInteresseRow),
+
+  async create(data) {
+    const row = await crmApi.veiculos_interesse.create(mapVeiculoInteressePayload({ veiculo_interesse: data }, data.lead_id));
+    return mapVeiculoInteresseRow(row);
+  },
+
+  async update(id, data) {
+    const row = await crmApi.veiculos_interesse.update(id, mapVeiculoInteressePayload({ veiculo_interesse: data }, data.lead_id));
+    return mapVeiculoInteresseRow(row);
   },
 };
 
@@ -686,5 +822,6 @@ export const crmDataClient = {
     Lead: LeadRepository,
     Responsavel: ResponsavelRepository,
     Distribuicao: DistribuicaoRepository,
+    VeiculoInteresse: VeiculoInteresseRepository,
   },
 };
