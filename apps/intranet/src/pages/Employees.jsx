@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Mail, MapPin, Users, Pencil, Building, MessageCircle } from 'lucide-react';
+import { Search, Mail, MapPin, Users, Pencil, Building } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skeleton } from '@macom/ui';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import { usePermissions } from '@/lib/usePermissions';
@@ -11,13 +11,6 @@ import Pagination, { usePaginatedItems } from '../components/Pagination';
 function replaceEmployee(employees, employee) {
   if (!employee?.id) return employees;
   return employees.map((item) => (item.id === employee.id ? { ...item, ...employee } : item));
-}
-
-function getWhatsappUrl(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return '';
-  const normalized = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${normalized}`;
 }
 
 async function copyText(value) {
@@ -149,7 +142,6 @@ export default function Employees() {
       id: editingEmployee.id,
       data: {
         name: data.name,
-        phone: data.phone,
       },
     });
   };
@@ -203,19 +195,6 @@ export default function Employees() {
                 className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
               >
                 <div className="relative border-b border-slate-100 px-4 pb-5 pt-6 text-center sm:p-6">
-                  {employee.phone ? (
-                    <a
-                      href={getWhatsappUrl(employee.phone)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="absolute right-3 top-3 flex max-w-[150px] items-center gap-1 truncate rounded bg-emerald-50 px-2 py-1 text-[11px] font-semibold leading-none text-emerald-700 transition-colors hover:bg-emerald-100"
-                      title={`Abrir WhatsApp para ${employee.phone}`}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                      {employee.phone}
-                    </a>
-                  ) : null}
-
                   {canEdit ? (
                     <div className="absolute left-3 top-3 flex shrink-0 sm:left-4 sm:top-4">
                       <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg" onClick={() => openEdit(employee)}>
