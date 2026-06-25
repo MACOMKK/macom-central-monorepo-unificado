@@ -52,7 +52,6 @@ export function buildPositionsConfig({
         fullWidth: true,
         options: departmentOptions,
       },
-      { key: 'descricao', label: 'Descricao', fullWidth: true, placeholder: 'Ex.: Responsavel pelo atendimento comercial' },
     ],
     columns: [
       { key: 'nome', label: 'Cargo', render: (value) => <span className="font-medium text-foreground">{value || '-'}</span> },

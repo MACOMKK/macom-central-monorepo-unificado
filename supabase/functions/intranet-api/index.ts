@@ -474,7 +474,7 @@ async function listUnits() {
 async function listPositions() {
   const rows = await runSql<Record<string, unknown>>(
     `
-      select c.id, c.nome, c.descricao, c.departamento_id, d.nome as departamento_nome
+      select c.id, c.nome, c.departamento_id, d.nome as departamento_nome
       from public.cargos c
       left join public.departamentos d on d.id = c.departamento_id
       order by c.nome asc;
@@ -484,7 +484,6 @@ async function listPositions() {
   return rows.map((row) => ({
     id: row.id,
     name: row.nome,
-    description: row.descricao,
     department_id: row.departamento_id || null,
     department_name: row.departamento_nome || null,
   }));

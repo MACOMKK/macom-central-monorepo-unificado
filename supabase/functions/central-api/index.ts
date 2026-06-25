@@ -17,7 +17,7 @@ const ENTITY_CONFIG = {
     schema: 'public',
     table: 'cargos',
     orderBy: 'nome',
-    allowedFields: ['nome', 'descricao', 'departamento_id'],
+    allowedFields: ['nome', 'departamento_id'],
   },
   unidades: {
     schema: 'public',
