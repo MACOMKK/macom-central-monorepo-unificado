@@ -9,28 +9,50 @@ const CALENDAR_QUERY_KEYS = [
   ['events-upcoming'],
 ];
 
+const ANNOUNCEMENT_QUERY_KEYS = [
+  ['announcements'],
+  ['announcements', 'active'],
+  ['announcements', 'manage'],
+  ['announcements-home'],
+  ['comments'],
+  ['reactions'],
+];
+
+const FEEDBACK_QUERY_KEYS = [
+  ['feedbacks'],
+];
+
+function invalidateQueryKeys(queryClient, queryKeys) {
+  queryKeys.forEach((queryKey) => {
+    queryClient.invalidateQueries({ queryKey });
+  });
+}
+
 export function useIntranetRealtime({ enabled = true } = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const refreshTimerRef = useRef(null);
+  const refreshTimersRef = useRef({});
 
   useEffect(() => {
     if (!enabled || !user || !supabase) return undefined;
 
-    const refreshCalendar = () => {
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
+    const scheduleRefresh = (key, queryKeys) => {
+      if (refreshTimersRef.current[key]) {
+        window.clearTimeout(refreshTimersRef.current[key]);
       }
 
-      refreshTimerRef.current = window.setTimeout(() => {
-        CALENDAR_QUERY_KEYS.forEach((queryKey) => {
-          queryClient.invalidateQueries({ queryKey });
-        });
+      refreshTimersRef.current[key] = window.setTimeout(() => {
+        invalidateQueryKeys(queryClient, queryKeys);
+        refreshTimersRef.current[key] = null;
       }, 250);
     };
 
+    const refreshCalendar = () => scheduleRefresh('calendar', CALENDAR_QUERY_KEYS);
+    const refreshAnnouncements = () => scheduleRefresh('announcements', ANNOUNCEMENT_QUERY_KEYS);
+    const refreshFeedbacks = () => scheduleRefresh('feedbacks', FEEDBACK_QUERY_KEYS);
+
     const channel = supabase
-      .channel('intranet-realtime:calendar')
+      .channel('intranet-realtime:core')
       .on(
         'postgres_changes',
         {
@@ -49,13 +71,49 @@ export function useIntranetRealtime({ enabled = true } = {}) {
         },
         refreshCalendar,
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'gestao_intranet',
+          table: 'avisos',
+        },
+        refreshAnnouncements,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'gestao_intranet',
+          table: 'comentarios_avisos',
+        },
+        refreshAnnouncements,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'gestao_intranet',
+          table: 'reacoes_avisos',
+        },
+        refreshAnnouncements,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'gestao_intranet',
+          table: 'feedback',
+        },
+        refreshFeedbacks,
+      )
       .subscribe();
 
     return () => {
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      Object.values(refreshTimersRef.current).forEach((timer) => {
+        if (timer) window.clearTimeout(timer);
+      });
+      refreshTimersRef.current = {};
       supabase.removeChannel(channel);
     };
   }, [enabled, queryClient, user]);
