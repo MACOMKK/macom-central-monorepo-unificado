@@ -75,6 +75,27 @@ describe('CatalogManager contacts and infrastructure', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Registro salvo com sucesso.');
   });
 
+  it('abre o WhatsApp ao clicar no telefone do contato', async () => {
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.contatos.list.mockResolvedValue([
+      {
+        id: 'contact-whatsapp',
+        tipo: 'fornecedor',
+        nome: 'Fornecedor WhatsApp',
+        telefone: '85999999999',
+        email: 'whatsapp@fornecedor.com',
+      },
+    ]);
+
+    renderCatalogManager('contatos');
+
+    const phoneLink = await screen.findByRole('link', { name: '(85) 99999-9999' });
+
+    expect(phoneLink).toHaveAttribute('href', 'https://wa.me/5585999999999');
+    expect(phoneLink).toHaveAttribute('target', '_blank');
+    expect(phoneLink).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
   it('remove contato quando a exclusao e confirmada', async () => {
     const user = userEvent.setup();
     window.confirm.mockReturnValue(true);

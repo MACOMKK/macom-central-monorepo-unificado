@@ -1,3 +1,23 @@
+function buildWhatsAppHref(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+
+  const whatsappNumber = digits.startsWith('55') && [12, 13].includes(digits.length)
+    ? digits
+    : `55${digits}`;
+
+  return `https://wa.me/${whatsappNumber}`;
+}
+
+function formatCnpj(cnpj) {
+  if (!cnpj) return '-';
+  const digits = String(cnpj).replace(/\D/g, '');
+
+  if (digits.length !== 14) return cnpj;
+
+  return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+}
+
 export function buildDepartmentsConfig({
   assetsByDepartmentId,
   collaboratorsByDepartmentId,
@@ -102,6 +122,20 @@ export function buildUnitsConfig({
     rows: units,
     fields: [
       { key: 'nome', label: 'Nome da Unidade', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground focus-visible:ring-primary/20' },
+      {
+        key: 'cnpj',
+        label: 'CNPJ',
+        halfWidth: true,
+        placeholder: 'Ex.: 12345678000190',
+        inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground',
+        inputMode: 'numeric',
+        digitsOnly: true,
+        maxLength: 14,
+        validate: (value) =>
+          value && String(value || '').replace(/\D/g, '').length !== 14
+            ? 'CNPJ deve conter exatamente 14 digitos.'
+            : '',
+      },
       { key: 'cidade', label: 'Cidade', required: true, fullWidth: true, placeholder: 'ex: Belem', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
       { key: 'endereco', label: 'Endereco', fullWidth: true, placeholder: 'Rua, numero, bairro', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
       { key: 'telefone', label: 'Telefone', halfWidth: true, placeholder: '(91) 3000-0000', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground' },
@@ -118,6 +152,7 @@ export function buildUnitsConfig({
     ],
     columns: [
       { key: 'nome', label: 'Nome' },
+      { key: 'cnpj', label: 'CNPJ', render: (value) => formatCnpj(value) },
       { key: 'cidade', label: 'Cidade' },
       { key: 'endereco', label: 'Endereco' },
       { key: 'telefone', label: 'Telefone', render: (value) => formatPhone(value) },
@@ -248,7 +283,27 @@ export function buildContactsConfig({
         ),
       },
       { key: 'identificador', label: 'CNPJ / Identificador', render: (value) => value || '-' },
-      { key: 'telefone', label: 'Telefone', render: (value) => formatPhone(value) },
+      {
+        key: 'telefone',
+        label: 'Telefone',
+        render: (value) => {
+          const href = buildWhatsAppHref(value);
+          const label = formatPhone(value);
+
+          if (!href) return label;
+
+          return (
+            <a
+              className="underline-offset-4 hover:underline"
+              href={href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {label}
+            </a>
+          );
+        },
+      },
       { key: 'email', label: 'Email', render: (value) => value || '-' },
       {
         key: 'unidade_id',

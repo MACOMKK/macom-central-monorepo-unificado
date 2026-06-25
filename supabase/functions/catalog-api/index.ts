@@ -26,7 +26,7 @@ const ENTITY_CONFIG = {
     schema: 'public',
     table: 'unidades',
     orderBy: 'nome',
-    allowedFields: ['nome', 'cidade', 'endereco', 'telefone', 'responsavel', 'ativo'],
+    allowedFields: ['nome', 'cnpj', 'cidade', 'endereco', 'telefone', 'responsavel', 'ativo'],
   },
   colaboradores: {
     schema: 'public',

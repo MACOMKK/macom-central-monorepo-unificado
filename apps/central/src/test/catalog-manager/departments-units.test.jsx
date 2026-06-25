@@ -153,6 +153,7 @@ describe('CatalogManager departments and units', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Novo Unidade' }));
     await user.type(screen.getByLabelText('Nome da Unidade'), 'Macom Belem');
+    await user.type(screen.getByLabelText('CNPJ'), '12345678000190');
     await user.type(screen.getByLabelText('Cidade'), 'Belem');
     await user.type(screen.getByLabelText('Endereco'), 'Rua A, 123');
     await user.type(screen.getByLabelText('Telefone'), '9130000000');
@@ -164,6 +165,7 @@ describe('CatalogManager departments and units', () => {
     await waitFor(() => {
       expect(catalogApi.unidades.create).toHaveBeenCalledWith({
         nome: 'Macom Belem',
+        cnpj: '12345678000190',
         cidade: 'Belem',
         endereco: 'Rua A, 123',
         telefone: '9130000000',
@@ -175,19 +177,37 @@ describe('CatalogManager departments and units', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Registro salvo com sucesso.');
   });
 
+  it('valida CNPJ invalido ao criar uma nova unidade', async () => {
+    const user = userEvent.setup();
+    catalogApi.ativos.list.mockResolvedValue([]);
+    catalogApi.colaboradores.list.mockResolvedValue([]);
+
+    renderCatalogManager('unidades');
+
+    await user.click(await screen.findByRole('button', { name: 'Novo Unidade' }));
+    await user.type(screen.getByLabelText('Nome da Unidade'), 'Macom Belem');
+    await user.type(screen.getByLabelText('CNPJ'), '123');
+    await user.type(screen.getByLabelText('Cidade'), 'Belem');
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(screen.getByText('CNPJ deve conter exatamente 14 digitos.')).toBeInTheDocument();
+    expect(catalogApi.unidades.create).not.toHaveBeenCalled();
+  });
+
   it('remove unidade pelo card', async () => {
     const user = userEvent.setup();
     window.confirm.mockReturnValue(true);
     catalogApi.ativos.list.mockResolvedValue([]);
     catalogApi.colaboradores.list.mockResolvedValue([]);
     catalogApi.unidades.list.mockResolvedValue([
-      { id: 'unit-1', nome: 'Matriz', cidade: 'Fortaleza', ativo: true },
+      { id: 'unit-1', nome: 'Matriz', cnpj: '12345678000190', cidade: 'Fortaleza', ativo: true },
     ]);
     catalogApi.unidades.remove.mockImplementation(deleteMutateMock);
 
     renderCatalogManager('unidades');
 
     const cardTitle = await screen.findByText('Matriz');
+    expect(screen.getByText('12.345.678/0001-90')).toBeInTheDocument();
     const card = cardTitle.closest('div[class]')?.parentElement?.parentElement?.parentElement;
     const buttons = within(card).getAllByRole('button');
     await user.click(buttons[1]);

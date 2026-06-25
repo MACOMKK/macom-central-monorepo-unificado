@@ -4,6 +4,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
+function formatCnpj(cnpj) {
+  if (!cnpj) return 'CNPJ nao informado';
+  const digits = String(cnpj).replace(/\D/g, '');
+
+  if (digits.length !== 14) return cnpj;
+
+  return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+}
+
 export default function UnitCardsGrid({
   assetsByUnitId = {},
   canManage = true,
@@ -31,6 +40,7 @@ export default function UnitCardsGrid({
                   <div>
                     <h3 className="text-[17px] font-bold leading-tight text-foreground">{unit.nome}</h3>
                     <p className="text-[13px] text-muted-foreground">{unit.cidade || 'Cidade nao informada'}</p>
+                    <p className="text-[12px] text-muted-foreground">{formatCnpj(unit.cnpj)}</p>
                   </div>
                 </div>
                 <Badge

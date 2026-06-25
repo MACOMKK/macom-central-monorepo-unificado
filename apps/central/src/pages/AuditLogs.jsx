@@ -42,6 +42,7 @@ const fieldLabels = {
   email: 'Email',
   telefone: 'Telefone',
   cpf: 'CPF',
+  cnpj: 'CNPJ',
   ativo: 'Ativo',
   descricao: 'Descricao',
   categoria: 'Categoria',
