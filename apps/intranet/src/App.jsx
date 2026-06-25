@@ -8,6 +8,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { canViewModule } from '@/lib/navigation';
 import PasswordChangeForm from '@/components/auth/PasswordChangeForm';
+import TemporaryEmailChangeForm from '@/components/auth/TemporaryEmailChangeForm';
 
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
@@ -37,7 +38,7 @@ const FullScreenLoader = () => (
 );
 
 const ProtectedShell = () => {
-  const { isLoadingAuth, isAuthenticated, mustChangePassword } = useAuth();
+  const { isLoadingAuth, isAuthenticated, mustChangeEmail, mustChangePassword } = useAuth();
 
   if (isLoadingAuth) {
     return <FullScreenLoader />;
@@ -45,6 +46,14 @@ const ProtectedShell = () => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (mustChangeEmail) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <TemporaryEmailChangeForm required />
+      </div>
+    );
   }
 
   if (mustChangePassword) {

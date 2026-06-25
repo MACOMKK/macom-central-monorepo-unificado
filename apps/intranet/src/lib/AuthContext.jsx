@@ -4,6 +4,7 @@ import { appClient } from '@/api/client';
 const AuthContext = createContext();
 const DEFAULT_INITIAL_PASSWORD = 'Kmacom.123';
 const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
+const TEMPORARY_EMAIL_PATTERN = /^[^@\s]+@cadastro\.macom\.(local|com\.br)$/i;
 const TRUSTED_IP_ACCESS_STORAGE_KEY = 'intranet:trusted-ip-access';
 const TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY = 'intranet:trusted-ip-auto-suppressed';
 
@@ -59,6 +60,10 @@ function writePasswordChangeRequired(user, required) {
   }
 }
 
+function isTemporaryCadastroEmail(value) {
+  return typeof value === 'string' && TEMPORARY_EMAIL_PATTERN.test(value.trim());
+}
+
 function writeTrustedIpAccessEnabled(enabled) {
   try {
     if (enabled) {
@@ -107,6 +112,7 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [mustChangeEmail, setMustChangeEmail] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -122,6 +128,7 @@ export const AuthProvider = ({ children }) => {
             writeTrustedIpAccessEnabled(false);
             setUser(null);
             setMustChangePassword(false);
+            setMustChangeEmail(false);
             setIsAuthenticated(false);
             setAuthError(null);
             setAuthChecked(true);
@@ -135,6 +142,7 @@ export const AuthProvider = ({ children }) => {
             writeTrustedIpAccessEnabled(Boolean(trustedIpUser));
             setUser(trustedIpUser);
             setMustChangePassword(false);
+            setMustChangeEmail(false);
             setIsAuthenticated(Boolean(trustedIpUser));
             setAuthError(null);
             setAuthChecked(true);
@@ -157,6 +165,7 @@ export const AuthProvider = ({ children }) => {
         console.error('Failed to bootstrap Supabase session:', error);
         setUser(null);
         setIsAuthenticated(false);
+        setMustChangeEmail(false);
         setAuthError({
           source: 'bootstrap',
           type: 'auth_error',
@@ -175,6 +184,7 @@ export const AuthProvider = ({ children }) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setMustChangePassword(false);
+        setMustChangeEmail(false);
         setIsAuthenticated(false);
         setAuthChecked(true);
         setIsLoadingAuth(false);
@@ -184,6 +194,7 @@ export const AuthProvider = ({ children }) => {
       if (!session?.access_token) {
         setUser(null);
         setMustChangePassword(false);
+        setMustChangeEmail(false);
         setIsAuthenticated(false);
         setAuthChecked(true);
         setIsLoadingAuth(false);
@@ -220,6 +231,7 @@ export const AuthProvider = ({ children }) => {
       writeTrustedIpAccessEnabled(currentUser?.auth_mode === 'trusted_ip');
       setUser(currentUser);
       setMustChangePassword(readPasswordChangeRequired(currentUser));
+      setMustChangeEmail(isTemporaryCadastroEmail(currentUser?.email));
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
       if (!silent) {
@@ -234,6 +246,7 @@ export const AuthProvider = ({ children }) => {
           writeTrustedIpAccessEnabled(Boolean(trustedIpUser));
           setUser(trustedIpUser);
           setMustChangePassword(false);
+          setMustChangeEmail(false);
           setIsAuthenticated(Boolean(trustedIpUser));
           setAuthError(null);
           setAuthChecked(true);
@@ -260,6 +273,7 @@ export const AuthProvider = ({ children }) => {
       writeTrustedIpAccessEnabled(false);
       setUser(null);
       setMustChangePassword(false);
+      setMustChangeEmail(false);
       setIsAuthenticated(false);
       setAuthError(
         isUnauthenticatedSessionError(error)
@@ -290,6 +304,7 @@ export const AuthProvider = ({ children }) => {
       writePasswordChangeRequired(currentUser, shouldRequirePasswordChange);
       setUser(currentUser);
       setMustChangePassword(shouldRequirePasswordChange);
+      setMustChangeEmail(isTemporaryCadastroEmail(currentUser?.email));
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
       return currentUser;
@@ -299,6 +314,7 @@ export const AuthProvider = ({ children }) => {
       }
       setUser(null);
       setMustChangePassword(false);
+      setMustChangeEmail(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       setAuthError({
@@ -329,6 +345,13 @@ export const AuthProvider = ({ children }) => {
     await checkUserAuth({ silent: true });
   };
 
+  const changeTemporaryEmail = async (email) => {
+    const updatedUser = await appClient.entities.Profile.update(user?.collaborator_id || user?.id, { email });
+    const refreshedUser = await checkUserAuth({ silent: true });
+    setMustChangeEmail(isTemporaryCadastroEmail(refreshedUser?.email));
+    return updatedUser;
+  };
+
   const navigateToLogin = () => {
     appClient.auth.redirectToLogin(window.location.pathname + window.location.search);
   };
@@ -347,6 +370,9 @@ export const AuthProvider = ({ children }) => {
       checkUserAuth,
       defaultInitialPassword: DEFAULT_INITIAL_PASSWORD,
       mustChangePassword,
+      mustChangeEmail,
+      changeTemporaryEmail,
+      isTemporaryCadastroEmail,
     }}>
       {children}
     </AuthContext.Provider>
