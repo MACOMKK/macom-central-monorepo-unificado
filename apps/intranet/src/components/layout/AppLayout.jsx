@@ -3,10 +3,12 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import Header from './Header';
+import { useIntranetRealtime } from '@/lib/useIntranetRealtime';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useIntranetRealtime();
 
   useEffect(() => {
     const saved = window.localStorage.getItem('intranet:sidebar-collapsed');
