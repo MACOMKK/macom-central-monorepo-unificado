@@ -103,7 +103,7 @@ const categoryConfig = {
 };
 
 const companyOptions = [
-  { value: 'macom_motors', label: 'Macom Motors' },
+  { value: 'macom_motors', label: 'Macom Motos' },
   { value: 'macom_mitsubishi', label: 'Macom Mitsubishi' },
 ];
 
@@ -694,7 +694,7 @@ export default function Documents() {
                             {config.label}
                           </Badge>
                           <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
-                            {companyLabelMap[document.company || 'macom_motors'] || 'Macom Motors'}
+                            {companyLabelMap[document.company || 'macom_motors'] || 'Macom Motos'}
                           </Badge>
                           {visibility.key === 'nivel' && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">

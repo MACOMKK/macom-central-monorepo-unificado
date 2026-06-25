@@ -118,7 +118,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
           <Select value={form.company} onValueChange={(value) => setForm({ ...form, company: value })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="macom_motors">Macom Motors</SelectItem>
+              <SelectItem value="macom_motors">Macom Motos</SelectItem>
               <SelectItem value="macom_mitsubishi">Macom Mitsubishi</SelectItem>
             </SelectContent>
           </Select>
