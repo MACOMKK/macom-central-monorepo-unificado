@@ -52,8 +52,12 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
     }
 
     onSubmit({
-      ...form,
+      name: form.name,
+      email: form.email,
       phone: form.phone ? normalizeDigits(form.phone) : '',
+      department: form.department,
+      unit: form.unit,
+      birth_date: form.birth_date,
     });
   };
 
@@ -87,7 +91,7 @@ export default function EmployeeForm({ onSubmit, isLoading, initial = {}, mode =
       </div>
       <div className="space-y-2">
         <Label>Cargo</Label>
-        <Input value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} placeholder="Cargo do colaborador" />
+        <Input value={form.position || 'Sem cargo'} disabled />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">

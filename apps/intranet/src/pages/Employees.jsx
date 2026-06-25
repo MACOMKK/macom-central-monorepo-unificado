@@ -150,7 +150,6 @@ export default function Employees() {
       data: {
         name: data.name,
         phone: data.phone,
-        position: data.position,
       },
     });
   };

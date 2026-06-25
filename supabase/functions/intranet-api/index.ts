@@ -1567,6 +1567,7 @@ function mapEmployee(
     phone: row.telefone,
     department: department?.key || null,
     department_name: department?.name || null,
+    position_id: row.cargo_id || null,
     position: row.cargo || null,
     role: accessLevel || row.funcao || 'user',
     function_role: row.funcao || null,
@@ -2636,9 +2637,23 @@ async function listEmployees() {
   const [employees, profiles, departments, units, accessRows, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
       `
-        select id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, data_nascimento, status, criado_em, atualizado_em
-        from public.colaboradores
-        order by nome asc;
+        select
+          c.id,
+          c.nome,
+          c.email,
+          c.telefone,
+          c.departamento_id,
+          c.cargo_id,
+          coalesce(cg.nome, c.cargo) as cargo,
+          c.funcao,
+          c.unidade_id,
+          c.data_nascimento,
+          c.status,
+          c.criado_em,
+          c.atualizado_em
+        from public.colaboradores c
+        left join public.cargos cg on cg.id = c.cargo_id
+        order by c.nome asc;
       `,
     ),
     runSql<Record<string, unknown>>(
@@ -3517,7 +3532,6 @@ async function updateEmployee(id: string, payload: Record<string, unknown>) {
   if ('email' in payload) assign('email', payload.email || null);
   if ('phone' in payload) assign('telefone', payload.phone || null);
   if ('department' in payload || 'department_id' in payload) assign('departamento_id', department?.id || null);
-  if ('position' in payload) assign('cargo', payload.position || null);
   if ('function_role' in payload) assign('funcao', payload.function_role || null);
   if ('unit' in payload || 'unit_id' in payload) assign('unidade_id', unit?.id || null);
   if ('birth_date' in payload) assign('data_nascimento', payload.birth_date || null);
@@ -3527,7 +3541,7 @@ async function updateEmployee(id: string, payload: Record<string, unknown>) {
     `update public.colaboradores
       set ${updates.join(', ')}
       where id = $1
-      returning id, nome, email, telefone, departamento_id, cargo, funcao, unidade_id, data_nascimento, status, criado_em, atualizado_em;`,
+      returning id, nome, email, telefone, departamento_id, cargo_id, cargo, funcao, unidade_id, data_nascimento, status, criado_em, atualizado_em;`,
     values,
   );
 
