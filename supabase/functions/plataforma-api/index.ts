@@ -33,6 +33,20 @@ const ENTITY_CONFIG = {
     orderDirection: 'desc',
     allowedFilters: ['id', 'colaborador_id', 'sistema_id', 'nivel_acesso', 'ativo'],
   },
+  permissoes_central: {
+    schema: 'gestao_ativos',
+    table: 'permissoes_central',
+    orderBy: 'modulo',
+    orderDirection: 'asc',
+    allowedFilters: ['id', 'funcao', 'modulo', 'nivel_acesso'],
+  },
+  permissoes_funcoes_relatorios: {
+    schema: 'gestao_relatorio',
+    table: 'permissoes_funcoes',
+    orderBy: 'modulo',
+    orderDirection: 'asc',
+    allowedFilters: ['id', 'nivel_acesso', 'modulo', 'permissao'],
+  },
   logs_auditoria: {
     schema: 'gestao_plataforma',
     table: 'logs_auditoria',
@@ -364,6 +378,64 @@ async function deleteSystemAccess(id?: string | null) {
   return json({ success: true });
 }
 
+async function saveCentralPermission(payload: Record<string, unknown> = {}) {
+  const funcao = typeof payload.funcao === 'string' ? payload.funcao : null;
+  const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
+  const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : 'sem';
+
+  if (!funcao || !modulo) {
+    return json({ error: 'Funcao e modulo sao obrigatorios.' }, 400);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      insert into gestao_ativos.permissoes_central (
+        funcao,
+        modulo,
+        nivel_acesso
+      )
+      values ($1, $2, $3)
+      on conflict (funcao, modulo)
+      do update set
+        nivel_acesso = excluded.nivel_acesso,
+        atualizado_em = now()
+      returning *;
+    `,
+    [funcao, modulo, nivelAcesso],
+  );
+
+  return json({ row: rows[0] || null });
+}
+
+async function saveReportsFunctionPermission(payload: Record<string, unknown> = {}) {
+  const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
+  const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
+  const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
+
+  if (!nivelAcesso || !modulo) {
+    return json({ error: 'Nivel de acesso e modulo sao obrigatorios.' }, 400);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      insert into gestao_relatorio.permissoes_funcoes (
+        nivel_acesso,
+        modulo,
+        permissao
+      )
+      values ($1, $2, $3)
+      on conflict (nivel_acesso, modulo)
+      do update set
+        permissao = excluded.permissao,
+        atualizado_em = now()
+      returning *;
+    `,
+    [nivelAcesso, modulo, permissao],
+  );
+
+  return json({ row: rows[0] || null });
+}
+
 function sanitizeAuditPayload(payload: Record<string, unknown> = {}) {
   const action = typeof payload.acao === 'string' ? payload.acao : '';
   const entity = typeof payload.entidade === 'string' ? payload.entidade.trim() : '';
@@ -470,6 +542,14 @@ Deno.serve(async (request) => {
         payload: body.payload || {},
         collaborator: activeCollaborator,
       });
+    }
+
+    if (action === 'save' && entity === 'permissoes_central') {
+      return saveCentralPermission(body.payload || {});
+    }
+
+    if (action === 'save' && entity === 'permissoes_funcoes_relatorios') {
+      return saveReportsFunctionPermission(body.payload || {});
     }
 
     if (action === 'update' && entity === 'colaboradores') {

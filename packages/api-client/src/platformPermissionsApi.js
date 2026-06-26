@@ -42,11 +42,8 @@ async function invokeSupabaseFunction(functionName, action, payload = {}, access
   return result;
 }
 
-const invokeCentralApi = (action, payload = {}, accessTokenOverride) =>
-  invokeSupabaseFunction('central-api', action, payload, accessTokenOverride);
-
-const invokeReportsApi = (action, payload = {}, accessTokenOverride) =>
-  invokeSupabaseFunction('relatorios-api', action, payload, accessTokenOverride);
+const invokePlataformaApi = (action, payload = {}, accessTokenOverride) =>
+  invokeSupabaseFunction('plataforma-api', action, payload, accessTokenOverride);
 
 async function writeConsoleAudit(payload) {
   try {
@@ -59,14 +56,14 @@ async function writeConsoleAudit(payload) {
 export const platformPermissionsApi = {
   central: {
     list: async (options = {}) => {
-      const result = await invokeCentralApi('list', {
+      const result = await invokePlataformaApi('list', {
         entity: 'permissoes_central',
         filters: options.filters || {},
       });
       return result.rows || [];
     },
     save: async (payload) => {
-      const result = await invokeCentralApi('save', {
+      const result = await invokePlataformaApi('save', {
         entity: 'permissoes_central',
         payload,
       });
@@ -88,7 +85,7 @@ export const platformPermissionsApi = {
   },
   relatorios: {
     list: async (options = {}, accessTokenOverride) => {
-      const result = await invokeReportsApi(
+      const result = await invokePlataformaApi(
         'list',
         {
           entity: 'permissoes_funcoes_relatorios',
@@ -99,7 +96,7 @@ export const platformPermissionsApi = {
       return result.rows || [];
     },
     save: async (payload) => {
-      const result = await invokeReportsApi('save', {
+      const result = await invokePlataformaApi('save', {
         entity: 'permissoes_funcoes_relatorios',
         payload,
       });
