@@ -101,6 +101,12 @@ export function AuthProvider({
     setLoading(false);
   }
 
+  function scheduleSignOut() {
+    window.setTimeout(() => {
+      supabase.auth.signOut().catch(() => null);
+    }, 0);
+  }
+
   async function runAccessValidation(nextSession) {
     if (!nextSession?.user) {
       clearAuthState();
@@ -113,8 +119,8 @@ export function AuthProvider({
       const nextPermissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 
       if (!canAccessSystem(collaborator, accessRoles)) {
-        await supabase.auth.signOut();
         clearAuthState();
+        scheduleSignOut();
         throw new Error(accessDeniedMessage);
       }
 
@@ -126,8 +132,8 @@ export function AuthProvider({
       setPermissions(nextPermissions);
       setLoading(false);
     } catch (error) {
-      await supabase.auth.signOut().catch(() => null);
       clearAuthState();
+      scheduleSignOut();
       throw error;
     }
   }
@@ -176,6 +182,7 @@ export function AuthProvider({
       try {
         await validateSession(data.session || null);
       } catch {
+        clearAuthState();
         return;
       }
     });
