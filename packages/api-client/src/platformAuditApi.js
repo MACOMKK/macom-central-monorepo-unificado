@@ -41,6 +41,14 @@ async function invokePlataformaApi(action, payload = {}) {
 
 export const platformAuditApi = {
   logs: {
+    create: async (payload = {}) => {
+      const result = await invokePlataformaApi('create', {
+        entity: 'logs_auditoria',
+        payload,
+      });
+
+      return result.row || null;
+    },
     list: async (options = {}) => {
       const result = await invokePlataformaApi('list', {
         entity: 'logs_auditoria',

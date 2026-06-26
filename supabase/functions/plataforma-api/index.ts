@@ -22,6 +22,9 @@ const ENTITY_CONFIG = {
 } as const;
 
 type EntityKey = keyof typeof ENTITY_CONFIG;
+type AuditAction = 'criar' | 'atualizar' | 'excluir' | 'redefinir_senha' | 'desvincular' | 'importar';
+
+const AUDIT_ACTIONS = new Set(['criar', 'atualizar', 'excluir', 'redefinir_senha', 'desvincular', 'importar']);
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -113,6 +116,75 @@ function canAccessPlataforma(collaborator: Record<string, unknown> | null) {
   );
 }
 
+function sanitizeAuditPayload(payload: Record<string, unknown> = {}) {
+  const action = typeof payload.acao === 'string' ? payload.acao : '';
+  const entity = typeof payload.entidade === 'string' ? payload.entidade.trim() : '';
+
+  if (!AUDIT_ACTIONS.has(action)) {
+    throw new Error('Acao de auditoria invalida.');
+  }
+
+  if (!entity) {
+    throw new Error('Entidade de auditoria obrigatoria.');
+  }
+
+  return {
+    action: action as AuditAction,
+    entity,
+    recordId: typeof payload.registro_id === 'string' && payload.registro_id ? payload.registro_id : null,
+    before: payload.antes && typeof payload.antes === 'object' ? payload.antes as Record<string, unknown> : null,
+    after: payload.depois && typeof payload.depois === 'object' ? payload.depois as Record<string, unknown> : null,
+    metadata: payload.metadados && typeof payload.metadados === 'object' ? payload.metadados as Record<string, unknown> : {},
+  };
+}
+
+async function insertAuditLog({
+  payload,
+  collaborator,
+  userEmail,
+}: {
+  payload: Record<string, unknown>;
+  collaborator: Record<string, unknown>;
+  userEmail?: string | null;
+}) {
+  const sanitized = sanitizeAuditPayload(payload);
+  const metadata = {
+    source_app: 'console',
+    origem: 'console',
+    audit_scope: 'governanca',
+    ...(sanitized.metadata || {}),
+  };
+
+  const rows = await sql!.unsafe(
+    `
+      insert into gestao_plataforma.logs_auditoria (
+        entidade,
+        acao,
+        registro_id,
+        responsavel_colaborador_id,
+        responsavel_email,
+        antes,
+        depois,
+        metadados
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)
+      returning *;
+    `,
+    [
+      sanitized.entity,
+      sanitized.action,
+      sanitized.recordId,
+      collaborator.id ?? null,
+      userEmail || collaborator.email || null,
+      sanitized.before ? JSON.stringify(sanitized.before) : null,
+      sanitized.after ? JSON.stringify(sanitized.after) : null,
+      JSON.stringify(metadata),
+    ],
+  );
+
+  return rows[0] || null;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -130,9 +202,20 @@ Deno.serve(async (request) => {
     if (!canAccessPlataforma(collaborator)) {
       return json({ error: 'Acesso restrito ao MACOM Console.' }, 403);
     }
+    const activeCollaborator = collaborator as Record<string, unknown>;
 
     const body = await request.json().catch(() => ({}));
     const { action, entity } = body || {};
+
+    if (action === 'create' && entity === 'logs_auditoria') {
+      const row = await insertAuditLog({
+        payload: body.payload || {},
+        collaborator: activeCollaborator,
+        userEmail: user.email ?? null,
+      });
+
+      return json({ row });
+    }
 
     if (action !== 'list' || entity !== 'logs_auditoria') {
       return json({ error: 'Acao ou entidade invalida.' }, 400);

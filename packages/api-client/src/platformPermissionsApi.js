@@ -1,4 +1,5 @@
 import { assertSupabaseConfigured, supabase } from './supabaseClient';
+import { platformAuditApi } from './platformAuditApi';
 
 function toApiError(message, status = 500, code) {
   const error = new Error(message || 'Falha ao consultar permissoes da plataforma.');
@@ -47,6 +48,14 @@ const invokeCentralApi = (action, payload = {}, accessTokenOverride) =>
 const invokeReportsApi = (action, payload = {}, accessTokenOverride) =>
   invokeSupabaseFunction('relatorios-api', action, payload, accessTokenOverride);
 
+async function writeConsoleAudit(payload) {
+  try {
+    await platformAuditApi.logs.create(payload);
+  } catch (error) {
+    console.warn('Falha ao registrar auditoria do Console.', error);
+  }
+}
+
 export const platformPermissionsApi = {
   central: {
     list: async (options = {}) => {
@@ -60,6 +69,19 @@ export const platformPermissionsApi = {
       const result = await invokeCentralApi('save', {
         entity: 'permissoes_central',
         payload,
+      });
+      await writeConsoleAudit({
+        entidade: 'permissoes_sistemas',
+        acao: 'atualizar',
+        registro_id: result.row?.id || payload.id || null,
+        antes: null,
+        depois: result.row || null,
+        metadados: {
+          sistema_slug: 'central',
+          modulo: result.row?.modulo || payload.modulo || null,
+          funcao: result.row?.funcao || payload.funcao || null,
+          nivel_acesso_novo: result.row?.nivel_acesso || payload.nivel_acesso || null,
+        },
       });
       return result.row || null;
     },
@@ -80,6 +102,19 @@ export const platformPermissionsApi = {
       const result = await invokeReportsApi('save', {
         entity: 'permissoes_funcoes_relatorios',
         payload,
+      });
+      await writeConsoleAudit({
+        entidade: 'permissoes_sistemas',
+        acao: 'atualizar',
+        registro_id: result.row?.id || payload.id || null,
+        antes: null,
+        depois: result.row || null,
+        metadados: {
+          sistema_slug: 'relatorios',
+          modulo: result.row?.modulo || payload.modulo || null,
+          permissao: result.row?.permissao || payload.permissao || null,
+          nivel_acesso_novo: result.row?.nivel_acesso || payload.nivel_acesso || null,
+        },
       });
       return result.row || null;
     },
