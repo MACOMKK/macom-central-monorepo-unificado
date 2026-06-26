@@ -140,7 +140,7 @@ export const platformUsersApi = {
     list: (options = {}) => listPlataformaEntity('colaboradores', options),
     updateAccessProfile: async (id, payload) => {
       const before = await getCollaboratorSnapshot(id).catch(() => null);
-      const result = await invokeCentralApi('update', {
+      const result = await invokePlataformaApi('update', {
         entity: 'colaboradores',
         id,
         payload: {

@@ -199,6 +199,69 @@ function sanitizeSystemAccessPayload(payload: Record<string, unknown> = {}) {
   return sanitized;
 }
 
+function sanitizeCollaboratorAccessPayload(payload: Record<string, unknown> = {}) {
+  const sanitized: Record<string, unknown> = {};
+
+  if (typeof payload.funcao === 'string') sanitized.funcao = payload.funcao;
+  if (typeof payload.status === 'string') sanitized.status = payload.status;
+
+  return sanitized;
+}
+
+async function updateCollaboratorAccessProfile({
+  id,
+  payload,
+  collaborator,
+}: {
+  id?: string | null;
+  payload: Record<string, unknown>;
+  collaborator: Record<string, unknown>;
+}) {
+  if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+  const sanitized = sanitizeCollaboratorAccessPayload(payload);
+  if (!Object.keys(sanitized).length) {
+    return json({ error: 'Payload vazio.' }, 400);
+  }
+
+  const beforeRow = await fetchRowById('public', 'colaboradores', id);
+  if (!beforeRow) {
+    return json({ error: 'Colaborador nao encontrado.' }, 404);
+  }
+
+  if (!isGlobalAdmin(collaborator) && sanitized.funcao && sanitized.funcao !== 'usuario') {
+    return json({ error: 'Apenas administradores podem definir colaboradores como admin ou gestor.' }, 403);
+  }
+
+  if (
+    !isGlobalAdmin(collaborator) &&
+    sanitized.status === 'inativo' &&
+    ['admin', 'gestor'].includes(String(beforeRow.funcao || '')) &&
+    beforeRow.status !== 'inativo'
+  ) {
+    return json({ error: 'Apenas administradores podem inativar colaboradores admin ou gestor.' }, 403);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      update public.colaboradores
+      set
+        funcao = coalesce($2, funcao),
+        status = coalesce($3, status),
+        atualizado_em = now()
+      where id = $1
+      returning *;
+    `,
+    [
+      id,
+      sanitized.funcao ?? null,
+      sanitized.status ?? null,
+    ],
+  );
+
+  return json({ row: rows[0] || null });
+}
+
 async function saveSystemAccess({
   payload,
   collaborator,
@@ -404,6 +467,14 @@ Deno.serve(async (request) => {
 
     if (action === 'save' && entity === 'acessos_usuario_sistema') {
       return saveSystemAccess({
+        payload: body.payload || {},
+        collaborator: activeCollaborator,
+      });
+    }
+
+    if (action === 'update' && entity === 'colaboradores') {
+      return updateCollaboratorAccessProfile({
+        id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
         collaborator: activeCollaborator,
       });
