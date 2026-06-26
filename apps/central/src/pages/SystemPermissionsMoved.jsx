@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
-const consoleBaseUrl = import.meta.env.VITE_CONSOLE_URL || 'http://localhost:5170';
+const consoleBaseUrl = import.meta.env.VITE_CONSOLE_URL || 'https://macom-console.vercel.app/';
 const consolePermissionsUrl = `${consoleBaseUrl.replace(/\/$/, '')}/permissoes-sistemas`;
 
 export default function SystemPermissionsMoved() {

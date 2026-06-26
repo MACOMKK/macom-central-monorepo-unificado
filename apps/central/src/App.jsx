@@ -20,6 +20,7 @@ const Departments = lazy(() => import('@/pages/Departments'));
 const Infrastructure = lazy(() => import('@/pages/Infrastructure'));
 const Login = lazy(() => import('@/pages/Login'));
 const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
+const PlatformGuideMoved = lazy(() => import('@/pages/PlatformGuideMoved'));
 const Positions = lazy(() => import('@/pages/Positions'));
 const SystemAccess = lazy(() => import('@/pages/SystemAccess'));
 const SystemAccessMoved = lazy(() => import('@/pages/SystemAccessMoved'));
@@ -108,7 +109,8 @@ export default function App() {
                   element={withCentralPermission('/acessos-sistemas', <SystemAccess />, { moduleKey: 'acessos_usuario_sistema' })}
                 />
                 <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
-                <Route path="/guia-plataforma" element={withCentralPermission('/guia-plataforma', <PlatformGuide />, { adminOnly: true })} />
+                <Route path="/guia-plataforma" element={withCentralPermission('/guia-plataforma', <PlatformGuideMoved />, { adminOnly: true })} />
+                <Route path="/guia-plataforma-legado" element={withCentralPermission('/guia-plataforma-legado', <PlatformGuide />, { adminOnly: true })} />
                 <Route path="/permissoes-central" element={<Navigate to="/permissoes-sistemas" replace />} />
                 <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <SystemPermissionsMoved />, { adminOnly: true })} />
                 <Route path="/permissoes-sistemas-legado" element={withCentralPermission('/permissoes-sistemas-legado', <CentralPermissions />, { adminOnly: true })} />

@@ -7,6 +7,7 @@ import ConsoleLayout from '@/components/ConsoleLayout';
 import ConsoleDashboard from '@/pages/ConsoleDashboard';
 import AuditOverview from '@/pages/AuditOverview';
 import PlaceholderPage from '@/pages/PlaceholderPage';
+import PlatformGuide from '@/pages/PlatformGuide';
 import SystemAccessManagement from '@/pages/SystemAccessManagement';
 import SystemPermissions from '@/pages/SystemPermissions';
 import SystemsCatalog from '@/pages/SystemsCatalog';
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/acessos-sistemas" element={<SystemAccessManagement />} />
                 <Route path="/usuarios" element={<UsersOverview />} />
                 <Route path="/auditoria" element={<AuditOverview />} />
+                <Route path="/guia" element={<PlatformGuide />} />
                 <Route
                   path="/configuracoes"
                   element={

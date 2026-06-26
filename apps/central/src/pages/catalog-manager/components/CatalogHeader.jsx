@@ -2,7 +2,7 @@ import { Download, ExternalLink, Plus, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
-const consoleBaseUrl = import.meta.env.VITE_CONSOLE_URL || 'http://localhost:5170';
+const consoleBaseUrl = import.meta.env.VITE_CONSOLE_URL || 'https://macom-console.vercel.app/';
 const consoleUsersUrl = `${consoleBaseUrl.replace(/\/$/, '')}/usuarios`;
 
 export default function CatalogHeader({

@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Activity,
   AppWindow,
+  BookOpen,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -20,6 +21,7 @@ const navItems = [
   { path: '/acessos-sistemas', label: 'Acessos', icon: KeyRound },
   { path: '/usuarios', label: 'Usuarios', icon: UsersRound },
   { path: '/auditoria', label: 'Auditoria', icon: Activity },
+  { path: '/guia', label: 'Guia', icon: BookOpen },
   { path: '/configuracoes', label: 'Configuracoes', icon: Settings2 },
 ];
 
