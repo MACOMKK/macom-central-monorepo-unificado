@@ -1,6 +1,9 @@
-import { Download, Plus, Upload } from 'lucide-react';
+import { Download, ExternalLink, Plus, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+
+const consoleBaseUrl = import.meta.env.VITE_CONSOLE_URL || 'http://localhost:5170';
+const consoleUsersUrl = `${consoleBaseUrl.replace(/\/$/, '')}/usuarios`;
 
 export default function CatalogHeader({
   canManage = true,
@@ -56,6 +59,16 @@ export default function CatalogHeader({
         ) : null}
         {lockedEntityKey === 'colaboradores' ? (
           <>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2 rounded-xl px-4 text-[14px]"
+              asChild
+            >
+              <a href={consoleUsersUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-4 w-4" /> Acessos no Console
+              </a>
+            </Button>
             <Button
               type="button"
               variant="outline"

@@ -22,6 +22,8 @@ const Login = lazy(() => import('@/pages/Login'));
 const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
 const Positions = lazy(() => import('@/pages/Positions'));
 const SystemAccess = lazy(() => import('@/pages/SystemAccess'));
+const SystemAccessMoved = lazy(() => import('@/pages/SystemAccessMoved'));
+const SystemPermissionsMoved = lazy(() => import('@/pages/SystemPermissionsMoved'));
 const TermsPossession = lazy(() => import('@/pages/TermsPossession'));
 const Units = lazy(() => import('@/pages/Units'));
 
@@ -100,11 +102,16 @@ export default function App() {
                 <Route path="/cargos" element={withCentralPermission('/cargos', <Positions />)} />
                 <Route path="/unidades" element={withCentralPermission('/unidades', <Units />)} />
                 <Route path="/infraestrutura" element={withCentralPermission('/infraestrutura', <Infrastructure />)} />
-                <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccess />)} />
+                <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccessMoved />)} />
+                <Route
+                  path="/acessos-sistemas-legado"
+                  element={withCentralPermission('/acessos-sistemas', <SystemAccess />, { moduleKey: 'acessos_usuario_sistema' })}
+                />
                 <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
                 <Route path="/guia-plataforma" element={withCentralPermission('/guia-plataforma', <PlatformGuide />, { adminOnly: true })} />
                 <Route path="/permissoes-central" element={<Navigate to="/permissoes-sistemas" replace />} />
-                <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <CentralPermissions />, { adminOnly: true })} />
+                <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <SystemPermissionsMoved />, { adminOnly: true })} />
+                <Route path="/permissoes-sistemas-legado" element={withCentralPermission('/permissoes-sistemas-legado', <CentralPermissions />, { adminOnly: true })} />
                 <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />
                 <Route path="*" element={<PageNotFound />} />
               </Route>

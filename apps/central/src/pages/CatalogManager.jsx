@@ -918,6 +918,15 @@ export default function CatalogManager({ lockedEntityKey }) {
         title={entityMeta[lockedEntityKey].title}
       />
 
+      {lockedEntityKey === 'colaboradores' ? (
+        <Card className="border-primary/15 bg-primary/5 p-4">
+          <p className="text-sm font-semibold text-foreground">Cadastro operacional permanece na Central.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Perfil, status de acesso, e-mail de login, senha e permissao de sistemas agora devem ser gerenciados no MACOM Console.
+          </p>
+        </Card>
+      ) : null}
+
       {lockedEntityKey === 'colaboradores' && collaboratorsImportReport ? (
         <Card className="border-border p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

@@ -7,6 +7,7 @@ O repositório usa `npm workspaces` para instalar as dependencias da raiz, dos a
 ## Estrutura
 
 - `apps/central`: app administrativo do Central
+- `apps/admin`: MACOM Console, app de gestao da plataforma, sistemas e permissoes globais
 - `apps/intranet`: app da intranet corporativa
 - `apps/relatorios`: app de relatorios
 - `apps/_template`: molde base para criar novos apps React/Vite
@@ -33,6 +34,7 @@ VITE_SUPABASE_ANON_KEY=...
 
 ```bash
 npm run dev:central
+npm run dev:admin
 npm run dev:intranet
 npm run dev:relatorios
 ```
@@ -42,6 +44,7 @@ npm run dev:relatorios
 Cada app gera seu bundle dentro da propria pasta:
 
 - `apps/central/dist`
+- `apps/admin/dist`
 - `apps/intranet/dist`
 - `apps/relatorios/dist`
 
@@ -49,6 +52,7 @@ Comandos:
 
 ```bash
 npm run build:central
+npm run build:admin
 npm run build:intranet
 npm run build:relatorios
 ```
@@ -80,9 +84,11 @@ Configuracao recomendada para cada projeto:
 - `Framework Preset`: `Vite`
 - `Build Command`:
   - Central: `npm run build:central`
+  - MACOM Console: `npm run build:admin`
   - Relatorios: `npm run build:relatorios`
 - `Output Directory`:
   - Central: `apps/central/dist`
+  - MACOM Console: `apps/admin/dist`
   - Relatorios: `apps/relatorios/dist`
 
 Padrao reutilizavel para qualquer projeto:

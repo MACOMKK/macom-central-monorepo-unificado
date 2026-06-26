@@ -100,8 +100,57 @@ describe('AuthProvider', () => {
           }),
         }),
       );
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+        action: 'me',
+        entity: 'colaboradores',
+        system_slug: 'central',
+      });
       expect(screen.getByText('autenticado')).toBeInTheDocument();
       expect(screen.getByText('Administrador')).toBeInTheDocument();
+    });
+  });
+
+  it('permite configurar o system_slug para novos apps', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-console',
+          user: { id: 'user-3', email: 'admin@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-3',
+          nome: 'Administrador Console',
+          email: 'admin@macom.com',
+          funcao: 'admin',
+          status: 'ativo',
+        },
+        access: null,
+      }),
+    });
+
+    render(
+      <AuthProvider systemSlug="console">
+        <Harness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+        system_slug: 'console',
+      });
+      expect(screen.getByText('autenticado')).toBeInTheDocument();
+      expect(screen.getByText('Administrador Console')).toBeInTheDocument();
     });
   });
 

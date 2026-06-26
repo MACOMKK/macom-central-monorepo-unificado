@@ -665,8 +665,9 @@ export function buildCollaboratorsConfig({
     usuario: 'bg-slate-100 text-slate-700',
   };
   const buildPositionOptions = (formState = {}, record = {}) => {
-    const selectedDepartmentId = formState.departamento_id || record.departamento_id || '';
-    const selectedPositionId = formState.cargo_id || record.cargo_id || '';
+    const safeRecord = record || {};
+    const selectedDepartmentId = formState.departamento_id || safeRecord.departamento_id || '';
+    const selectedPositionId = formState.cargo_id || safeRecord.cargo_id || '';
     const filteredPositions = positions.filter((position) => (
       !selectedDepartmentId ||
       !position.departamento_id ||

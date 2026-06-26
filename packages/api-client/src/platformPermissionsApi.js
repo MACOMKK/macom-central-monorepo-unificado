@@ -1,0 +1,87 @@
+import { assertSupabaseConfigured, supabase } from './supabaseClient';
+
+function toApiError(message, status = 500, code) {
+  const error = new Error(message || 'Falha ao consultar permissoes da plataforma.');
+  error.status = status;
+  if (code) error.code = code;
+  return error;
+}
+
+async function invokeSupabaseFunction(functionName, action, payload = {}, accessTokenOverride) {
+  assertSupabaseConfigured();
+  const { data } = accessTokenOverride
+    ? { data: { session: { access_token: accessTokenOverride } } }
+    : await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+
+  if (!token) {
+    throw toApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
+  }
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw toApiError(
+      result?.error || result?.message || result?.details || 'Falha ao consultar permissoes da plataforma.',
+      response.status,
+      result?.code || (response.status === 401 ? 'auth_required' : undefined),
+    );
+  }
+
+  return result;
+}
+
+const invokeCentralApi = (action, payload = {}, accessTokenOverride) =>
+  invokeSupabaseFunction('central-api', action, payload, accessTokenOverride);
+
+const invokeReportsApi = (action, payload = {}, accessTokenOverride) =>
+  invokeSupabaseFunction('relatorios-api', action, payload, accessTokenOverride);
+
+export const platformPermissionsApi = {
+  central: {
+    list: async (options = {}) => {
+      const result = await invokeCentralApi('list', {
+        entity: 'permissoes_central',
+        filters: options.filters || {},
+      });
+      return result.rows || [];
+    },
+    save: async (payload) => {
+      const result = await invokeCentralApi('save', {
+        entity: 'permissoes_central',
+        payload,
+      });
+      return result.row || null;
+    },
+  },
+  relatorios: {
+    list: async (options = {}, accessTokenOverride) => {
+      const result = await invokeReportsApi(
+        'list',
+        {
+          entity: 'permissoes_funcoes_relatorios',
+          filters: options.filters || {},
+        },
+        accessTokenOverride,
+      );
+      return result.rows || [];
+    },
+    save: async (payload) => {
+      const result = await invokeReportsApi('save', {
+        entity: 'permissoes_funcoes_relatorios',
+        payload,
+      });
+      return result.row || null;
+    },
+  },
+};

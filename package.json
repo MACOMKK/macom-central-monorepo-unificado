@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
+    "apps/admin",
     "apps/central",
     "apps/intranet",
     "apps/pagamentos",
@@ -16,12 +17,15 @@
   ],
   "scripts": {
     "dev": "vite --configLoader runner",
+    "dev:admin": "vite --config apps/admin/vite.config.js --configLoader runner",
     "dev:central": "vite --configLoader runner",
     "dev:crm": "vite --config apps/crm/vite.config.js --configLoader runner",
     "dev:relatorios": "vite --config apps/relatorios/vite.config.js --configLoader runner",
     "dev:intranet": "npm --prefix apps/intranet run dev",
     "build": "vite build --configLoader runner",
     "sync:favicons": "node scripts/syncFavicons.js",
+    "prebuild:admin": "npm run sync:favicons",
+    "build:admin": "vite build --config apps/admin/vite.config.js --configLoader runner",
     "prebuild:central": "npm run sync:favicons",
     "build:central": "vite build --configLoader runner",
     "prebuild:crm": "npm run sync:favicons",

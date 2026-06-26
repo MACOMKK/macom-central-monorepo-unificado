@@ -1,0 +1,10 @@
+{
+  "name": "MACOM Console",
+  "short_name": "Console",
+  "description": "Gestao da plataforma e dos sistemas MACOM.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#881337",
+  "icons": []
+}

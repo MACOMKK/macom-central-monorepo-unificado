@@ -3,44 +3,46 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
-const CENTRAL_ACCESS_ROLES = new Set(['admin', 'gestor']);
-const CENTRAL_PERMISSION_LEVELS = {
+
+export const DEFAULT_SYSTEM_SLUG = 'central';
+export const DEFAULT_ACCESS_ROLES = ['admin', 'gestor'];
+export const PERMISSION_LEVELS = {
   none: 'sem',
   view: 'ver',
   manage: 'gerenciar',
 };
 
-function canAccessCentral(profile) {
-  return CENTRAL_ACCESS_ROLES.has(profile?.funcao) && profile?.status !== 'inativo';
+function canAccessSystem(profile, accessRoles = DEFAULT_ACCESS_ROLES) {
+  return accessRoles.includes(profile?.funcao) && profile?.status !== 'inativo';
 }
 
-function hasCentralPermission(profile, permissions = [], moduleKey, requiredLevel = CENTRAL_PERMISSION_LEVELS.view) {
+function hasPermission(profile, permissions = [], moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
   if (profile?.funcao === 'admin' && profile?.status !== 'inativo') {
     return true;
   }
 
   const permission = permissions.find((item) => item.modulo === moduleKey);
-  const level = permission?.nivel_acesso || CENTRAL_PERMISSION_LEVELS.none;
+  const level = permission?.nivel_acesso || PERMISSION_LEVELS.none;
 
-  if (requiredLevel === CENTRAL_PERMISSION_LEVELS.view) {
-    return level === CENTRAL_PERMISSION_LEVELS.view || level === CENTRAL_PERMISSION_LEVELS.manage;
+  if (requiredLevel === PERMISSION_LEVELS.view) {
+    return level === PERMISSION_LEVELS.view || level === PERMISSION_LEVELS.manage;
   }
 
-  return level === CENTRAL_PERMISSION_LEVELS.manage;
+  return level === PERMISSION_LEVELS.manage;
 }
 
-function toCentralApiError(message, status = 500, code) {
-  const error = new Error(message || 'Falha ao consultar a Central.');
+function toAuthApiError(message, status = 500, code) {
+  const error = new Error(message || 'Falha ao consultar autenticacao.');
   error.status = status;
   if (code) error.code = code;
   return error;
 }
 
-async function getCentralAuthProfile(accessToken) {
+async function getAuthProfile(accessToken, systemSlug) {
   assertSupabaseConfigured();
 
   if (!accessToken) {
-    throw toCentralApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
+    throw toAuthApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/central-api`, {
@@ -53,15 +55,15 @@ async function getCentralAuthProfile(accessToken) {
     body: JSON.stringify({
       action: 'me',
       entity: 'colaboradores',
-      system_slug: 'central',
+      system_slug: systemSlug,
     }),
   });
 
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw toCentralApiError(
-      result?.error || 'Falha ao consultar a Central.',
+    throw toAuthApiError(
+      result?.error || 'Falha ao consultar autenticacao.',
       response.status,
       result?.code || (response.status === 401 ? 'auth_required' : undefined),
     );
@@ -74,10 +76,15 @@ async function getCentralAuthProfile(accessToken) {
   };
 }
 
-export function AuthProvider({ children }) {
+export function AuthProvider({
+  children,
+  systemSlug = DEFAULT_SYSTEM_SLUG,
+  accessRoles = DEFAULT_ACCESS_ROLES,
+  accessDeniedMessage = 'Acesso restrito a administradores e gestores.',
+}) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [centralPermissions, setCentralPermissions] = useState([]);
+  const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const inFlightValidationRef = useRef(null);
   const validatedTokenRef = useRef(null);
@@ -90,33 +97,33 @@ export function AuthProvider({ children }) {
     permissionsRef.current = [];
     setSession(null);
     setProfile(null);
-    setCentralPermissions([]);
+    setPermissions([]);
     setLoading(false);
   }
 
-  async function runCentralAccessValidation(nextSession) {
+  async function runAccessValidation(nextSession) {
     if (!nextSession?.user) {
       clearAuthState();
       return;
     }
 
     try {
-      const authPayload = await getCentralAuthProfile(nextSession.access_token);
+      const authPayload = await getAuthProfile(nextSession.access_token, systemSlug);
       const collaborator = authPayload?.row || null;
-      const permissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
+      const nextPermissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 
-      if (!canAccessCentral(collaborator)) {
+      if (!canAccessSystem(collaborator, accessRoles)) {
         await supabase.auth.signOut();
         clearAuthState();
-        throw new Error('Acesso restrito a administradores e gestores.');
+        throw new Error(accessDeniedMessage);
       }
 
       validatedTokenRef.current = nextSession.access_token;
       profileRef.current = collaborator;
-      permissionsRef.current = permissions;
+      permissionsRef.current = nextPermissions;
       setSession(nextSession);
       setProfile(collaborator);
-      setCentralPermissions(permissions);
+      setPermissions(nextPermissions);
       setLoading(false);
     } catch (error) {
       await supabase.auth.signOut().catch(() => null);
@@ -125,18 +132,18 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function validateAdminSession(nextSession, options = {}) {
+  async function validateSession(nextSession, options = {}) {
     const accessToken = nextSession?.access_token || null;
     const { force = false } = options;
 
     if (!nextSession?.user) {
-      return runCentralAccessValidation(nextSession);
+      return runAccessValidation(nextSession);
     }
 
     if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profileRef.current) {
       setSession(nextSession);
       setProfile(profileRef.current);
-      setCentralPermissions(permissionsRef.current);
+      setPermissions(permissionsRef.current);
       setLoading(false);
       return;
     }
@@ -145,7 +152,7 @@ export function AuthProvider({ children }) {
       return inFlightValidationRef.current.promise;
     }
 
-    const validationPromise = runCentralAccessValidation(nextSession).finally(() => {
+    const validationPromise = runAccessValidation(nextSession).finally(() => {
       if (inFlightValidationRef.current?.token === accessToken) {
         inFlightValidationRef.current = null;
       }
@@ -167,7 +174,7 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!mounted) return;
       try {
-        await validateAdminSession(data.session || null);
+        await validateSession(data.session || null);
       } catch {
         return;
       }
@@ -183,7 +190,7 @@ export function AuthProvider({ children }) {
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         try {
-          await validateAdminSession(nextSession);
+          await validateSession(nextSession);
         } catch {
           return;
         }
@@ -201,25 +208,30 @@ export function AuthProvider({ children }) {
       session,
       profile,
       user: session?.user || null,
-      isAuthenticated: Boolean(session?.user && canAccessCentral(profile)),
+      isAuthenticated: Boolean(session?.user && canAccessSystem(profile, accessRoles)),
       loading,
+      systemSlug,
       async login(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        await validateAdminSession(data.session || null, { force: true });
+        await validateSession(data.session || null, { force: true });
       },
       async logout() {
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
-        setCentralPermissions([]);
+        setPermissions([]);
       },
-      centralPermissions,
-      canCentral(moduleKey, requiredLevel = CENTRAL_PERMISSION_LEVELS.view) {
-        return hasCentralPermission(profile, centralPermissions, moduleKey, requiredLevel);
+      permissions,
+      canAccessModule(moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
+        return hasPermission(profile, permissions, moduleKey, requiredLevel);
+      },
+      centralPermissions: permissions,
+      canCentral(moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
+        return hasPermission(profile, permissions, moduleKey, requiredLevel);
       },
     }),
-    [centralPermissions, loading, profile, session]
+    [accessRoles, loading, permissions, profile, session, systemSlug]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
