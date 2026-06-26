@@ -8,38 +8,6 @@ function toApiError(message, status = 500, code) {
   return error;
 }
 
-async function invokeCentralApi(action, payload = {}) {
-  assertSupabaseConfigured();
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
-
-  if (!token) {
-    throw toApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
-  }
-
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/central-api`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ action, ...payload }),
-  });
-
-  const result = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw toApiError(
-      result?.error || result?.message || result?.details || 'Falha ao consultar usuarios da plataforma.',
-      response.status,
-      result?.code || (response.status === 401 ? 'auth_required' : undefined),
-    );
-  }
-
-  return result;
-}
-
 async function invokePlataformaApi(action, payload = {}) {
   assertSupabaseConfigured();
   const { data } = await supabase.auth.getSession();
@@ -72,46 +40,6 @@ async function invokePlataformaApi(action, payload = {}) {
   return result;
 }
 
-async function invokeAdminUserFunction(payload = {}) {
-  assertSupabaseConfigured();
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
-
-  if (!token) {
-    throw toApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
-  }
-
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-create-user`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const result = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw toApiError(
-      result?.error || result?.message || result?.details || 'Falha ao atualizar usuario da plataforma.',
-      response.status,
-      result?.code || (response.status === 401 ? 'auth_required' : undefined),
-    );
-  }
-
-  return result;
-}
-
-const listCentralEntity = async (entity, options = {}) => {
-  const result = await invokeCentralApi('list', {
-    entity,
-    filters: options.filters || {},
-  });
-  return result.rows || [];
-};
-
 const listPlataformaEntity = async (entity, options = {}) => {
   const result = await invokePlataformaApi('list', {
     entity,
@@ -131,7 +59,7 @@ async function writeConsoleAudit(payload) {
 }
 
 async function getCollaboratorSnapshot(id) {
-  const rows = await listCentralEntity('colaboradores', { filters: { id } });
+  const rows = await listPlataformaEntity('colaboradores', { filters: { id } });
   return rows[0] || null;
 }
 
@@ -163,7 +91,8 @@ export const platformUsersApi = {
     },
     updatePassword: async (id, password) => {
       const collaborator = await getCollaboratorSnapshot(id).catch(() => null);
-      await invokeAdminUserFunction({
+      await invokePlataformaApi('update_password', {
+        entity: 'colaboradores',
         action: 'update_password',
         id,
         password,
@@ -185,7 +114,8 @@ export const platformUsersApi = {
     },
     updateEmail: async (id, email, options = {}) => {
       const before = await getCollaboratorSnapshot(id).catch(() => null);
-      const result = await invokeAdminUserFunction({
+      const result = await invokePlataformaApi('update_email', {
+        entity: 'colaboradores',
         action: 'update_email',
         id,
         email,

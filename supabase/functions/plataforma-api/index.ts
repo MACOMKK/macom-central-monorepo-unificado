@@ -9,6 +9,7 @@ const corsHeaders = {
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const sql = databaseUrl ? postgres(databaseUrl, { prepare: false }) : null;
 
 const ENTITY_CONFIG = {
@@ -75,6 +76,29 @@ function requireConfig() {
   if (!sql || !supabaseUrl || !supabaseAnonKey) {
     throw new Error('Ambiente Supabase incompleto.');
   }
+}
+
+function getAdminClient() {
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Service role do Supabase nao configurada.');
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+function mapAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (message.includes('already been registered') || message.includes('User already registered')) {
+    return 'Ja existe um colaborador com este email.';
+  }
+
+  return message || 'Falha ao atualizar usuario no Auth.';
 }
 
 function getBearerToken(request: Request) {
@@ -271,6 +295,104 @@ async function updateCollaboratorAccessProfile({
       sanitized.funcao ?? null,
       sanitized.status ?? null,
     ],
+  );
+
+  return json({ row: rows[0] || null });
+}
+
+async function updateCollaboratorPassword({
+  id,
+  password,
+  collaborator,
+}: {
+  id?: string | null;
+  password?: string | null;
+  collaborator: Record<string, unknown>;
+}) {
+  if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+  if (!password || password.length < 6) {
+    return json({ error: 'Senha obrigatoria com pelo menos 6 caracteres.' }, 400);
+  }
+
+  const collaboratorRow = await fetchRowById('public', 'colaboradores', id);
+  if (!collaboratorRow) {
+    return json({ error: 'Colaborador nao encontrado.' }, 404);
+  }
+
+  if (!isGlobalAdmin(collaborator) && collaboratorRow.funcao === 'admin') {
+    return json({ error: 'Apenas administradores podem redefinir senha de colaboradores admin.' }, 403);
+  }
+
+  const adminClient = getAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(id, { password });
+
+  if (error) {
+    return json({ error: mapAuthError(error.message || 'Falha ao atualizar senha no Auth.') }, 400);
+  }
+
+  return json({ success: true });
+}
+
+async function updateCollaboratorEmail({
+  id,
+  email,
+  resetPassword,
+  collaborator,
+}: {
+  id?: string | null;
+  email?: string | null;
+  resetPassword?: boolean;
+  collaborator: Record<string, unknown>;
+}) {
+  if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+  const nextEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!nextEmail) {
+    return json({ error: 'Novo email obrigatorio.' }, 400);
+  }
+
+  const collaboratorRow = await fetchRowById('public', 'colaboradores', id);
+  if (!collaboratorRow) {
+    return json({ error: 'Colaborador nao encontrado.' }, 404);
+  }
+
+  if (!isGlobalAdmin(collaborator) && (collaboratorRow.funcao === 'admin' || collaboratorRow.funcao === 'gestor')) {
+    return json({ error: 'Apenas administradores podem alterar email de colaboradores admin ou gestor.' }, 403);
+  }
+
+  const emailRows = await sql!.unsafe(
+    'select id from public.colaboradores where lower(trim(email)) = lower(trim($1)) and id <> $2 limit 1;',
+    [nextEmail, id],
+  );
+
+  if (emailRows[0]) {
+    return json({ error: 'Ja existe um colaborador com este email.' }, 400);
+  }
+
+  const updateAuthPayload: Record<string, unknown> = {
+    email: nextEmail,
+    email_confirm: true,
+  };
+
+  if (resetPassword === true) {
+    updateAuthPayload.password = 'Kmacom.123';
+  }
+
+  const adminClient = getAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(id, updateAuthPayload);
+
+  if (error) {
+    return json({ error: mapAuthError(error.message || 'Falha ao atualizar email no Auth.') }, 400);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      update public.colaboradores
+      set email = $2, atualizado_em = now()
+      where id = $1
+      returning *;
+    `,
+    [id, nextEmail],
   );
 
   return json({ row: rows[0] || null });
@@ -556,6 +678,23 @@ Deno.serve(async (request) => {
       return updateCollaboratorAccessProfile({
         id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
+        collaborator: activeCollaborator,
+      });
+    }
+
+    if (action === 'update_password' && entity === 'colaboradores') {
+      return updateCollaboratorPassword({
+        id: typeof body.id === 'string' ? body.id : null,
+        password: typeof body.password === 'string' ? body.password : null,
+        collaborator: activeCollaborator,
+      });
+    }
+
+    if (action === 'update_email' && entity === 'colaboradores') {
+      return updateCollaboratorEmail({
+        id: typeof body.id === 'string' ? body.id : null,
+        email: typeof body.email === 'string' ? body.email : null,
+        resetPassword: body.reset_password === true,
         collaborator: activeCollaborator,
       });
     }
