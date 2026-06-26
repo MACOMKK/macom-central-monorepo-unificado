@@ -137,6 +137,170 @@ function canAccessPlataforma(collaborator: Record<string, unknown> | null) {
   );
 }
 
+function isGlobalAdmin(collaborator: Record<string, unknown>) {
+  return collaborator.funcao === 'admin' && collaborator.status !== 'inativo';
+}
+
+async function fetchRowById(schema: string, table: string, id: string) {
+  if (!sql) return null;
+
+  const rows = await sql.unsafe(
+    `select * from ${schema}.${table} where id = $1 limit 1;`,
+    [id],
+  );
+
+  return rows[0] || null;
+}
+
+async function syncIntranetPermissionOnAccessChange(accessRow?: Record<string, unknown> | null) {
+  if (!sql || !accessRow?.colaborador_id || !accessRow?.sistema_id) return;
+
+  const relatedSystem = await fetchRowById('public', 'sistemas', String(accessRow.sistema_id));
+  if (relatedSystem?.slug !== 'intranet') return;
+
+  if (accessRow.ativo === true) {
+    await sql.unsafe(
+      `
+        insert into gestao_intranet.permissoes_usuario (
+          colaborador_id,
+          mod_avisos,
+          mod_links,
+          mod_colaboradores,
+          mod_documentos,
+          mod_calendario,
+          mod_conhecimento,
+          mod_feedback
+        )
+        values ($1, 'view', 'view', 'view', 'view', 'view', 'view', 'view')
+        on conflict (colaborador_id) do nothing;
+      `,
+      [String(accessRow.colaborador_id)],
+    );
+    return;
+  }
+
+  await sql.unsafe(
+    `
+      delete from gestao_intranet.permissoes_usuario
+      where colaborador_id = $1;
+    `,
+    [String(accessRow.colaborador_id)],
+  );
+}
+
+function sanitizeSystemAccessPayload(payload: Record<string, unknown> = {}) {
+  const sanitized: Record<string, unknown> = {};
+
+  if (typeof payload.colaborador_id === 'string') sanitized.colaborador_id = payload.colaborador_id;
+  if (typeof payload.sistema_id === 'string') sanitized.sistema_id = payload.sistema_id;
+  if (typeof payload.nivel_acesso === 'string') sanitized.nivel_acesso = payload.nivel_acesso;
+  if (typeof payload.ativo === 'boolean') sanitized.ativo = payload.ativo;
+
+  return sanitized;
+}
+
+async function saveSystemAccess({
+  payload,
+  collaborator,
+}: {
+  payload: Record<string, unknown>;
+  collaborator: Record<string, unknown>;
+}) {
+  const sanitized = sanitizeSystemAccessPayload(payload);
+  const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
+  const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
+  const nextAccessLevel = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : 'usuario';
+
+  if (!colaboradorId || !sistemaId) {
+    return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
+  }
+
+  if (!isGlobalAdmin(collaborator) && nextAccessLevel === 'admin') {
+    return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      insert into public.acessos_usuario_sistema (
+        colaborador_id,
+        sistema_id,
+        nivel_acesso,
+        ativo
+      )
+      values ($1, $2, $3, $4)
+      on conflict (colaborador_id, sistema_id)
+      do update set
+        nivel_acesso = excluded.nivel_acesso,
+        ativo = excluded.ativo,
+        atualizado_em = now()
+      returning *;
+    `,
+    [
+      colaboradorId,
+      sistemaId,
+      nextAccessLevel,
+      sanitized.ativo ?? true,
+    ],
+  );
+
+  await syncIntranetPermissionOnAccessChange(rows[0] || null);
+  return json({ row: rows[0] || null });
+}
+
+async function updateSystemAccess({
+  id,
+  payload,
+  collaborator,
+}: {
+  id?: string | null;
+  payload: Record<string, unknown>;
+  collaborator: Record<string, unknown>;
+}) {
+  if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+  const sanitized = sanitizeSystemAccessPayload(payload);
+  delete sanitized.colaborador_id;
+  delete sanitized.sistema_id;
+
+  if (!Object.keys(sanitized).length) {
+    return json({ error: 'Payload vazio.' }, 400);
+  }
+
+  if (!isGlobalAdmin(collaborator) && sanitized.nivel_acesso === 'admin') {
+    return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
+  }
+
+  const sets = Object.keys(sanitized).map((field, index) => `${field} = $${index + 2}`);
+  const values = [id, ...Object.values(sanitized)];
+  const rows = await sql!.unsafe(
+    `
+      update public.acessos_usuario_sistema
+      set ${sets.join(', ')}, atualizado_em = now()
+      where id = $1
+      returning *;
+    `,
+    values,
+  );
+
+  await syncIntranetPermissionOnAccessChange(rows[0] || null);
+  return json({ row: rows[0] || null });
+}
+
+async function deleteSystemAccess(id?: string | null) {
+  if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+  const beforeRow = await fetchRowById('public', 'acessos_usuario_sistema', id);
+  if (beforeRow) {
+    await syncIntranetPermissionOnAccessChange({
+      ...beforeRow,
+      ativo: false,
+    });
+  }
+
+  await sql!.unsafe('delete from public.acessos_usuario_sistema where id = $1;', [id]);
+  return json({ success: true });
+}
+
 function sanitizeAuditPayload(payload: Record<string, unknown> = {}) {
   const action = typeof payload.acao === 'string' ? payload.acao : '';
   const entity = typeof payload.entidade === 'string' ? payload.entidade.trim() : '';
@@ -236,6 +400,25 @@ Deno.serve(async (request) => {
       });
 
       return json({ row });
+    }
+
+    if (action === 'save' && entity === 'acessos_usuario_sistema') {
+      return saveSystemAccess({
+        payload: body.payload || {},
+        collaborator: activeCollaborator,
+      });
+    }
+
+    if (action === 'update' && entity === 'acessos_usuario_sistema') {
+      return updateSystemAccess({
+        id: typeof body.id === 'string' ? body.id : null,
+        payload: body.payload || {},
+        collaborator: activeCollaborator,
+      });
+    }
+
+    if (action === 'delete' && entity === 'acessos_usuario_sistema') {
+      return deleteSystemAccess(typeof body.id === 'string' ? body.id : null);
     }
 
     if (action !== 'list' || !(entity in ENTITY_CONFIG)) {

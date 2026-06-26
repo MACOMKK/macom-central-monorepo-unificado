@@ -214,7 +214,7 @@ export const platformUsersApi = {
   accesses: {
     list: (options = {}) => listPlataformaEntity('acessos_usuario_sistema', options),
     save: async (payload) => {
-      const result = await invokeCentralApi('save', {
+      const result = await invokePlataformaApi('save', {
         entity: 'acessos_usuario_sistema',
         payload,
       });
@@ -235,7 +235,7 @@ export const platformUsersApi = {
       return result.row || null;
     },
     update: async (id, payload) => {
-      const result = await invokeCentralApi('update', {
+      const result = await invokePlataformaApi('update', {
         entity: 'acessos_usuario_sistema',
         id,
         payload,
@@ -257,7 +257,7 @@ export const platformUsersApi = {
       return result.row || null;
     },
     remove: async (id) => {
-      await invokeCentralApi('delete', {
+      await invokePlataformaApi('delete', {
         entity: 'acessos_usuario_sistema',
         id,
       });
