@@ -7,7 +7,7 @@ function toApiError(message, status = 500, code) {
   return error;
 }
 
-async function invokeCentralApi(action, payload = {}) {
+async function invokePlataformaApi(action, payload = {}) {
   assertSupabaseConfigured();
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
@@ -16,7 +16,7 @@ async function invokeCentralApi(action, payload = {}) {
     throw toApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/central-api`, {
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/plataforma-api`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ async function invokeCentralApi(action, payload = {}) {
 export const platformAuditApi = {
   logs: {
     list: async (options = {}) => {
-      const result = await invokeCentralApi('list', {
+      const result = await invokePlataformaApi('list', {
         entity: 'logs_auditoria',
         filters: options.filters || {},
         limit: options.limit,

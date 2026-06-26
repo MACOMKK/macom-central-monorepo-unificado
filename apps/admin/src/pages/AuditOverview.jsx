@@ -152,7 +152,7 @@ export default function AuditOverview() {
           <p className="text-xs font-semibold uppercase text-primary">MACOM Console</p>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Auditoria</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Visao inicial dos eventos administrativos registrados na Central. A auditoria operacional permanece intacta.
+            Eventos administrativos registrados pelo Console. A auditoria operacional da Central permanece separada.
           </p>
         </div>
 
