@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, BriefcaseBusiness, Building2, FileText, History, Home, KeyRound, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, ShieldCheck, Smartphone, Sun, Users, X } from 'lucide-react';
+import { BookOpen, BriefcaseBusiness, Building2, FileText, History, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -15,10 +15,8 @@ const routePrefetchers = {
   '/contatos': () => import('@/pages/Contacts'),
   '/linhas-corporativas': () => import('@/pages/CorporateLines'),
   '/infraestrutura': () => import('@/pages/Infrastructure'),
-  '/acessos-sistemas': () => import('@/pages/SystemAccessMoved'),
   '/guia-plataforma': () => import('@/pages/PlatformGuide'),
   '/logs-auditoria': () => import('@/pages/AuditLogs'),
-  '/permissoes-sistemas': () => import('@/pages/SystemPermissionsMoved'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
 };
 
@@ -32,10 +30,8 @@ const navItems = [
   { path: '/contatos', label: 'Contatos', icon: Phone, module: 'contatos' },
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone, module: 'linhas_corporativas' },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
-  { path: '/acessos-sistemas', label: 'Acessos Console', icon: KeyRound, module: 'acessos_usuario_sistema' },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
   { path: '/guia-plataforma', label: 'Guia', icon: BookOpen, adminOnly: true },
-  { path: '/permissoes-sistemas', label: 'Console', icon: ShieldCheck, adminOnly: true },
   { path: '/logs-auditoria', label: 'Logs', icon: History, module: 'logs_auditoria' },
 ];
 
