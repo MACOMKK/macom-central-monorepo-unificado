@@ -40,6 +40,38 @@ async function invokeCentralApi(action, payload = {}) {
   return result;
 }
 
+async function invokePlataformaApi(action, payload = {}) {
+  assertSupabaseConfigured();
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+
+  if (!token) {
+    throw toApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
+  }
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/plataforma-api`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw toApiError(
+      result?.error || result?.message || result?.details || 'Falha ao consultar usuarios da plataforma.',
+      response.status,
+      result?.code || (response.status === 401 ? 'auth_required' : undefined),
+    );
+  }
+
+  return result;
+}
+
 async function invokeAdminUserFunction(payload = {}) {
   assertSupabaseConfigured();
   const { data } = await supabase.auth.getSession();
@@ -80,6 +112,16 @@ const listCentralEntity = async (entity, options = {}) => {
   return result.rows || [];
 };
 
+const listPlataformaEntity = async (entity, options = {}) => {
+  const result = await invokePlataformaApi('list', {
+    entity,
+    filters: options.filters || {},
+    limit: options.limit,
+    offset: options.offset,
+  });
+  return result.rows || [];
+};
+
 async function writeConsoleAudit(payload) {
   try {
     await platformAuditApi.logs.create(payload);
@@ -95,7 +137,7 @@ async function getCollaboratorSnapshot(id) {
 
 export const platformUsersApi = {
   collaborators: {
-    list: (options = {}) => listCentralEntity('colaboradores', options),
+    list: (options = {}) => listPlataformaEntity('colaboradores', options),
     updateAccessProfile: async (id, payload) => {
       const before = await getCollaboratorSnapshot(id).catch(() => null);
       const result = await invokeCentralApi('update', {
@@ -167,10 +209,10 @@ export const platformUsersApi = {
     },
   },
   systems: {
-    list: (options = {}) => listCentralEntity('sistemas', options),
+    list: (options = {}) => listPlataformaEntity('sistemas', options),
   },
   accesses: {
-    list: (options = {}) => listCentralEntity('acessos_usuario_sistema', options),
+    list: (options = {}) => listPlataformaEntity('acessos_usuario_sistema', options),
     save: async (payload) => {
       const result = await invokeCentralApi('save', {
         entity: 'acessos_usuario_sistema',

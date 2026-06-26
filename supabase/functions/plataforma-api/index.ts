@@ -12,6 +12,27 @@ const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
 const sql = databaseUrl ? postgres(databaseUrl, { prepare: false }) : null;
 
 const ENTITY_CONFIG = {
+  colaboradores: {
+    schema: 'public',
+    table: 'colaboradores',
+    orderBy: 'nome',
+    orderDirection: 'asc',
+    allowedFilters: ['id', 'email', 'funcao', 'status', 'departamento_id', 'cargo_id', 'unidade_id'],
+  },
+  sistemas: {
+    schema: 'public',
+    table: 'sistemas',
+    orderBy: 'nome',
+    orderDirection: 'asc',
+    allowedFilters: ['id', 'slug', 'ativo'],
+  },
+  acessos_usuario_sistema: {
+    schema: 'public',
+    table: 'acessos_usuario_sistema',
+    orderBy: 'criado_em',
+    orderDirection: 'desc',
+    allowedFilters: ['id', 'colaborador_id', 'sistema_id', 'nivel_acesso', 'ativo'],
+  },
   logs_auditoria: {
     schema: 'gestao_plataforma',
     table: 'logs_auditoria',
@@ -217,7 +238,7 @@ Deno.serve(async (request) => {
       return json({ row });
     }
 
-    if (action !== 'list' || entity !== 'logs_auditoria') {
+    if (action !== 'list' || !(entity in ENTITY_CONFIG)) {
       return json({ error: 'Acao ou entidade invalida.' }, 400);
     }
 
