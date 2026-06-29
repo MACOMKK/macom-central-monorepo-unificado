@@ -5,6 +5,7 @@ import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseCl
 const AuthContext = createContext(null);
 
 export const DEFAULT_SYSTEM_SLUG = 'central';
+export const DEFAULT_AUTH_FUNCTION_NAME = 'central-api';
 export const DEFAULT_ACCESS_ROLES = ['admin', 'gestor'];
 export const PERMISSION_LEVELS = {
   none: 'sem',
@@ -38,14 +39,14 @@ function toAuthApiError(message, status = 500, code) {
   return error;
 }
 
-async function getAuthProfile(accessToken, systemSlug) {
+async function getAuthProfile(accessToken, systemSlug, authFunctionName = DEFAULT_AUTH_FUNCTION_NAME) {
   assertSupabaseConfigured();
 
   if (!accessToken) {
     throw toAuthApiError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/central-api`, {
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${authFunctionName}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -79,6 +80,7 @@ async function getAuthProfile(accessToken, systemSlug) {
 export function AuthProvider({
   children,
   systemSlug = DEFAULT_SYSTEM_SLUG,
+  authFunctionName = DEFAULT_AUTH_FUNCTION_NAME,
   accessRoles = DEFAULT_ACCESS_ROLES,
   accessDeniedMessage = 'Acesso restrito a administradores e gestores.',
 }) {
@@ -114,7 +116,7 @@ export function AuthProvider({
     }
 
     try {
-      const authPayload = await getAuthProfile(nextSession.access_token, systemSlug);
+      const authPayload = await getAuthProfile(nextSession.access_token, systemSlug, authFunctionName);
       const collaborator = authPayload?.row || null;
       const nextPermissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 
@@ -218,6 +220,7 @@ export function AuthProvider({
       isAuthenticated: Boolean(session?.user && canAccessSystem(profile, accessRoles)),
       loading,
       systemSlug,
+      authFunctionName,
       async login(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -238,7 +241,7 @@ export function AuthProvider({
         return hasPermission(profile, permissions, moduleKey, requiredLevel);
       },
     }),
-    [accessRoles, loading, permissions, profile, session, systemSlug]
+    [accessRoles, authFunctionName, loading, permissions, profile, session, systemSlug]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

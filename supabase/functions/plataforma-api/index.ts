@@ -61,6 +61,20 @@ type EntityKey = keyof typeof ENTITY_CONFIG;
 type AuditAction = 'criar' | 'atualizar' | 'excluir' | 'redefinir_senha' | 'desvincular' | 'importar';
 
 const AUDIT_ACTIONS = new Set(['criar', 'atualizar', 'excluir', 'redefinir_senha', 'desvincular', 'importar']);
+const CENTRAL_MODULES = [
+  'dashboard',
+  'ativos',
+  'departamentos',
+  'cargos',
+  'unidades',
+  'colaboradores',
+  'contatos',
+  'linhas_corporativas',
+  'infra_estrutura',
+  'acessos_usuario_sistema',
+  'logs_auditoria',
+  'termos_posse',
+] as const;
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -163,6 +177,58 @@ async function getAuthenticatedCollaborator(userId: string) {
       limit 1;
     `,
     [userId],
+  );
+
+  return rows[0] || null;
+}
+
+async function getCentralPermissions(funcao: string | null | undefined) {
+  if (!sql || !funcao) return [];
+
+  if (funcao === 'admin') {
+    return CENTRAL_MODULES.map((modulo) => ({
+      id: `admin-${modulo}`,
+      funcao,
+      modulo,
+      nivel_acesso: 'gerenciar',
+    }));
+  }
+
+  const rows = await sql.unsafe(
+    `
+      select id, funcao, modulo, nivel_acesso, criado_em, atualizado_em
+      from gestao_ativos.permissoes_central
+      where funcao = $1
+      order by modulo asc;
+    `,
+    [funcao],
+  );
+
+  return rows;
+}
+
+async function getSystemAccessForCollaborator({
+  collaboratorId,
+  systemSlug,
+}: {
+  collaboratorId?: string | null;
+  systemSlug?: string | null;
+}) {
+  if (!sql || !collaboratorId || !systemSlug) return null;
+
+  const rows = await sql.unsafe(
+    `
+      select
+        aus.*,
+        row_to_json(s) as sistema
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      where aus.colaborador_id = $1
+        and s.slug = $2
+      order by aus.ativo desc, aus.atualizado_em desc nulls last, aus.criado_em desc
+      limit 1;
+    `,
+    [collaboratorId, systemSlug],
   );
 
   return rows[0] || null;
@@ -648,6 +714,25 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => ({}));
     const { action, entity } = body || {};
+
+    if (action === 'me' && entity === 'colaboradores') {
+      const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
+      const permissions = await getCentralPermissions(
+        typeof activeCollaborator.funcao === 'string' ? activeCollaborator.funcao : null,
+      );
+      const access = systemSlug
+        ? await getSystemAccessForCollaborator({
+            collaboratorId: typeof activeCollaborator.id === 'string' ? activeCollaborator.id : null,
+            systemSlug,
+          })
+        : null;
+
+      return json({
+        row: activeCollaborator,
+        access,
+        permissions,
+      });
+    }
 
     if (action === 'create' && entity === 'logs_auditoria') {
       const row = await insertAuditLog({

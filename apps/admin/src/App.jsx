@@ -27,7 +27,7 @@ function LoginRoute() {
 
 export default function App() {
   return (
-    <AuthProvider systemSlug="central">
+    <AuthProvider authFunctionName="plataforma-api" systemSlug="central">
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <Routes>

@@ -154,6 +154,60 @@ describe('AuthProvider', () => {
     });
   });
 
+  it('permite configurar a function de autenticacao para o Console', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-console-api',
+          user: { id: 'user-4', email: 'console@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-4',
+          nome: 'Admin Console API',
+          email: 'console@macom.com',
+          funcao: 'admin',
+          status: 'ativo',
+        },
+        access: null,
+      }),
+    });
+
+    render(
+      <AuthProvider authFunctionName="plataforma-api" systemSlug="central">
+        <Harness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/functions/v1/plataforma-api'),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer token-console-api',
+          }),
+        }),
+      );
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+        action: 'me',
+        entity: 'colaboradores',
+        system_slug: 'central',
+      });
+      expect(screen.getByText('autenticado')).toBeInTheDocument();
+      expect(screen.getByText('Admin Console API')).toBeInTheDocument();
+    });
+  });
+
   it('permite acesso ao gestor logado', async () => {
     const user = userEvent.setup();
 

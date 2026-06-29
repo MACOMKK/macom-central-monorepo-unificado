@@ -15,6 +15,48 @@ O repositório usa `npm workspaces` para instalar as dependencias da raiz, dos a
 - `supabase/*`: functions, migrations e config do backend
 - `scripts/vite/createAppConfig.js`: padrao compartilhado de configuracao Vite para novos apps
 
+## Padrao de arquitetura
+
+O monorepo separa dados globais da plataforma e dados especificos de cada dominio.
+
+### Dados globais em `public`
+
+O schema `public` deve guardar entidades compartilhadas por todos os sistemas. Essas tabelas nao pertencem a um app especifico, mesmo quando sao administradas pelo MACOM Console.
+
+Exemplos:
+
+- `public.colaboradores`: identidade global dos colaboradores e usuarios.
+- `public.sistemas`: catalogo global dos sistemas MACOM.
+- `public.acessos_usuario_sistema`: vinculo global entre colaborador e sistema.
+
+Essas tabelas podem ser lidas ou usadas por Central, Console, Intranet, Relatorios, CRM e futuros apps.
+
+### Dados especificos em schemas `gestao_*`
+
+Cada schema `gestao_*` deve guardar dados que pertencem a um dominio ou app especifico.
+
+Exemplos:
+
+- `gestao_ativos`: dados operacionais da Central/estoque/TI, como ativos, linhas, termos, infraestrutura e logs operacionais.
+- `gestao_intranet`: conteudos, permissoes e configuracoes internas da Intranet.
+- `gestao_relatorio`: relatorios, permissoes e auditoria dos Relatorios.
+- `gestao_crm`: dados proprios do CRM.
+- `gestao_plataforma`: dados proprios do Console/governanca, como auditoria de governanca e futuras configuracoes da plataforma.
+
+### Regra para novas tabelas
+
+Antes de criar uma tabela nova, use esta regra:
+
+- Se a entidade representa algo compartilhado por todos os sistemas, crie em `public`.
+- Se a entidade pertence ao funcionamento interno de um app ou dominio, crie no schema `gestao_<dominio>`.
+- Se o Console apenas administra uma entidade global, isso nao significa que a tabela deve morar em `gestao_plataforma`.
+
+### Logs e auditoria
+
+- Logs operacionais ficam no schema do dominio que executa a operacao.
+- Auditoria de governanca do Console fica em `gestao_plataforma.logs_auditoria`.
+- Eventos devem registrar origem quando aplicavel, por exemplo `source_app: central`, `console`, `intranet`, `relatorios` ou `crm`.
+
 ## Rodar local
 
 1. Instale dependencias na raiz:
