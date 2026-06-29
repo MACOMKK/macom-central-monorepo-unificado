@@ -166,20 +166,39 @@ async function getAuthenticatedUser(request: Request) {
   return data.user;
 }
 
-async function getAuthenticatedCollaborator(userId: string) {
+async function getAuthenticatedCollaborator(authUser: { id: string; email?: string | null }) {
   if (!sql) return null;
 
-  const rows = await sql.unsafe(
+  const byIdRows = await sql.unsafe(
     `
       select id, nome, email, funcao, status
       from public.colaboradores
       where id = $1
       limit 1;
     `,
-    [userId],
+    [authUser.id],
   );
 
-  return rows[0] || null;
+  if (byIdRows[0]) {
+    return byIdRows[0];
+  }
+
+  const normalizedEmail = typeof authUser.email === 'string' ? authUser.email.trim().toLowerCase() : null;
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmailRows = await sql.unsafe(
+    `
+      select id, nome, email, funcao, status
+      from public.colaboradores
+      where lower(trim(email)) = lower(trim($1))
+      limit 1;
+    `,
+    [normalizedEmail],
+  );
+
+  return byEmailRows[0] || null;
 }
 
 async function getCentralPermissions(funcao: string | null | undefined) {
@@ -706,7 +725,10 @@ Deno.serve(async (request) => {
       return json({ error: 'Sessao expirada. Faca login novamente.', code: 'auth_required' }, 401);
     }
 
-    const collaborator = await getAuthenticatedCollaborator(user.id);
+    const collaborator = await getAuthenticatedCollaborator({
+      id: user.id,
+      email: user.email ?? null,
+    });
     if (!canAccessPlataforma(collaborator)) {
       return json({ error: 'Acesso restrito ao MACOM Console.' }, 403);
     }
