@@ -729,32 +729,34 @@ Deno.serve(async (request) => {
       id: user.id,
       email: user.email ?? null,
     });
-    if (!canAccessPlataforma(collaborator)) {
-      return json({ error: 'Acesso restrito ao MACOM Console.' }, 403);
-    }
-    const activeCollaborator = collaborator as Record<string, unknown>;
 
     const body = await request.json().catch(() => ({}));
     const { action, entity } = body || {};
 
     if (action === 'me' && entity === 'colaboradores') {
+      const activeCollaborator = collaborator as Record<string, unknown> | null;
       const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
       const permissions = await getCentralPermissions(
-        typeof activeCollaborator.funcao === 'string' ? activeCollaborator.funcao : null,
+        typeof activeCollaborator?.funcao === 'string' ? activeCollaborator.funcao : null,
       );
       const access = systemSlug
         ? await getSystemAccessForCollaborator({
-            collaboratorId: typeof activeCollaborator.id === 'string' ? activeCollaborator.id : null,
+            collaboratorId: typeof activeCollaborator?.id === 'string' ? activeCollaborator.id : null,
             systemSlug,
           })
         : null;
 
       return json({
-        row: activeCollaborator,
+        row: activeCollaborator || null,
         access,
         permissions,
       });
     }
+
+    if (!canAccessPlataforma(collaborator)) {
+      return json({ error: 'Acesso restrito ao MACOM Console.' }, 403);
+    }
+    const activeCollaborator = collaborator as Record<string, unknown>;
 
     if (action === 'create' && entity === 'logs_auditoria') {
       const row = await insertAuditLog({

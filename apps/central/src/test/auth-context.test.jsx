@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 
 import { AuthProvider, useAuth } from '@macom/auth';
 
@@ -32,6 +33,24 @@ function Harness() {
       <div>{loading ? 'carregando' : 'pronto'}</div>
       <div>{isAuthenticated ? 'autenticado' : 'anonimo'}</div>
       <div>{profile?.nome || 'sem-perfil'}</div>
+    </div>
+  );
+}
+
+function ErrorHarness() {
+  const { login, isAuthenticated } = useAuth();
+  const [errorMessage, setErrorMessage] = useState('');
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => login('admin@macom.com', 'Segredo123').catch((error) => setErrorMessage(error.message))}
+      >
+        Entrar
+      </button>
+      <div>{isAuthenticated ? 'autenticado' : 'anonimo'}</div>
+      <div>{errorMessage || 'sem-erro'}</div>
     </div>
   );
 }
@@ -205,6 +224,46 @@ describe('AuthProvider', () => {
       });
       expect(screen.getByText('autenticado')).toBeInTheDocument();
       expect(screen.getByText('Admin Console API')).toBeInTheDocument();
+    });
+  });
+
+  it('nao encerra a sessao do Supabase quando a validacao falha por erro transiente', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-error',
+          user: { id: 'user-error', email: 'admin@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({
+        error: 'Falha temporaria na API.',
+      }),
+    });
+
+    render(
+      <AuthProvider authFunctionName="plataforma-api">
+        <ErrorHarness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/functions/v1/plataforma-api'),
+        expect.any(Object),
+      );
+      expect(signOutMock).not.toHaveBeenCalled();
+      expect(screen.getByText('anonimo')).toBeInTheDocument();
+      expect(screen.getByText('Falha temporaria na API.')).toBeInTheDocument();
     });
   });
 

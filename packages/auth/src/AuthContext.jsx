@@ -39,6 +39,10 @@ function toAuthApiError(message, status = 500, code) {
   return error;
 }
 
+function shouldSignOutAfterValidationError(error) {
+  return error?.status === 401 || error?.status === 403;
+}
+
 async function getAuthProfile(accessToken, systemSlug, authFunctionName = DEFAULT_AUTH_FUNCTION_NAME) {
   assertSupabaseConfigured();
 
@@ -135,7 +139,9 @@ export function AuthProvider({
       setLoading(false);
     } catch (error) {
       clearAuthState();
-      scheduleSignOut();
+      if (shouldSignOutAfterValidationError(error)) {
+        scheduleSignOut();
+      }
       throw error;
     }
   }
@@ -224,7 +230,7 @@ export function AuthProvider({
       async login(email, password) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        await validateSession(data.session || null, { force: true });
+        await validateSession(data.session || null);
       },
       async logout() {
         await supabase.auth.signOut();
