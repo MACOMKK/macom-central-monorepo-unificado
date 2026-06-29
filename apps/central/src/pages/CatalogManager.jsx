@@ -633,8 +633,6 @@ export default function CatalogManager({ lockedEntityKey }) {
   const {
     assetMenuHandlers,
     collaboratorCanDelete,
-    collaboratorCanResetPassword,
-    collaboratorCanUpdateEmail,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,
@@ -653,11 +651,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     infrastructureMenu,
     openAssetAssignment: setAssigningAsset,
     openCorporateLineAssignment: setAssigningCorporateLine,
-    openEmailUpdate: (record) => {
-      setEmailRecord(record);
-      setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
-    },
-    openPasswordReset: setPasswordRecord,
     openRecord: setEditingRecord,
     requestConfirmation: setConfirmDialog,
     systemAccesses,
@@ -1260,8 +1253,6 @@ export default function CatalogManager({ lockedEntityKey }) {
         assetMenu={assetMenu}
         assetMenuHandlers={assetMenuHandlers}
         collaboratorCanDelete={collaboratorCanDelete}
-        collaboratorCanResetPassword={collaboratorCanResetPassword}
-        collaboratorCanUpdateEmail={collaboratorCanUpdateEmail}
         collaboratorCanUnlinkAll={collaboratorCanUnlinkAll}
         collaboratorMenu={collaboratorMenu}
         collaboratorMenuHandlers={collaboratorMenuHandlers}

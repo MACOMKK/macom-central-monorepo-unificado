@@ -14,8 +14,6 @@ describe('CollaboratorActionsMenu', () => {
         menu={menu}
         onDelete={vi.fn()}
         onEdit={vi.fn()}
-        onUpdateEmail={vi.fn()}
-        onResetPassword={vi.fn()}
         onUnlinkAll={vi.fn()}
       />
     );
@@ -27,8 +25,6 @@ describe('CollaboratorActionsMenu', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const onEdit = vi.fn();
-    const onResetPassword = vi.fn();
-    const onUpdateEmail = vi.fn();
     const onUnlinkAll = vi.fn();
 
     const { rerender } = render(
@@ -38,23 +34,19 @@ describe('CollaboratorActionsMenu', () => {
         menu={menu}
         onDelete={onDelete}
         onEdit={onEdit}
-        onUpdateEmail={onUpdateEmail}
-        onResetPassword={onResetPassword}
         onUnlinkAll={onUnlinkAll}
       />
     );
 
     await user.click(screen.getByRole('button', { name: 'Editar' }));
-    await user.click(screen.getByRole('button', { name: 'Atualizar email de acesso' }));
-    await user.click(screen.getByRole('button', { name: 'Redefinir senha' }));
     await user.click(screen.getByRole('button', { name: 'Desvincular tudo' }));
     await user.click(screen.getByRole('button', { name: 'Excluir' }));
 
     expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(onUpdateEmail).toHaveBeenCalledTimes(1);
-    expect(onResetPassword).toHaveBeenCalledTimes(1);
     expect(onUnlinkAll).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Atualizar email de acesso' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Redefinir senha' })).not.toBeInTheDocument();
 
     rerender(
       <CollaboratorActionsMenu
@@ -63,8 +55,6 @@ describe('CollaboratorActionsMenu', () => {
         menu={menu}
         onDelete={onDelete}
         onEdit={onEdit}
-        onUpdateEmail={onUpdateEmail}
-        onResetPassword={onResetPassword}
         onUnlinkAll={onUnlinkAll}
       />
     );

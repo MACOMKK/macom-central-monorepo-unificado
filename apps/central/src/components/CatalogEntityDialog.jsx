@@ -171,8 +171,12 @@ export default function CatalogEntityDialog({
                 {field.required ? ' *' : ''}
               </Label>
               {field.type === 'select' ? (
-                <Select value={formState[field.key]} onValueChange={(value) => handleChange(field.key, value)}>
-                  <SelectTrigger id={field.key} className={`mt-2 ${field.inputClassName || ''}`.trim()}>
+                <Select
+                  value={formState[field.key]}
+                  onValueChange={(value) => handleChange(field.key, value)}
+                  disabled={field.disabled}
+                >
+                  <SelectTrigger id={field.key} className={`mt-2 ${field.inputClassName || ''}`.trim()} disabled={field.disabled}>
                     <SelectValue placeholder={resolveFieldProp(field, 'placeholder', formState, record) || 'Selecione'} />
                   </SelectTrigger>
                   <SelectContent>

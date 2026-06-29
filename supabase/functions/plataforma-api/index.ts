@@ -10,7 +10,14 @@ const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const sql = databaseUrl ? postgres(databaseUrl, { prepare: false }) : null;
+const sql = databaseUrl
+  ? postgres(databaseUrl, {
+      prepare: false,
+      max: 1,
+      idle_timeout: 5,
+      connect_timeout: 10,
+    })
+  : null;
 
 const ENTITY_CONFIG = {
   colaboradores: {

@@ -12,8 +12,6 @@ export function useCatalogActionHandlers({
   openRecord,
   openAssetAssignment,
   openCorporateLineAssignment,
-  openEmailUpdate,
-  openPasswordReset,
   requestConfirmation,
   systemAccesses,
   runWithClosedMenu,
@@ -58,15 +56,6 @@ export function useCatalogActionHandlers({
     collaboratorMenu &&
       (canManageElevatedRoles || !['admin', 'gestor'].includes(collaboratorMenu.row.funcao))
   );
-  const collaboratorCanResetPassword = Boolean(
-    collaboratorMenu &&
-      (canManageElevatedRoles || collaboratorMenu.row.funcao !== 'admin')
-  );
-  const collaboratorCanUpdateEmail = Boolean(
-    collaboratorMenu &&
-      (canManageElevatedRoles || !['admin', 'gestor'].includes(collaboratorMenu.row.funcao))
-  );
-
   const assetMenuHandlers = {
     onAssign: () => openMenuAssignment(openAssetAssignment, assetMenu),
     onDelete: () => {
@@ -142,24 +131,6 @@ export function useCatalogActionHandlers({
       );
     },
     onEdit: () => openRecordEditor(collaboratorMenu),
-    onUpdateEmail: () => {
-      if (!collaboratorCanUpdateEmail) {
-        showMenuError('Apenas administradores podem alterar email de colaboradores admin ou gestor.');
-        return;
-      }
-
-      openEmailUpdate(collaboratorMenu.row);
-      closeMenu();
-    },
-    onResetPassword: () => {
-      if (!collaboratorCanResetPassword) {
-        showMenuError('Apenas administradores podem redefinir senha de colaboradores admin.');
-        return;
-      }
-
-      openPasswordReset(collaboratorMenu.row);
-      closeMenu();
-    },
     onUnlinkAll: () => {
       requestConfirmation({
         title: 'Desvincular colaborador',
@@ -174,8 +145,6 @@ export function useCatalogActionHandlers({
   return {
     assetMenuHandlers,
     collaboratorCanDelete,
-    collaboratorCanResetPassword,
-    collaboratorCanUpdateEmail,
     collaboratorCanUnlinkAll,
     collaboratorMenuHandlers,
     contactMenuHandlers,

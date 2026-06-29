@@ -710,6 +710,7 @@ export function buildCollaboratorsConfig({
         label: 'Funcao',
         type: 'select',
         defaultValue: 'usuario',
+        disabled: Boolean(editingRecord?.id),
         options: collaboratorRoleOptions,
       },
       {
@@ -758,6 +759,7 @@ export function buildCollaboratorsConfig({
         label: 'Status',
         type: 'select',
         defaultValue: 'ativo',
+        disabled: Boolean(editingRecord?.id),
         options: collaboratorStatusOptions,
       },
       {
