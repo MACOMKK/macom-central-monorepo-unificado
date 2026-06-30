@@ -107,11 +107,13 @@ vi.mock('@/components/CatalogEntityDialog', () => ({
         <h2>{title}</h2>
         {fields.map((field) => {
           const label = typeof field.label === 'function' ? field.label(values) : field.label;
+          const disabled = typeof field.disabled === 'function' ? field.disabled(values, record) : field.disabled;
           return (
             <label key={field.key}>
               {label}
               <input
                 aria-label={label}
+                disabled={Boolean(disabled)}
                 value={values[field.key] || ''}
                 onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
               />

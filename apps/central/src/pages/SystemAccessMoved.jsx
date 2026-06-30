@@ -1,5 +1,4 @@
 import { ExternalLink, KeyRound } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,8 +26,7 @@ export default function SystemAccessMoved() {
             <div>
               <h2 className="text-lg font-bold text-foreground">Controle principal no MACOM Console</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Use o Console para liberar, bloquear ou remover acessos aos sistemas. A tela antiga
-                continua disponivel temporariamente como fallback durante a validacao.
+                Use o Console para liberar, bloquear ou remover acessos aos sistemas.
               </p>
             </div>
           </div>
@@ -39,9 +37,6 @@ export default function SystemAccessMoved() {
                 <ExternalLink className="h-4 w-4" />
                 Abrir Console
               </a>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/acessos-sistemas-legado">Acessar legado</Link>
             </Button>
           </div>
         </div>

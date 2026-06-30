@@ -42,8 +42,6 @@ export function useCatalogMutations({
   normalizeText,
   onAssignAssetSuccess,
   onAssignCorporateLineSuccess,
-  onEmailSuccess,
-  onPasswordSuccess,
   onCollaboratorsImportReport,
   onResetAssetsImport,
   onResetCollaboratorsImport,
@@ -300,35 +298,6 @@ export function useCatalogMutations({
     },
   });
 
-  const passwordMutation = useMutation({
-    mutationFn: async ({ id, password }) => catalogApi.colaboradores.updatePassword(id, password),
-    onSuccess: () =>
-      handleMutationSuccess({
-        message: 'Senha atualizada com sucesso.',
-        onSuccess: onPasswordSuccess,
-      }),
-    onError: (error) => showMutationError(error, 'Falha ao atualizar senha.'),
-  });
-
-  const emailMutation = useMutation({
-    mutationFn: async ({ id, email, resetPassword }) =>
-      catalogApi.colaboradores.updateEmail(id, email, { resetPassword }),
-    onSuccess: (updatedCollaborator) => {
-      if (updatedCollaborator?.id) {
-        queryClient.setQueryData(['colaboradores'], (old = []) => (
-          Array.isArray(old) ? replaceCatalogRecord(old, updatedCollaborator) : old
-        ));
-      }
-
-      handleMutationSuccess({
-        queryKeys: [['colaboradores']],
-        message: 'Email de acesso atualizado com sucesso.',
-        onSuccess: onEmailSuccess,
-      });
-    },
-    onError: (error) => showMutationError(error, 'Falha ao atualizar email de acesso.'),
-  });
-
   const importAssetsMutation = useMutation({
     mutationFn: async (rowsToImport) =>
       importAssetRows({
@@ -518,13 +487,11 @@ export function useCatalogMutations({
     assignUserMutation,
     deleteMutation,
     deleteManyMutation,
-    emailMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
     importContactsMutation,
     importCorporateLinesMutation,
     importInfrastructureMutation,
-    passwordMutation,
     saveMutation,
     unlinkAssignmentsMutation,
   };

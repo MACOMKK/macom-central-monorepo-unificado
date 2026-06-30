@@ -2226,6 +2226,9 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(`select * from ${schema}.${table} order by ${orderBy} ${orderDirection};`);
       return json({ rows });
     }
+    if (['save', 'update', 'delete'].includes(action) && entity === 'acessos_usuario_sistema') {
+      return json({ error: 'A gestao de acessos foi movida para a plataforma-api.' }, 410);
+    }
 
     if (action === 'save' && entity === 'permissoes_central') {
       const sanitized = sanitizePayload(entity, payload);

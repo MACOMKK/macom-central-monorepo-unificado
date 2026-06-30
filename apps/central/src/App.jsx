@@ -11,7 +11,6 @@ import { queryClientInstance } from '@/lib/query-client';
 
 const Assets = lazy(() => import('@/pages/Assets'));
 const AuditLogs = lazy(() => import('@/pages/AuditLogs'));
-const CentralPermissions = lazy(() => import('@/pages/CentralPermissions'));
 const Collaborators = lazy(() => import('@/pages/Collaborators'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
 const CorporateLines = lazy(() => import('@/pages/CorporateLines'));
@@ -19,10 +18,8 @@ const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Departments = lazy(() => import('@/pages/Departments'));
 const Infrastructure = lazy(() => import('@/pages/Infrastructure'));
 const Login = lazy(() => import('@/pages/Login'));
-const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
 const PlatformGuideMoved = lazy(() => import('@/pages/PlatformGuideMoved'));
 const Positions = lazy(() => import('@/pages/Positions'));
-const SystemAccess = lazy(() => import('@/pages/SystemAccess'));
 const SystemAccessMoved = lazy(() => import('@/pages/SystemAccessMoved'));
 const SystemPermissionsMoved = lazy(() => import('@/pages/SystemPermissionsMoved'));
 const TermsPossession = lazy(() => import('@/pages/TermsPossession'));
@@ -106,14 +103,14 @@ export default function App() {
                 <Route path="/acessos-sistemas" element={withCentralPermission('/acessos-sistemas', <SystemAccessMoved />)} />
                 <Route
                   path="/acessos-sistemas-legado"
-                  element={withCentralPermission('/acessos-sistemas', <SystemAccess />, { moduleKey: 'acessos_usuario_sistema' })}
+                  element={<Navigate to="/acessos-sistemas" replace />}
                 />
                 <Route path="/logs-auditoria" element={withCentralPermission('/logs-auditoria', <AuditLogs />)} />
                 <Route path="/guia-plataforma" element={withCentralPermission('/guia-plataforma', <PlatformGuideMoved />, { adminOnly: true })} />
-                <Route path="/guia-plataforma-legado" element={withCentralPermission('/guia-plataforma-legado', <PlatformGuide />, { adminOnly: true })} />
+                <Route path="/guia-plataforma-legado" element={<Navigate to="/guia-plataforma" replace />} />
                 <Route path="/permissoes-central" element={<Navigate to="/permissoes-sistemas" replace />} />
                 <Route path="/permissoes-sistemas" element={withCentralPermission('/permissoes-sistemas', <SystemPermissionsMoved />, { adminOnly: true })} />
-                <Route path="/permissoes-sistemas-legado" element={withCentralPermission('/permissoes-sistemas-legado', <CentralPermissions />, { adminOnly: true })} />
+                <Route path="/permissoes-sistemas-legado" element={<Navigate to="/permissoes-sistemas" replace />} />
                 <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />
                 <Route path="*" element={<PageNotFound />} />
               </Route>

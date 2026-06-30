@@ -226,7 +226,7 @@ describe('CatalogManager collaborators', () => {
         cpf: '12345678901',
         telefone: '85999999999',
         departamento_id: 'dep-1',
-        cargo: 'Analista de TI',
+        cargo_id: 'Analista de TI',
         data_nascimento: '1994-08-10',
         data_admissao: '2026-05-11',
         status: 'inativo',
@@ -268,9 +268,11 @@ describe('CatalogManager collaborators', () => {
     expect(screen.getByLabelText('Email')).toHaveValue('maria@macom.com');
     expect(screen.queryByLabelText('Senha de acesso')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Funcao')).toHaveValue('admin');
+    expect(screen.getByLabelText('Funcao')).toBeDisabled();
     expect(screen.getByLabelText('Telefone')).toHaveValue('85999999999');
     expect(screen.getByLabelText('Departamento')).toHaveValue('dep-1');
     expect(screen.getByLabelText('Data de nascimento')).toHaveValue('1994-08-10');
+    expect(screen.getByLabelText('Status')).toBeDisabled();
 
     await user.clear(screen.getByLabelText('Nome'));
     await user.type(screen.getByLabelText('Nome'), 'Maria Souza Atualizada');
@@ -280,24 +282,20 @@ describe('CatalogManager collaborators', () => {
     await user.type(screen.getByLabelText('Cargo'), 'Coordenadora de TI');
     await user.clear(screen.getByLabelText('Data de nascimento'));
     await user.type(screen.getByLabelText('Data de nascimento'), '1995-09-11');
-    await user.clear(screen.getByLabelText('Funcao'));
-    await user.type(screen.getByLabelText('Funcao'), 'usuario');
-    await user.clear(screen.getByLabelText('Status'));
-    await user.type(screen.getByLabelText('Status'), 'inativo');
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
       expect(catalogApi.colaboradores.update).toHaveBeenCalledWith('col-10', {
         nome: 'Maria Souza Atualizada',
         email: 'maria@macom.com',
-        funcao: 'usuario',
+        funcao: 'admin',
         cpf: '12345678901',
         telefone: '85988887777',
         departamento_id: 'dep-1',
-        cargo: 'Coordenadora de TI',
+        cargo_id: 'Coordenadora de TI',
         data_nascimento: '1995-09-11',
         data_admissao: '2026-05-11',
-        status: 'inativo',
+        status: 'ativo',
         unidade_id: 'unit-1',
       });
     });
@@ -331,44 +329,6 @@ describe('CatalogManager collaborators', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Falha ao atualizar colaborador.');
     });
-  });
-
-  it('atualiza o email de acesso do colaborador pelo menu de acoes', async () => {
-    const user = userEvent.setup();
-    catalogApi.colaboradores.list.mockResolvedValue([
-      {
-        id: 'col-email-1',
-        nome: 'Colaborador Provisorio',
-        email: '12345678901@cadastro.macom.com.br',
-        funcao: 'usuario',
-        status: 'ativo',
-      },
-    ]);
-    catalogApi.ativos.list.mockResolvedValue([]);
-
-    renderCatalogManager('colaboradores');
-
-    const trigger = await screen.findByRole('button', { name: 'Abrir menu de acoes' });
-    await user.click(trigger);
-    await user.click(screen.getByRole('button', { name: 'Atualizar email de acesso' }));
-
-    expect(await screen.findByText('Atualizar email de acesso')).toBeInTheDocument();
-    expect(screen.getAllByText('12345678901@cadastro.macom.com.br').length).toBeGreaterThan(0);
-
-    await user.type(screen.getByLabelText('Novo email'), 'novo@macom.com');
-    await user.type(screen.getByLabelText('Confirmar novo email'), 'novo@macom.com');
-    await user.click(screen.getByLabelText('Redefinir senha para Kmacom.123'));
-    await user.click(screen.getByRole('button', { name: 'Atualizar email' }));
-
-    await waitFor(() => {
-      expect(catalogApi.colaboradores.updateEmail).toHaveBeenCalledWith(
-        'col-email-1',
-        'novo@macom.com',
-        { resetPassword: true }
-      );
-    });
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Email de acesso atualizado com sucesso.');
   });
 
   it('importa colaboradores com sucesso a partir do preview carregado', async () => {

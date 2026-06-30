@@ -52,7 +52,6 @@ import { useActionMenu } from '@/pages/catalog-manager/hooks/useActionMenu';
 import { useCatalogActionHandlers } from '@/pages/catalog-manager/hooks/useCatalogActionHandlers';
 import { useCatalogImportActions } from '@/pages/catalog-manager/hooks/useCatalogImportActions';
 import { useCatalogMutations } from '@/pages/catalog-manager/hooks/useCatalogMutations';
-import { useCatalogPasswordActions } from '@/pages/catalog-manager/hooks/useCatalogPasswordActions';
 import { useCatalogViewState } from '@/pages/catalog-manager/hooks/useCatalogViewState';
 import { hasExactDigits, normalizeText, resolveIdByName } from '@macom/validation';
 import {
@@ -91,11 +90,6 @@ function formatPhone(phone) {
     return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
   }
   return phone;
-}
-
-function generatePassword(length = 12) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
-  return Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
 }
 
 const ENTITY_DEPENDENCIES = {
@@ -143,10 +137,6 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
   const [viewingPosition, setViewingPosition] = useState(null);
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
-  const [passwordRecord, setPasswordRecord] = useState(null);
-  const [passwordForm, setPasswordForm] = useState({ password: '', confirmPassword: '' });
-  const [emailRecord, setEmailRecord] = useState(null);
-  const [emailForm, setEmailForm] = useState({ email: '', confirmEmail: '', resetPassword: false });
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importAssetsPreview, setImportAssetsPreview] = useState([]);
@@ -580,13 +570,11 @@ export default function CatalogManager({ lockedEntityKey }) {
     assignUserMutation,
     deleteManyMutation,
     deleteMutation,
-    emailMutation,
     importAssetsMutation,
     importCollaboratorsMutation,
     importContactsMutation,
     importCorporateLinesMutation,
     importInfrastructureMutation,
-    passwordMutation,
     saveMutation,
     unlinkAssignmentsMutation,
   } = useCatalogMutations({
@@ -598,14 +586,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     onAssignAssetSuccess: () => setAssigningAsset(null),
     onAssignCorporateLineSuccess: () => setAssigningCorporateLine(null),
     onCollaboratorsImportReport: handleCollaboratorsImportReport,
-    onEmailSuccess: () => {
-      setEmailRecord(null);
-      setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
-    },
-    onPasswordSuccess: () => {
-      setPasswordRecord(null);
-      setPasswordForm({ password: '', confirmPassword: '' });
-    },
     onResetAssetsImport: resetImportAssetsDialog,
     onResetCollaboratorsImport: resetImportCollaboratorsDialog,
     onResetContactsImport: resetImportContactsDialog,
@@ -724,45 +704,6 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportInfrastructurePreview,
     units,
   });
-
-  const { handleCopyPassword, handleGeneratePassword, handleSubmitPassword } = useCatalogPasswordActions({
-    generatePassword,
-    mutatePassword: (payload) => passwordMutation.mutate(payload),
-    navigatorClipboard: navigator.clipboard,
-    passwordForm,
-    passwordRecord,
-    setFeedback,
-    setPasswordForm,
-  });
-
-  const handleSubmitEmailUpdate = () => {
-    const email = emailForm.email.trim().toLowerCase();
-    const confirmEmail = emailForm.confirmEmail.trim().toLowerCase();
-    const currentEmail = String(emailRecord?.email || '').trim().toLowerCase();
-
-    if (!emailRecord?.id) return;
-
-    if (!email || !email.includes('@')) {
-      setFeedback({ type: 'error', message: 'Informe um email valido.' });
-      return;
-    }
-
-    if (email !== confirmEmail) {
-      setFeedback({ type: 'error', message: 'Os emails informados nao conferem.' });
-      return;
-    }
-
-    if (email === currentEmail) {
-      setFeedback({ type: 'error', message: 'Informe um email diferente do atual.' });
-      return;
-    }
-
-    emailMutation.mutate({
-      id: emailRecord.id,
-      email,
-      resetPassword: emailForm.resetPassword,
-    });
-  };
 
   const allBulkRowsSelected =
     isBulkDeleteView &&
@@ -1169,34 +1110,6 @@ export default function CatalogManager({ lockedEntityKey }) {
             }),
           open: assigningCorporateLine !== null,
           record: assigningCorporateLine,
-        }}
-        emailUpdate={{
-          collaborator: emailRecord,
-          form: emailForm,
-          isPending: emailMutation.isPending,
-          onClose: () => {
-            setEmailRecord(null);
-            setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
-          },
-          onConfirmEmailChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, confirmEmail: value })),
-          onEmailChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, email: value })),
-          onResetPasswordChange: (value) => setEmailForm((currentValue) => ({ ...currentValue, resetPassword: value })),
-          onSubmit: handleSubmitEmailUpdate,
-          open: emailRecord !== null,
-        }}
-        passwordReset={{
-          form: passwordForm,
-          isPending: passwordMutation.isPending,
-          onClose: () => {
-            setPasswordRecord(null);
-            setPasswordForm({ password: '', confirmPassword: '' });
-          },
-          onConfirmPasswordChange: (value) => setPasswordForm((current) => ({ ...current, confirmPassword: value })),
-          onCopyPassword: handleCopyPassword,
-          onGeneratePassword: handleGeneratePassword,
-          onPasswordChange: (value) => setPasswordForm((current) => ({ ...current, password: value })),
-          onSubmit: handleSubmitPassword,
-          open: passwordRecord !== null,
         }}
       />
 

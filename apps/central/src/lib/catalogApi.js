@@ -1,5 +1,4 @@
 import { invokeCentralApi } from '@/lib/centralApiClient';
-import { invokeReportsApi } from '@/lib/reportsApiClient';
 import { assertSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 
 function toApiError(message, status = 500, code) {
@@ -118,19 +117,6 @@ export const catalogApi = {
       const result = await invokeCentralApi('update', { entity: 'colaboradores', id, payload });
       return result.row || null;
     },
-    updatePassword: async (id, password) => {
-      await invokeSupabaseFunction('admin-create-user', { action: 'update_password', id, password });
-      return true;
-    },
-    updateEmail: async (id, email, options = {}) => {
-      const result = await invokeSupabaseFunction('admin-create-user', {
-        action: 'update_email',
-        id,
-        email,
-        reset_password: Boolean(options.resetPassword),
-      });
-      return result.row || null;
-    },
     unlinkAssignments: async (id) => {
       return invokeSupabaseFunction('admin-create-user', { action: 'unlink_assignments', id });
     },
@@ -180,36 +166,6 @@ export const catalogApi = {
         limit: result.limit ?? options.limit ?? null,
         offset: result.offset ?? options.offset ?? 0,
       };
-    },
-  },
-  permissoes_central: {
-    list: async (options = {}) => {
-      const result = await invokeCentralApi('list', {
-        entity: 'permissoes_central',
-        filters: options.filters || {},
-      });
-      return result.rows || [];
-    },
-    save: async (payload) => {
-      const result = await invokeCentralApi('save', { entity: 'permissoes_central', payload });
-      return result.row || null;
-    },
-  },
-  permissoes_funcoes_relatorios: {
-    list: async (options = {}, accessTokenOverride) => {
-      const result = await invokeReportsApi(
-        'list',
-        {
-          entity: 'permissoes_funcoes_relatorios',
-          filters: options.filters || {},
-        },
-        accessTokenOverride,
-      );
-      return result.rows || [];
-    },
-    save: async (payload) => {
-      const result = await invokeReportsApi('save', { entity: 'permissoes_funcoes_relatorios', payload });
-      return result.row || null;
     },
   },
   email: {

@@ -1,5 +1,4 @@
 import { BookOpen, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,8 +26,7 @@ export default function PlatformGuideMoved() {
             <div>
               <h2 className="text-lg font-bold text-foreground">Documentacao principal no MACOM Console</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Consulte no Console os fluxos de uso, regras operacionais e orientacoes de governanca. A versao antiga
-                continua disponivel temporariamente como fallback durante a validacao.
+                Consulte no Console os fluxos de uso, regras operacionais e orientacoes de governanca.
               </p>
             </div>
           </div>
@@ -39,9 +37,6 @@ export default function PlatformGuideMoved() {
                 <ExternalLink className="h-4 w-4" />
                 Abrir Console
               </a>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/guia-plataforma-legado">Acessar legado</Link>
             </Button>
           </div>
         </div>
