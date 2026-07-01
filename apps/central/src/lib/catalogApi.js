@@ -128,6 +128,9 @@ export const catalogApi = {
   contatos: {
     ...buildCentralEntity('contatos'),
   },
+  contratos_documentos: {
+    ...buildCentralEntity('contratos_documentos'),
+  },
   ativos: {
     ...buildCentralEntity('ativos'),
   },

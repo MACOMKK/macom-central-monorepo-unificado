@@ -19,6 +19,7 @@ import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { catalogApi } from '@/lib/catalogApi';
+import { normalizeText, sanitizeFileName } from '@/lib/text';
 
 const statusMeta = {
   sem_termo: {
@@ -92,23 +93,6 @@ function formatDateTime(value) {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR');
-}
-
-function normalizeText(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function sanitizeFileName(value) {
-  return String(value || 'termo-posse')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
 }
 
 const loadImage = (src) =>
@@ -363,7 +347,7 @@ async function generateTermoPDF(employee, assets, options = {}) {
   doc.setTextColor(255, 255, 255);
   doc.text('MACOM Mitsubishi Motors - Gestao de Ativos TI', pageWidth / 2, footerY - 3, { align: 'center' });
 
-  const filename = `Termo_${sanitizeFileName(employee.full_name || 'colaborador')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+  const filename = `Termo_${sanitizeFileName(employee.full_name || 'colaborador', 'termo-posse')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 
   if (options.returnBlob) {
     const blob = doc.output('blob');

@@ -12,6 +12,7 @@ export const CENTRAL_PERMISSION_MODULES = [
   { key: 'unidades', label: 'Unidades', path: '/unidades' },
   { key: 'colaboradores', label: 'Colaboradores', path: '/colaboradores' },
   { key: 'contatos', label: 'Contatos', path: '/contatos' },
+  { key: 'contratos_documentos', label: 'Contratos e Documentos', path: '/contratos-documentos' },
   { key: 'linhas_corporativas', label: 'Linhas Corporativas', path: '/linhas-corporativas' },
   { key: 'infra_estrutura', label: 'Infraestrutura', path: '/infraestrutura' },
   { key: 'acessos_usuario_sistema', label: 'Acessos por Sistema', path: '/acessos-sistemas' },

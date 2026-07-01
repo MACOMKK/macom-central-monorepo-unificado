@@ -13,6 +13,7 @@ const Assets = lazy(() => import('@/pages/Assets'));
 const AuditLogs = lazy(() => import('@/pages/AuditLogs'));
 const Collaborators = lazy(() => import('@/pages/Collaborators'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
+const ContractsDocuments = lazy(() => import('@/pages/ContractsDocuments'));
 const CorporateLines = lazy(() => import('@/pages/CorporateLines'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Departments = lazy(() => import('@/pages/Departments'));
@@ -95,6 +96,7 @@ export default function App() {
                 <Route path="/ativos" element={withCentralPermission('/ativos', <Assets />)} />
                 <Route path="/colaboradores" element={withCentralPermission('/colaboradores', <Collaborators />)} />
                 <Route path="/contatos" element={withCentralPermission('/contatos', <Contacts />)} />
+                <Route path="/contratos-documentos" element={withCentralPermission('/contratos-documentos', <ContractsDocuments />)} />
                 <Route path="/linhas-corporativas" element={withCentralPermission('/linhas-corporativas', <CorporateLines />)} />
                 <Route path="/departamentos" element={withCentralPermission('/departamentos', <Departments />)} />
                 <Route path="/cargos" element={withCentralPermission('/cargos', <Positions />)} />

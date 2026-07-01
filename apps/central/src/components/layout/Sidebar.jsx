@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BriefcaseBusiness, Building2, FileText, History, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, FileText, History, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -13,6 +13,7 @@ const routePrefetchers = {
   '/unidades': () => import('@/pages/Units'),
   '/colaboradores': () => import('@/pages/Collaborators'),
   '/contatos': () => import('@/pages/Contacts'),
+  '/contratos-documentos': () => import('@/pages/ContractsDocuments'),
   '/linhas-corporativas': () => import('@/pages/CorporateLines'),
   '/infraestrutura': () => import('@/pages/Infrastructure'),
   '/logs-auditoria': () => import('@/pages/AuditLogs'),
@@ -27,6 +28,7 @@ const navItems = [
   { path: '/unidades', label: 'Unidades', icon: Building2, module: 'unidades' },
   { path: '/colaboradores', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
   { path: '/contatos', label: 'Contatos', icon: Phone, module: 'contatos' },
+  { path: '/contratos-documentos', label: 'Contratos e Documentos', icon: Archive, module: 'contratos_documentos' },
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone, module: 'linhas_corporativas' },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
