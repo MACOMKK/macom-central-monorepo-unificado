@@ -155,22 +155,6 @@ export const catalogApi = {
       return true;
     },
   },
-  logs_auditoria: {
-    list: async (options = {}) => {
-      const result = await invokeCentralApi('list', {
-        entity: 'logs_auditoria',
-        filters: options.filters || {},
-        limit: options.limit,
-        offset: options.offset,
-      });
-      return {
-        rows: result.rows || [],
-        total: result.total ?? (result.rows || []).length,
-        limit: result.limit ?? options.limit ?? null,
-        offset: result.offset ?? options.offset ?? 0,
-      };
-    },
-  },
   email: {
     sendTermoGmail: (payload) => invokeSupabaseFunction('enviar-termo-gmail', payload),
   },

@@ -57,7 +57,7 @@ export default function App() {
               element={
                 <NotFoundPage
                   title="Area nao encontrada"
-                  message="Esta rota ainda nao existe no MACOM Console."
+                  message="Esta rota ainda nao existe no Console Macom."
                   homeLabel="Voltar para o Console"
                 />
               }

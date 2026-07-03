@@ -46,7 +46,7 @@ export default function Login({ onSubmit, loading, defaultEmail = '' }) {
         <div className="relative">
           <div className="mb-8 text-center">
             <img src={logoUrl} alt="MACOM" className="mx-auto mb-4 h-14 w-14 object-contain" />
-            <h1 className="text-2xl font-bold text-white">MACOM Console</h1>
+            <h1 className="text-2xl font-bold text-white">Console Macom</h1>
             <p className="mt-2 text-sm text-white/80">Acesse a gestao da plataforma e dos sistemas.</p>
           </div>
 

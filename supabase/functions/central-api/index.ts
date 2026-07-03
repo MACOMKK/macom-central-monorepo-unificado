@@ -763,28 +763,6 @@ async function insertCentralAuditLog({
   );
 }
 
-function buildCentralSystemAccessAuditMetadata({
-  before,
-  after,
-  relatedSystem,
-}: {
-  before?: Record<string, unknown> | null;
-  after?: Record<string, unknown> | null;
-  relatedSystem?: Record<string, unknown> | null;
-}) {
-  return {
-    origem: 'central',
-    sistema_id: after?.sistema_id ?? before?.sistema_id ?? null,
-    sistema_slug: typeof relatedSystem?.slug === 'string' ? relatedSystem.slug : null,
-    sistema_nome: typeof relatedSystem?.nome === 'string' ? relatedSystem.nome : null,
-    colaborador_id_afetado: after?.colaborador_id ?? before?.colaborador_id ?? null,
-    nivel_acesso_anterior: before?.nivel_acesso ?? null,
-    nivel_acesso_novo: after?.nivel_acesso ?? null,
-    status_anterior: before?.ativo ?? null,
-    status_novo: after?.ativo ?? null,
-  };
-}
-
 function buildCentralCollaboratorAuditMetadata({
   before,
   after,
@@ -2318,75 +2296,6 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
-    if (action === 'save' && entity === 'acessos_usuario_sistema') {
-      const sanitized = sanitizePayload(entity, payload);
-      const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
-      const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
-      const nextAccessLevel = typeof sanitized.nivel_acesso === 'string' ? sanitized.nivel_acesso : 'usuario';
-
-      if (!colaboradorId || !sistemaId) {
-        return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
-      }
-
-      if (!isGlobalAdmin && nextAccessLevel === 'admin') {
-        return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
-      }
-
-      const existingRows = await sql.unsafe(
-        `
-          select *
-          from public.acessos_usuario_sistema
-          where colaborador_id = $1
-            and sistema_id = $2
-          limit 1;
-        `,
-        [colaboradorId, sistemaId],
-      );
-      const existingAccess = existingRows[0] || null;
-
-      const rows = await sql.unsafe(
-        `
-          insert into public.acessos_usuario_sistema (
-            colaborador_id,
-            sistema_id,
-            nivel_acesso,
-          ativo
-        )
-        values ($1, $2, $3, $4)
-          on conflict (colaborador_id, sistema_id)
-          do update set
-            nivel_acesso = excluded.nivel_acesso,
-            ativo = excluded.ativo,
-            atualizado_em = now()
-          returning *;
-        `,
-        [
-          colaboradorId,
-          sistemaId,
-          nextAccessLevel,
-          sanitized.ativo ?? true,
-        ],
-      );
-      await syncIntranetPermissionOnAccessChange(rows[0] || null);
-
-      const relatedSystem = await fetchRowById('public', 'sistemas', sistemaId);
-      await insertCentralAuditLog({
-        action: existingAccess ? 'atualizar' : 'criar',
-        entity,
-        recordId: rows[0]?.id || null,
-        responsibleCollaboratorId: authenticatedCollaboratorId,
-        responsibleEmail: user.email ?? null,
-        before: existingAccess,
-        after: rows[0] || null,
-        metadata: buildCentralSystemAccessAuditMetadata({
-          before: existingAccess,
-          after: rows[0] || null,
-          relatedSystem,
-        }),
-      });
-      return json({ row: rows[0] || null });
-    }
-
     if (action === 'generate' && entity === 'termos_posse') {
       const generatedPayload = await buildTermosPossePayload(payload || {}, user.id);
       const query = buildInsertQuery(schema, table, generatedPayload);
@@ -2502,7 +2411,7 @@ Deno.serve(async (request) => {
 
     if (action === 'update') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema' || entity === 'ativos' || entity === 'linhas_corporativas'
+      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'ativos' || entity === 'linhas_corporativas'
         ? await fetchRowById(schema, table, id)
         : null;
       const sanitized = sanitizePayload(entity, payload);
@@ -2523,9 +2432,6 @@ Deno.serve(async (request) => {
             : sanitized;
       if (!Object.keys(normalized).length) {
         return json({ error: 'Nenhum campo para atualizar.' }, 400);
-      }
-      if (entity === 'acessos_usuario_sistema' && !isGlobalAdmin && normalized.nivel_acesso === 'admin') {
-        return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
       }
       if (entity === 'ativos') {
         validateAtivosPayload(normalized);
@@ -2615,28 +2521,6 @@ Deno.serve(async (request) => {
           }),
         });
       }
-      if (entity === 'acessos_usuario_sistema') {
-        await syncIntranetPermissionOnAccessChange(rows[0] || null);
-        const relatedSystem = beforeRow?.sistema_id
-          ? await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id))
-          : rows[0]?.sistema_id
-            ? await fetchRowById('public', 'sistemas', String(rows[0].sistema_id))
-            : null;
-        await insertCentralAuditLog({
-          action: 'atualizar',
-          entity,
-          recordId: rows[0]?.id || id,
-          responsibleCollaboratorId: authenticatedCollaboratorId,
-          responsibleEmail: user.email ?? null,
-          before: beforeRow,
-          after: rows[0] || null,
-          metadata: buildCentralSystemAccessAuditMetadata({
-            before: beforeRow,
-            after: rows[0] || null,
-            relatedSystem,
-          }),
-        });
-      }
       const auditDiff = getReportsAuditDiff(beforeRow, rows[0] || null);
 
       if (shouldAuditReportsEntity(entity) && auditDiff.changedFields.length) {
@@ -2666,7 +2550,7 @@ Deno.serve(async (request) => {
 
     if (action === 'delete') {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
-      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'acessos_usuario_sistema' || entity === 'ativos' || entity === 'linhas_corporativas'
+      const beforeRow = shouldAuditReportsEntity(entity) || entity === 'colaboradores' || entity === 'ativos' || entity === 'linhas_corporativas'
         ? await fetchRowById(schema, table, id)
         : null;
       if (entity === 'ativos') {
@@ -2711,29 +2595,6 @@ Deno.serve(async (request) => {
           metadata: buildCentralCollaboratorAuditMetadata({
             before: beforeRow,
             after: null,
-          }),
-        });
-      }
-      if (entity === 'acessos_usuario_sistema') {
-        const relatedSystem = beforeRow?.sistema_id
-          ? await fetchRowById('public', 'sistemas', String(beforeRow.sistema_id))
-          : null;
-        await syncIntranetPermissionOnAccessChange({
-          ...(beforeRow || {}),
-          ativo: false,
-        });
-        await insertCentralAuditLog({
-          action: 'excluir',
-          entity,
-          recordId: id,
-          responsibleCollaboratorId: authenticatedCollaboratorId,
-          responsibleEmail: user.email ?? null,
-          before: beforeRow,
-          after: null,
-          metadata: buildCentralSystemAccessAuditMetadata({
-            before: beforeRow,
-            after: null,
-            relatedSystem,
           }),
         });
       }

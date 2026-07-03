@@ -30,3 +30,6 @@ dist-ssr
 
 .env
 .vite
+
+# Playwright MCP snapshots/screenshots (may capture form input, incl. credentials)
+.playwright-mcp/

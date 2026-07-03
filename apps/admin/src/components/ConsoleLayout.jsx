@@ -86,7 +86,7 @@ export default function ConsoleLayout() {
               <Menu className="h-5 w-5" />
             </Button>
             <div>
-              <p className="text-sm font-bold">MACOM Console</p>
+              <p className="text-sm font-bold">Console Macom</p>
               <p className="hidden text-xs text-muted-foreground sm:block">Gestao da plataforma</p>
             </div>
           </div>

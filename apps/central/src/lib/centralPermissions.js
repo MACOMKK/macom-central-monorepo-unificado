@@ -15,8 +15,6 @@ export const CENTRAL_PERMISSION_MODULES = [
   { key: 'contratos_documentos', label: 'Contratos e Documentos', path: '/contratos-documentos' },
   { key: 'linhas_corporativas', label: 'Linhas Corporativas', path: '/linhas-corporativas' },
   { key: 'infra_estrutura', label: 'Infraestrutura', path: '/infraestrutura' },
-  { key: 'acessos_usuario_sistema', label: 'Acessos por Sistema', path: '/acessos-sistemas' },
-  { key: 'logs_auditoria', label: 'Logs Auditoria', path: '/logs-auditoria' },
   { key: 'termos_posse', label: 'Termos de Posse', path: '/termos-posse' },
 ];
 

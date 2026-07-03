@@ -1,6 +1,6 @@
 import { Card } from '@macom/ui';
 
-export default function PlaceholderPage({ eyebrow = 'MACOM Console', title, description }) {
+export default function PlaceholderPage({ eyebrow = 'Console Macom', title, description }) {
   return (
     <div className="space-y-6">
       <div>

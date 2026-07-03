@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Archive, BriefcaseBusiness, Building2, FileText, History, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, FileText, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -16,7 +16,6 @@ const routePrefetchers = {
   '/contratos-documentos': () => import('@/pages/ContractsDocuments'),
   '/linhas-corporativas': () => import('@/pages/CorporateLines'),
   '/infraestrutura': () => import('@/pages/Infrastructure'),
-  '/logs-auditoria': () => import('@/pages/AuditLogs'),
   '/termos-posse': () => import('@/pages/TermsPossession'),
 };
 
@@ -32,7 +31,6 @@ const navItems = [
   { path: '/linhas-corporativas', label: 'Linhas Corporativas', icon: Smartphone, module: 'linhas_corporativas' },
   { path: '/infraestrutura', label: 'Infraestrutura', icon: Network, module: 'infra_estrutura' },
   { path: '/termos-posse', label: 'Termos de Posse', icon: FileText, module: 'termos_posse' },
-  { path: '/logs-auditoria', label: 'Logs', icon: History, module: 'logs_auditoria' },
 ];
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen, theme, toggleTheme }) {
