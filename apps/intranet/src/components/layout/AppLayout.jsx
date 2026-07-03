@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import BottomNav from './BottomNav';
 import Header from './Header';
 import { useIntranetRealtime } from '@/lib/useIntranetRealtime';
 
@@ -30,10 +31,11 @@ export default function AppLayout() {
       </div>
 
       <MobileNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+      <BottomNav onOpenMore={() => setMobileMenuOpen(true)} />
 
       <main className={`min-h-screen transition-[margin] duration-200 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[240px]'}`}>
-        <Header onMenuClick={() => setMobileMenuOpen((current) => !current)} />
-        <div className="p-4 md:p-6 lg:p-8">
+        <Header />
+        <div className="p-4 pb-safe-bottom-nav md:p-6 lg:p-8 lg:pb-8">
           <Outlet />
         </div>
       </main>

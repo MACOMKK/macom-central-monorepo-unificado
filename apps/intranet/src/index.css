@@ -91,6 +91,15 @@
   }
 }
 
+@layer utilities {
+  .pb-safe-bottom-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /* MACOM custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #f1f1f1; }

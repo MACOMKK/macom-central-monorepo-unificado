@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bell, CheckCheck, Download, ExternalLink, LogOut, Menu, Settings } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCheck, Download, ExternalLink, LogOut, Settings } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -30,7 +30,7 @@ function formatNotificationDate(value) {
   });
 }
 
-export default function Header({ onMenuClick }) {
+export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -152,15 +152,6 @@ export default function Header({ onMenuClick }) {
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-        <button
-          type="button"
-          onClick={onMenuClick}
-          className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#141414] lg:hidden"
-          aria-label="Abrir menu"
-        >
-          <Menu size={20} />
-        </button>
-
         <div className="min-w-0 sm:hidden">
           <p className="text-[0.65rem] font-bold uppercase tracking-[0.24em] text-[#E30613]">Intranet</p>
           <p className="truncate text-xs font-medium text-slate-500">{dateLabel}</p>
