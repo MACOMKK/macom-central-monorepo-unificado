@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Bell, CheckCheck, ExternalLink, LogOut, Menu, Settings } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCheck, Download, ExternalLink, LogOut, Menu, Settings } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -8,6 +8,7 @@ import { appClient } from '@/api/client';
 import { supabase } from '@/api/supabaseClient';
 import PasswordChangeForm from '@/components/auth/PasswordChangeForm';
 import { useAuth } from '@/lib/AuthContext';
+import { useInstallPrompt } from '@/lib/useInstallPrompt';
 
 function formatDateLabel() {
   const formatted = new Date().toLocaleDateString('pt-BR', {
@@ -33,6 +34,7 @@ export default function Header({ onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -170,6 +172,28 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-2">
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={promptInstall}
+            className="hidden items-center gap-2 rounded-full border border-[#E30613] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-[#E30613] transition-colors hover:bg-[#E30613] hover:text-white sm:flex"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Instalar app
+          </button>
+        ) : null}
+
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={promptInstall}
+            aria-label="Instalar aplicativo"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#141414] sm:hidden"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        ) : null}
+
         <div ref={notificationsRef} className="relative">
           <button
             type="button"
