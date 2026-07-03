@@ -8,7 +8,7 @@ function isStandalone() {
 }
 
 export function useInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(() => window.__intranetInstallPrompt || null);
   const [isInstalled, setIsInstalled] = useState(isStandalone);
 
   useEffect(() => {
@@ -16,15 +16,22 @@ export function useInstallPrompt() {
       event.preventDefault();
       setDeferredPrompt(event);
     };
+    const handlePromptReady = () => {
+      if (window.__intranetInstallPrompt) {
+        setDeferredPrompt(window.__intranetInstallPrompt);
+      }
+    };
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
       setIsInstalled(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('intranet:install-prompt-ready', handlePromptReady);
     window.addEventListener('appinstalled', handleAppInstalled);
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('intranet:install-prompt-ready', handlePromptReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
@@ -36,6 +43,7 @@ export function useInstallPrompt() {
     if (outcome === 'accepted') {
       setIsInstalled(true);
     }
+    window.__intranetInstallPrompt = null;
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
