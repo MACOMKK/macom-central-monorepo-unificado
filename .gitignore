@@ -33,3 +33,6 @@ dist-ssr
 
 # Playwright MCP snapshots/screenshots (may capture form input, incl. credentials)
 .playwright-mcp/
+
+# Generated files
+README.md
