@@ -7,6 +7,7 @@ const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
 const TEMPORARY_EMAIL_PATTERN = /^[^@\s]+@cadastro\.macom\.(local|com\.br)$/i;
 const TRUSTED_IP_ACCESS_STORAGE_KEY = 'intranet:trusted-ip-access';
 const TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY = 'intranet:trusted-ip-auto-suppressed';
+const INSTALL_PROMPT_DISMISSED_STORAGE_KEY = 'intranet:install-prompt-dismissed-until';
 
 const INTRANET_ACCESS_DENIED_CODES = new Set([
   'INTRANET_COLLABORATOR_NOT_FOUND',
@@ -182,6 +183,7 @@ export const AuthProvider = ({ children }) => {
       data: { subscription },
     } = appClient.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        window.localStorage.removeItem(INSTALL_PROMPT_DISMISSED_STORAGE_KEY);
         setUser(null);
         setMustChangePassword(false);
         setMustChangeEmail(false);
