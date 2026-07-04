@@ -441,27 +441,47 @@ export default function LeadForm({
                   <div className="mt-3 max-h-44 space-y-2 overflow-y-auto border-t pt-3">
                     {attachments.length === 0 ? (
                       <p className="py-3 text-center text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Nenhum anexo registrado</p>
-                    ) : attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center justify-between gap-3 bg-slate-50 p-3">
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-1 truncate text-sm font-semibold text-slate-800">
-                            <Paperclip className="h-3.5 w-3.5 shrink-0" />
-                            {attachment.metadados?.nome || attachment.descricao}
-                          </p>
-                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {formatBytes(attachment.metadados?.tamanho)} | {formatDate(attachment.created_date)}
-                          </p>
+                    ) : attachments.map((attachment) => {
+                      const pending = Boolean(attachment.metadados?.pendente);
+                      const hasPath = Boolean(attachment.metadados?.path);
+                      return (
+                        <div key={attachment.id} className="flex items-center justify-between gap-3 bg-slate-50 p-3">
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1 truncate text-sm font-semibold text-slate-800">
+                              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                              {attachment.metadados?.nome || attachment.descricao}
+                            </p>
+                            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              {pending ? 'Enviando...' : `${formatBytes(attachment.metadados?.tamanho)} | ${formatDate(attachment.created_date)}`}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={pending || !hasPath}
+                              className="h-8 w-8 rounded-none"
+                              onClick={() => onOpenAttachment?.(attachment)}
+                              title="Abrir anexo"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              disabled={pending || deletingAttachment}
+                              className="h-8 w-8 rounded-none text-red-600 hover:text-red-700"
+                              onClick={() => onDeleteAttachment?.(attachment)}
+                              title="Excluir anexo"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-none" onClick={() => onOpenAttachment?.(attachment)} title="Abrir anexo">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button type="button" variant="outline" size="icon" disabled={deletingAttachment} className="h-8 w-8 rounded-none text-red-600 hover:text-red-700" onClick={() => onDeleteAttachment?.(attachment)} title="Excluir anexo">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 
@@ -245,9 +245,27 @@ function handleRealtimeChange(queryClient, payload) {
 
 export function useCrmRealtime(enabled = true) {
   const queryClient = useQueryClient();
+  const [status, setStatus] = useState(enabled ? 'connecting' : 'disabled');
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const syncTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (!enabled || !isSupabaseConfigured || !supabase) return undefined;
+    if (syncTimeoutRef.current) {
+      window.clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
+
+    if (!enabled) {
+      setStatus('disabled');
+      return undefined;
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      setStatus('unavailable');
+      return undefined;
+    }
+
+    setStatus('connecting');
 
     const channel = supabase.channel('crm-realtime');
 
@@ -255,14 +273,47 @@ export function useCrmRealtime(enabled = true) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'gestao_crm', table },
-        (payload) => handleRealtimeChange(queryClient, payload),
+        (payload) => {
+          setStatus('syncing');
+          handleRealtimeChange(queryClient, payload);
+          setLastSyncedAt(Date.now());
+
+          if (syncTimeoutRef.current) {
+            window.clearTimeout(syncTimeoutRef.current);
+          }
+
+          syncTimeoutRef.current = window.setTimeout(() => {
+            setStatus('active');
+            syncTimeoutRef.current = null;
+          }, 800);
+        },
       );
     });
 
-    channel.subscribe();
+    channel.subscribe((nextStatus) => {
+      if (nextStatus === 'SUBSCRIBED') {
+        setStatus('active');
+        return;
+      }
+
+      if (nextStatus === 'CHANNEL_ERROR' || nextStatus === 'TIMED_OUT') {
+        setStatus('error');
+        return;
+      }
+
+      if (nextStatus === 'CLOSED') {
+        setStatus('disabled');
+      }
+    });
 
     return () => {
+      if (syncTimeoutRef.current) {
+        window.clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
   }, [enabled, queryClient]);
+
+  return { status, lastSyncedAt };
 }

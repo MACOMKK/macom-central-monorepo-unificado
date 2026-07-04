@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import BottomNav from './BottomNav';
 import Header from './Header';
+import InstallPromptBanner from './InstallPromptBanner';
 import { useIntranetRealtime } from '@/lib/useIntranetRealtime';
 
 export default function AppLayout() {
@@ -32,6 +33,7 @@ export default function AppLayout() {
 
       <MobileNav open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
       <BottomNav onOpenMore={() => setMobileMenuOpen(true)} />
+      <InstallPromptBanner />
 
       <main className={`min-h-screen transition-[margin] duration-200 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[240px]'}`}>
         <Header />

@@ -78,12 +78,23 @@ const getClosingStatus = (lead) => {
 
 const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const formatVehicleLabel = (vehicle = {}, fallback = '') => {
+  const label = [
+    vehicle.marca,
+    vehicle.modelo,
+    vehicle.versao,
+    vehicle.ano,
+  ].filter(Boolean).join(' ');
+  return label || fallback;
+};
+
 export default function Leads() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [viewMode, setViewMode] = useState('kanban');
   const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
   const [responsavelFiltro, setResponsavelFiltro] = useState('todos');
   const [origemFiltro, setOrigemFiltro] = useState('todas');
   const [slaFiltro, setSlaFiltro] = useState('todos');
@@ -105,11 +116,19 @@ export default function Leads() {
     ...(periodoFim ? { created_to: `${periodoFim}T23:59:59.999` } : {}),
   }), [empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
 
-  const leadsQueryKey = ['leads', { filters, busca, page, pageSize }];
+  const leadsQueryKey = ['leads', { filters, busca: buscaDebounced, page, pageSize }];
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setBuscaDebounced(busca.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [busca]);
 
   useEffect(() => {
     setPage(1);
-  }, [busca, empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
+  }, [buscaDebounced, empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
 
   const { data: leadsPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
     queryKey: leadsQueryKey,
@@ -118,7 +137,7 @@ export default function Leads() {
       page,
       limit: pageSize,
       filters,
-      search: busca,
+      search: buscaDebounced,
     }),
   });
   const leads = leadsPage.rows;
@@ -136,6 +155,7 @@ export default function Leads() {
       const selectedResponsavel = responsaveis.find((item) => item.id === data.responsavel_id) || null;
       const optimisticData = {
         ...data,
+        modelo_interesse: formatVehicleLabel(data.veiculo_interesse, data.modelo_interesse),
         responsavel: selectedResponsavel,
         responsavel_nome: selectedResponsavel?.nome || '',
       };
@@ -233,6 +253,30 @@ export default function Leads() {
   });
   const historico = historicoPage.rows || [];
 
+  const getLeadHistoricoQueryKey = (leadId = editingId) => ['lead-historico', leadId || editingId];
+
+  const updateHistoricoCache = (queryKey, updater) => {
+    queryClient.setQueryData(queryKey, (current = { rows: [], count: 0 }) => {
+      const rows = Array.isArray(current) ? current : (current.rows || []);
+      const nextRows = updater(rows);
+
+      if (Array.isArray(current)) {
+        return nextRows;
+      }
+
+      return {
+        ...current,
+        rows: nextRows,
+        count: nextRows.length,
+      };
+    });
+  };
+
+  const replaceHistoricoItem = (queryKey, tempId, saved) => {
+    if (!saved) return;
+    updateHistoricoCache(queryKey, (rows) => rows.map((item) => item.id === tempId ? saved : item));
+  };
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => crmDataClient.entities.Lead.update(id, { status }),
     onMutate: async ({ id, status }) => {
@@ -275,15 +319,46 @@ export default function Leads() {
       status: lead.status,
       metadados: { origem: 'lead_note' },
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
+    onMutate: async ({ lead, text }) => {
+      const queryKey = getLeadHistoricoQueryKey(lead.id);
+      await queryClient.cancelQueries({ queryKey });
+      const previousHistorico = queryClient.getQueryData(queryKey);
+      const tempId = createTempId();
+
+      updateHistoricoCache(queryKey, (rows) => [
+        {
+          id: tempId,
+          cliente_id: lead.cliente_id,
+          lead_id: lead.id,
+          tipo: 'observacao',
+          descricao: text,
+          entidade: 'Lead',
+          entidade_id: lead.id,
+          status: lead.status,
+          metadados: { origem: 'lead_note', pendente: true },
+          created_date: new Date().toISOString(),
+          updated_date: new Date().toISOString(),
+        },
+        ...rows,
+      ]);
+
+      return { previousHistorico, queryKey, tempId };
+    },
+    onSuccess: (saved, _variables, context) => {
+      if (context?.queryKey && context?.tempId) {
+        replaceHistoricoItem(context.queryKey, context.tempId, saved);
+      }
+      queryClient.invalidateQueries({ queryKey: context?.queryKey || getLeadHistoricoQueryKey() });
       toast({
         title: 'Nota registrada',
         description: 'A nota foi vinculada ao lead.',
         variant: 'success',
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousHistorico) {
+        queryClient.setQueryData(context.queryKey, context.previousHistorico);
+      }
       toast({
         title: 'Nao foi possivel registrar a nota',
         description: error.message || 'Tente novamente.',
@@ -294,15 +369,52 @@ export default function Leads() {
 
   const attachmentMutation = useMutation({
     mutationFn: ({ lead, file }) => crmDataClient.entities.HistoricoAtendimento.uploadLeadAttachment({ lead, file }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
+    onMutate: async ({ lead, file }) => {
+      const queryKey = getLeadHistoricoQueryKey(lead.id);
+      await queryClient.cancelQueries({ queryKey });
+      const previousHistorico = queryClient.getQueryData(queryKey);
+      const tempId = createTempId();
+
+      updateHistoricoCache(queryKey, (rows) => [
+        {
+          id: tempId,
+          cliente_id: lead.cliente_id,
+          lead_id: lead.id,
+          tipo: 'observacao',
+          descricao: file.name,
+          entidade: 'Lead',
+          entidade_id: lead.id,
+          status: lead.status,
+          metadados: {
+            origem: 'lead_attachment',
+            nome: file.name,
+            tipo: file.type,
+            tamanho: file.size,
+            pendente: true,
+          },
+          created_date: new Date().toISOString(),
+          updated_date: new Date().toISOString(),
+        },
+        ...rows,
+      ]);
+
+      return { previousHistorico, queryKey, tempId };
+    },
+    onSuccess: (saved, _variables, context) => {
+      if (context?.queryKey && context?.tempId) {
+        replaceHistoricoItem(context.queryKey, context.tempId, saved);
+      }
+      queryClient.invalidateQueries({ queryKey: context?.queryKey || getLeadHistoricoQueryKey() });
       toast({
         title: 'Anexo registrado',
         description: 'O arquivo foi vinculado ao lead.',
         variant: 'success',
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousHistorico) {
+        queryClient.setQueryData(context.queryKey, context.previousHistorico);
+      }
       toast({
         title: 'Nao foi possivel anexar o arquivo',
         description: error.message || 'Tente novamente.',
@@ -325,15 +437,27 @@ export default function Leads() {
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: (attachment) => crmDataClient.entities.HistoricoAtendimento.deleteAttachment(attachment),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
+    onMutate: async (attachment) => {
+      const queryKey = getLeadHistoricoQueryKey(attachment.lead_id);
+      await queryClient.cancelQueries({ queryKey });
+      const previousHistorico = queryClient.getQueryData(queryKey);
+
+      updateHistoricoCache(queryKey, (rows) => rows.filter((item) => item.id !== attachment.id));
+
+      return { previousHistorico, queryKey };
+    },
+    onSuccess: (_result, _attachment, context) => {
+      queryClient.invalidateQueries({ queryKey: context?.queryKey || getLeadHistoricoQueryKey() });
       toast({
         title: 'Anexo excluido',
         description: 'O arquivo foi removido do lead.',
         variant: 'success',
       });
     },
-    onError: (error) => {
+    onError: (error, _attachment, context) => {
+      if (context?.previousHistorico) {
+        queryClient.setQueryData(context.queryKey, context.previousHistorico);
+      }
       toast({
         title: 'Nao foi possivel excluir o anexo',
         description: error.message || 'Tente novamente.',

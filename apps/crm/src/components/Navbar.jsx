@@ -13,6 +13,7 @@ import {
   Lock,
   LogOut,
   PieChart,
+  RefreshCw,
   Settings,
   SlidersHorizontal,
   Tag,
@@ -73,7 +74,68 @@ function NavMenu({ label, items }) {
   );
 }
 
-export default function Navbar() {
+function RealtimeIndicator({ realtime }) {
+  const status = realtime?.status || 'disabled';
+  const lastSyncedAt = realtime?.lastSyncedAt || null;
+  const recentlySynced = lastSyncedAt && Date.now() - lastSyncedAt < 60000;
+
+  const config = {
+    active: {
+      label: recentlySynced ? 'Atualizado agora' : 'Tempo real ativo',
+      dot: 'bg-emerald-400',
+      text: 'text-white/70',
+      spin: false,
+    },
+    syncing: {
+      label: 'Sincronizando...',
+      dot: 'bg-amber-300',
+      text: 'text-amber-100',
+      spin: true,
+    },
+    connecting: {
+      label: 'Conectando...',
+      dot: 'bg-sky-300',
+      text: 'text-sky-100',
+      spin: true,
+    },
+    error: {
+      label: 'Tempo real instavel',
+      dot: 'bg-red-400',
+      text: 'text-red-100',
+      spin: false,
+    },
+    unavailable: {
+      label: 'Tempo real indisponivel',
+      dot: 'bg-slate-400',
+      text: 'text-white/50',
+      spin: false,
+    },
+    disabled: {
+      label: 'Tempo real pausado',
+      dot: 'bg-slate-400',
+      text: 'text-white/50',
+      spin: false,
+    },
+  }[status] || {
+    label: 'Tempo real ativo',
+    dot: 'bg-emerald-400',
+    text: 'text-white/70',
+    spin: false,
+  };
+
+  return (
+    <div
+      className={cn('hidden items-center gap-2 border-l border-white/10 pl-3 text-[10px] font-bold uppercase tracking-wider lg:flex', config.text)}
+      title="Conexao em tempo real do CRM"
+    >
+      <span className={cn('h-1.5 w-1.5 rounded-full', config.dot)} />
+      <span>{config.label}</span>
+      {config.spin ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
+    </div>
+  );
+}
+
+export default function Navbar({ realtime }) {
   const { empresa, setEmpresa } = useEmpresa();
   const { logout, user } = useAuth();
   const userInitial = (user?.name || user?.email || 'U').slice(0, 1).toUpperCase();
@@ -131,6 +193,7 @@ export default function Navbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          <RealtimeIndicator realtime={realtime} />
           <DropdownMenu>
             <DropdownMenuTrigger className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-white/70 transition-colors hover:text-white">
               <span className="mr-1 h-1.5 w-1.5 rounded-full bg-primary" />

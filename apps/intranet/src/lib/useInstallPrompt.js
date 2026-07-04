@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
+const DISMISS_STORAGE_KEY = 'intranet:install-prompt-dismissed-until';
+const DISMISS_DAYS = 7;
+
 function isStandalone() {
   return (
     window.matchMedia?.('(display-mode: standalone)').matches ||
@@ -7,9 +10,15 @@ function isStandalone() {
   );
 }
 
+function isDismissed() {
+  const until = Number(window.localStorage.getItem(DISMISS_STORAGE_KEY) || 0);
+  return Date.now() < until;
+}
+
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(() => window.__intranetInstallPrompt || null);
   const [isInstalled, setIsInstalled] = useState(isStandalone);
+  const [dismissed, setDismissed] = useState(isDismissed);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event) => {
@@ -47,8 +56,18 @@ export function useInstallPrompt() {
     setDeferredPrompt(null);
   }, [deferredPrompt]);
 
+  const dismiss = useCallback(() => {
+    const until = Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000;
+    window.localStorage.setItem(DISMISS_STORAGE_KEY, String(until));
+    setDismissed(true);
+  }, []);
+
+  const canInstall = Boolean(deferredPrompt) && !isInstalled;
+
   return {
-    canInstall: Boolean(deferredPrompt) && !isInstalled,
+    canInstall,
+    canShowBanner: canInstall && !dismissed,
     promptInstall,
+    dismiss,
   };
 }
