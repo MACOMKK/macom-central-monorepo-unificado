@@ -65,4 +65,21 @@ export const platformAuditApi = {
       };
     },
   },
+  accessLogs: {
+    list: async (options = {}) => {
+      const result = await invokePlataformaApi('list', {
+        entity: 'logs_acesso',
+        filters: options.filters || {},
+        limit: options.limit,
+        offset: options.offset,
+      });
+
+      return {
+        rows: result.rows || [],
+        total: result.total ?? (result.rows || []).length,
+        limit: result.limit ?? options.limit ?? null,
+        offset: result.offset ?? options.offset ?? 0,
+      };
+    },
+  },
 };

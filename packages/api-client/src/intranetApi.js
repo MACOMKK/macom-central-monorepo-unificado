@@ -215,6 +215,22 @@ export const intranetApi = {
       return result.data || result;
     },
   },
+  accessLogs: {
+    async list({ limit = 25, offset = 0 } = {}) {
+      const result = await invokeIntranet({
+        resource: 'accessLogs',
+        action: 'list',
+        limit,
+        offset,
+      });
+      return {
+        rows: result.rows || [],
+        total: result.total ?? (result.rows || []).length,
+        limit: result.limit ?? limit,
+        offset: result.offset ?? offset,
+      };
+    },
+  },
   entities: new Proxy(
     {},
     {

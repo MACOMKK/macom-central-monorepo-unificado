@@ -5,6 +5,7 @@ import { NotFoundPage } from '@macom/ui';
 
 import ConsoleLayout from '@/components/ConsoleLayout';
 import ConsoleDashboard from '@/pages/ConsoleDashboard';
+import AccessLogOverview from '@/pages/AccessLogOverview';
 import AuditOverview from '@/pages/AuditOverview';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import PlatformGuide from '@/pages/PlatformGuide';
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="/acessos-sistemas" element={<SystemAccessManagement />} />
                 <Route path="/usuarios" element={<UsersOverview />} />
                 <Route path="/auditoria" element={<AuditOverview />} />
+                <Route path="/logs-acesso" element={<AccessLogOverview />} />
                 <Route path="/guia" element={<PlatformGuide />} />
                 <Route
                   path="/configuracoes"

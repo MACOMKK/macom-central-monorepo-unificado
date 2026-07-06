@@ -40,6 +40,12 @@ permissão correspondente — não assumir que acesso ao sistema implica acesso 
   - Operações padrão: `list`, `filter`, `create`, `update`, `delete`
   - Storage buckets: avisos (2MB), documentos (5MB), avatares
   - Integração com Google Calendar para sincronizar eventos
+  - Log de acessos: toda chamada `action: 'me'` bem-sucedida grava um registro em
+    `gestao_plataforma.logs_acesso` (via `registrarAcessoIntranet`), e `resource: 'accessLogs'`
+    (`action: 'list'`, admin-only) lista o histórico paginado — consumido pela seção
+    "Log de acessos" em Configurações. Tabela é compartilhada por `sistema_id`
+    (`public.sistemas`), pensada para ser reutilizada por outros apps (ex. `relatorios`) sem
+    nova migration — só inserir/ler com o `sistema_id` correspondente.
 - Schema: `gestao_intranet` (migration `20260514194500_add_gestao_intranet_core.sql`)
   - Tabelas: `perfis_colaboradores`, `avisos`, `comentarios_avisos`, `reacoes_avisos`,
     `eventos_calendario`, `documentos`, `links_uteis`, `base_conhecimento`, `feedback`,

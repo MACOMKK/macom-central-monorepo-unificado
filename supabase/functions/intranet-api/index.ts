@@ -825,6 +825,72 @@ async function getContext(authUser: { id: string; email?: string | null; user_me
   };
 }
 
+async function registrarAcessoIntranet(collaboratorId: string | null, request: Request) {
+  if (!sql || !collaboratorId) return;
+  try {
+    await runSql(
+      `
+        insert into gestao_plataforma.logs_acesso (colaborador_id, sistema_id, evento, ip_address, user_agent)
+        select $1, s.id, 'login', $2, $3
+        from public.sistemas s
+        where s.slug = $4
+          and not exists (
+            select 1
+            from gestao_plataforma.logs_acesso la
+            where la.colaborador_id = $1
+              and la.sistema_id = s.id
+              and la.criado_em > now() - interval '30 minutes'
+          );
+      `,
+      [collaboratorId, getClientIp(request) || null, request.headers.get('user-agent') || null, INTRANET_SYSTEM_SLUG],
+    );
+  } catch (error) {
+    console.error('Falha ao registrar log de acesso da intranet', error);
+  }
+}
+
+async function listAccessLogsIntranet(limit: number, offset: number) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+
+  const totalRows = await runSql<{ total: number }>(
+    `
+      select count(*)::int as total
+      from gestao_plataforma.logs_acesso l
+      join public.sistemas s on s.id = l.sistema_id
+      where s.slug = $1;
+    `,
+    [INTRANET_SYSTEM_SLUG],
+  );
+
+  const rows = await runSql(
+    `
+      select
+        l.id,
+        l.evento,
+        l.ip_address,
+        l.user_agent,
+        l.criado_em,
+        c.nome as colaborador_nome,
+        c.email as colaborador_email
+      from gestao_plataforma.logs_acesso l
+      join public.sistemas s on s.id = l.sistema_id
+      left join public.colaboradores c on c.id = l.colaborador_id
+      where s.slug = $1
+      order by l.criado_em desc
+      limit $2 offset $3;
+    `,
+    [INTRANET_SYSTEM_SLUG, safeLimit, safeOffset],
+  );
+
+  return {
+    rows,
+    total: totalRows[0]?.total ?? rows.length,
+    limit: safeLimit,
+    offset: safeOffset,
+  };
+}
+
 function convertOrder(entityName: keyof typeof ENTITY_CONFIG, orderBy?: string) {
   const config = ENTITY_CONFIG[entityName];
   const normalizedOrder = orderBy || config.defaultOrder;
@@ -4186,6 +4252,7 @@ Deno.serve(async (request) => {
     const entity = typeof body.entity === 'string' ? body.entity : '';
     const orderBy = typeof body.orderBy === 'string' ? body.orderBy : undefined;
     const limit = typeof body.limit === 'number' ? body.limit : undefined;
+    const offset = typeof body.offset === 'number' && body.offset >= 0 ? body.offset : 0;
     const id = typeof body.id === 'string' ? body.id : '';
     const payload = body.payload && typeof body.payload === 'object' ? body.payload : {};
     const filters = body.filters && typeof body.filters === 'object' ? body.filters : {};
@@ -4204,6 +4271,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'me' || action === 'trustedIpAccess') {
+      if (action === 'me') {
+        await registrarAcessoIntranet(context.collaboratorId, request);
+      }
       return json({ user: context.user });
     }
 
@@ -4231,6 +4301,14 @@ Deno.serve(async (request) => {
         return json({ data: await disconnectGoogleCalendar(context.collaboratorId) });
       }
       return json({ error: 'Acao Google Calendar invalida.' }, 400);
+    }
+
+    if (resource === 'accessLogs') {
+      assertAdmin(context.user as Record<string, unknown>);
+      if (action === 'list') {
+        return json(await listAccessLogsIntranet(limit || 25, offset));
+      }
+      return json({ error: 'Acao de log de acesso invalida.' }, 400);
     }
 
     if (action === 'catalog') {

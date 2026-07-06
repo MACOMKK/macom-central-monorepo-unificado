@@ -1,5 +1,6 @@
-import { Network, UserCog, UserRoundCheck } from 'lucide-react';
+import { History, Network, UserCog, UserRoundCheck } from 'lucide-react';
 
+import AccessLogSection from './sections/AccessLogSection';
 import ModulePermissionsSection from './sections/ModulePermissionsSection';
 import NetworkAccessSection from './sections/NetworkAccessSection';
 import ProfileRequestsSection from './sections/ProfileRequestsSection';
@@ -28,5 +29,13 @@ export const settingsSections = [
     description: 'IPs publicos liberados para entrada automatica.',
     icon: Network,
     component: NetworkAccessSection,
+  },
+  {
+    key: 'access-log',
+    group: 'Acesso',
+    label: 'Log de acessos',
+    description: 'Historico de logins realizados na intranet.',
+    icon: History,
+    component: AccessLogSection,
   },
 ];

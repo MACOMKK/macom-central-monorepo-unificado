@@ -3,6 +3,7 @@ import {
   Activity,
   AppWindow,
   BookOpen,
+  History,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/acessos-sistemas', label: 'Acessos', icon: KeyRound },
   { path: '/usuarios', label: 'Usuarios', icon: UsersRound },
   { path: '/auditoria', label: 'Auditoria', icon: Activity },
+  { path: '/logs-acesso', label: 'Logs de acesso', icon: History },
   { path: '/guia', label: 'Guia', icon: BookOpen },
   { path: '/configuracoes', label: 'Configuracoes', icon: Settings2 },
 ];

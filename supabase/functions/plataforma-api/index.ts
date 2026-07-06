@@ -719,6 +719,60 @@ async function insertAuditLog({
   return rows[0] || null;
 }
 
+async function listAccessLogs({
+  systemSlug,
+  limit,
+  offset,
+}: {
+  systemSlug?: string | null;
+  limit: number;
+  offset: number;
+}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+  const whereSql = systemSlug ? 'where s.slug = $1' : '';
+  const values = systemSlug ? [systemSlug] : [];
+
+  const totalRows = await sql!.unsafe(
+    `
+      select count(*)::int as total
+      from gestao_plataforma.logs_acesso l
+      join public.sistemas s on s.id = l.sistema_id
+      ${whereSql};
+    `,
+    values,
+  );
+
+  const rows = await sql!.unsafe(
+    `
+      select
+        l.id,
+        l.evento,
+        l.ip_address,
+        l.user_agent,
+        l.criado_em,
+        c.nome as colaborador_nome,
+        c.email as colaborador_email,
+        s.slug as sistema_slug,
+        s.nome as sistema_nome
+      from gestao_plataforma.logs_acesso l
+      join public.sistemas s on s.id = l.sistema_id
+      left join public.colaboradores c on c.id = l.colaborador_id
+      ${whereSql}
+      order by l.criado_em desc
+      limit ${safeLimit} offset ${safeOffset};
+    `,
+    values,
+  );
+
+  return {
+    rows,
+    total: totalRows[0]?.total ?? rows.length,
+    limit: safeLimit,
+    offset: safeOffset,
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -825,6 +879,18 @@ Deno.serve(async (request) => {
 
     if (action === 'delete' && entity === 'acessos_usuario_sistema') {
       return deleteSystemAccess(typeof body.id === 'string' ? body.id : null);
+    }
+
+    if (action === 'list' && entity === 'logs_acesso') {
+      const rawLimit = typeof body.limit === 'number' ? body.limit : Number(body.limit);
+      const rawOffset = typeof body.offset === 'number' ? body.offset : Number(body.offset);
+      return json(
+        await listAccessLogs({
+          systemSlug: typeof body.filters?.sistema_slug === 'string' ? body.filters.sistema_slug : null,
+          limit: Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 25,
+          offset: Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0,
+        }),
+      );
     }
 
     if (action !== 'list' || !(entity in ENTITY_CONFIG)) {

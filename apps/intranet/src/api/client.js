@@ -292,6 +292,12 @@ export const appClient = {
     },
   },
 
+  accessLogs: {
+    list(options) {
+      return intranetApi.accessLogs.list(options);
+    },
+  },
+
   entities: new Proxy(
     {},
     {
