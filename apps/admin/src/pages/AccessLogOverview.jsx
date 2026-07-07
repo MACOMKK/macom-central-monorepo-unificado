@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { History, Search } from 'lucide-react';
 import { platformAuditApi } from '@macom/api-client';
 import {
-  Button,
   Card,
   Input,
   Table,
@@ -14,26 +13,17 @@ import {
   TableRow,
 } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+import Pagination from '@/components/Pagination';
+import { formatDateTime } from '@/lib/format';
+
 const PAGE_SIZE = 25;
-
-function formatDateTime(value) {
-  if (!value) return '-';
-
-  try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 export default function AccessLogOverview() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['console', 'access-logs', page],
     queryFn: () =>
       platformAuditApi.accessLogs.list({
@@ -44,7 +34,6 @@ export default function AccessLogOverview() {
 
   const logs = data?.rows || [];
   const total = data?.total || 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const normalizedSearch = search.trim().toLowerCase();
 
   const filteredLogs = useMemo(() => {
@@ -59,25 +48,21 @@ export default function AccessLogOverview() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Console Macom</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Logs de acesso</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Historico de logins realizados nos sistemas da plataforma. Hoje registrado apenas pela Intranet.
-          </p>
-        </div>
-
-        <div className="relative w-full lg:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar colaborador, sistema ou IP..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </header>
+      <PageHeader
+        title="Logs de acesso"
+        description="Historico de logins realizados nos sistemas da plataforma. Hoje registrado apenas pela Intranet."
+        actions={
+          <div className="relative w-full lg:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar colaborador, sistema ou IP..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        }
+      />
 
       <Card className="overflow-hidden">
         <Table>
@@ -95,6 +80,12 @@ export default function AccessLogOverview() {
               <TableRow>
                 <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                   Carregando acessos...
+                </TableCell>
+              </TableRow>
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-destructive">
+                  Nao foi possivel carregar os acessos. Tente novamente.
                 </TableCell>
               </TableRow>
             ) : filteredLogs.length === 0 ? (
@@ -128,30 +119,7 @@ export default function AccessLogOverview() {
         </Table>
       </Card>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-sm text-muted-foreground">
-          {total > 0
-            ? `Mostrando ${Math.max(1, (page - 1) * PAGE_SIZE + 1)}-${Math.min(page * PAGE_SIZE, total)} de ${total} acesso(s)`
-            : 'Nenhum acesso encontrado'}
-        </p>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Pagina {page} de {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          >
-            Proxima
-          </Button>
-        </div>
-      </div>
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} itemLabel="acesso(s)" />
     </div>
   );
 }

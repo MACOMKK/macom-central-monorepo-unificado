@@ -182,6 +182,13 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = appClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        // bootstrapAuth() above already resolves the initial session; acting on
+        // this event too would fire a second, redundant 'me' call (and a
+        // duplicate access-log entry) on every page load.
+        return;
+      }
+
       if (event === 'SIGNED_OUT') {
         window.localStorage.removeItem(INSTALL_PROMPT_DISMISSED_STORAGE_KEY);
         setUser(null);

@@ -830,9 +830,15 @@ async function registrarAcessoIntranet(collaboratorId: string | null, request: R
   try {
     await runSql(
       `
+        with lock as (
+          -- Serializes concurrent 'me' calls for the same colaborador (e.g. multiple
+          -- tabs/requests firing at once) so the NOT EXISTS check below can't race:
+          -- without this, two calls could both see "no recent log" and both insert.
+          select pg_advisory_xact_lock(hashtextextended($1::text, 0))
+        )
         insert into gestao_plataforma.logs_acesso (colaborador_id, sistema_id, evento, ip_address, user_agent)
         select $1, s.id, 'login', $2, $3
-        from public.sistemas s
+        from public.sistemas s, lock
         where s.slug = $4
           and not exists (
             select 1

@@ -28,21 +28,9 @@ import {
   TableRow,
 } from '@macom/ui';
 
-function normalize(value) {
-  return String(value || '').toLowerCase();
-}
-
-function getStatusTone(status) {
-  if (status === 'ativo') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (status === 'inativo') return 'border-slate-200 bg-slate-100 text-slate-600';
-  return 'border-amber-200 bg-amber-50 text-amber-700';
-}
-
-function getRoleTone(role) {
-  if (role === 'admin') return 'border-primary/25 bg-primary/10 text-primary';
-  if (role === 'gestor') return 'border-sky-200 bg-sky-50 text-sky-700';
-  return 'border-slate-200 bg-slate-100 text-slate-600';
-}
+import PageHeader from '@/components/PageHeader';
+import { normalize } from '@/lib/normalize';
+import { getStatusBadgeClass } from '@/lib/statusStyles';
 
 export default function UsersOverview() {
   const queryClient = useQueryClient();
@@ -55,17 +43,17 @@ export default function UsersOverview() {
   const [emailForm, setEmailForm] = useState({ email: '', confirmEmail: '', resetPassword: false });
   const [feedback, setFeedback] = useState(null);
 
-  const { data: collaborators = [], isLoading: loadingCollaborators } = useQuery({
+  const { data: collaborators = [], isLoading: loadingCollaborators, isError: errorCollaborators } = useQuery({
     queryKey: ['console', 'users', 'collaborators'],
     queryFn: platformUsersApi.collaborators.list,
   });
 
-  const { data: systems = [], isLoading: loadingSystems } = useQuery({
+  const { data: systems = [], isLoading: loadingSystems, isError: errorSystems } = useQuery({
     queryKey: ['console', 'users', 'systems'],
     queryFn: platformUsersApi.systems.list,
   });
 
-  const { data: accesses = [], isLoading: loadingAccesses } = useQuery({
+  const { data: accesses = [], isLoading: loadingAccesses, isError: errorAccesses } = useQuery({
     queryKey: ['console', 'users', 'accesses'],
     queryFn: platformUsersApi.accesses.list,
   });
@@ -108,6 +96,7 @@ export default function UsersOverview() {
   const adminUsers = collaborators.filter((collaborator) => collaborator.funcao === 'admin').length;
   const usersWithAccess = new Set(accesses.filter((access) => access.ativo).map((access) => access.colaborador_id)).size;
   const isLoading = loadingCollaborators || loadingSystems || loadingAccesses;
+  const isError = errorCollaborators || errorSystems || errorAccesses;
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }) => platformUsersApi.collaborators.updateAccessProfile(id, payload),
@@ -259,25 +248,21 @@ export default function UsersOverview() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Console Macom</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Usuarios</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Gerencie apenas perfil e status de acesso. Dados operacionais do colaborador continuam na Central.
-          </p>
-        </div>
-
-        <div className="relative w-full lg:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar usuario, email, perfil ou sistema..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </header>
+      <PageHeader
+        title="Usuarios"
+        description="Gerencie apenas perfil e status de acesso. Dados operacionais do colaborador continuam na Central."
+        actions={
+          <div className="relative w-full lg:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar usuario, email, perfil ou sistema..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        }
+      />
 
       <section className="grid gap-3 md:grid-cols-3">
         <Card className="p-4">
@@ -318,6 +303,12 @@ export default function UsersOverview() {
                   Carregando usuarios...
                 </TableCell>
               </TableRow>
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-destructive">
+                  Nao foi possivel carregar os usuarios. Tente novamente.
+                </TableCell>
+              </TableRow>
             ) : filteredCollaborators.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
@@ -334,12 +325,12 @@ export default function UsersOverview() {
                     <TableCell className="font-medium">{collaborator.nome || '-'}</TableCell>
                     <TableCell>{collaborator.email || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={getRoleTone(collaborator.funcao)}>
+                      <Badge variant="outline" className={getStatusBadgeClass(collaborator.funcao || 'usuario')}>
                         {collaborator.funcao || 'usuario'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={getStatusTone(collaborator.status)}>
+                      <Badge variant="outline" className={getStatusBadgeClass(collaborator.status)}>
                         {collaborator.status || 'sem status'}
                       </Badge>
                     </TableCell>

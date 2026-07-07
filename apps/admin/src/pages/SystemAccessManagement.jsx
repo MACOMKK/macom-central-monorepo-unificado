@@ -30,6 +30,11 @@ import {
   TableRow,
 } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+import { normalize } from '@/lib/normalize';
+import { upsertByKey } from '@/lib/upsertByKey';
+import { getStatusBadgeClass } from '@/lib/statusStyles';
+
 const accessOptions = [
   { value: 'admin', label: 'Admin' },
   { value: 'gestor', label: 'Gestor' },
@@ -38,35 +43,15 @@ const accessOptions = [
 
 const hiddenAccessSystemSlugs = new Set(['central', 'rh', 'pagamentos']);
 
-function normalize(value) {
-  return String(value || '').toLowerCase();
+function accessKey(access) {
+  if (access.colaborador_id && access.sistema_id) {
+    return `${access.colaborador_id}:${access.sistema_id}`;
+  }
+  return access.id;
 }
 
 function upsertAccess(accesses, access) {
-  if (!access) return accesses;
-  const exists = accesses.some((entry) => (
-    entry.id === access.id ||
-    (
-      access.colaborador_id &&
-      access.sistema_id &&
-      entry.colaborador_id === access.colaborador_id &&
-      entry.sistema_id === access.sistema_id
-    )
-  ));
-
-  if (!exists) return [access, ...accesses];
-
-  return accesses.map((entry) => (
-    entry.id === access.id ||
-    (
-      access.colaborador_id &&
-      access.sistema_id &&
-      entry.colaborador_id === access.colaborador_id &&
-      entry.sistema_id === access.sistema_id
-    )
-      ? { ...entry, ...access }
-      : entry
-  ));
+  return upsertByKey(accesses, access, accessKey);
 }
 
 export default function SystemAccessManagement() {
@@ -82,17 +67,17 @@ export default function SystemAccessManagement() {
     ativo: 'true',
   });
 
-  const { data: collaborators = [], isLoading: loadingCollaborators } = useQuery({
+  const { data: collaborators = [], isLoading: loadingCollaborators, isError: errorCollaborators } = useQuery({
     queryKey: ['console', 'accesses', 'collaborators'],
     queryFn: platformUsersApi.collaborators.list,
   });
 
-  const { data: systems = [], isLoading: loadingSystems } = useQuery({
+  const { data: systems = [], isLoading: loadingSystems, isError: errorSystems } = useQuery({
     queryKey: ['console', 'accesses', 'systems'],
     queryFn: platformUsersApi.systems.list,
   });
 
-  const { data: accesses = [], isLoading: loadingAccesses } = useQuery({
+  const { data: accesses = [], isLoading: loadingAccesses, isError: errorAccesses } = useQuery({
     queryKey: ['console', 'accesses'],
     queryFn: platformUsersApi.accesses.list,
   });
@@ -257,28 +242,25 @@ export default function SystemAccessManagement() {
   });
 
   const isLoading = loadingCollaborators || loadingSystems || loadingAccesses;
+  const isError = errorCollaborators || errorSystems || errorAccesses;
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Console Macom</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Acessos por Sistema</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Libere, bloqueie ou remova acessos aos sistemas da plataforma usando as regras atuais.
-          </p>
-        </div>
-
-        <div className="relative w-full lg:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar colaborador, email ou sistema..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </header>
+      <PageHeader
+        title="Acessos por Sistema"
+        description="Libere, bloqueie ou remova acessos aos sistemas da plataforma usando as regras atuais."
+        actions={
+          <div className="relative w-full lg:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar colaborador, email ou sistema..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        }
+      />
 
       <Card className="space-y-4 p-5">
         <div className="flex items-center gap-2">
@@ -397,6 +379,12 @@ export default function SystemAccessManagement() {
                   Carregando acessos...
                 </TableCell>
               </TableRow>
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-destructive">
+                  Nao foi possivel carregar os acessos. Tente novamente.
+                </TableCell>
+              </TableRow>
             ) : filteredAccesses.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
@@ -411,7 +399,7 @@ export default function SystemAccessManagement() {
                   <TableCell>{entry.sistema?.nome || '-'}</TableCell>
                   <TableCell className="uppercase">{entry.nivel_acesso}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={entry.ativo ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}>
+                    <Badge variant="outline" className={getStatusBadgeClass(entry.ativo ? 'active' : 'inativo')}>
                       {entry.ativo ? 'Liberado' : 'Bloqueado'}
                     </Badge>
                   </TableCell>

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { Badge, Card } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+
 const overviewItems = [
   {
     title: 'Central',
@@ -83,25 +85,25 @@ function GuideVisual({ type }) {
       title: 'Colaboradores',
       icon: UsersRound,
       rows: ['Cadastro operacional', 'Unidade e cargo', 'Status funcional'],
-      accent: 'bg-blue-500',
+      accent: 'bg-info',
     },
     access: {
       title: 'Acessos',
       icon: KeyRound,
       rows: ['Central: admin', 'Relatorios: usuario', 'Intranet: gestor'],
-      accent: 'bg-emerald-500',
+      accent: 'bg-success',
     },
     permissions: {
       title: 'Permissoes',
       icon: ShieldCheck,
       rows: ['Ativos: gerenciar', 'Colaboradores: ver', 'Logs: ver'],
-      accent: 'bg-amber-500',
+      accent: 'bg-warning',
     },
     intranet: {
       title: 'Intranet',
       icon: Megaphone,
       rows: ['Aviso publicado', 'Documento interno', 'Evento agendado'],
-      accent: 'bg-rose-500',
+      accent: 'bg-destructive',
     },
   }[type];
 
@@ -111,8 +113,8 @@ function GuideVisual({ type }) {
     <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm" role="img" aria-label={`Imagem guia ${config.title}`}>
       <div className="flex items-center gap-2 border-b border-border bg-muted/35 px-4 py-3">
         <span className={`h-3 w-3 rounded-full ${config.accent}`} />
-        <span className="h-3 w-3 rounded-full bg-slate-300" />
-        <span className="h-3 w-3 rounded-full bg-slate-300" />
+        <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
+        <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
         <span className="ml-auto text-[10px] font-semibold uppercase text-muted-foreground">Guia visual</span>
       </div>
       <div className="p-4">
@@ -142,17 +144,17 @@ function GuideVisual({ type }) {
 export default function PlatformGuide() {
   return (
     <div className="flex flex-col gap-6">
-      <header className="border-b border-border pb-5">
-        <Badge variant="outline" className="mb-3 gap-2">
-          <BookOpen className="h-3.5 w-3.5" />
-          Documentacao administrativa
-        </Badge>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Guia da Plataforma</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-          Material interno para administradores consultarem a estrutura dos sistemas, os modulos disponiveis e os
-          principais fluxos de governanca da plataforma.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Documentacao administrativa"
+        title="Guia da Plataforma"
+        description="Material interno para administradores consultarem a estrutura dos sistemas, os modulos disponiveis e os principais fluxos de governanca da plataforma."
+        actions={
+          <Badge variant="outline" className="gap-2">
+            <BookOpen className="h-3.5 w-3.5" />
+            Guia
+          </Badge>
+        }
+      />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {overviewItems.map((item) => {
@@ -196,7 +198,7 @@ export default function PlatformGuide() {
           <div className="mt-4 space-y-3">
             {['Admin: acesso total', 'Gestor: acesso configuravel', 'Usuario: acesso limitado'].map((item) => (
               <div key={item} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 text-success" />
                 <span>{item}</span>
               </div>
             ))}
@@ -221,7 +223,7 @@ export default function PlatformGuide() {
                   <div className="mt-4 space-y-2">
                     {section.steps.map((step) => (
                       <div key={step} className="flex items-center gap-2 text-sm text-foreground">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <CheckCircle2 className="h-4 w-4 text-success" />
                         <span>{step}</span>
                       </div>
                     ))}
@@ -242,7 +244,7 @@ export default function PlatformGuide() {
           <div className="mt-4 space-y-3">
             {rules.map((rule) => (
               <div key={rule} className="flex items-start gap-3 text-sm leading-6 text-muted-foreground">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                 <span>{rule}</span>
               </div>
             ))}

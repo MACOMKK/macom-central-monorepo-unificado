@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import { BarChart3, Building2, CheckCircle2, Clock3, Megaphone, ShieldCheck, UsersRound, WalletCards } from 'lucide-react';
 import { Badge, Button, Card } from '@macom/ui';
 
-import { permissionSystems } from '@/lib/platformPermissions';
+import { permissionSystems } from '@/lib/systemsCatalog';
+import { getStatusBadgeClass } from '@/lib/statusStyles';
+import PageHeader from '@/components/PageHeader';
 
 const systemIcons = {
   central: Building2,
@@ -15,18 +17,10 @@ const systemIcons = {
 
 function getStatusConfig(status) {
   if (status === 'active') {
-    return {
-      label: 'Ativo',
-      icon: CheckCircle2,
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    };
+    return { label: 'Ativo', icon: CheckCircle2, className: getStatusBadgeClass('active') };
   }
 
-  return {
-    label: 'Planejado',
-    icon: Clock3,
-    className: 'border-slate-200 bg-slate-100 text-slate-600',
-  };
+  return { label: 'Planejado', icon: Clock3, className: getStatusBadgeClass('planned') };
 }
 
 export default function SystemsCatalog() {
@@ -36,24 +30,18 @@ export default function SystemsCatalog() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Console Macom</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Sistemas e Modulos</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Inventario inicial dos apps do monorepo e dos modulos que serao administrados pelo Console.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Sistemas e Modulos"
+        description="Inventario inicial dos apps do monorepo e dos modulos que serao administrados pelo Console."
+        actions={
           <Button asChild>
             <Link to="/permissoes-sistemas">
               <ShieldCheck className="h-4 w-4" />
               Permissoes
             </Link>
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       <section className="grid gap-3 md:grid-cols-3">
         <Card className="p-4">

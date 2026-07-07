@@ -160,7 +160,11 @@ function getPreviewType(document) {
 
 function getErrorMessage(error, fallback) {
   if (!error) return fallback;
-  return error instanceof Error ? error.message : fallback;
+  const message = error instanceof Error ? error.message : '';
+  if (/max clients reached|MAXCONNSESSION|pool_size/i.test(message)) {
+    return 'O sistema está com muitos acessos simultâneos no momento. Aguarde alguns instantes e tente novamente.';
+  }
+  return message || fallback;
 }
 
 function getDocumentVisibility(document) {

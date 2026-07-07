@@ -27,6 +27,12 @@
     --input: 0 0% 85.9%;
     --ring: 355 83% 41%;
     --radius: 0.625rem;
+    --success: 152 55% 32%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 40%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 70% 40%;
+    --info-foreground: 0 0% 100%;
   }
 
   * {

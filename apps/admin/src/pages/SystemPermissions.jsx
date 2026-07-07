@@ -18,10 +18,12 @@ import { useAuth } from '@macom/auth';
 import {
   centralModules,
   levelOptions,
-  permissionSystems,
   PERMISSION_LEVELS,
   reportsModules,
-} from '@/lib/platformPermissions';
+} from '@/lib/permissionModules';
+import { permissionSystems } from '@/lib/systemsCatalog';
+import PageHeader from '@/components/PageHeader';
+import { upsertByKey } from '@/lib/upsertByKey';
 
 const systemIcons = {
   central: Building2,
@@ -35,29 +37,11 @@ const permissionSystemCards = permissionSystems.map((system) => (
 ));
 
 function upsertCentralPermission(permissions, permission) {
-  if (!permission) return permissions;
-  const exists = permissions.some((item) => item.funcao === permission.funcao && item.modulo === permission.modulo);
-
-  if (!exists) {
-    return [...permissions, permission];
-  }
-
-  return permissions.map((item) =>
-    item.funcao === permission.funcao && item.modulo === permission.modulo ? { ...item, ...permission } : item,
-  );
+  return upsertByKey(permissions, permission, (item) => `${item.funcao}:${item.modulo}`);
 }
 
 function upsertReportsPermission(permissions, permission) {
-  if (!permission) return permissions;
-  const exists = permissions.some((item) => item.nivel_acesso === permission.nivel_acesso && item.modulo === permission.modulo);
-
-  if (!exists) {
-    return [...permissions, permission];
-  }
-
-  return permissions.map((item) =>
-    item.nivel_acesso === permission.nivel_acesso && item.modulo === permission.modulo ? { ...item, ...permission } : item,
-  );
+  return upsertByKey(permissions, permission, (item) => `${item.nivel_acesso}:${item.modulo}`);
 }
 
 function getPermissionDescription(level) {
@@ -276,13 +260,11 @@ export default function SystemPermissions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase text-primary">Governanca</p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Permissoes dos Sistemas</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Area inicial em paralelo com a Central. As permissoes continuam usando as mesmas tabelas e funcoes atuais.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Governanca"
+        title="Permissoes dos Sistemas"
+        description="Area inicial em paralelo com a Central. As permissoes continuam usando as mesmas tabelas e funcoes atuais."
+      />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {permissionSystemCards.map((system) => {

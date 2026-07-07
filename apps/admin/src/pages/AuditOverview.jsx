@@ -23,6 +23,10 @@ import {
   TableRow,
 } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+import Pagination from '@/components/Pagination';
+import { formatDateTime } from '@/lib/format';
+
 const PAGE_SIZE = 25;
 
 const entityLabels = {
@@ -45,19 +49,6 @@ const actionLabels = {
   desvincular: 'Desvincular',
   importar: 'Importar',
 };
-
-function formatDateTime(value) {
-  if (!value) return '-';
-
-  try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 function formatJson(value) {
   return JSON.stringify(value ?? {}, null, 2);
@@ -105,7 +96,7 @@ export default function AuditOverview() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['console', 'audit', page, activeEntity, activeAction],
     queryFn: () =>
       platformAuditApi.logs.list({
@@ -120,7 +111,6 @@ export default function AuditOverview() {
 
   const logs = data?.rows || [];
   const total = data?.total || 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const entityOptions = useMemo(() => ['all', ...Object.keys(entityLabels)], []);
   const actionOptions = useMemo(() => ['all', ...Object.keys(actionLabels)], []);
   const normalizedSearch = search.trim().toLowerCase();
@@ -147,25 +137,21 @@ export default function AuditOverview() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Console Macom</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Auditoria</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-            Eventos administrativos registrados pelo Console. A auditoria operacional da Central permanece separada.
-          </p>
-        </div>
-
-        <div className="relative w-full lg:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar responsavel, afetado ou contexto..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-      </header>
+      <PageHeader
+        title="Auditoria"
+        description="Eventos administrativos registrados pelo Console. A auditoria operacional da Central permanece separada."
+        actions={
+          <div className="relative w-full lg:w-80">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar responsavel, afetado ou contexto..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        }
+      />
 
       <Card className="space-y-4 p-5">
         <div className="flex items-center gap-2">
@@ -234,6 +220,12 @@ export default function AuditOverview() {
                   Carregando logs...
                 </TableCell>
               </TableRow>
+            ) : isError ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-destructive">
+                  Nao foi possivel carregar os logs. Tente novamente.
+                </TableCell>
+              </TableRow>
             ) : filteredLogs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-16 text-center">
@@ -273,30 +265,7 @@ export default function AuditOverview() {
         </Table>
       </Card>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-sm text-muted-foreground">
-          {total > 0
-            ? `Mostrando ${Math.max(1, (page - 1) * PAGE_SIZE + 1)}-${Math.min(page * PAGE_SIZE, total)} de ${total} log(s)`
-            : 'Nenhum log encontrado'}
-        </p>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Pagina {page} de {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          >
-            Proxima
-          </Button>
-        </div>
-      </div>
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} itemLabel="log(s)" />
 
       <Dialog open={Boolean(selectedLog)} onOpenChange={(open) => !open && setSelectedLog(null)}>
         <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
@@ -325,13 +294,13 @@ export default function AuditOverview() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">JSON antes</p>
-                  <pre className="max-h-72 overflow-auto rounded-md border bg-slate-950 p-3 text-xs text-slate-100">
+                  <pre className="max-h-72 overflow-auto rounded-md border bg-foreground p-3 text-xs text-background">
                     {formatJson(selectedLog.antes)}
                   </pre>
                 </div>
                 <div>
                   <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">JSON depois</p>
-                  <pre className="max-h-72 overflow-auto rounded-md border bg-slate-950 p-3 text-xs text-slate-100">
+                  <pre className="max-h-72 overflow-auto rounded-md border bg-foreground p-3 text-xs text-background">
                     {formatJson(selectedLog.depois)}
                   </pre>
                 </div>

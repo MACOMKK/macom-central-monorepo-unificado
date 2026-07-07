@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import { Activity, AppWindow, KeyRound, Settings2, ShieldCheck, UsersRound } from 'lucide-react';
 import { Button, Card } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+
 const platformAreas = [
   {
     title: 'Sistemas',
@@ -32,16 +34,18 @@ const platformAreas = [
 export default function ConsoleDashboard() {
   return (
     <div className="space-y-8">
+      <PageHeader
+        title="Visao geral"
+        description="Um app dedicado para administrar sistemas, usuarios e acessos da plataforma MACOM."
+      />
+
       <section className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <div>
           <p className="text-sm font-medium text-primary">Separacao de responsabilidades</p>
           <h2 className="mt-3 max-w-3xl text-4xl font-black leading-tight">
-            Um app dedicado para administrar sistemas, usuarios e acessos.
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
             A Central segue focada em estoque e operacao de TI, enquanto o Console concentra
             configuracoes transversais aos demais apps.
-          </p>
+          </h2>
 
           <div className="mt-6 flex flex-wrap gap-2">
             <Button asChild>

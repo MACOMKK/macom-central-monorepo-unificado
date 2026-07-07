@@ -1,13 +1,11 @@
 import { Card } from '@macom/ui';
 
+import PageHeader from '@/components/PageHeader';
+
 export default function PlaceholderPage({ eyebrow = 'Console Macom', title, description }) {
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase text-primary">{eyebrow}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
-      </div>
+      <PageHeader eyebrow={eyebrow} title={title} description={description} />
 
       <Card className="p-6">
         <p className="text-sm text-muted-foreground">

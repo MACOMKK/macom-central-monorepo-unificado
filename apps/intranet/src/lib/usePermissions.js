@@ -1,52 +1,45 @@
-import { useEffect, useState } from 'react';
-import { appClient } from '@/api/client';
+import { useMemo } from 'react';
+import { useAuth } from '@/lib/AuthContext';
 
 // Returns { role, canView, canEdit, isLoading }
 // Admin always has full access
 // Otherwise checks UserPermission entity
+//
+// Reuses the user already loaded by AuthContext instead of calling auth.me()
+// again — a separate fetch per module/page was firing extra 'me' calls and
+// creating duplicate access-log entries on the backend (each successful
+// 'me' call registers an access log).
 
 export function usePermissions(module) {
-  const [state, setState] = useState({ role: null, canView: false, canEdit: false, isLoading: true });
+  const { user, isLoadingAuth, authChecked } = useAuth();
 
-  useEffect(() => {
-    let active = true;
+  return useMemo(() => {
+    const isLoading = !authChecked && isLoadingAuth;
 
-    async function load() {
-      const user = await appClient.auth.me().catch(() => null);
-      if (!active) return;
-
-      if (!user) {
-        setState({ role: null, canView: false, canEdit: false, isLoading: false });
-        return;
-      }
-
-      if (user.role === 'admin') {
-        setState({ role: 'admin', canView: true, canEdit: true, isLoading: false });
-        return;
-      }
-
-      if (!module) {
-        setState({ role: user.role, canView: true, canEdit: false, isLoading: false });
-        return;
-      }
-
-      const level = user.permissions?.[module] ?? 'view';
-      setState({
-        role: user.role,
-        canView: level === 'view' || level === 'edit',
-        canEdit: level === 'edit',
-        isLoading: false,
-      });
+    if (isLoading) {
+      return { role: null, canView: false, canEdit: false, isLoading: true };
     }
 
-    load();
+    if (!user) {
+      return { role: null, canView: false, canEdit: false, isLoading: false };
+    }
 
-    return () => {
-      active = false;
+    if (user.role === 'admin') {
+      return { role: 'admin', canView: true, canEdit: true, isLoading: false };
+    }
+
+    if (!module) {
+      return { role: user.role, canView: true, canEdit: false, isLoading: false };
+    }
+
+    const level = user.permissions?.[module] ?? 'view';
+    return {
+      role: user.role,
+      canView: level === 'view' || level === 'edit',
+      canEdit: level === 'edit',
+      isLoading: false,
     };
-  }, [module]);
-
-  return state;
+  }, [user, module, isLoadingAuth, authChecked]);
 }
 
 export function clearPermissionsCache() {
