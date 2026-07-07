@@ -834,16 +834,22 @@ async function registrarAcessoIntranet(collaboratorId: string | null, request: R
           -- Serializes concurrent 'me' calls for the same colaborador (e.g. multiple
           -- tabs/requests firing at once) so the NOT EXISTS check below can't race:
           -- without this, two calls could both see "no recent log" and both insert.
-          select pg_advisory_xact_lock(hashtextextended($1::text, 0))
+          --
+          -- $1 is cast to uuid on every occurrence (including here, via ::uuid before
+          -- ::text) so Postgres infers a single consistent parameter type. Casting only
+          -- this occurrence to ::text (as before) made the whole parameter infer as
+          -- text, which then failed on "la.colaborador_id = $1" (uuid = text) below —
+          -- silently swallowed by the caller's try/catch, so no access log ever wrote.
+          select pg_advisory_xact_lock(hashtextextended($1::uuid::text, 0))
         )
         insert into gestao_plataforma.logs_acesso (colaborador_id, sistema_id, evento, ip_address, user_agent)
-        select $1, s.id, 'login', $2, $3
+        select $1::uuid, s.id, 'login', $2::inet, $3::text
         from public.sistemas s, lock
-        where s.slug = $4
+        where s.slug = $4::text
           and not exists (
             select 1
             from gestao_plataforma.logs_acesso la
-            where la.colaborador_id = $1
+            where la.colaborador_id = $1::uuid
               and la.sistema_id = s.id
               and la.criado_em > now() - interval '30 minutes'
           );
