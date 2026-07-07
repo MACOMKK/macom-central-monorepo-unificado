@@ -1,0 +1,12 @@
+{
+  "name": "@macom/comunicacao",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader runner",
+    "prebuild": "node ../../scripts/syncFavicons.js",
+    "build": "vite build --configLoader runner",
+    "preview": "vite preview --configLoader runner"
+  }
+}

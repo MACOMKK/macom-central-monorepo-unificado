@@ -6,6 +6,7 @@
   "workspaces": [
     "apps/admin",
     "apps/central",
+    "apps/comunicacao",
     "apps/intranet",
     "apps/pagamentos",
     "apps/relatorios",
@@ -19,6 +20,7 @@
     "dev": "vite --configLoader runner",
     "dev:admin": "vite --config apps/admin/vite.config.js --configLoader runner",
     "dev:central": "vite --configLoader runner",
+    "dev:comunicacao": "vite --config apps/comunicacao/vite.config.js --configLoader runner",
     "dev:crm": "vite --config apps/crm/vite.config.js --configLoader runner",
     "dev:relatorios": "vite --config apps/relatorios/vite.config.js --configLoader runner",
     "dev:intranet": "npm --prefix apps/intranet run dev",
@@ -26,6 +28,8 @@
     "sync:favicons": "node scripts/syncFavicons.js",
     "prebuild:admin": "npm run sync:favicons",
     "build:admin": "vite build --config apps/admin/vite.config.js --configLoader runner",
+    "prebuild:comunicacao": "npm run sync:favicons",
+    "build:comunicacao": "vite build --config apps/comunicacao/vite.config.js --configLoader runner",
     "prebuild:central": "npm run sync:favicons",
     "build:central": "vite build --configLoader runner",
     "prebuild:crm": "npm run sync:favicons",
@@ -43,8 +47,10 @@
     "preview": "vite preview --configLoader runner"
   },
   "dependencies": {
+    "@radix-ui/react-avatar": "^1.1.3",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-scroll-area": "^1.2.3",
     "@radix-ui/react-select": "^2.1.6",
     "@radix-ui/react-slot": "^1.1.2",
     "@supabase/supabase-js": "^2.105.2",

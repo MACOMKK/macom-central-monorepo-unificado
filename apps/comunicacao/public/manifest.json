@@ -1,0 +1,10 @@
+{
+  "name": "Comunicação MACOM",
+  "short_name": "Comunicação",
+  "description": "Chat interno corporativo MACOM.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#881337",
+  "icons": []
+}

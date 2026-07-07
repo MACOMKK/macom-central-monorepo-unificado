@@ -1,5 +1,6 @@
 export * from './alert';
 export * from './alert-dialog';
+export * from './avatar';
 export * from './badge';
 export * from './button';
 export * from './card';
@@ -10,6 +11,7 @@ export { default as FeedbackToast } from './feedback-toast';
 export * from './input';
 export * from './label';
 export * from './not-found-page';
+export * from './scroll-area';
 export * from './select';
 export * from './skeleton';
 export * from './separator';
