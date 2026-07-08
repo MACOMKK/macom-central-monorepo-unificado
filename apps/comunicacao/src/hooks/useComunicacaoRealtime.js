@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 import { CANAIS_QUERY_KEY } from './useCanais';
 import { mensagensQueryKey } from './useMensagens';
+import { CONVERSAS_QUERY_KEY } from './useConversas';
+import { mensagensDiretasQueryKey } from './useMensagensDiretas';
 
 function upsertMensagem(rows, nextItem) {
   if (!Array.isArray(rows)) return rows;
@@ -11,6 +13,45 @@ function upsertMensagem(rows, nextItem) {
     return rows.map((item) => (item.id === nextItem.id ? { ...item, ...nextItem } : item));
   }
   return [...rows, nextItem];
+}
+
+function attachAnexoToMensagem(rows, anexo, mensagemKey) {
+  if (!Array.isArray(rows)) return rows;
+  const mensagemId = anexo[mensagemKey];
+  if (!mensagemId) return rows;
+
+  let found = false;
+  const nextRows = rows.map((item) => {
+    if (item.id !== mensagemId) return item;
+    found = true;
+    const anexosAtuais = Array.isArray(item.anexos) ? item.anexos : [];
+    if (anexosAtuais.some((existing) => existing.id === anexo.id)) return item;
+    return { ...item, anexos: [...anexosAtuais, anexo] };
+  });
+
+  return found ? nextRows : rows;
+}
+
+function findAutorInfo(queryClient, autorId) {
+  if (!autorId) return null;
+
+  const conversas = queryClient.getQueryData(CONVERSAS_QUERY_KEY) || [];
+  for (const conversa of conversas) {
+    const match = conversa.outros_participantes?.find((participante) => participante.id === autorId);
+    if (match) return { id: match.id, nome: match.nome, email: match.email };
+  }
+
+  const messageQueries = [
+    ...queryClient.getQueriesData({ queryKey: ['comunicacao-mensagens'] }),
+    ...queryClient.getQueriesData({ queryKey: ['comunicacao-mensagens-diretas'] }),
+  ];
+  for (const [, rows] of messageQueries) {
+    if (!Array.isArray(rows)) continue;
+    const match = rows.find((item) => item.autor_id === autorId && item.autor);
+    if (match) return match.autor;
+  }
+
+  return null;
 }
 
 export function useComunicacaoRealtime(enabled = true) {
@@ -41,9 +82,31 @@ export function useComunicacaoRealtime(enabled = true) {
         if (!nextItem?.canal_id) return;
 
         const queryKey = mensagensQueryKey(nextItem.canal_id);
+        const autorInfo = nextItem.autor || findAutorInfo(queryClient, nextItem.autor_id);
+        const item = autorInfo ? { ...nextItem, autor: autorInfo } : nextItem;
 
         if (eventType === 'INSERT' || eventType === 'UPDATE') {
-          queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, nextItem));
+          queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, item));
+        }
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'gestao_comunicacao', table: 'anexos_mensagem' },
+      (payload) => {
+        const anexo = payload.new;
+        if (!anexo) return;
+
+        if (anexo.mensagem_id) {
+          queryClient.setQueriesData({ queryKey: ['comunicacao-mensagens'] }, (current) =>
+            attachAnexoToMensagem(current, anexo, 'mensagem_id'),
+          );
+        }
+        if (anexo.mensagem_direta_id) {
+          queryClient.setQueriesData({ queryKey: ['comunicacao-mensagens-diretas'] }, (current) =>
+            attachAnexoToMensagem(current, anexo, 'mensagem_direta_id'),
+          );
         }
       },
     );
@@ -53,6 +116,43 @@ export function useComunicacaoRealtime(enabled = true) {
       { event: '*', schema: 'gestao_comunicacao', table: 'canais' },
       () => {
         queryClient.invalidateQueries({ queryKey: CANAIS_QUERY_KEY });
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'gestao_comunicacao', table: 'mensagens_diretas' },
+      (payload) => {
+        const eventType = payload.eventType;
+        const nextItem = payload.new || payload.old || null;
+        if (!nextItem?.conversa_id) return;
+
+        const queryKey = mensagensDiretasQueryKey(nextItem.conversa_id);
+        const autorInfo = nextItem.autor || findAutorInfo(queryClient, nextItem.autor_id);
+        const item = autorInfo ? { ...nextItem, autor: autorInfo } : nextItem;
+
+        if (eventType === 'INSERT' || eventType === 'UPDATE') {
+          queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, item));
+        }
+        if (eventType === 'INSERT') {
+          queryClient.invalidateQueries({ queryKey: CONVERSAS_QUERY_KEY });
+        }
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'gestao_comunicacao', table: 'conversas_diretas' },
+      () => {
+        queryClient.invalidateQueries({ queryKey: CONVERSAS_QUERY_KEY });
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'gestao_comunicacao', table: 'participantes_conversa' },
+      () => {
+        queryClient.invalidateQueries({ queryKey: CONVERSAS_QUERY_KEY });
       },
     );
 

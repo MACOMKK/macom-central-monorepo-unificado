@@ -7,6 +7,7 @@ import { useComunicacaoRealtime } from '@/hooks/useComunicacaoRealtime';
 import Layout from '@/components/layout/Layout';
 import Login from '@/pages/Login';
 import Chat from '@/pages/Chat';
+import DirectMessage from '@/pages/DirectMessage';
 
 const FullScreenLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
@@ -40,6 +41,7 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/canais/geral" replace />} />
                 <Route path="/canais/:slug" element={<Chat />} />
+                <Route path="/dm/:conversaId" element={<DirectMessage />} />
               </Route>
             </Route>
             <Route

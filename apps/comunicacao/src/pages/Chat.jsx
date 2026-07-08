@@ -46,7 +46,7 @@ export default function Chat() {
           onDelete={(id) => removeMensagem(id)}
         />
       )}
-      <MessageComposer onSend={(conteudo) => createMensagem(conteudo)} />
+      <MessageComposer canalId={canal.id} onSend={(payload) => createMensagem(payload)} />
     </div>
   );
 }

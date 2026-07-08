@@ -11,9 +11,12 @@ const SYSTEM_SLUG = 'comunicacao';
 const MAX_MENSAGEM_LENGTH = 4000;
 const DEFAULT_LIST_LIMIT = 50;
 
+const ATTACHMENTS_BUCKET = 'comunicacao-anexos';
+
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const sql = databaseUrl
   ? postgres(databaseUrl, {
@@ -32,6 +35,27 @@ function json(data: unknown, status = 200) {
       'Content-Type': 'application/json',
     },
   });
+}
+
+function createStorageAdminClient() {
+  if (!supabaseUrl || !serviceRoleKey) return null;
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+async function deleteAnexosStorage(paths: string[]) {
+  const validPaths = paths.filter((path) => typeof path === 'string' && path.length > 0);
+  if (!validPaths.length) return;
+
+  const storageClient = createStorageAdminClient();
+  if (!storageClient) {
+    console.error('Storage admin client indisponivel para remover anexos:', validPaths);
+    return;
+  }
+
+  const { error } = await storageClient.storage.from(ATTACHMENTS_BUCKET).remove(validPaths);
+  if (error) {
+    console.error('Falha ao remover anexos do storage:', { paths: validPaths, message: error.message });
+  }
 }
 
 function getErrorStatus(error: unknown) {
@@ -130,6 +154,21 @@ async function ensureCanAccessCanal(canalId: string) {
   }
 }
 
+async function ensureCanAccessConversa(conversaId: string, collaboratorId: string) {
+  const rows = await sql.unsafe(
+    `
+      select 1
+      from ${SCHEMA}.participantes_conversa
+      where conversa_id = $1 and colaborador_id = $2
+      limit 1;
+    `,
+    [conversaId, collaboratorId],
+  );
+  if (!rows[0]) {
+    throw Object.assign(new Error('Conversa nao encontrada ou sem permissao.'), { status: 404 });
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -172,7 +211,18 @@ Deno.serve(async (request) => {
         `
           select
             m.*,
-            json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor
+            json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor,
+            coalesce(
+              (
+                select json_agg(json_build_object(
+                  'id', a.id, 'nome_arquivo', a.nome_arquivo, 'tipo_mime', a.tipo_mime,
+                  'tamanho_bytes', a.tamanho_bytes, 'storage_path', a.storage_path
+                ) order by a.criado_em asc)
+                from ${SCHEMA}.anexos_mensagem a
+                where a.mensagem_id = m.id
+              ),
+              '[]'::json
+            ) as anexos
           from ${SCHEMA}.mensagens m
           join public.colaboradores c on c.id = m.autor_id
           where m.canal_id = $1
@@ -189,21 +239,40 @@ Deno.serve(async (request) => {
     if (action === 'create_mensagem') {
       const canalId = String(body.canal_id || '');
       const conteudo = typeof body.conteudo === 'string' ? body.conteudo.trim() : '';
+      const anexos = Array.isArray(body.anexos) ? body.anexos : [];
       if (!canalId) return json({ error: 'canal_id obrigatorio.' }, 400);
-      if (!conteudo || conteudo.length > MAX_MENSAGEM_LENGTH) {
+      if ((!conteudo && anexos.length === 0) || conteudo.length > MAX_MENSAGEM_LENGTH) {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
       await ensureCanAccessCanal(canalId);
 
-      const rows = await sql.unsafe(
-        `
-          insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo)
-          values ($1, $2, $3)
-          returning *;
-        `,
-        [canalId, collaborator.id, conteudo],
-      );
-      return json({ row: rows[0] || null });
+      const row = await sql.begin(async (trx) => {
+        const [mensagem] = await trx.unsafe(
+          `
+            insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo)
+            values ($1, $2, $3)
+            returning *;
+          `,
+          [canalId, collaborator.id, conteudo || ''],
+        );
+
+        const anexosRows = [];
+        for (const anexo of anexos) {
+          const [anexoRow] = await trx.unsafe(
+            `
+              insert into ${SCHEMA}.anexos_mensagem (mensagem_id, nome_arquivo, tipo_mime, tamanho_bytes, storage_path)
+              values ($1, $2, $3, $4, $5)
+              returning id, nome_arquivo, tipo_mime, tamanho_bytes, storage_path;
+            `,
+            [mensagem.id, String(anexo.nome_arquivo || ''), String(anexo.tipo_mime || ''), Number(anexo.tamanho_bytes || 0), String(anexo.storage_path || '')],
+          );
+          anexosRows.push(anexoRow);
+        }
+
+        return { ...mensagem, anexos: anexosRows };
+      });
+
+      return json({ row: { ...row, autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email } } });
     }
 
     if (action === 'update_mensagem') {
@@ -236,22 +305,275 @@ Deno.serve(async (request) => {
       const id = String(body.id || '');
       if (!id) return json({ error: 'id obrigatorio.' }, 400);
 
+      const { row, anexoPaths } = await sql.begin(async (trx) => {
+        const [updated] = await trx.unsafe(
+          `
+            update ${SCHEMA}.mensagens
+            set excluida_em = now()
+            where id = $1
+              and autor_id = $2
+              and excluida_em is null
+            returning *;
+          `,
+          [id, collaborator.id],
+        );
+
+        if (!updated) return { row: null, anexoPaths: [] };
+
+        const anexos = await trx.unsafe(
+          `
+            delete from ${SCHEMA}.anexos_mensagem
+            where mensagem_id = $1
+            returning storage_path;
+          `,
+          [id],
+        );
+
+        return { row: updated, anexoPaths: anexos.map((a: { storage_path: string }) => a.storage_path) };
+      });
+
+      if (!row) {
+        return json({ error: 'Mensagem nao encontrada ou sem permissao.' }, 403);
+      }
+      await deleteAnexosStorage(anexoPaths);
+      return json({ row });
+    }
+
+    if (action === 'list_colaboradores') {
+      const search = typeof body.search === 'string' ? body.search.trim() : '';
+
       const rows = await sql.unsafe(
         `
-          update ${SCHEMA}.mensagens
-          set excluida_em = now()
-          where id = $1
-            and autor_id = $2
+          select c.id, c.nome, c.email
+          from public.colaboradores c
+          join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id
+          join public.sistemas s on s.id = aus.sistema_id
+          where s.slug = $1
+            and s.ativo = true
+            and aus.ativo = true
+            and c.id <> $2
+            and c.status = 'ativo'
+            and ($3 = '' or c.nome ilike '%' || $3 || '%' or c.email ilike '%' || $3 || '%')
+          order by c.nome asc
+          limit 50;
+        `,
+        [SYSTEM_SLUG, collaborator.id, search],
+      );
+
+      return json({ rows });
+    }
+
+    if (action === 'list_conversas') {
+      const rows = await sql.unsafe(
+        `
+          select
+            cd.id,
+            cd.ultima_mensagem_em,
+            (
+              select json_agg(json_build_object('id', c.id, 'nome', c.nome, 'email', c.email))
+              from ${SCHEMA}.participantes_conversa pc2
+              join public.colaboradores c on c.id = pc2.colaborador_id
+              where pc2.conversa_id = cd.id
+                and pc2.colaborador_id <> $1
+            ) as outros_participantes,
+            (
+              select row_to_json(m)
+              from (
+                select conteudo, criado_em, autor_id, excluida_em
+                from ${SCHEMA}.mensagens_diretas
+                where conversa_id = cd.id
+                order by criado_em desc
+                limit 1
+              ) m
+            ) as ultima_mensagem
+          from ${SCHEMA}.conversas_diretas cd
+          join ${SCHEMA}.participantes_conversa pc on pc.conversa_id = cd.id and pc.colaborador_id = $1
+          order by cd.ultima_mensagem_em desc nulls last, cd.criado_em desc;
+        `,
+        [collaborator.id],
+      );
+
+      return json({ rows });
+    }
+
+    if (action === 'start_conversa') {
+      const otherId = String(body.colaborador_id || '');
+      if (!otherId) return json({ error: 'colaborador_id obrigatorio.' }, 400);
+      if (otherId === collaborator.id) {
+        return json({ error: 'Nao e possivel iniciar conversa consigo mesmo.' }, 400);
+      }
+
+      const existing = await sql.unsafe(
+        `
+          select pc1.conversa_id
+          from ${SCHEMA}.participantes_conversa pc1
+          join ${SCHEMA}.participantes_conversa pc2 on pc2.conversa_id = pc1.conversa_id
+          where pc1.colaborador_id = $1
+            and pc2.colaborador_id = $2
+            and (
+              select count(*) from ${SCHEMA}.participantes_conversa pc3 where pc3.conversa_id = pc1.conversa_id
+            ) = 2
+          limit 1;
+        `,
+        [collaborator.id, otherId],
+      );
+
+      if (existing[0]) {
+        return json({ row: { id: existing[0].conversa_id }, created: false });
+      }
+
+      const row = await sql.begin(async (trx) => {
+        const [conversa] = await trx.unsafe(
+          `insert into ${SCHEMA}.conversas_diretas default values returning id;`,
+        );
+        await trx.unsafe(
+          `insert into ${SCHEMA}.participantes_conversa (conversa_id, colaborador_id) values ($1, $2), ($1, $3);`,
+          [conversa.id, collaborator.id, otherId],
+        );
+        return conversa;
+      });
+
+      return json({ row, created: true });
+    }
+
+    if (action === 'list_mensagens_diretas') {
+      const conversaId = String(body.conversa_id || '');
+      if (!conversaId) return json({ error: 'conversa_id obrigatorio.' }, 400);
+      await ensureCanAccessConversa(conversaId, collaborator.id);
+
+      const limit = parseInteger(body.limit, DEFAULT_LIST_LIMIT, 1, 200);
+      const before = body.before ? String(body.before) : null;
+
+      const rows = await sql.unsafe(
+        `
+          select
+            m.*,
+            json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor,
+            coalesce(
+              (
+                select json_agg(json_build_object(
+                  'id', a.id, 'nome_arquivo', a.nome_arquivo, 'tipo_mime', a.tipo_mime,
+                  'tamanho_bytes', a.tamanho_bytes, 'storage_path', a.storage_path
+                ) order by a.criado_em asc)
+                from ${SCHEMA}.anexos_mensagem a
+                where a.mensagem_direta_id = m.id
+              ),
+              '[]'::json
+            ) as anexos
+          from ${SCHEMA}.mensagens_diretas m
+          join public.colaboradores c on c.id = m.autor_id
+          where m.conversa_id = $1
+            and ($2::timestamptz is null or m.criado_em < $2::timestamptz)
+          order by m.criado_em desc
+          limit ${limit};
+        `,
+        [conversaId, before],
+      );
+
+      return json({ rows: rows.reverse() });
+    }
+
+    if (action === 'create_mensagem_direta') {
+      const conversaId = String(body.conversa_id || '');
+      const conteudo = typeof body.conteudo === 'string' ? body.conteudo.trim() : '';
+      const anexos = Array.isArray(body.anexos) ? body.anexos : [];
+      if (!conversaId) return json({ error: 'conversa_id obrigatorio.' }, 400);
+      if ((!conteudo && anexos.length === 0) || conteudo.length > MAX_MENSAGEM_LENGTH) {
+        return json({ error: 'Mensagem invalida.' }, 400);
+      }
+      await ensureCanAccessConversa(conversaId, collaborator.id);
+
+      const row = await sql.begin(async (trx) => {
+        const [mensagem] = await trx.unsafe(
+          `
+            insert into ${SCHEMA}.mensagens_diretas (conversa_id, autor_id, conteudo)
+            values ($1, $2, $3)
+            returning *;
+          `,
+          [conversaId, collaborator.id, conteudo || ''],
+        );
+
+        const anexosRows = [];
+        for (const anexo of anexos) {
+          const [anexoRow] = await trx.unsafe(
+            `
+              insert into ${SCHEMA}.anexos_mensagem (mensagem_direta_id, nome_arquivo, tipo_mime, tamanho_bytes, storage_path)
+              values ($1, $2, $3, $4, $5)
+              returning id, nome_arquivo, tipo_mime, tamanho_bytes, storage_path;
+            `,
+            [mensagem.id, String(anexo.nome_arquivo || ''), String(anexo.tipo_mime || ''), Number(anexo.tamanho_bytes || 0), String(anexo.storage_path || '')],
+          );
+          anexosRows.push(anexoRow);
+        }
+
+        return { ...mensagem, anexos: anexosRows };
+      });
+
+      return json({ row: { ...row, autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email } } });
+    }
+
+    if (action === 'update_mensagem_direta') {
+      const id = String(body.id || '');
+      const conteudo = typeof body.conteudo === 'string' ? body.conteudo.trim() : '';
+      if (!id) return json({ error: 'id obrigatorio.' }, 400);
+      if (!conteudo || conteudo.length > MAX_MENSAGEM_LENGTH) {
+        return json({ error: 'Mensagem invalida.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          update ${SCHEMA}.mensagens_diretas
+          set conteudo = $1, editada_em = now()
+          where id = $2
+            and autor_id = $3
             and excluida_em is null
           returning *;
         `,
-        [id, collaborator.id],
+        [conteudo, id, collaborator.id],
       );
 
       if (!rows[0]) {
         return json({ error: 'Mensagem nao encontrada ou sem permissao.' }, 403);
       }
       return json({ row: rows[0] });
+    }
+
+    if (action === 'delete_mensagem_direta') {
+      const id = String(body.id || '');
+      if (!id) return json({ error: 'id obrigatorio.' }, 400);
+
+      const { row, anexoPaths } = await sql.begin(async (trx) => {
+        const [updated] = await trx.unsafe(
+          `
+            update ${SCHEMA}.mensagens_diretas
+            set excluida_em = now()
+            where id = $1
+              and autor_id = $2
+              and excluida_em is null
+            returning *;
+          `,
+          [id, collaborator.id],
+        );
+
+        if (!updated) return { row: null, anexoPaths: [] };
+
+        const anexos = await trx.unsafe(
+          `
+            delete from ${SCHEMA}.anexos_mensagem
+            where mensagem_direta_id = $1
+            returning storage_path;
+          `,
+          [id],
+        );
+
+        return { row: updated, anexoPaths: anexos.map((a: { storage_path: string }) => a.storage_path) };
+      });
+
+      if (!row) {
+        return json({ error: 'Mensagem nao encontrada ou sem permissao.' }, 403);
+      }
+      await deleteAnexosStorage(anexoPaths);
+      return json({ row });
     }
 
     return json({ error: 'Acao invalida.' }, 400);

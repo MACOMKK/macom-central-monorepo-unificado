@@ -73,6 +73,10 @@ export default function ConsoleLayout() {
         </nav>
 
         <div className="border-t border-border p-3">
+          <div className="mb-2 rounded-md bg-accent/50 px-3 py-2">
+            <p className="truncate text-sm font-semibold">{profile?.nome || profile?.email || 'Usuario autenticado'}</p>
+            <p className="truncate text-xs text-muted-foreground">{profile?.funcao || 'perfil ativo'}</p>
+          </div>
           <Button type="button" variant="outline" className="w-full justify-start" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
             Sair
@@ -81,33 +85,18 @@ export default function ConsoleLayout() {
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card px-4 lg:h-16 lg:px-6">
-          <div>
-            <p className="text-sm font-bold">Console Macom</p>
-            <p className="hidden text-xs text-muted-foreground sm:block">Gestao da plataforma</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold">{profile?.nome || profile?.email || 'Usuario autenticado'}</p>
-              <p className="text-xs text-muted-foreground">{profile?.funcao || 'perfil ativo'}</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-              Sair
-            </Button>
-          </div>
-        </header>
-
-        <div className="border-b border-border bg-card px-4 py-2 lg:hidden">
-          <nav className="flex gap-2 overflow-x-auto">
+        <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2 lg:hidden">
+          <nav className="flex flex-1 gap-2 overflow-x-auto">
             {navItems.map((item) => (
               <ConsoleNavLink key={item.path} item={item} />
             ))}
           </nav>
+          <Button type="button" variant="outline" size="icon" onClick={handleLogout} title="Sair" className="shrink-0">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
 
-        <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 lg:px-8">
+        <main className="w-full px-4 py-6 md:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>

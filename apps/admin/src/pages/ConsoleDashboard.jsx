@@ -1,107 +1,193 @@
 import { Link } from 'react-router-dom';
-import { Activity, AppWindow, KeyRound, Settings2, ShieldCheck, UsersRound } from 'lucide-react';
-import { Button, Card } from '@macom/ui';
+import { useQuery } from '@tanstack/react-query';
+import { Activity, AppWindow, History, ShieldCheck, UsersRound } from 'lucide-react';
+import { platformAuditApi, platformUsersApi } from '@macom/api-client';
+import { Card } from '@macom/ui';
 
 import PageHeader from '@/components/PageHeader';
+import { formatDateTime } from '@/lib/format';
 
-const platformAreas = [
-  {
-    title: 'Sistemas',
-    description: 'Cadastro e organizacao dos apps do ecossistema MACOM.',
-    icon: AppWindow,
-    path: '/sistemas',
-  },
-  {
-    title: 'Permissoes',
-    description: 'Perfis, acessos e regras compartilhadas entre sistemas.',
-    icon: ShieldCheck,
-    path: '/permissoes-sistemas',
-  },
-  {
-    title: 'Usuarios',
-    description: 'Administracao de contas, funcoes e vinculos corporativos.',
-    icon: UsersRound,
-    path: '/usuarios',
-  },
-  {
-    title: 'Auditoria',
-    description: 'Rastreamento de eventos globais e acoes administrativas.',
-    icon: Activity,
-    path: '/auditoria',
-  },
-];
+const entityLabels = {
+  colaboradores: 'Colaboradores',
+  acessos_usuario_sistema: 'Acessos Sistemas',
+  departamentos: 'Departamentos',
+  unidades: 'Unidades',
+  ativos: 'Ativos',
+  contatos: 'Contatos',
+  linhas_corporativas: 'Linhas Corporativas',
+  infra_estrutura: 'Infraestrutura',
+  termos_posse: 'Termos de Posse',
+};
+
+const actionLabels = {
+  criar: 'Criar',
+  atualizar: 'Atualizar',
+  excluir: 'Excluir',
+  redefinir_senha: 'Redefinir senha',
+  desvincular: 'Desvincular',
+  importar: 'Importar',
+};
+
+const RECENT_LIMIT = 5;
+
+function StatCard({ icon: Icon, label, value, hint, to }) {
+  return (
+    <Link to={to} className="block">
+      <Card className="h-full p-4 transition-colors hover:bg-accent/50">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Icon className="h-4 w-4" />
+          <p className="text-sm">{label}</p>
+        </div>
+        <p className="mt-2 text-3xl font-black">{value}</p>
+        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      </Card>
+    </Link>
+  );
+}
+
+function ActivityCard({ icon: Icon, title, to, isLoading, isError, isEmpty, emptyLabel, children }) {
+  return (
+    <Card className="p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-primary" />
+          <h2 className="text-sm font-bold uppercase text-foreground">{title}</h2>
+        </div>
+        <Link to={to} className="text-xs font-semibold text-primary hover:underline">
+          Ver tudo
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Carregando...</p>
+      ) : isError ? (
+        <p className="py-6 text-center text-sm text-destructive">Nao foi possivel carregar.</p>
+      ) : isEmpty ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+      ) : (
+        children
+      )}
+    </Card>
+  );
+}
 
 export default function ConsoleDashboard() {
+  const { data: systems = [], isLoading: loadingSystems, isError: errorSystems } = useQuery({
+    queryKey: ['console', 'dashboard', 'systems'],
+    queryFn: platformUsersApi.systems.list,
+  });
+
+  const { data: collaborators = [], isLoading: loadingCollaborators, isError: errorCollaborators } = useQuery({
+    queryKey: ['console', 'dashboard', 'collaborators'],
+    queryFn: platformUsersApi.collaborators.list,
+  });
+
+  const { data: accesses = [], isLoading: loadingAccesses, isError: errorAccesses } = useQuery({
+    queryKey: ['console', 'dashboard', 'accesses'],
+    queryFn: platformUsersApi.accesses.list,
+  });
+
+  const { data: auditData, isLoading: loadingAudit, isError: errorAudit } = useQuery({
+    queryKey: ['console', 'dashboard', 'audit'],
+    queryFn: () => platformAuditApi.logs.list({ limit: RECENT_LIMIT, offset: 0 }),
+  });
+
+  const { data: accessLogData, isLoading: loadingAccessLogs, isError: errorAccessLogs } = useQuery({
+    queryKey: ['console', 'dashboard', 'access-logs'],
+    queryFn: () => platformAuditApi.accessLogs.list({ limit: RECENT_LIMIT, offset: 0 }),
+  });
+
+  const activeSystems = systems.filter((system) => system.ativo).length;
+  const activeUsers = collaborators.filter((collaborator) => collaborator.status !== 'inativo').length;
+  const activeAccesses = accesses.filter((access) => access.ativo).length;
+
+  const auditLogs = auditData?.rows || [];
+  const accessLogs = accessLogData?.rows || [];
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Visao geral"
-        description="Um app dedicado para administrar sistemas, usuarios e acessos da plataforma MACOM."
+        description="Acompanhe o estado da plataforma MACOM e a atividade recente do Console."
       />
 
-      <section className="grid gap-8 lg:grid-cols-[1fr_360px]">
-        <div>
-          <p className="text-sm font-medium text-primary">Separacao de responsabilidades</p>
-          <h2 className="mt-3 max-w-3xl text-4xl font-black leading-tight">
-            A Central segue focada em estoque e operacao de TI, enquanto o Console concentra
-            configuracoes transversais aos demais apps.
-          </h2>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to="/sistemas">
-                <AppWindow className="h-4 w-4" />
-                Abrir sistemas
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/permissoes-sistemas">
-                <ShieldCheck className="h-4 w-4" />
-                Abrir permissoes
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        <Card className="self-start p-5">
-          <div className="mb-5 flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <KeyRound className="h-4 w-4 text-primary" />
-            <span>Autenticacao compartilhada ativa</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-secondary">
-              <Settings2 className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold">Proximas migracoes</h2>
-              <p className="text-sm text-muted-foreground">Ordem sugerida</p>
-            </div>
-          </div>
-
-          <ol className="mt-5 space-y-3 text-sm text-muted-foreground">
-            <li className="rounded-md bg-secondary px-3 py-2">1. Permissoes dos sistemas</li>
-            <li className="rounded-md bg-secondary px-3 py-2">2. Usuarios e perfis</li>
-            <li className="rounded-md bg-secondary px-3 py-2">3. Auditoria global</li>
-            <li className="rounded-md bg-secondary px-3 py-2">4. Configuracoes</li>
-          </ol>
-        </Card>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={AppWindow}
+          label="Sistemas ativos"
+          value={loadingSystems ? '-' : errorSystems ? '?' : activeSystems}
+          hint={loadingSystems || errorSystems ? undefined : `${systems.length} cadastrados`}
+          to="/sistemas"
+        />
+        <StatCard
+          icon={UsersRound}
+          label="Usuarios ativos"
+          value={loadingCollaborators ? '-' : errorCollaborators ? '?' : activeUsers}
+          hint={loadingCollaborators || errorCollaborators ? undefined : `${collaborators.length} cadastrados`}
+          to="/usuarios"
+        />
+        <StatCard
+          icon={ShieldCheck}
+          label="Acessos concedidos"
+          value={loadingAccesses ? '-' : errorAccesses ? '?' : activeAccesses}
+          to="/acessos-sistemas"
+        />
+        <StatCard
+          icon={Activity}
+          label="Eventos de auditoria"
+          value={loadingAudit ? '-' : errorAudit ? '?' : auditData?.total ?? auditLogs.length}
+          to="/auditoria"
+        />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {platformAreas.map((area) => {
-          const Icon = area.icon;
+      <section className="grid gap-6 lg:grid-cols-2">
+        <ActivityCard
+          icon={Activity}
+          title="Ultimas acoes de auditoria"
+          to="/auditoria"
+          isLoading={loadingAudit}
+          isError={errorAudit}
+          isEmpty={auditLogs.length === 0}
+          emptyLabel="Nenhum evento de auditoria registrado."
+        >
+          <ul className="space-y-2">
+            {auditLogs.map((log) => (
+              <li key={log.id} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{entityLabels[log.entidade] || log.entidade}</span>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(log.criado_em)}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {actionLabels[log.acao] || log.acao} por {log.responsavel_email || 'responsavel desconhecido'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </ActivityCard>
 
-          return (
-            <Link key={area.title} to={area.path} className="rounded-lg border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="mt-4 text-base font-bold">{area.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{area.description}</p>
-            </Link>
-          );
-        })}
+        <ActivityCard
+          icon={History}
+          title="Ultimos acessos a plataforma"
+          to="/logs-acesso"
+          isLoading={loadingAccessLogs}
+          isError={errorAccessLogs}
+          isEmpty={accessLogs.length === 0}
+          emptyLabel="Nenhum acesso registrado."
+        >
+          <ul className="space-y-2">
+            {accessLogs.map((log) => (
+              <li key={log.id} className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{log.colaborador_nome || log.colaborador_email || 'Colaborador'}</span>
+                  <span className="text-xs text-muted-foreground">{formatDateTime(log.criado_em)}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {log.sistema_nome || log.sistema_slug || 'Sistema'}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </ActivityCard>
       </section>
     </div>
   );

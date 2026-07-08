@@ -1,5 +1,28 @@
 import { assertSupabaseConfigured, supabase } from './supabaseClient';
 
+const COMUNICACAO_ATTACHMENTS_BUCKET = 'comunicacao-anexos';
+const MAX_ANEXO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ANEXO_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+
+function sanitizeFileName(name = 'anexo') {
+  const normalized = String(name)
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'anexo';
+}
+
 function toError(message, status = 500, code, details, hint) {
   const normalizedMessage =
     typeof message === 'string' ? message : message?.message || 'Falha ao consultar a Comunicacao.';
@@ -77,11 +100,12 @@ export const comunicacaoApi = {
       return result.rows || [];
     },
 
-    async create({ canalId, conteudo }) {
+    async create({ canalId, conteudo, anexos }) {
       const result = await invokeComunicacao({
         action: 'create_mensagem',
         canal_id: canalId,
         conteudo,
+        anexos,
       });
       return result.row || null;
     },
@@ -101,6 +125,116 @@ export const comunicacaoApi = {
         id,
       });
       return result.row || null;
+    },
+  },
+  colaboradores: {
+    async list({ search } = {}) {
+      const result = await invokeComunicacao({ action: 'list_colaboradores', search });
+      return result.rows || [];
+    },
+  },
+  conversas: {
+    async list() {
+      const result = await invokeComunicacao({ action: 'list_conversas' });
+      return result.rows || [];
+    },
+
+    async start(colaboradorId) {
+      const result = await invokeComunicacao({ action: 'start_conversa', colaborador_id: colaboradorId });
+      return result.row || null;
+    },
+  },
+  mensagensDiretas: {
+    async list({ conversaId, before, limit } = {}) {
+      const result = await invokeComunicacao({
+        action: 'list_mensagens_diretas',
+        conversa_id: conversaId,
+        before,
+        limit,
+      });
+      return result.rows || [];
+    },
+
+    async create({ conversaId, conteudo, anexos }) {
+      const result = await invokeComunicacao({
+        action: 'create_mensagem_direta',
+        conversa_id: conversaId,
+        conteudo,
+        anexos,
+      });
+      return result.row || null;
+    },
+
+    async update(id, conteudo) {
+      const result = await invokeComunicacao({
+        action: 'update_mensagem_direta',
+        id,
+        conteudo,
+      });
+      return result.row || null;
+    },
+
+    async remove(id) {
+      const result = await invokeComunicacao({
+        action: 'delete_mensagem_direta',
+        id,
+      });
+      return result.row || null;
+    },
+  },
+  anexos: {
+    async upload({ file, canalId, conversaId }) {
+      assertSupabaseConfigured();
+
+      if (!file) {
+        throw toError('Selecione um arquivo para anexar.', 400);
+      }
+      if (!ALLOWED_ANEXO_MIME_TYPES.includes(file.type)) {
+        throw toError('Tipo de arquivo nao permitido.', 400);
+      }
+      if (file.size > MAX_ANEXO_BYTES) {
+        throw toError('Arquivo maior que 10MB.', 400);
+      }
+      if (!canalId && !conversaId) {
+        throw toError('canalId ou conversaId obrigatorio.', 400);
+      }
+
+      const safeName = sanitizeFileName(file.name);
+      const prefix = canalId ? `canais/${canalId}` : `conversas/${conversaId}`;
+      const path = `${prefix}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+
+      const { error } = await supabase.storage
+        .from(COMUNICACAO_ATTACHMENTS_BUCKET)
+        .upload(path, file, {
+          cacheControl: '3600',
+          contentType: file.type || undefined,
+          upsert: false,
+        });
+
+      if (error) {
+        throw toError(error, 500, undefined, undefined, 'Nao foi possivel enviar o anexo.');
+      }
+
+      return {
+        storage_path: path,
+        nome_arquivo: file.name,
+        tipo_mime: file.type,
+        tamanho_bytes: file.size,
+      };
+    },
+
+    async getSignedUrl(path) {
+      assertSupabaseConfigured();
+
+      const { data, error } = await supabase.storage
+        .from(COMUNICACAO_ATTACHMENTS_BUCKET)
+        .createSignedUrl(path, 300);
+
+      if (error) {
+        throw toError(error, 500, undefined, undefined, 'Nao foi possivel abrir o anexo.');
+      }
+
+      return data.signedUrl;
     },
   },
 };

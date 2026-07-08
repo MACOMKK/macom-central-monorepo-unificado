@@ -1,22 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 
-export function mensagensQueryKey(canalId) {
-  return ['comunicacao-mensagens', canalId];
+export function mensagensDiretasQueryKey(conversaId) {
+  return ['comunicacao-mensagens-diretas', conversaId];
 }
 
-export function useMensagens(canalId) {
+export function useMensagensDiretas(conversaId) {
   const queryClient = useQueryClient();
-  const queryKey = mensagensQueryKey(canalId);
+  const queryKey = mensagensDiretasQueryKey(conversaId);
 
   const query = useQuery({
     queryKey,
-    queryFn: () => comunicacaoApi.mensagens.list({ canalId }),
-    enabled: Boolean(canalId),
+    queryFn: () => comunicacaoApi.mensagensDiretas.list({ conversaId }),
+    enabled: Boolean(conversaId),
   });
 
   const createMutation = useMutation({
-    mutationFn: ({ conteudo, anexos }) => comunicacaoApi.mensagens.create({ canalId, conteudo, anexos }),
+    mutationFn: ({ conteudo, anexos }) => comunicacaoApi.mensagensDiretas.create({ conversaId, conteudo, anexos }),
     onSuccess: (row) => {
       if (!row) return;
       queryClient.setQueryData(queryKey, (current) => (Array.isArray(current) ? [...current, row] : [row]));
@@ -24,7 +24,7 @@ export function useMensagens(canalId) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, conteudo }) => comunicacaoApi.mensagens.update(id, conteudo),
+    mutationFn: ({ id, conteudo }) => comunicacaoApi.mensagensDiretas.update(id, conteudo),
     onSuccess: (row) => {
       if (!row) return;
       queryClient.setQueryData(queryKey, (current) =>
@@ -34,7 +34,7 @@ export function useMensagens(canalId) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: (id) => comunicacaoApi.mensagens.remove(id),
+    mutationFn: (id) => comunicacaoApi.mensagensDiretas.remove(id),
     onSuccess: (row) => {
       if (!row) return;
       queryClient.setQueryData(queryKey, (current) =>
