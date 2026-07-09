@@ -7,7 +7,7 @@ import { Upload, Loader2 } from 'lucide-react';
 const EMPTY_FORM = {
   title: '',
   description: '',
-  company: 'macom_motors',
+  company: '',
   category: 'outros',
   visibility: 'geral',
   minimum_access_level: 'gestor',
@@ -26,7 +26,7 @@ function normalizeInitialData(initialData) {
   return {
     title: initialData.title || '',
     description: initialData.description || '',
-    company: initialData.company || 'macom_motors',
+    company: initialData.company || '',
     category: initialData.category || 'outros',
     visibility: initialData.visibility || (initialData.position_id ? 'cargo' : initialData.department_id || initialData.department ? 'setor' : 'geral'),
     minimum_access_level: initialData.minimum_access_level || 'gestor',
@@ -45,6 +45,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
   const [form, setForm] = useState(() => normalizeInitialData(initialData));
   const [uploading, setUploading] = useState(false);
   const canSubmit = Boolean(
+    form.company &&
     form.file_path &&
     form.file_name &&
     (form.visibility !== 'setor' || form.department) &&
@@ -59,6 +60,10 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
     queryKey: ['catalog-positions'],
     queryFn: () => appClient.catalogs.listPositions(),
   });
+  const { data: companies = [] } = useQuery({
+    queryKey: ['catalog-companies'],
+    queryFn: () => appClient.catalogs.listCompanies(),
+  });
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -66,8 +71,9 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
     setUploadError('');
     setUploading(true);
     try {
+      const selectedCompany = companies.find((company) => company.id === form.company);
       const uploadResult = await appClient.storage.uploadFile(file, {
-        company: form.company,
+        company: selectedCompany?.name || form.company,
         category: form.category,
       });
       setForm((prev) => ({ ...prev, ...uploadResult }));
@@ -115,11 +121,14 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Empresa</Label>
-          <Select value={form.company} onValueChange={(value) => setForm({ ...form, company: value })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={form.company || ''} onValueChange={(value) => setForm({ ...form, company: value })}>
+            <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="macom_motors">Macom Motos</SelectItem>
-              <SelectItem value="macom_mitsubishi">Macom Mitsubishi</SelectItem>
+              {companies.map((company) => (
+                <SelectItem key={company.id} value={company.id}>
+                  {company.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -162,6 +162,13 @@ export const intranetApi = {
       });
       return result.rows || result.data || [];
     },
+    async listCompanies() {
+      const result = await invokeIntranet({
+        action: 'catalog',
+        catalog: 'companies',
+      });
+      return result.rows || result.data || [];
+    },
   },
   googleCalendar: {
     async status() {

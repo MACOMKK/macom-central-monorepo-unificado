@@ -145,12 +145,12 @@ const ENTITY_CONFIG = {
       created_date: 'criado_em',
       updated_date: 'atualizado_em',
       category: 'categoria',
-      company: 'empresa',
+      company: 'empresa_id',
     },
     filterMap: {
       id: 'id',
       category: 'categoria',
-      company: 'empresa',
+      company: 'empresa_id',
       department_id: 'departamento_id',
       position_id: 'cargo_id',
       visibility: 'visibilidade',
@@ -523,6 +523,27 @@ async function resolvePosition(input: unknown) {
     positions.find((item) => toKey(String(item.name || '')) === normalized) ||
     null
   );
+}
+
+async function listCompanies() {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id, nome
+      from public.empresas
+      order by nome asc;
+    `,
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.nome,
+  }));
+}
+
+async function resolveCompany(input: unknown) {
+  if (!input) return null;
+  const companies = await listCompanies();
+  return companies.find((item) => item.id === input) || null;
 }
 
 async function fetchCollaboratorsByIds(ids: string[]) {
@@ -1595,10 +1616,12 @@ function mapDocument(
   positionsById = new Map<string, Record<string, unknown>>(),
   creatorMap = new Map<string, Record<string, unknown>>(),
   signedFileUrl?: string | null,
+  companiesById = new Map<string, Record<string, unknown>>(),
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const department = departmentsById.get(String(row.departamento_id));
   const position = positionsById.get(String(row.cargo_id));
+  const company = companiesById.get(String(row.empresa_id));
   const visibility = typeof row.visibilidade === 'string' && row.visibilidade
     ? row.visibilidade
     : (row.cargo_id ? 'cargo' : row.departamento_id ? 'setor' : 'geral');
@@ -1612,7 +1635,8 @@ function mapDocument(
     file_name: row.arquivo_nome || null,
     file_type: row.arquivo_tipo || null,
     file_size: row.arquivo_tamanho || null,
-    company: row.empresa || 'macom_motors',
+    company: row.empresa_id || null,
+    company_name: company?.name || null,
     category: row.categoria,
     visibility,
     minimum_access_level: row.nivel_minimo || null,
@@ -1694,9 +1718,10 @@ async function mapDocumentWithSignedUrl(
   departmentsById: Map<string, Record<string, unknown>>,
   positionsById = new Map<string, Record<string, unknown>>(),
   creatorMap = new Map<string, Record<string, unknown>>(),
+  companiesById = new Map<string, Record<string, unknown>>(),
 ) {
   const signedFileUrl = await createDocumentSignedUrl(row);
-  return mapDocument(row, departmentsById, positionsById, creatorMap, signedFileUrl);
+  return mapDocument(row, departmentsById, positionsById, creatorMap, signedFileUrl, companiesById);
 }
 
 async function enrichWithCreators(rows: Record<string, unknown>[]) {
@@ -2265,10 +2290,16 @@ async function listDocuments(orderBy?: string, limit?: number, user?: Record<str
     `select * from gestao_intranet.documentos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
     values,
   );
-  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), enrichWithCreators(rows)]);
+  const [departments, positions, creators, companies] = await Promise.all([
+    listDepartments(),
+    listPositions(),
+    enrichWithCreators(rows),
+    listCompanies(),
+  ]);
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
   const positionsById = new Map(positions.map((item) => [String(item.id), item]));
-  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, positionsById, creators)));
+  const companiesById = new Map(companies.map((item) => [String(item.id), item]));
+  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, positionsById, creators, companiesById)));
 }
 
 async function listDocumentStorageOrphans(user?: Record<string, unknown>) {
@@ -3392,6 +3423,10 @@ async function updateCalendarEvent(
 async function createDocument(payload: Record<string, unknown>, collaboratorId: string | null) {
   const department = await resolveDepartment(payload.department || payload.department_id);
   const position = await resolvePosition(payload.position_id || payload.cargo_id);
+  const company = await resolveCompany(payload.company);
+  if (!company) {
+    throw new Error('Selecione a empresa do documento.');
+  }
   const visibilityConfig = resolveDocumentVisibility(payload, department, position);
   if (!payload.file_path || !payload.file_name) {
     throw new Error('Arquivo obrigatorio para criar documento.');
@@ -3400,7 +3435,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.documentos (
-        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa, categoria, departamento_id, cargo_id, visibilidade, nivel_minimo, criado_por
+        titulo, descricao, arquivo_url, arquivo_path, arquivo_nome, arquivo_tipo, arquivo_tamanho, empresa_id, categoria, departamento_id, cargo_id, visibilidade, nivel_minimo, criado_por
       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       returning *;
     `,
@@ -3412,7 +3447,7 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
       payload.file_name,
       payload.file_type || null,
       payload.file_size || null,
-      payload.company || 'macom_motors',
+      company.id,
       payload.category || 'outros',
       visibilityConfig.departmentId,
       visibilityConfig.positionId,
@@ -3421,13 +3456,19 @@ async function createDocument(payload: Record<string, unknown>, collaboratorId: 
       collaboratorId,
     ],
   );
-  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const [departments, positions, creators, companies] = await Promise.all([
+    listDepartments(),
+    listPositions(),
+    fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
+    listCompanies(),
+  ]);
   await notifyDocumentAudience(rows[0], 'created', collaboratorId);
   return mapDocumentWithSignedUrl(
     rows[0],
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(positions.map((item) => [String(item.id), item])),
     creators,
+    new Map(companies.map((item) => [String(item.id), item])),
   );
 }
 
@@ -3554,7 +3595,13 @@ async function updateDocument(
   if ('file_name' in payload) assign('arquivo_nome', payload.file_name);
   if ('file_type' in payload) assign('arquivo_tipo', payload.file_type);
   if ('file_size' in payload) assign('arquivo_tamanho', payload.file_size);
-  if ('company' in payload) assign('empresa', payload.company || 'macom_motors');
+  if ('company' in payload) {
+    const company = await resolveCompany(payload.company);
+    if (!company) {
+      throw new Error('Selecione a empresa do documento.');
+    }
+    assign('empresa_id', company.id);
+  }
   if ('category' in payload) assign('categoria', payload.category);
   if (visibilityConfig) {
     assign('departamento_id', visibilityConfig.departmentId);
@@ -3580,13 +3627,19 @@ async function updateDocument(
       resolveDocumentStorageBucket(previousDocument),
     );
   }
-  const [departments, positions, creators] = await Promise.all([listDepartments(), listPositions(), fetchCollaboratorsByIds([String(rows[0].criado_por || '')])]);
+  const [departments, positions, creators, companies] = await Promise.all([
+    listDepartments(),
+    listPositions(),
+    fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
+    listCompanies(),
+  ]);
   await notifyDocumentAudience(rows[0], 'updated', collaboratorId);
   return mapDocumentWithSignedUrl(
     rows[0],
     new Map(departments.map((item) => [String(item.id), item])),
     new Map(positions.map((item) => [String(item.id), item])),
     creators,
+    new Map(companies.map((item) => [String(item.id), item])),
   );
 }
 
@@ -4334,6 +4387,10 @@ Deno.serve(async (request) => {
 
       if (catalog === 'positions') {
         return json({ rows: await listPositions() });
+      }
+
+      if (catalog === 'companies') {
+        return json({ rows: await listCompanies() });
       }
 
       return json({ error: 'Catalogo invalido.' }, 400);

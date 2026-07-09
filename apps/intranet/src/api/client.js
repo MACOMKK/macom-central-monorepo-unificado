@@ -262,6 +262,10 @@ export const appClient = {
     listPositions() {
       return intranetApi.catalogs.listPositions();
     },
+
+    listCompanies() {
+      return intranetApi.catalogs.listCompanies();
+    },
   },
 
   googleCalendar: {

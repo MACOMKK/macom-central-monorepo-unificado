@@ -102,13 +102,6 @@ const categoryConfig = {
   },
 };
 
-const companyOptions = [
-  { value: 'macom_motors', label: 'Macom Motos' },
-  { value: 'macom_mitsubishi', label: 'Macom Mitsubishi' },
-];
-
-const companyLabelMap = Object.fromEntries(companyOptions.map((company) => [company.value, company.label]));
-
 function prependDocument(documents, document) {
   if (!document?.id) return documents;
   return [document, ...documents.filter((item) => item.id !== document.id)];
@@ -227,6 +220,11 @@ export default function Documents() {
     queryKey: ['catalog-positions'],
     queryFn: () => appClient.catalogs.listPositions(),
   });
+  const { data: companies = [] } = useQuery({
+    queryKey: ['catalog-companies'],
+    queryFn: () => appClient.catalogs.listCompanies(),
+  });
+  const companyLabelMap = Object.fromEntries(companies.map((company) => [company.id, company.name]));
 
   const createMutation = useMutation({
     mutationFn: (data) => appClient.entities.Document.create(data),
@@ -350,7 +348,7 @@ export default function Documents() {
     const visibility = getDocumentVisibility(document);
     const matchCompany =
       companyFilter === 'all' ||
-      (document.company || 'macom_motors') === companyFilter;
+      document.company === companyFilter;
     const matchDepartment =
       departmentFilter === 'all' ||
       (departmentFilter === '__general__' && visibility.key === 'geral') ||
@@ -378,7 +376,7 @@ export default function Documents() {
       document.department_name?.toLowerCase().includes(normalizedSearch) ||
       document.position_name?.toLowerCase().includes(normalizedSearch) ||
       getDocumentVisibility(document).label.toLowerCase().includes(normalizedSearch) ||
-      companyLabelMap[document.company || 'macom_motors']?.toLowerCase().includes(normalizedSearch);
+      companyLabelMap[document.company]?.toLowerCase().includes(normalizedSearch);
     return matchSearch;
   });
 
@@ -504,9 +502,9 @@ export default function Documents() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Empresa</SelectItem>
-              {companyOptions.map((company) => (
-                <SelectItem key={company.value} value={company.value}>
-                  {company.label}
+              {companies.map((company) => (
+                <SelectItem key={company.id} value={company.id}>
+                  {company.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -698,7 +696,7 @@ export default function Documents() {
                             {config.label}
                           </Badge>
                           <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
-                            {companyLabelMap[document.company || 'macom_motors'] || 'Macom Motos'}
+                            {companyLabelMap[document.company] || document.company_name || '—'}
                           </Badge>
                           {visibility.key === 'nivel' && (
                             <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[9px] font-medium text-muted-foreground">
