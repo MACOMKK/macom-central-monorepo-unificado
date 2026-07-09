@@ -18,6 +18,7 @@ vi.mock('@/lib/catalogApi', () => ({
       unlinkAssignments: vi.fn(),
     },
     cargos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+    empresas: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     contatos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     ativos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     infra_estrutura: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
@@ -461,6 +462,7 @@ export function resetCatalogManagerMocks() {
   catalogApi.unidades.list.mockResolvedValue([{ id: 'unit-1', nome: 'Matriz', ativo: true }]);
   catalogApi.colaboradores.list.mockResolvedValue([{ id: 'col-1', nome: 'Joao', email: 'joao@macom.com' }]);
   catalogApi.cargos.list.mockResolvedValue([]);
+  catalogApi.empresas.list.mockResolvedValue([]);
   catalogApi.contatos.list.mockResolvedValue([]);
   catalogApi.contatos.create.mockResolvedValue({ id: 'contact-created' });
   catalogApi.contatos.remove.mockResolvedValue(true);

@@ -108,9 +108,45 @@ export function buildPositionsConfig({
   };
 }
 
+export function buildCompaniesConfig({
+  collaboratorsByCompanyId,
+  companies,
+  formatDateTime,
+  unitsByCompanyId,
+}) {
+  return {
+    rows: companies,
+    fields: [
+      { key: 'nome', label: 'Nome da Empresa', required: true, fullWidth: true, placeholder: 'Ex.: Macom Motos' },
+    ],
+    columns: [
+      { key: 'nome', label: 'Nome', render: (value) => <span className="font-medium text-foreground">{value || '-'}</span> },
+      {
+        key: 'unidades_vinculadas',
+        label: 'Unidades',
+        render: (_, row) => unitsByCompanyId[row.id] || 0,
+      },
+      {
+        key: 'colaboradores_vinculados',
+        label: 'Colaboradores',
+        render: (_, row) => collaboratorsByCompanyId[row.id] || 0,
+      },
+      { key: 'atualizado_em', label: 'Atualizado em', render: (value) => formatDateTime(value) },
+    ],
+    cardStats: {
+      collaboratorsByCompanyId,
+      unitsByCompanyId,
+    },
+    searchPlaceholder: 'Buscar por nome...',
+    queryKey: 'empresas',
+  };
+}
+
 export function buildUnitsConfig({
   assetsByUnitId,
   collaboratorsByUnitId,
+  companies,
+  companyOptions,
   formatDateTime,
   formatPhone,
   statusTone,
@@ -122,6 +158,16 @@ export function buildUnitsConfig({
     rows: units,
     fields: [
       { key: 'nome', label: 'Nome da Unidade', required: true, fullWidth: true, placeholder: 'ex: Macom Belem', inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground focus-visible:ring-primary/20' },
+      {
+        key: 'empresa_id',
+        label: 'Empresa',
+        type: 'select',
+        allowEmpty: true,
+        emptyLabel: 'Sem empresa',
+        fullWidth: true,
+        inputClassName: 'h-10 rounded-lg border-input bg-background px-3 text-[15px] text-foreground',
+        options: companyOptions,
+      },
       {
         key: 'cnpj',
         label: 'CNPJ',
@@ -152,6 +198,11 @@ export function buildUnitsConfig({
     ],
     columns: [
       { key: 'nome', label: 'Nome' },
+      {
+        key: 'empresa_id',
+        label: 'Empresa',
+        render: (value) => companies.find((item) => item.id === value)?.nome || '-',
+      },
       { key: 'cnpj', label: 'CNPJ', render: (value) => formatCnpj(value) },
       { key: 'cidade', label: 'Cidade' },
       { key: 'endereco', label: 'Endereco' },
@@ -640,6 +691,8 @@ export function buildCollaboratorsConfig({
   collaboratorRoleOptions,
   collaboratorStatusOptions,
   collaborators,
+  companies,
+  companyOptions,
   departments,
   departmentOptions,
   editingRecord,
@@ -736,6 +789,14 @@ export function buildCollaboratorsConfig({
           value && !hasExactDigits(value, 11) ? 'Telefone deve conter exatamente 11 digitos.' : '',
       },
       {
+        key: 'empresa_id',
+        label: 'Empresa',
+        type: 'select',
+        allowEmpty: true,
+        emptyLabel: 'Sem empresa',
+        options: companyOptions,
+      },
+      {
         key: 'departamento_id',
         label: 'Departamento',
         type: 'select',
@@ -814,6 +875,11 @@ export function buildCollaboratorsConfig({
             </div>
           );
         },
+      },
+      {
+        key: 'empresa_id',
+        label: 'Empresa',
+        render: (value) => companies.find((item) => item.id === value)?.nome || '—',
       },
       {
         key: 'departamento_id',

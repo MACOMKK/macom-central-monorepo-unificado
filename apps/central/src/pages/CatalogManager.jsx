@@ -29,12 +29,13 @@ import CatalogImportDialogs from '@/pages/catalog-manager/components/CatalogImpo
 import CatalogRecordDialog from '@/pages/catalog-manager/components/CatalogRecordDialog';
 import CatalogEntityTable from '@/pages/catalog-manager/components/CatalogEntityTable';
 import CollaboratorsToolbar from '@/pages/catalog-manager/components/CollaboratorsToolbar';
+import CompanyCardsGrid from '@/pages/catalog-manager/components/CompanyCardsGrid';
 import DepartmentCardsGrid from '@/pages/catalog-manager/components/DepartmentCardsGrid';
 import PositionsToolbar from '@/pages/catalog-manager/components/PositionsToolbar';
 import SearchToolbar from '@/pages/catalog-manager/components/SearchToolbar';
 import UnitCardsGrid from '@/pages/catalog-manager/components/UnitCardsGrid';
 import { entityMeta } from '@/pages/catalog-manager/config/entityMeta';
-import { buildAssetsConfig, buildCollaboratorsConfig, buildContactsConfig, buildCorporateLinesConfig, buildDepartmentsConfig, buildInfrastructureConfig, buildPositionsConfig, buildTermsConfig, buildUnitsConfig } from '@/pages/catalog-manager/config/simpleEntityConfigs.jsx';
+import { buildAssetsConfig, buildCollaboratorsConfig, buildCompaniesConfig, buildContactsConfig, buildCorporateLinesConfig, buildDepartmentsConfig, buildInfrastructureConfig, buildPositionsConfig, buildTermsConfig, buildUnitsConfig } from '@/pages/catalog-manager/config/simpleEntityConfigs.jsx';
 import {
   assetCategoryOptions,
   assetConditionOptions,
@@ -95,13 +96,14 @@ function formatPhone(phone) {
 const ENTITY_DEPENDENCIES = {
   ativos: ['ativos', 'colaboradores', 'unidades'],
   cargos: ['cargos', 'departamentos', 'colaboradores'],
-  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
+  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'empresas', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
   contatos: ['contatos', 'unidades'],
   departamentos: ['departamentos', 'ativos', 'colaboradores'],
+  empresas: ['empresas', 'colaboradores', 'unidades'],
   infra_estrutura: ['infra_estrutura', 'unidades'],
   linhas_corporativas: ['linhas_corporativas', 'colaboradores', 'unidades'],
   termos_posse: ['termos_posse', 'ativos', 'colaboradores'],
-  unidades: ['unidades', 'ativos', 'colaboradores'],
+  unidades: ['unidades', 'ativos', 'colaboradores', 'empresas'],
 };
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -110,6 +112,7 @@ const PAGINATED_ENTITIES = new Set([
   'cargos',
   'colaboradores',
   'contatos',
+  'empresas',
   'infra_estrutura',
   'linhas_corporativas',
   'termos_posse',
@@ -186,6 +189,11 @@ export default function CatalogManager({ lockedEntityKey }) {
     queryFn: catalogApi.cargos.list,
     enabled: requiresEntity('cargos'),
   });
+  const companiesQuery = useQuery({
+    queryKey: ['empresas'],
+    queryFn: catalogApi.empresas.list,
+    enabled: requiresEntity('empresas'),
+  });
   const unitsQuery = useQuery({
     queryKey: ['unidades'],
     queryFn: catalogApi.unidades.list,
@@ -234,6 +242,7 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   const departments = departmentsQuery.data || [];
   const positions = positionsQuery.data || [];
+  const companies = companiesQuery.data || [];
   const units = unitsQuery.data || [];
   const collaborators = collaboratorsQuery.data || [];
   const activeCollaborators = collaborators.filter((collaborator) => collaborator.status !== 'inativo');
@@ -302,6 +311,9 @@ export default function CatalogManager({ lockedEntityKey }) {
 
   const config = useMemo(() => {
     const departmentOptions = createSelectOptions(departments);
+    const companyOptions = createSelectOptions(companies);
+    const collaboratorsByCompanyId = countByKey(activeCollaborators, 'empresa_id');
+    const unitsByCompanyId = countByKey(units, 'empresa_id');
     const unitOptions = createSelectOptions(units);
     const collaboratorOptions = createCollaboratorOptions(collaborators);
     const activeCollaboratorOptions = createCollaboratorOptions(activeCollaborators);
@@ -338,9 +350,17 @@ export default function CatalogManager({ lockedEntityKey }) {
         onViewCollaborators: setViewingPosition,
         positions,
       }),
+      empresas: buildCompaniesConfig({
+        collaboratorsByCompanyId,
+        companies,
+        formatDateTime,
+        unitsByCompanyId,
+      }),
       unidades: buildUnitsConfig({
         assetsByUnitId,
         collaboratorsByUnitId,
+        companies,
+        companyOptions,
         formatDateTime,
         formatPhone,
         statusTone,
@@ -354,6 +374,8 @@ export default function CatalogManager({ lockedEntityKey }) {
         collaboratorRoleOptions: availableCollaboratorRoleOptions,
         collaboratorStatusOptions: availableCollaboratorStatusOptions,
         collaborators,
+        companies,
+        companyOptions,
         departments,
         departmentOptions,
         editingRecord,
@@ -421,7 +443,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         terms,
       }),
     };
-  }, [activeCollaborators, assets, collaborators, contacts, corporateLines, departments, editingRecord?.id, infraRows, positions, systemAccesses, terms, units]);
+  }, [activeCollaborators, assets, collaborators, companies, contacts, corporateLines, departments, editingRecord?.id, infraRows, positions, systemAccesses, terms, units]);
 
   const queryStatesByEntity = {
     acessos_usuario_sistema: systemAccessesQuery,
@@ -430,6 +452,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     colaboradores: collaboratorsQuery,
     contatos: contactsQuery,
     departamentos: departmentsQuery,
+    empresas: companiesQuery,
     infra_estrutura: infraQuery,
     linhas_corporativas: corporateLinesQuery,
     sistemas: systemsQuery,
@@ -552,6 +575,17 @@ export default function CatalogManager({ lockedEntityKey }) {
       description: 'Essa acao nao pode ser desfeita. Deseja realmente excluir esta unidade?',
       onConfirm: () => deleteMutation.mutate(unitId),
     });
+  };
+
+  const handleDeleteCompany = (row) => {
+    const hasLinkedCollaborators = collaborators.some((collaborator) => collaborator.empresa_id === row.id);
+
+    if (hasLinkedCollaborators) {
+      setFeedback({ type: 'error', message: 'Nao e permitido excluir uma empresa com colaboradores vinculados.' });
+      return;
+    }
+
+    handleDeleteRow(row);
   };
 
   const handleDeletePosition = (row) => {
@@ -916,7 +950,7 @@ export default function CatalogManager({ lockedEntityKey }) {
         </Card>
       ) : null}
 
-      {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' ? null : lockedEntityKey === 'ativos' ? (
+      {lockedEntityKey === 'unidades' || lockedEntityKey === 'departamentos' || lockedEntityKey === 'empresas' ? null : lockedEntityKey === 'ativos' ? (
         <AssetsToolbar
           assetCategoryFilter={assetCategoryFilter}
           assetStatusFilter={assetStatusFilter}
@@ -1022,10 +1056,36 @@ export default function CatalogManager({ lockedEntityKey }) {
             assetsByUnitId={current.cardStats?.assetsByUnitId}
             collaboratorsByUnitId={current.cardStats?.collaboratorsByUnitId}
             canManage={canManageModule}
+            companies={companies}
             formatPhone={formatPhone}
             onDelete={handleDeleteUnit}
             onEdit={setEditingRecord}
             units={rows}
+          />
+        )
+      ) : lockedEntityKey === 'empresas' ? (
+        isLoading ? (
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+          </div>
+        ) : rows.length === 0 ? (
+          <Card className="p-12">
+            <div className="flex flex-col items-center justify-center text-center text-muted-foreground">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50">
+                <Building2 className="h-12 w-12 text-muted-foreground/70" />
+              </div>
+              <p className="text-base font-medium text-foreground">Nenhuma empresa encontrada</p>
+              <p className="mt-1 text-sm text-muted-foreground">Cadastre a primeira empresa para comecar.</p>
+            </div>
+          </Card>
+        ) : (
+          <CompanyCardsGrid
+            canManage={canManageModule}
+            collaboratorsByCompanyId={current.cardStats?.collaboratorsByCompanyId}
+            companies={rows}
+            onDelete={handleDeleteCompany}
+            onEdit={setEditingRecord}
+            unitsByCompanyId={current.cardStats?.unitsByCompanyId}
           />
         )
       ) : (
@@ -1035,7 +1095,11 @@ export default function CatalogManager({ lockedEntityKey }) {
           columns={current.columns}
           entityKey={lockedEntityKey}
           isLoading={isLoading}
-          onDelete={lockedEntityKey === 'cargos' ? handleDeletePosition : handleDeleteRow}
+          onDelete={
+            lockedEntityKey === 'cargos'
+              ? handleDeletePosition
+              : handleDeleteRow
+          }
           onEdit={setEditingRecord}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}

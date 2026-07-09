@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Archive, BriefcaseBusiness, Building2, FileText, Home, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, FileText, Home, Landmark, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -10,6 +10,7 @@ const routePrefetchers = {
   '/ativos': () => import('@/pages/Assets'),
   '/departamentos': () => import('@/pages/Departments'),
   '/cargos': () => import('@/pages/Positions'),
+  '/empresas': () => import('@/pages/Companies'),
   '/unidades': () => import('@/pages/Units'),
   '/colaboradores': () => import('@/pages/Collaborators'),
   '/contatos': () => import('@/pages/Contacts'),
@@ -24,6 +25,7 @@ const navItems = [
   { path: '/ativos', label: 'Ativos', icon: Laptop, module: 'ativos' },
   { path: '/departamentos', label: 'Departamentos', icon: Building2, module: 'departamentos' },
   { path: '/cargos', label: 'Cargos', icon: BriefcaseBusiness, module: 'cargos' },
+  { path: '/empresas', label: 'Empresas', icon: Landmark, module: 'empresas' },
   { path: '/unidades', label: 'Unidades', icon: Building2, module: 'unidades' },
   { path: '/colaboradores', label: 'Colaboradores', icon: Users, module: 'colaboradores' },
   { path: '/contatos', label: 'Contatos', icon: Phone, module: 'contatos' },

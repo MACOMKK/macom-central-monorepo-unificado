@@ -104,6 +104,9 @@ export const catalogApi = {
   cargos: {
     ...buildCentralEntity('cargos'),
   },
+  empresas: {
+    ...buildCentralEntity('empresas'),
+  },
   unidades: {
     ...buildCentralEntity('unidades'),
   },

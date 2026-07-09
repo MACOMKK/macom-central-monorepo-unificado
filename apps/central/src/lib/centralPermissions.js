@@ -9,6 +9,7 @@ export const CENTRAL_PERMISSION_MODULES = [
   { key: 'ativos', label: 'Ativos', path: '/ativos' },
   { key: 'departamentos', label: 'Departamentos', path: '/departamentos' },
   { key: 'cargos', label: 'Cargos', path: '/cargos' },
+  { key: 'empresas', label: 'Empresas', path: '/empresas' },
   { key: 'unidades', label: 'Unidades', path: '/unidades' },
   { key: 'colaboradores', label: 'Colaboradores', path: '/colaboradores' },
   { key: 'contatos', label: 'Contatos', path: '/contatos' },

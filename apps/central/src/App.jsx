@@ -11,6 +11,7 @@ import { queryClientInstance } from '@/lib/query-client';
 
 const Assets = lazy(() => import('@/pages/Assets'));
 const Collaborators = lazy(() => import('@/pages/Collaborators'));
+const Companies = lazy(() => import('@/pages/Companies'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
 const ContractsDocuments = lazy(() => import('@/pages/ContractsDocuments'));
 const CorporateLines = lazy(() => import('@/pages/CorporateLines'));
@@ -96,6 +97,7 @@ export default function App() {
                 <Route path="/linhas-corporativas" element={withCentralPermission('/linhas-corporativas', <CorporateLines />)} />
                 <Route path="/departamentos" element={withCentralPermission('/departamentos', <Departments />)} />
                 <Route path="/cargos" element={withCentralPermission('/cargos', <Positions />)} />
+                <Route path="/empresas" element={withCentralPermission('/empresas', <Companies />)} />
                 <Route path="/unidades" element={withCentralPermission('/unidades', <Units />)} />
                 <Route path="/infraestrutura" element={withCentralPermission('/infraestrutura', <Infrastructure />)} />
                 <Route path="/termos-posse" element={withCentralPermission('/termos-posse', <TermsPossession />)} />

@@ -31,7 +31,7 @@ function json(data: unknown, status = 200) {
 }
 
 function normalizePayload(payload: Record<string, unknown> = {}) {
-  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo_id', 'cargo', 'data_nascimento', 'data_admissao', 'status', 'unidade_id'];
+  const fields = ['nome', 'email', 'funcao', 'cpf', 'telefone', 'departamento_id', 'cargo_id', 'cargo', 'data_nascimento', 'data_admissao', 'status', 'unidade_id', 'empresa_id'];
   const normalized = fields.reduce<Record<string, unknown>>((acc, field) => {
     if (field in payload) {
       acc[field] = payload[field];
@@ -628,6 +628,7 @@ Deno.serve(async (request) => {
         data_admissao: payload.data_admissao ?? null,
         status: payload.status || 'ativo',
         unidade_id: payload.unidade_id ?? null,
+        empresa_id: payload.empresa_id ?? null,
       };
 
       const rows = await sql.unsafe(
@@ -645,9 +646,10 @@ Deno.serve(async (request) => {
             data_nascimento,
             data_admissao,
             status,
-            unidade_id
+            unidade_id,
+            empresa_id
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
           on conflict (id) do update
           set
             nome = excluded.nome,
@@ -662,6 +664,7 @@ Deno.serve(async (request) => {
             data_admissao = excluded.data_admissao,
             status = excluded.status,
             unidade_id = excluded.unidade_id,
+            empresa_id = excluded.empresa_id,
             atualizado_em = now()
           returning *;
         `,
@@ -679,6 +682,7 @@ Deno.serve(async (request) => {
           upsertPayload.data_admissao,
           upsertPayload.status,
           upsertPayload.unidade_id,
+          upsertPayload.empresa_id,
         ],
       );
 

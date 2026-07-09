@@ -19,11 +19,17 @@ const ENTITY_CONFIG = {
     orderBy: 'nome',
     allowedFields: ['nome', 'departamento_id'],
   },
+  empresas: {
+    schema: 'public',
+    table: 'empresas',
+    orderBy: 'nome',
+    allowedFields: ['nome'],
+  },
   unidades: {
     schema: 'public',
     table: 'unidades',
     orderBy: 'nome',
-    allowedFields: ['nome', 'cnpj', 'cidade', 'endereco', 'telefone', 'responsavel', 'ativo'],
+    allowedFields: ['nome', 'cnpj', 'cidade', 'endereco', 'telefone', 'responsavel', 'ativo', 'empresa_id'],
   },
   colaboradores: {
     schema: 'public',
@@ -43,6 +49,7 @@ const ENTITY_CONFIG = {
       'data_admissao',
       'status',
       'unidade_id',
+      'empresa_id',
     ],
   },
   contatos: {
@@ -224,6 +231,7 @@ const CENTRAL_MODULES = [
   'ativos',
   'departamentos',
   'cargos',
+  'empresas',
   'unidades',
   'colaboradores',
   'contatos',
@@ -249,6 +257,7 @@ const CENTRAL_ENTITY_MODULES: Partial<Record<keyof typeof ENTITY_CONFIG, string>
   contatos: 'contatos',
   contratos_documentos: 'contratos_documentos',
   departamentos: 'departamentos',
+  empresas: 'empresas',
   infra_estrutura: 'infra_estrutura',
   linhas_corporativas: 'linhas_corporativas',
   logs_auditoria: 'logs_auditoria',
@@ -269,6 +278,7 @@ const CENTRAL_MODULE_READ_ENTITIES: Record<string, Array<keyof typeof ENTITY_CON
     'linhas_corporativas',
     'departamentos',
     'cargos',
+    'empresas',
     'unidades',
     'sistemas',
     'acessos_usuario_sistema',
@@ -276,11 +286,12 @@ const CENTRAL_MODULE_READ_ENTITIES: Record<string, Array<keyof typeof ENTITY_CON
   contatos: ['contatos', 'unidades'],
   contratos_documentos: ['contratos_documentos', 'sistemas', 'unidades', 'colaboradores'],
   departamentos: ['departamentos', 'cargos', 'ativos', 'colaboradores'],
+  empresas: ['empresas', 'colaboradores', 'unidades'],
   infra_estrutura: ['infra_estrutura', 'unidades'],
   linhas_corporativas: ['linhas_corporativas', 'colaboradores', 'unidades'],
   logs_auditoria: ['logs_auditoria'],
   termos_posse: ['termos_posse', 'ativos', 'colaboradores'],
-  unidades: ['unidades', 'ativos', 'colaboradores'],
+  unidades: ['unidades', 'ativos', 'colaboradores', 'empresas'],
 };
 
 const databaseUrl = Deno.env.get('DATABASE_URL');

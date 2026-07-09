@@ -8,6 +8,7 @@ vi.mock('@/pages/CatalogManager', () => ({
 
 import Assets from '@/pages/Assets';
 import Collaborators from '@/pages/Collaborators';
+import Companies from '@/pages/Companies';
 import Contacts from '@/pages/Contacts';
 import CorporateLines from '@/pages/CorporateLines';
 import Departments from '@/pages/Departments';
@@ -22,6 +23,7 @@ describe('Catalog page wrappers', () => {
   it.each([
     ['Assets', Assets, 'ativos'],
     ['Collaborators', Collaborators, 'colaboradores'],
+    ['Companies', Companies, 'empresas'],
     ['Contacts', Contacts, 'contatos'],
     ['CorporateLines', CorporateLines, 'linhas_corporativas'],
     ['Departments', Departments, 'departamentos'],

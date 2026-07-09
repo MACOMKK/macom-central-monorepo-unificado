@@ -1,4 +1,4 @@
-import { Building2, MapPin, Pencil, Phone, Trash2, UserRound } from 'lucide-react';
+import { Building2, Landmark, MapPin, Pencil, Phone, Trash2, UserRound } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ export default function UnitCardsGrid({
   assetsByUnitId = {},
   canManage = true,
   collaboratorsByUnitId = {},
+  companies = [],
   formatPhone,
   onDelete,
   onEdit,
@@ -27,6 +28,7 @@ export default function UnitCardsGrid({
       {units.map((unit) => {
         const assetsCount = assetsByUnitId[unit.id] || 0;
         const collaboratorsCount = collaboratorsByUnitId[unit.id] || 0;
+        const companyName = companies.find((company) => company.id === unit.empresa_id)?.nome;
 
         return (
           <Card key={unit.id} className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_18px_36px_rgba(15,23,42,0.08)]">
@@ -41,6 +43,9 @@ export default function UnitCardsGrid({
                     <h3 className="text-[17px] font-bold leading-tight text-foreground">{unit.nome}</h3>
                     <p className="text-[13px] text-muted-foreground">{unit.cidade || 'Cidade nao informada'}</p>
                     <p className="text-[12px] text-muted-foreground">{formatCnpj(unit.cnpj)}</p>
+                    <p className="mt-1 flex items-center gap-1 text-[12px] font-medium text-[#d1131f]">
+                      <Landmark className="h-3 w-3" /> {companyName || 'Sem empresa'}
+                    </p>
                   </div>
                 </div>
                 <Badge
