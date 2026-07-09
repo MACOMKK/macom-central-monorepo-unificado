@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useConversas } from '@/hooks/useConversas';
@@ -12,6 +12,7 @@ export default function DirectMessage() {
   const { user } = useAuth();
   const { conversas, isLoading: isLoadingConversas } = useConversas();
   const conversa = conversas.find((item) => item.id === conversaId) || null;
+  const [replyingTo, setReplyingTo] = useState(null);
 
   const {
     mensagens,
@@ -19,6 +20,7 @@ export default function DirectMessage() {
     createMensagem,
     updateMensagem,
     removeMensagem,
+    toggleReacao,
   } = useMensagensDiretas(conversaId);
 
   useEffect(() => {
@@ -48,9 +50,19 @@ export default function DirectMessage() {
           currentUserId={user?.id}
           onUpdate={(id, conteudo) => updateMensagem({ id, conteudo })}
           onDelete={(id) => removeMensagem(id)}
+          onReply={setReplyingTo}
+          onToggleReacao={(mensagem, emoji) => toggleReacao({ mensagemDiretaId: mensagem.id, emoji })}
         />
       )}
-      <MessageComposer conversaId={conversaId} onSend={(payload) => createMensagem(payload)} />
+      <MessageComposer
+        conversaId={conversaId}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        onSend={(payload) => {
+          setReplyingTo(null);
+          return createMensagem({ ...payload, respostaAId: replyingTo?.id });
+        }}
+      />
     </div>
   );
 }

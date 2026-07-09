@@ -5,6 +5,7 @@ import { FileText } from 'lucide-react';
 import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import MessageActionsMenu from './MessageActionsMenu';
+import ReactionPicker from './ReactionPicker';
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -58,7 +59,7 @@ function initials(name = '') {
     .join('') || '?';
 }
 
-export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete }) {
+export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete, onReply, onToggleReacao }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(mensagem.conteudo);
   const [saving, setSaving] = useState(false);
@@ -128,6 +129,18 @@ export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete }) {
               isOwn ? 'rounded-tr-none bg-primary text-primary-foreground' : 'rounded-tl-none bg-muted text-foreground'
             }`}
           >
+            {mensagem.resposta_a ? (
+              <div
+                className={`mb-1 flex max-w-full flex-col rounded-md border-l-2 border-primary/50 bg-black/5 px-2 py-1 text-xs ${isOwn ? 'items-end text-right' : 'items-start text-left'}`}
+              >
+                <span className="font-medium text-foreground/80">
+                  {mensagem.resposta_a.autor?.nome || 'Usuário'}
+                </span>
+                <span className="truncate text-muted-foreground">
+                  {mensagem.resposta_a.excluida_em ? 'Mensagem excluída' : mensagem.resposta_a.conteudo || '(anexo)'}
+                </span>
+              </div>
+            ) : null}
             {mensagem.conteudo ? (
               <p className="whitespace-pre-wrap break-words text-sm">{mensagem.conteudo}</p>
             ) : null}
@@ -136,11 +149,34 @@ export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete }) {
               : null}
           </div>
         )}
+
+        {!isDeleted && Array.isArray(mensagem.reacoes) && mensagem.reacoes.length > 0 ? (
+          <div className={`mt-1 flex flex-wrap gap-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+            {mensagem.reacoes.map((reacao) => (
+              <button
+                key={reacao.emoji}
+                type="button"
+                onClick={() => onToggleReacao(reacao.emoji)}
+                className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs ${
+                  reacao.reagiu ? 'border-primary bg-primary/10' : 'border-border bg-muted/50'
+                }`}
+              >
+                <span>{reacao.emoji}</span>
+                <span className="text-muted-foreground">{reacao.total}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      {isOwn && !isDeleted && !isEditing ? (
-        <div className="opacity-0 transition-opacity group-hover:opacity-100">
-          <MessageActionsMenu onEdit={() => setIsEditing(true)} onDelete={() => onDelete(mensagem.id)} />
+      {!isDeleted && !isEditing ? (
+        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <ReactionPicker onSelect={onToggleReacao} />
+          <MessageActionsMenu
+            onReply={() => onReply(mensagem)}
+            onEdit={isOwn ? () => setIsEditing(true) : undefined}
+            onDelete={isOwn ? () => onDelete(mensagem.id) : undefined}
+          />
         </div>
       ) : null}
     </div>

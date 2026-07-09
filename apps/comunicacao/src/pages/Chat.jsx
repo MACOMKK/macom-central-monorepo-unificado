@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
@@ -12,6 +12,7 @@ export default function Chat() {
   const { user } = useAuth();
   const { data: canais = [], isLoading: isLoadingCanais } = useCanais();
   const canal = canais.find((item) => item.slug === slug) || null;
+  const [replyingTo, setReplyingTo] = useState(null);
 
   const {
     mensagens,
@@ -19,6 +20,7 @@ export default function Chat() {
     createMensagem,
     updateMensagem,
     removeMensagem,
+    toggleReacao,
   } = useMensagens(canal?.id);
 
   useEffect(() => {
@@ -44,9 +46,19 @@ export default function Chat() {
           currentUserId={user?.id}
           onUpdate={(id, conteudo) => updateMensagem({ id, conteudo })}
           onDelete={(id) => removeMensagem(id)}
+          onReply={setReplyingTo}
+          onToggleReacao={(mensagem, emoji) => toggleReacao({ mensagemId: mensagem.id, emoji })}
         />
       )}
-      <MessageComposer canalId={canal.id} onSend={(payload) => createMensagem(payload)} />
+      <MessageComposer
+        canalId={canal.id}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        onSend={(payload) => {
+          setReplyingTo(null);
+          return createMensagem({ ...payload, respostaAId: replyingTo?.id });
+        }}
+      />
     </div>
   );
 }

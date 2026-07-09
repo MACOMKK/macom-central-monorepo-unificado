@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ScrollArea } from '@macom/ui';
 import MessageBubble from './MessageBubble';
 
-export default function MessageList({ mensagens, currentUserId, onUpdate, onDelete }) {
+export default function MessageList({ mensagens, currentUserId, onUpdate, onDelete, onReply, onToggleReacao }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -24,6 +24,8 @@ export default function MessageList({ mensagens, currentUserId, onUpdate, onDele
               isOwn={mensagem.autor_id === currentUserId}
               onUpdate={onUpdate}
               onDelete={onDelete}
+              onReply={onReply}
+              onToggleReacao={(emoji) => onToggleReacao(mensagem, emoji)}
             />
           ))
         )}

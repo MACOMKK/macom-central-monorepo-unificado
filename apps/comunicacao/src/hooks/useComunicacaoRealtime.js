@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+import { useAuth } from '@/lib/AuthContext';
 import { CANAIS_QUERY_KEY } from './useCanais';
 import { mensagensQueryKey } from './useMensagens';
 import { CONVERSAS_QUERY_KEY } from './useConversas';
 import { mensagensDiretasQueryKey } from './useMensagensDiretas';
+import { updateMensagemReacoes } from './reacoesUtils';
 
 function upsertMensagem(rows, nextItem) {
   if (!Array.isArray(rows)) return rows;
@@ -54,8 +56,31 @@ function findAutorInfo(queryClient, autorId) {
   return null;
 }
 
+function findMensagemPreview(queryClient, mensagemId) {
+  if (!mensagemId) return null;
+
+  const messageQueries = [
+    ...queryClient.getQueriesData({ queryKey: ['comunicacao-mensagens'] }),
+    ...queryClient.getQueriesData({ queryKey: ['comunicacao-mensagens-diretas'] }),
+  ];
+  for (const [, rows] of messageQueries) {
+    if (!Array.isArray(rows)) continue;
+    const match = rows.find((item) => item.id === mensagemId);
+    if (match) {
+      return {
+        id: match.id,
+        conteudo: match.conteudo,
+        excluida_em: match.excluida_em,
+        autor: match.autor || null,
+      };
+    }
+  }
+  return null;
+}
+
 export function useComunicacaoRealtime(enabled = true) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [status, setStatus] = useState(enabled ? 'connecting' : 'disabled');
 
   useEffect(() => {
@@ -83,7 +108,12 @@ export function useComunicacaoRealtime(enabled = true) {
 
         const queryKey = mensagensQueryKey(nextItem.canal_id);
         const autorInfo = nextItem.autor || findAutorInfo(queryClient, nextItem.autor_id);
-        const item = autorInfo ? { ...nextItem, autor: autorInfo } : nextItem;
+        const respostaAInfo = nextItem.resposta_a || findMensagemPreview(queryClient, nextItem.resposta_a_id);
+        const item = {
+          ...nextItem,
+          ...(autorInfo ? { autor: autorInfo } : {}),
+          ...(respostaAInfo ? { resposta_a: respostaAInfo } : {}),
+        };
 
         if (eventType === 'INSERT' || eventType === 'UPDATE') {
           queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, item));
@@ -113,6 +143,32 @@ export function useComunicacaoRealtime(enabled = true) {
 
     channel.on(
       'postgres_changes',
+      { event: '*', schema: 'gestao_comunicacao', table: 'reacoes_mensagem' },
+      (payload) => {
+        const eventType = payload.eventType;
+        const reacao = payload.new?.id ? payload.new : payload.old;
+        if (!reacao) return;
+
+        const action = eventType === 'INSERT' ? 'added' : eventType === 'DELETE' ? 'removed' : null;
+        if (!action) return;
+
+        const options = { emoji: reacao.emoji, colaboradorId: reacao.colaborador_id, currentUserId: user?.id, action };
+
+        if (reacao.mensagem_id) {
+          queryClient.setQueriesData({ queryKey: ['comunicacao-mensagens'] }, (current) =>
+            updateMensagemReacoes(current, reacao.mensagem_id, options),
+          );
+        }
+        if (reacao.mensagem_direta_id) {
+          queryClient.setQueriesData({ queryKey: ['comunicacao-mensagens-diretas'] }, (current) =>
+            updateMensagemReacoes(current, reacao.mensagem_direta_id, options),
+          );
+        }
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
       { event: '*', schema: 'gestao_comunicacao', table: 'canais' },
       () => {
         queryClient.invalidateQueries({ queryKey: CANAIS_QUERY_KEY });
@@ -129,7 +185,12 @@ export function useComunicacaoRealtime(enabled = true) {
 
         const queryKey = mensagensDiretasQueryKey(nextItem.conversa_id);
         const autorInfo = nextItem.autor || findAutorInfo(queryClient, nextItem.autor_id);
-        const item = autorInfo ? { ...nextItem, autor: autorInfo } : nextItem;
+        const respostaAInfo = nextItem.resposta_a || findMensagemPreview(queryClient, nextItem.resposta_a_id);
+        const item = {
+          ...nextItem,
+          ...(autorInfo ? { autor: autorInfo } : {}),
+          ...(respostaAInfo ? { resposta_a: respostaAInfo } : {}),
+        };
 
         if (eventType === 'INSERT' || eventType === 'UPDATE') {
           queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, item));
@@ -173,7 +234,7 @@ export function useComunicacaoRealtime(enabled = true) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, queryClient]);
+  }, [enabled, queryClient, user?.id]);
 
   return { status };
 }

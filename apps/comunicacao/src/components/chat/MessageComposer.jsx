@@ -12,7 +12,7 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function MessageComposer({ onSend, disabled, canalId, conversaId }) {
+export default function MessageComposer({ onSend, disabled, canalId, conversaId, replyingTo, onCancelReply }) {
   const [value, setValue] = useState('');
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
@@ -59,6 +59,23 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId 
 
   return (
     <div className="border-t border-border p-3">
+      {replyingTo ? (
+        <div className="mb-2 flex items-center justify-between rounded-md border-l-2 border-primary/50 bg-muted/50 px-2 py-1.5 text-xs">
+          <div className="min-w-0">
+            <p className="font-medium text-foreground/80">Respondendo a {replyingTo.autor?.nome || 'Usuário'}</p>
+            <p className="truncate text-muted-foreground">{replyingTo.conteudo || '(anexo)'}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="ml-2 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Cancelar resposta"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
+
       {files.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-2">
           {files.map((file, index) => (

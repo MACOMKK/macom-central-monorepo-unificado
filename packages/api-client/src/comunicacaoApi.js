@@ -100,12 +100,13 @@ export const comunicacaoApi = {
       return result.rows || [];
     },
 
-    async create({ canalId, conteudo, anexos }) {
+    async create({ canalId, conteudo, anexos, respostaAId }) {
       const result = await invokeComunicacao({
         action: 'create_mensagem',
         canal_id: canalId,
         conteudo,
         anexos,
+        resposta_a_id: respostaAId || null,
       });
       return result.row || null;
     },
@@ -155,12 +156,13 @@ export const comunicacaoApi = {
       return result.rows || [];
     },
 
-    async create({ conversaId, conteudo, anexos }) {
+    async create({ conversaId, conteudo, anexos, respostaAId }) {
       const result = await invokeComunicacao({
         action: 'create_mensagem_direta',
         conversa_id: conversaId,
         conteudo,
         anexos,
+        resposta_a_id: respostaAId || null,
       });
       return result.row || null;
     },
@@ -235,6 +237,17 @@ export const comunicacaoApi = {
       }
 
       return data.signedUrl;
+    },
+  },
+  reacoes: {
+    async toggle({ mensagemId, mensagemDiretaId, emoji }) {
+      const result = await invokeComunicacao({
+        action: 'toggle_reacao',
+        mensagem_id: mensagemId || null,
+        mensagem_direta_id: mensagemDiretaId || null,
+        emoji,
+      });
+      return result;
     },
   },
 };

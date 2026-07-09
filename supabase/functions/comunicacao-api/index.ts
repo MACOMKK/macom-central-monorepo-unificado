@@ -212,6 +212,14 @@ Deno.serve(async (request) => {
           select
             m.*,
             json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor,
+            case when p.id is not null then
+              json_build_object(
+                'id', p.id,
+                'conteudo', p.conteudo,
+                'excluida_em', p.excluida_em,
+                'autor', json_build_object('id', pc.id, 'nome', pc.nome, 'email', pc.email)
+              )
+            else null end as resposta_a,
             coalesce(
               (
                 select json_agg(json_build_object(
@@ -222,15 +230,30 @@ Deno.serve(async (request) => {
                 where a.mensagem_id = m.id
               ),
               '[]'::json
-            ) as anexos
+            ) as anexos,
+            coalesce(
+              (
+                select json_agg(json_build_object('emoji', t.emoji, 'total', t.total, 'reagiu', t.reagiu))
+                from (
+                  select emoji, count(*)::int as total,
+                         bool_or(colaborador_id = $3) as reagiu
+                  from ${SCHEMA}.reacoes_mensagem
+                  where mensagem_id = m.id
+                  group by emoji
+                ) t
+              ),
+              '[]'::json
+            ) as reacoes
           from ${SCHEMA}.mensagens m
           join public.colaboradores c on c.id = m.autor_id
+          left join ${SCHEMA}.mensagens p on p.id = m.resposta_a_id
+          left join public.colaboradores pc on pc.id = p.autor_id
           where m.canal_id = $1
             and ($2::timestamptz is null or m.criado_em < $2::timestamptz)
           order by m.criado_em desc
           limit ${limit};
         `,
-        [canalId, before],
+        [canalId, before, collaborator.id],
       );
 
       return json({ rows: rows.reverse() });
@@ -240,20 +263,40 @@ Deno.serve(async (request) => {
       const canalId = String(body.canal_id || '');
       const conteudo = typeof body.conteudo === 'string' ? body.conteudo.trim() : '';
       const anexos = Array.isArray(body.anexos) ? body.anexos : [];
+      const respostaAId = body.resposta_a_id ? String(body.resposta_a_id) : null;
       if (!canalId) return json({ error: 'canal_id obrigatorio.' }, 400);
       if ((!conteudo && anexos.length === 0) || conteudo.length > MAX_MENSAGEM_LENGTH) {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
       await ensureCanAccessCanal(canalId);
 
+      let respostaA = null;
+      if (respostaAId) {
+        const [parent] = await sql.unsafe(
+          `
+            select m.id, m.conteudo, m.excluida_em,
+              json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor
+            from ${SCHEMA}.mensagens m
+            join public.colaboradores c on c.id = m.autor_id
+            where m.id = $1 and m.canal_id = $2 and m.excluida_em is null
+            limit 1;
+          `,
+          [respostaAId, canalId],
+        );
+        if (!parent) {
+          return json({ error: 'Mensagem original nao encontrada, excluida ou de outro canal.' }, 400);
+        }
+        respostaA = parent;
+      }
+
       const row = await sql.begin(async (trx) => {
         const [mensagem] = await trx.unsafe(
           `
-            insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo)
-            values ($1, $2, $3)
+            insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo, resposta_a_id)
+            values ($1, $2, $3, $4)
             returning *;
           `,
-          [canalId, collaborator.id, conteudo || ''],
+          [canalId, collaborator.id, conteudo || '', respostaAId],
         );
 
         const anexosRows = [];
@@ -272,7 +315,14 @@ Deno.serve(async (request) => {
         return { ...mensagem, anexos: anexosRows };
       });
 
-      return json({ row: { ...row, autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email } } });
+      return json({
+        row: {
+          ...row,
+          autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email },
+          resposta_a: respostaA,
+          reacoes: [],
+        },
+      });
     }
 
     if (action === 'update_mensagem') {
@@ -449,6 +499,14 @@ Deno.serve(async (request) => {
           select
             m.*,
             json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor,
+            case when p.id is not null then
+              json_build_object(
+                'id', p.id,
+                'conteudo', p.conteudo,
+                'excluida_em', p.excluida_em,
+                'autor', json_build_object('id', pc.id, 'nome', pc.nome, 'email', pc.email)
+              )
+            else null end as resposta_a,
             coalesce(
               (
                 select json_agg(json_build_object(
@@ -459,15 +517,30 @@ Deno.serve(async (request) => {
                 where a.mensagem_direta_id = m.id
               ),
               '[]'::json
-            ) as anexos
+            ) as anexos,
+            coalesce(
+              (
+                select json_agg(json_build_object('emoji', t.emoji, 'total', t.total, 'reagiu', t.reagiu))
+                from (
+                  select emoji, count(*)::int as total,
+                         bool_or(colaborador_id = $3) as reagiu
+                  from ${SCHEMA}.reacoes_mensagem
+                  where mensagem_direta_id = m.id
+                  group by emoji
+                ) t
+              ),
+              '[]'::json
+            ) as reacoes
           from ${SCHEMA}.mensagens_diretas m
           join public.colaboradores c on c.id = m.autor_id
+          left join ${SCHEMA}.mensagens_diretas p on p.id = m.resposta_a_id
+          left join public.colaboradores pc on pc.id = p.autor_id
           where m.conversa_id = $1
             and ($2::timestamptz is null or m.criado_em < $2::timestamptz)
           order by m.criado_em desc
           limit ${limit};
         `,
-        [conversaId, before],
+        [conversaId, before, collaborator.id],
       );
 
       return json({ rows: rows.reverse() });
@@ -477,20 +550,40 @@ Deno.serve(async (request) => {
       const conversaId = String(body.conversa_id || '');
       const conteudo = typeof body.conteudo === 'string' ? body.conteudo.trim() : '';
       const anexos = Array.isArray(body.anexos) ? body.anexos : [];
+      const respostaAId = body.resposta_a_id ? String(body.resposta_a_id) : null;
       if (!conversaId) return json({ error: 'conversa_id obrigatorio.' }, 400);
       if ((!conteudo && anexos.length === 0) || conteudo.length > MAX_MENSAGEM_LENGTH) {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
       await ensureCanAccessConversa(conversaId, collaborator.id);
 
+      let respostaA = null;
+      if (respostaAId) {
+        const [parent] = await sql.unsafe(
+          `
+            select m.id, m.conteudo, m.excluida_em,
+              json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor
+            from ${SCHEMA}.mensagens_diretas m
+            join public.colaboradores c on c.id = m.autor_id
+            where m.id = $1 and m.conversa_id = $2 and m.excluida_em is null
+            limit 1;
+          `,
+          [respostaAId, conversaId],
+        );
+        if (!parent) {
+          return json({ error: 'Mensagem original nao encontrada, excluida ou de outra conversa.' }, 400);
+        }
+        respostaA = parent;
+      }
+
       const row = await sql.begin(async (trx) => {
         const [mensagem] = await trx.unsafe(
           `
-            insert into ${SCHEMA}.mensagens_diretas (conversa_id, autor_id, conteudo)
-            values ($1, $2, $3)
+            insert into ${SCHEMA}.mensagens_diretas (conversa_id, autor_id, conteudo, resposta_a_id)
+            values ($1, $2, $3, $4)
             returning *;
           `,
-          [conversaId, collaborator.id, conteudo || ''],
+          [conversaId, collaborator.id, conteudo || '', respostaAId],
         );
 
         const anexosRows = [];
@@ -509,7 +602,14 @@ Deno.serve(async (request) => {
         return { ...mensagem, anexos: anexosRows };
       });
 
-      return json({ row: { ...row, autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email } } });
+      return json({
+        row: {
+          ...row,
+          autor: { id: collaborator.id, nome: collaborator.nome, email: collaborator.email },
+          resposta_a: respostaA,
+          reacoes: [],
+        },
+      });
     }
 
     if (action === 'update_mensagem_direta') {
@@ -574,6 +674,65 @@ Deno.serve(async (request) => {
       }
       await deleteAnexosStorage(anexoPaths);
       return json({ row });
+    }
+
+    if (action === 'toggle_reacao') {
+      const mensagemId = body.mensagem_id ? String(body.mensagem_id) : null;
+      const mensagemDiretaId = body.mensagem_direta_id ? String(body.mensagem_direta_id) : null;
+      const emoji = typeof body.emoji === 'string' ? body.emoji.trim() : '';
+
+      if ((!mensagemId && !mensagemDiretaId) || (mensagemId && mensagemDiretaId)) {
+        return json({ error: 'Informe mensagem_id ou mensagem_direta_id.' }, 400);
+      }
+      if (!emoji || emoji.length > 8) {
+        return json({ error: 'Emoji invalido.' }, 400);
+      }
+
+      if (mensagemId) {
+        const [mensagem] = await sql.unsafe(
+          `select canal_id from ${SCHEMA}.mensagens where id = $1 and excluida_em is null limit 1;`,
+          [mensagemId],
+        );
+        if (!mensagem) return json({ error: 'Mensagem nao encontrada.' }, 404);
+        await ensureCanAccessCanal(mensagem.canal_id);
+      } else {
+        const [mensagem] = await sql.unsafe(
+          `select conversa_id from ${SCHEMA}.mensagens_diretas where id = $1 and excluida_em is null limit 1;`,
+          [mensagemDiretaId],
+        );
+        if (!mensagem) return json({ error: 'Mensagem nao encontrada.' }, 404);
+        await ensureCanAccessConversa(mensagem.conversa_id, collaborator.id);
+      }
+
+      const result = await sql.begin(async (trx) => {
+        const deleted = await trx.unsafe(
+          `
+            delete from ${SCHEMA}.reacoes_mensagem
+            where colaborador_id = $1
+              and emoji = $2
+              and coalesce(mensagem_id, '00000000-0000-0000-0000-000000000000') = coalesce($3::uuid, '00000000-0000-0000-0000-000000000000')
+              and coalesce(mensagem_direta_id, '00000000-0000-0000-0000-000000000000') = coalesce($4::uuid, '00000000-0000-0000-0000-000000000000')
+            returning id;
+          `,
+          [collaborator.id, emoji, mensagemId, mensagemDiretaId],
+        );
+
+        if (deleted.length > 0) {
+          return { action: 'removed', row: deleted[0] };
+        }
+
+        const [inserted] = await trx.unsafe(
+          `
+            insert into ${SCHEMA}.reacoes_mensagem (mensagem_id, mensagem_direta_id, colaborador_id, emoji)
+            values ($1, $2, $3, $4)
+            returning *;
+          `,
+          [mensagemId, mensagemDiretaId, collaborator.id, emoji],
+        );
+        return { action: 'added', row: inserted };
+      });
+
+      return json(result);
     }
 
     return json({ error: 'Acao invalida.' }, 400);
