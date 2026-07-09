@@ -88,6 +88,25 @@ export const comunicacaoApi = {
       const result = await invokeComunicacao({ action: 'list_canais' });
       return result.rows || [];
     },
+
+    async create({ nome, descricao, icone } = {}) {
+      const result = await invokeComunicacao({ action: 'create_canal', nome, descricao, icone });
+      return result.row || null;
+    },
+
+    async archive(canalId) {
+      const result = await invokeComunicacao({ action: 'archive_canal', canal_id: canalId });
+      return result.row || null;
+    },
+
+    async join(canalId) {
+      const result = await invokeComunicacao({ action: 'join_canal', canal_id: canalId });
+      return result.row || null;
+    },
+
+    async leave(canalId) {
+      await invokeComunicacao({ action: 'leave_canal', canal_id: canalId });
+    },
   },
   mensagens: {
     async list({ canalId, before, limit } = {}) {
@@ -248,6 +267,18 @@ export const comunicacaoApi = {
         emoji,
       });
       return result;
+    },
+  },
+  busca: {
+    async mensagens({ query, canalId, conversaId, limit } = {}) {
+      const result = await invokeComunicacao({
+        action: 'search_mensagens',
+        query,
+        canal_id: canalId || null,
+        conversa_id: conversaId || null,
+        limit,
+      });
+      return result.rows || [];
     },
   },
 };

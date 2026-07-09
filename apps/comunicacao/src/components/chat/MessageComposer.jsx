@@ -2,6 +2,9 @@ import { useRef, useState } from 'react';
 import { Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
 import { Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+
+const TYPING_DEBOUNCE_MS = 3000;
 
 const ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx';
@@ -18,11 +21,32 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
   const [sending, setSending] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const { notifyTyping, stopTyping } = useTypingIndicator({ canalId, conversaId });
+
+  const clearTypingTimeout = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const handleChange = (event) => {
+    setValue(event.target.value);
+    notifyTyping();
+    clearTypingTimeout();
+    typingTimeoutRef.current = setTimeout(() => {
+      stopTyping();
+      typingTimeoutRef.current = null;
+    }, TYPING_DEBOUNCE_MS);
+  };
 
   const handleSend = async () => {
     const trimmed = value.trim();
     if ((!trimmed && files.length === 0) || sending || disabled) return;
 
+    clearTypingTimeout();
+    stopTyping();
     setSending(true);
     setUploadError('');
     try {
@@ -120,7 +144,7 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
         </Button>
         <Textarea
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Escreva uma mensagem..."
           className="min-h-11 flex-1 resize-none"

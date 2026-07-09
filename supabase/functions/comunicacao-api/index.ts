@@ -144,13 +144,19 @@ function ensureHasAccess(access: Record<string, unknown> | null) {
   }
 }
 
-async function ensureCanAccessCanal(canalId: string) {
+async function ensureCanAccessCanal(canalId: string, collaboratorId: string) {
   const rows = await sql.unsafe(
-    `select id from ${SCHEMA}.canais where id = $1 and ativo limit 1;`,
-    [canalId],
+    `
+      select c.id
+      from ${SCHEMA}.canais c
+      join ${SCHEMA}.membros_canal m on m.canal_id = c.id and m.colaborador_id = $2
+      where c.id = $1 and c.ativo
+      limit 1;
+    `,
+    [canalId, collaboratorId],
   );
   if (!rows[0]) {
-    throw Object.assign(new Error('Canal nao encontrado ou inativo.'), { status: 404 });
+    throw Object.assign(new Error('Canal nao encontrado ou voce nao e membro.'), { status: 404 });
   }
 }
 
@@ -166,6 +172,43 @@ async function ensureCanAccessConversa(conversaId: string, collaboratorId: strin
   );
   if (!rows[0]) {
     throw Object.assign(new Error('Conversa nao encontrada ou sem permissao.'), { status: 404 });
+  }
+}
+
+function slugify(nome: string) {
+  return nome
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function generateUniqueCanalSlug(nome: string) {
+  const base = slugify(nome) || 'canal';
+  let slug = base;
+  let suffix = 2;
+
+  while (true) {
+    const rows = await sql.unsafe(`select 1 from ${SCHEMA}.canais where slug = $1 limit 1;`, [slug]);
+    if (!rows[0]) return slug;
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+}
+
+function ensureCanArchiveCanal(
+  canal: Record<string, unknown>,
+  collaboratorId: string,
+  access: Record<string, unknown> | null,
+) {
+  const isAdmin = access?.nivel_acesso === 'admin';
+  const isOwner = canal.criado_por && String(canal.criado_por) === collaboratorId;
+  if (!isAdmin && !isOwner) {
+    throw Object.assign(
+      new Error('Apenas o criador do canal ou um administrador pode arquiva-lo.'),
+      { status: 403 },
+    );
   }
 }
 
@@ -194,15 +237,105 @@ Deno.serve(async (request) => {
 
     if (action === 'list_canais') {
       const rows = await sql.unsafe(
-        `select * from ${SCHEMA}.canais where ativo order by ordem asc;`,
+        `
+          select c.*, (mc.id is not null) as membro
+          from ${SCHEMA}.canais c
+          left join ${SCHEMA}.membros_canal mc on mc.canal_id = c.id and mc.colaborador_id = $1
+          where c.ativo
+          order by c.ordem asc;
+        `,
+        [collaborator.id],
       );
       return json({ rows });
+    }
+
+    if (action === 'create_canal') {
+      const nome = typeof body.nome === 'string' ? body.nome.trim() : '';
+      const descricao = typeof body.descricao === 'string' ? body.descricao.trim() : null;
+      const icone = typeof body.icone === 'string' ? body.icone.trim() : null;
+
+      if (!nome || nome.length > 80) {
+        return json({ error: 'Nome do canal invalido.' }, 400);
+      }
+
+      const slug = await generateUniqueCanalSlug(nome);
+      const row = await sql.begin(async (trx) => {
+        const [canal] = await trx.unsafe(
+          `
+            insert into ${SCHEMA}.canais (slug, nome, descricao, icone, ordem, criado_por)
+            values (
+              $1, $2, $3, $4,
+              coalesce((select max(ordem) from ${SCHEMA}.canais where ativo), 0) + 1,
+              $5
+            )
+            returning *;
+          `,
+          [slug, nome, descricao, icone, collaborator.id],
+        );
+        await trx.unsafe(
+          `insert into ${SCHEMA}.membros_canal (canal_id, colaborador_id) values ($1, $2);`,
+          [canal.id, collaborator.id],
+        );
+        return canal;
+      });
+      return json({ row: { ...row, membro: true } });
+    }
+
+    if (action === 'join_canal') {
+      const canalId = String(body.canal_id || '');
+      const canalRows = await sql.unsafe(
+        `select id from ${SCHEMA}.canais where id = $1 and ativo limit 1;`,
+        [canalId],
+      );
+      if (!canalRows[0]) {
+        return json({ error: 'Canal nao encontrado.' }, 404);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into ${SCHEMA}.membros_canal (canal_id, colaborador_id)
+          values ($1, $2)
+          on conflict (canal_id, colaborador_id) do nothing
+          returning *;
+        `,
+        [canalId, collaborator.id],
+      );
+      return json({ row: rows[0] || { canal_id: canalId, colaborador_id: collaborator.id } });
+    }
+
+    if (action === 'leave_canal') {
+      const canalId = String(body.canal_id || '');
+      await sql.unsafe(
+        `delete from ${SCHEMA}.membros_canal where canal_id = $1 and colaborador_id = $2;`,
+        [canalId, collaborator.id],
+      );
+      return json({ ok: true });
+    }
+
+    if (action === 'archive_canal') {
+      const canalId = String(body.canal_id || '');
+      const canalRows = await sql.unsafe(
+        `select * from ${SCHEMA}.canais where id = $1 and ativo limit 1;`,
+        [canalId],
+      );
+      const canal = canalRows[0];
+      if (!canal) {
+        return json({ error: 'Canal nao encontrado.' }, 404);
+      }
+
+      ensureCanArchiveCanal(canal, String(collaborator.id), access);
+
+      const rows = await sql.unsafe(
+        `update ${SCHEMA}.canais set ativo = false where id = $1 returning *;`,
+        [canalId],
+      );
+      return json({ row: rows[0] });
     }
 
     if (action === 'list_mensagens') {
       const canalId = String(body.canal_id || '');
       if (!canalId) return json({ error: 'canal_id obrigatorio.' }, 400);
-      await ensureCanAccessCanal(canalId);
+      await ensureCanAccessCanal(canalId, collaborator.id);
 
       const limit = parseInteger(body.limit, DEFAULT_LIST_LIMIT, 1, 200);
       const before = body.before ? String(body.before) : null;
@@ -268,7 +401,7 @@ Deno.serve(async (request) => {
       if ((!conteudo && anexos.length === 0) || conteudo.length > MAX_MENSAGEM_LENGTH) {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
-      await ensureCanAccessCanal(canalId);
+      await ensureCanAccessCanal(canalId, collaborator.id);
 
       let respostaA = null;
       if (respostaAId) {
@@ -694,7 +827,7 @@ Deno.serve(async (request) => {
           [mensagemId],
         );
         if (!mensagem) return json({ error: 'Mensagem nao encontrada.' }, 404);
-        await ensureCanAccessCanal(mensagem.canal_id);
+        await ensureCanAccessCanal(mensagem.canal_id, collaborator.id);
       } else {
         const [mensagem] = await sql.unsafe(
           `select conversa_id from ${SCHEMA}.mensagens_diretas where id = $1 and excluida_em is null limit 1;`,
@@ -733,6 +866,64 @@ Deno.serve(async (request) => {
       });
 
       return json(result);
+    }
+
+    if (action === 'search_mensagens') {
+      const query = typeof body.query === 'string' ? body.query.trim() : '';
+      const canalId = body.canal_id ? String(body.canal_id) : null;
+      const conversaId = body.conversa_id ? String(body.conversa_id) : null;
+      const limit = parseInteger(body.limit, 30, 1, 100);
+
+      if (query.length < 2) {
+        return json({ rows: [] });
+      }
+      if (canalId) await ensureCanAccessCanal(canalId, collaborator.id);
+      if (conversaId) await ensureCanAccessConversa(conversaId, collaborator.id);
+
+      const rows = await sql.unsafe(
+        `
+          select * from (
+            select
+              m.id, 'canal' as tipo, m.canal_id, c2.slug as destino_slug, c2.nome as destino_nome,
+              m.conteudo, m.criado_em,
+              json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor
+            from ${SCHEMA}.mensagens m
+            join ${SCHEMA}.canais c2 on c2.id = m.canal_id and c2.ativo
+            join ${SCHEMA}.membros_canal mc2 on mc2.canal_id = c2.id and mc2.colaborador_id = $4
+            join public.colaboradores c on c.id = m.autor_id
+            where m.excluida_em is null
+              and m.conteudo ilike '%' || $1 || '%'
+              and ($2::uuid is null or m.canal_id = $2::uuid)
+              and $3::uuid is null
+
+            union all
+
+            select
+              m.id, 'direta' as tipo, m.conversa_id as canal_id, null as destino_slug,
+              (
+                select oc.nome
+                from ${SCHEMA}.participantes_conversa opc
+                join public.colaboradores oc on oc.id = opc.colaborador_id
+                where opc.conversa_id = m.conversa_id and opc.colaborador_id <> $4
+                limit 1
+              ) as destino_nome,
+              m.conteudo, m.criado_em,
+              json_build_object('id', c.id, 'nome', c.nome, 'email', c.email) as autor
+            from ${SCHEMA}.mensagens_diretas m
+            join ${SCHEMA}.participantes_conversa pp on pp.conversa_id = m.conversa_id and pp.colaborador_id = $4
+            join public.colaboradores c on c.id = m.autor_id
+            where m.excluida_em is null
+              and m.conteudo ilike '%' || $1 || '%'
+              and ($3::uuid is null or m.conversa_id = $3::uuid)
+              and $2::uuid is null
+          ) resultado
+          order by criado_em desc
+          limit ${limit};
+        `,
+        [query, canalId, conversaId, collaborator.id],
+      );
+
+      return json({ rows });
     }
 
     return json({ error: 'Acao invalida.' }, 400);

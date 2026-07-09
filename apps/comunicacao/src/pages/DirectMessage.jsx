@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useConversas } from '@/hooks/useConversas';
 import { useMensagensDiretas } from '@/hooks/useMensagensDiretas';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import DirectMessageHeader from '@/components/chat/DirectMessageHeader';
 import MessageList from '@/components/chat/MessageList';
 import MessageComposer from '@/components/chat/MessageComposer';
@@ -22,6 +23,7 @@ export default function DirectMessage() {
     removeMensagem,
     toggleReacao,
   } = useMensagensDiretas(conversaId);
+  const { typingUsers } = useTypingIndicator({ conversaId });
 
   useEffect(() => {
     const outro = conversa?.outros_participantes?.[0];
@@ -54,6 +56,11 @@ export default function DirectMessage() {
           onToggleReacao={(mensagem, emoji) => toggleReacao({ mensagemDiretaId: mensagem.id, emoji })}
         />
       )}
+      {typingUsers.length > 0 ? (
+        <p className="px-4 py-1 text-xs italic text-muted-foreground">
+          {typingUsers.map((u) => u.nome).join(', ')} {typingUsers.length === 1 ? 'está' : 'estão'} digitando...
+        </p>
+      ) : null}
       <MessageComposer
         conversaId={conversaId}
         replyingTo={replyingTo}
