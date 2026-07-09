@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 import { useMensagens } from '@/hooks/useMensagens';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+import { useMarcarLida } from '@/hooks/useMarcarLida';
 import ChannelHeader from '@/components/chat/ChannelHeader';
 import MessageList from '@/components/chat/MessageList';
 import MessageComposer from '@/components/chat/MessageComposer';
@@ -25,10 +26,15 @@ export default function Chat() {
     toggleReacao,
   } = useMensagens(canal?.id);
   const { typingUsers } = useTypingIndicator({ canalId: canal?.id });
+  const { marcarCanalLido } = useMarcarLida();
 
   useEffect(() => {
     document.title = canal ? `${canal.nome} · Comunicação MACOM` : 'Comunicação MACOM';
   }, [canal]);
+
+  useEffect(() => {
+    if (canal?.id) marcarCanalLido(canal.id);
+  }, [canal?.id, mensagens.length]);
 
   if (!isLoadingCanais && meusCanais.length > 0 && !canal) {
     return <Navigate to={`/canais/${meusCanais[0].slug}`} replace />;

@@ -269,6 +269,15 @@ export const comunicacaoApi = {
       return result;
     },
   },
+  leituras: {
+    async marcar({ canalId, conversaId } = {}) {
+      await invokeComunicacao({
+        action: 'marcar_lida',
+        canal_id: canalId || null,
+        conversa_id: conversaId || null,
+      });
+    },
+  },
   busca: {
     async mensagens({ query, canalId, conversaId, limit } = {}) {
       const result = await invokeComunicacao({

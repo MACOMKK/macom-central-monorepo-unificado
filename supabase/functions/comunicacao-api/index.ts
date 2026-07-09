@@ -238,15 +238,60 @@ Deno.serve(async (request) => {
     if (action === 'list_canais') {
       const rows = await sql.unsafe(
         `
-          select c.*, (mc.id is not null) as membro
+          select
+            c.*,
+            (mc.id is not null) as membro,
+            (
+              select count(*)::int
+              from ${SCHEMA}.mensagens m
+              where m.canal_id = c.id
+                and m.excluida_em is null
+                and m.autor_id <> $1
+                and m.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
+            ) as nao_lidas
           from ${SCHEMA}.canais c
           left join ${SCHEMA}.membros_canal mc on mc.canal_id = c.id and mc.colaborador_id = $1
+          left join ${SCHEMA}.leituras_mensagem lm on lm.canal_id = c.id and lm.colaborador_id = $1
           where c.ativo
           order by c.ordem asc;
         `,
         [collaborator.id],
       );
       return json({ rows });
+    }
+
+    if (action === 'marcar_lida') {
+      const canalId = body.canal_id ? String(body.canal_id) : null;
+      const conversaId = body.conversa_id ? String(body.conversa_id) : null;
+      if (!canalId && !conversaId) {
+        return json({ error: 'canal_id ou conversa_id obrigatorio.' }, 400);
+      }
+
+      if (canalId) {
+        await ensureCanAccessCanal(canalId, collaborator.id);
+        await sql.unsafe(
+          `
+            insert into ${SCHEMA}.leituras_mensagem (colaborador_id, canal_id, ultima_leitura_em, atualizado_em)
+            values ($1, $2, now(), now())
+            on conflict (colaborador_id, canal_id) where canal_id is not null
+            do update set ultima_leitura_em = now(), atualizado_em = now();
+          `,
+          [collaborator.id, canalId],
+        );
+      } else {
+        await ensureCanAccessConversa(conversaId!, collaborator.id);
+        await sql.unsafe(
+          `
+            insert into ${SCHEMA}.leituras_mensagem (colaborador_id, conversa_id, ultima_leitura_em, atualizado_em)
+            values ($1, $2, now(), now())
+            on conflict (colaborador_id, conversa_id) where conversa_id is not null
+            do update set ultima_leitura_em = now(), atualizado_em = now();
+          `,
+          [collaborator.id, conversaId],
+        );
+      }
+
+      return json({ ok: true });
     }
 
     if (action === 'create_canal') {
@@ -568,9 +613,18 @@ Deno.serve(async (request) => {
                 order by criado_em desc
                 limit 1
               ) m
-            ) as ultima_mensagem
+            ) as ultima_mensagem,
+            (
+              select count(*)::int
+              from ${SCHEMA}.mensagens_diretas md
+              where md.conversa_id = cd.id
+                and md.excluida_em is null
+                and md.autor_id <> $1
+                and md.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
+            ) as nao_lidas
           from ${SCHEMA}.conversas_diretas cd
           join ${SCHEMA}.participantes_conversa pc on pc.conversa_id = cd.id and pc.colaborador_id = $1
+          left join ${SCHEMA}.leituras_mensagem lm on lm.conversa_id = cd.id and lm.colaborador_id = $1
           order by cd.ultima_mensagem_em desc nulls last, cd.criado_em desc;
         `,
         [collaborator.id],

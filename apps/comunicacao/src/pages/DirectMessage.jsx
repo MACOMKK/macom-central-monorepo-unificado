@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useConversas } from '@/hooks/useConversas';
 import { useMensagensDiretas } from '@/hooks/useMensagensDiretas';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+import { useMarcarLida } from '@/hooks/useMarcarLida';
 import DirectMessageHeader from '@/components/chat/DirectMessageHeader';
 import MessageList from '@/components/chat/MessageList';
 import MessageComposer from '@/components/chat/MessageComposer';
@@ -24,11 +25,16 @@ export default function DirectMessage() {
     toggleReacao,
   } = useMensagensDiretas(conversaId);
   const { typingUsers } = useTypingIndicator({ conversaId });
+  const { marcarConversaLida } = useMarcarLida();
 
   useEffect(() => {
     const outro = conversa?.outros_participantes?.[0];
     document.title = outro ? `${outro.nome} · Comunicação MACOM` : 'Comunicação MACOM';
   }, [conversa]);
+
+  useEffect(() => {
+    if (conversaId) marcarConversaLida(conversaId);
+  }, [conversaId, mensagens.length]);
 
   if (!conversa) {
     if (!isLoadingConversas) {

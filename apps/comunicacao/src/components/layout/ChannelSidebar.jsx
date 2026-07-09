@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, Button } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 import { useConversas } from '@/hooks/useConversas';
+import { usePresence } from '@/hooks/usePresence';
 import NewChannelDialog from './NewChannelDialog';
 import NewDirectMessageDialog from './NewDirectMessageDialog';
 import SearchMessagesDialog from './SearchMessagesDialog';
@@ -24,6 +25,7 @@ export default function ChannelSidebar() {
   const navigate = useNavigate();
   const { data: canais = [], isLoading, joinCanal, isJoining } = useCanais();
   const { conversas, isLoading: isLoadingConversas } = useConversas();
+  const { onlineIds } = usePresence();
   const [isNewDmOpen, setIsNewDmOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNewChannelOpen, setIsNewChannelOpen] = useState(false);
@@ -85,7 +87,12 @@ export default function ChannelSidebar() {
                   }
                 >
                   <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  {canal.nome}
+                  <span className="min-w-0 flex-1 truncate">{canal.nome}</span>
+                  {canal.nao_lidas > 0 ? (
+                    <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                      {canal.nao_lidas > 99 ? '99+' : canal.nao_lidas}
+                    </span>
+                  ) : null}
                 </NavLink>
               </li>
             ))}
@@ -148,10 +155,23 @@ export default function ChannelSidebar() {
                       }`
                     }
                   >
-                    <Avatar className="h-5 w-5 shrink-0">
-                      <AvatarFallback className="text-[10px]">{getInitials(outro.nome)}</AvatarFallback>
-                    </Avatar>
+                    <span className="relative shrink-0">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-[10px]">{getInitials(outro.nome)}</AvatarFallback>
+                      </Avatar>
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card ${
+                          onlineIds.has(outro.id) ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </span>
                     <span className="min-w-0 flex-1 truncate">{outro.nome}</span>
+                    {conversa.nao_lidas > 0 ? (
+                      <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                        {conversa.nao_lidas > 99 ? '99+' : conversa.nao_lidas}
+                      </span>
+                    ) : null}
                   </NavLink>
                 </li>
               );

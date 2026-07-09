@@ -118,6 +118,18 @@ export function useComunicacaoRealtime(enabled = true) {
         if (eventType === 'INSERT' || eventType === 'UPDATE') {
           queryClient.setQueriesData({ queryKey }, (current) => upsertMensagem(current, item));
         }
+        if (eventType === 'INSERT') {
+          queryClient.invalidateQueries({ queryKey: CANAIS_QUERY_KEY });
+        }
+      },
+    );
+
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'gestao_comunicacao', table: 'leituras_mensagem' },
+      () => {
+        queryClient.invalidateQueries({ queryKey: CANAIS_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: CONVERSAS_QUERY_KEY });
       },
     );
 
