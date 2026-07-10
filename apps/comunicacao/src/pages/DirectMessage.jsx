@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useOutletContext, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useConversas } from '@/hooks/useConversas';
 import { useMensagensDiretas } from '@/hooks/useMensagensDiretas';
@@ -11,6 +11,7 @@ import MessageComposer from '@/components/chat/MessageComposer';
 
 export default function DirectMessage() {
   const { conversaId } = useParams();
+  const { onOpenSidebar } = useOutletContext();
   const { user } = useAuth();
   const { conversas, isLoading: isLoadingConversas } = useConversas();
   const conversa = conversas.find((item) => item.id === conversaId) || null;
@@ -49,7 +50,7 @@ export default function DirectMessage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <DirectMessageHeader conversa={conversa} />
+      <DirectMessageHeader conversa={conversa} onOpenSidebar={onOpenSidebar} />
       {isLoadingMensagens ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Carregando mensagens...</div>
       ) : (

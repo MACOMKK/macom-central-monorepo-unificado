@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Download, Hash, LogOut, Plus, Search } from 'lucide-react';
+import { Download, Hash, LogOut, Plus, Search, X } from 'lucide-react';
 import { Avatar, AvatarFallback, Button } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
@@ -21,7 +21,7 @@ function getInitials(nome) {
     .join('');
 }
 
-export default function ChannelSidebar() {
+export default function ChannelSidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { data: canais = [], isLoading, joinCanal, isJoining } = useCanais();
@@ -38,14 +38,37 @@ export default function ChannelSidebar() {
   const handleJoin = async (canal) => {
     await joinCanal(canal.id);
     navigate(`/canais/${canal.slug}`);
+    onClose?.();
   };
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card">
-      <div className="border-b border-border px-4 py-4">
-        <h1 className="text-base font-bold text-foreground">Comunicação</h1>
-        <p className="text-xs text-muted-foreground">MACOM</p>
-      </div>
+    <>
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      ) : null}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 shrink-0 flex-col border-r border-border bg-card transition-transform duration-200 md:static md:w-64 md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-border px-4 py-4">
+          <div>
+            <h1 className="text-base font-bold text-foreground">Comunicação</h1>
+            <p className="text-xs text-muted-foreground">MACOM</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+            aria-label="Fechar menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
       <div className="px-2 pt-2">
         <button
@@ -80,6 +103,7 @@ export default function ChannelSidebar() {
               <li key={canal.id}>
                 <NavLink
                   to={`/canais/${canal.slug}`}
+                  onClick={onClose}
                   className={({ isActive }) =>
                     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
                       isActive
@@ -157,6 +181,7 @@ export default function ChannelSidebar() {
                 <li key={conversa.id}>
                   <NavLink
                     to={`/dm/${conversa.id}`}
+                    onClick={onClose}
                     className={({ isActive }) =>
                       `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
                         isActive
@@ -215,9 +240,10 @@ export default function ChannelSidebar() {
         </div>
       </div>
 
-      <NewDirectMessageDialog open={isNewDmOpen} onOpenChange={setIsNewDmOpen} />
-      <SearchMessagesDialog open={isSearchOpen} onOpenChange={setIsSearchOpen} />
-      <NewChannelDialog open={isNewChannelOpen} onOpenChange={setIsNewChannelOpen} />
-    </aside>
+        <NewDirectMessageDialog open={isNewDmOpen} onOpenChange={setIsNewDmOpen} />
+        <SearchMessagesDialog open={isSearchOpen} onOpenChange={setIsSearchOpen} />
+        <NewChannelDialog open={isNewChannelOpen} onOpenChange={setIsNewChannelOpen} />
+      </aside>
+    </>
   );
 }

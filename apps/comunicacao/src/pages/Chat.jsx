@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Navigate, useOutletContext, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 import { useMensagens } from '@/hooks/useMensagens';
@@ -11,6 +11,7 @@ import MessageComposer from '@/components/chat/MessageComposer';
 
 export default function Chat() {
   const { slug } = useParams();
+  const { onOpenSidebar } = useOutletContext();
   const { user } = useAuth();
   const { data: canais = [], isLoading: isLoadingCanais } = useCanais();
   const meusCanais = canais.filter((item) => item.membro);
@@ -54,13 +55,14 @@ export default function Chat() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ChannelHeader canal={canal} />
+      <ChannelHeader canal={canal} onOpenSidebar={onOpenSidebar} />
       {isLoadingMensagens ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Carregando mensagens...</div>
       ) : (
         <MessageList
           mensagens={mensagens}
           currentUserId={user?.id}
+          isAdmin={user?.accessLevel === 'admin'}
           onUpdate={(id, conteudo) => updateMensagem({ id, conteudo })}
           onDelete={(id) => removeMensagem(id)}
           onReply={setReplyingTo}

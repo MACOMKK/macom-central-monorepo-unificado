@@ -566,17 +566,18 @@ Deno.serve(async (request) => {
       const id = String(body.id || '');
       if (!id) return json({ error: 'id obrigatorio.' }, 400);
 
+      const isAdmin = access?.nivel_acesso === 'admin';
       const { row, anexoPaths } = await sql.begin(async (trx) => {
         const [updated] = await trx.unsafe(
           `
             update ${SCHEMA}.mensagens
             set excluida_em = now()
             where id = $1
-              and autor_id = $2
+              and (autor_id = $2 or $3)
               and excluida_em is null
             returning *;
           `,
-          [id, collaborator.id],
+          [id, collaborator.id, isAdmin],
         );
 
         if (!updated) return { row: null, anexoPaths: [] };

@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { Archive, Hash, LogOut } from 'lucide-react';
+import { Archive, Hash, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 
-export default function ChannelHeader({ canal }) {
+export default function ChannelHeader({ canal, onOpenSidebar }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { data: canais = [], archiveCanal, isArchiving, leaveCanal, isLeaving } = useCanais();
@@ -32,12 +32,20 @@ export default function ChannelHeader({ canal }) {
   };
 
   return (
-    <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-      <div className="flex items-center gap-2">
-        <Hash className="h-4 w-4 text-muted-foreground" />
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">{canal.nome}</h2>
-          {canal.descricao ? <p className="text-xs text-muted-foreground">{canal.descricao}</p> : null}
+    <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-3 md:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenSidebar}
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+          aria-label="Abrir menu"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <h2 className="truncate text-sm font-semibold text-foreground">{canal.nome}</h2>
+          {canal.descricao ? <p className="truncate text-xs text-muted-foreground">{canal.descricao}</p> : null}
         </div>
       </div>
       <div className="flex items-center gap-1">

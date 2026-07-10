@@ -79,7 +79,7 @@ function initials(name = '') {
     .join('') || '?';
 }
 
-export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete, onReply, onToggleReacao }) {
+export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDelete, onReply, onToggleReacao }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(mensagem.conteudo);
   const [saving, setSaving] = useState(false);
@@ -195,7 +195,7 @@ export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete, onR
           <MessageActionsMenu
             onReply={() => onReply(mensagem)}
             onEdit={isOwn ? () => setIsEditing(true) : undefined}
-            onDelete={isOwn ? () => onDelete(mensagem.id) : undefined}
+            onDelete={isOwn || isAdmin ? () => onDelete(mensagem.id) : undefined}
           />
         </div>
       ) : null}
