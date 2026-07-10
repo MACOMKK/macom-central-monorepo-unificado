@@ -24,6 +24,7 @@ export default function Chat() {
     createMensagem,
     updateMensagem,
     removeMensagem,
+    removeLocalMensagem,
     toggleReacao,
   } = useMensagens(canal?.id);
   const { typingUsers } = useTypingIndicator({ canalId: canal?.id });
@@ -67,6 +68,7 @@ export default function Chat() {
           onDelete={(id) => removeMensagem(id)}
           onReply={setReplyingTo}
           onToggleReacao={(mensagem, emoji) => toggleReacao({ mensagemId: mensagem.id, emoji })}
+          onRemoveFailed={removeLocalMensagem}
         />
       )}
       {typingUsers.length > 0 ? (

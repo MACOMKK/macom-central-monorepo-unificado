@@ -21,9 +21,42 @@ export function useMensagensDiretas(conversaId) {
   const createMutation = useMutation({
     mutationFn: ({ conteudo, anexos, respostaAId, mencoes }) =>
       comunicacaoApi.mensagensDiretas.create({ conversaId, conteudo, anexos, respostaAId, mencoes }),
-    onSuccess: (row) => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey });
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const optimistic = {
+        id: tempId,
+        conversa_id: conversaId,
+        conteudo: variables.conteudo,
+        autor_id: user?.id,
+        autor: user ? { id: user.id, nome: user.nome } : null,
+        criado_em: new Date().toISOString(),
+        editada_em: null,
+        excluida_em: null,
+        anexos: (variables.anexos || []).map((anexo, index) => ({ id: `${tempId}-anexo-${index}`, ...anexo })),
+        reacoes: [],
+        resposta_a: null,
+        _pending: true,
+      };
+      queryClient.setQueryData(queryKey, (current) => (Array.isArray(current) ? [...current, optimistic] : [optimistic]));
+      return { tempId };
+    },
+    onError: (_error, _variables, context) => {
+      if (!context?.tempId) return;
+      queryClient.setQueryData(queryKey, (current) =>
+        Array.isArray(current)
+          ? current.map((item) => (item.id === context.tempId ? { ...item, _pending: false, _failed: true } : item))
+          : current,
+      );
+    },
+    onSuccess: (row, _variables, context) => {
       if (!row) return;
-      queryClient.setQueryData(queryKey, (current) => (Array.isArray(current) ? [...current, row] : [row]));
+      queryClient.setQueryData(queryKey, (current) => {
+        const base = Array.isArray(current) ? current : [];
+        const withoutTemp = context?.tempId ? base.filter((item) => item.id !== context.tempId) : base;
+        const exists = withoutTemp.some((item) => item.id === row.id);
+        return exists ? withoutTemp.map((item) => (item.id === row.id ? { ...item, ...row } : item)) : [...withoutTemp, row];
+      });
     },
   });
 
@@ -64,12 +97,17 @@ export function useMensagensDiretas(conversaId) {
     },
   });
 
+  const removeLocalMensagem = (id) => {
+    queryClient.setQueryData(queryKey, (current) => (Array.isArray(current) ? current.filter((item) => item.id !== id) : current));
+  };
+
   return {
     ...query,
     mensagens: query.data || [],
     createMensagem: createMutation.mutateAsync,
     updateMensagem: updateMutation.mutateAsync,
     removeMensagem: removeMutation.mutateAsync,
+    removeLocalMensagem,
     toggleReacao: toggleReacaoMutation.mutateAsync,
     isSending: createMutation.isPending,
   };

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import { FileText } from 'lucide-react';
+import { AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import MessageActionsMenu from './MessageActionsMenu';
@@ -79,7 +79,7 @@ function initials(name = '') {
     .join('') || '?';
 }
 
-export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDelete, onReply, onToggleReacao }) {
+export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDelete, onReply, onToggleReacao, onRemoveFailed }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(mensagem.conteudo);
   const [saving, setSaving] = useState(false);
@@ -118,6 +118,7 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
           {mensagem.editada_em && !isDeleted ? (
             <span className="text-xs text-muted-foreground">(editada)</span>
           ) : null}
+          {mensagem._pending ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
         </div>
 
         {isDeleted ? (
@@ -174,6 +175,17 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
           </div>
         )}
 
+        {mensagem._failed ? (
+          <button
+            type="button"
+            onClick={() => onRemoveFailed?.(mensagem.id)}
+            className="mt-1 flex items-center gap-1 text-xs text-destructive hover:underline"
+          >
+            <AlertCircle className="h-3 w-3" />
+            Falha ao enviar. Toque para remover.
+          </button>
+        ) : null}
+
         {!isDeleted && Array.isArray(mensagem.reacoes) && mensagem.reacoes.length > 0 ? (
           <div className={`mt-1 flex flex-wrap gap-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
             {mensagem.reacoes.map((reacao) => (
@@ -193,7 +205,7 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
         ) : null}
       </div>
 
-      {!isDeleted && !isEditing ? (
+      {!isDeleted && !isEditing && !mensagem._pending && !mensagem._failed ? (
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <ReactionPicker onSelect={onToggleReacao} />
           <MessageActionsMenu

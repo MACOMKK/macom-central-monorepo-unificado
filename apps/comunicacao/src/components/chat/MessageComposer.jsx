@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
+import { Paperclip, SendHorizontal, X } from 'lucide-react';
 import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
@@ -37,7 +37,6 @@ function formatBytes(bytes) {
 export default function MessageComposer({ onSend, disabled, canalId, conversaId, replyingTo, onCancelReply }) {
   const [value, setValue] = useState('');
   const [files, setFiles] = useState([]);
-  const [sending, setSending] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [mentionState, setMentionState] = useState(null); // { query, start }
   const [mentionedById, setMentionedById] = useState({}); // { [id]: nome }
@@ -87,31 +86,34 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
     });
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const trimmed = value.trim();
-    if ((!trimmed && files.length === 0) || sending || disabled) return;
+    if ((!trimmed && files.length === 0) || disabled) return;
 
     clearTypingTimeout();
     stopTyping();
-    setSending(true);
+
+    const pendingFiles = files;
+    const mencoes = Object.entries(mentionedById)
+      .filter(([, nome]) => trimmed.includes(`@[${nome}]`))
+      .map(([id]) => id);
+
+    setValue('');
+    setFiles([]);
+    setMentionedById({});
     setUploadError('');
-    try {
-      const anexos = [];
-      for (const file of files) {
-        anexos.push(await comunicacaoApi.anexos.upload({ file, canalId, conversaId }));
+
+    (async () => {
+      try {
+        const anexos = [];
+        for (const file of pendingFiles) {
+          anexos.push(await comunicacaoApi.anexos.upload({ file, canalId, conversaId }));
+        }
+        await onSend({ conteudo: trimmed, anexos, mencoes });
+      } catch (error) {
+        setUploadError(error?.message || 'Nao foi possivel enviar a mensagem.');
       }
-      const mencoes = Object.entries(mentionedById)
-        .filter(([, nome]) => trimmed.includes(`@[${nome}]`))
-        .map(([id]) => id);
-      await onSend({ conteudo: trimmed, anexos, mencoes });
-      setValue('');
-      setFiles([]);
-      setMentionedById({});
-    } catch (error) {
-      setUploadError(error?.message || 'Nao foi possivel enviar a mensagem.');
-    } finally {
-      setSending(false);
-    }
+    })();
   };
 
   const handleKeyDown = (event) => {
@@ -200,7 +202,7 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
           size="icon"
           variant="ghost"
           onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || sending}
+          disabled={disabled}
           aria-label="Anexar arquivo"
         >
           <Paperclip className="h-4 w-4" />
@@ -232,16 +234,16 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
             onKeyDown={handleKeyDown}
             placeholder="Escreva uma mensagem... (@ para mencionar)"
             className="min-h-11 w-full resize-none"
-            disabled={disabled || sending}
+            disabled={disabled}
           />
         </div>
         <Button
           size="icon"
           onClick={handleSend}
-          disabled={disabled || sending || (!value.trim() && files.length === 0)}
+          disabled={disabled || (!value.trim() && files.length === 0)}
           aria-label="Enviar"
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
+          <SendHorizontal className="h-4 w-4" />
         </Button>
       </div>
     </div>

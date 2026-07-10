@@ -23,6 +23,7 @@ export default function DirectMessage() {
     createMensagem,
     updateMensagem,
     removeMensagem,
+    removeLocalMensagem,
     toggleReacao,
   } = useMensagensDiretas(conversaId);
   const { typingUsers } = useTypingIndicator({ conversaId });
@@ -61,6 +62,7 @@ export default function DirectMessage() {
           onDelete={(id) => removeMensagem(id)}
           onReply={setReplyingTo}
           onToggleReacao={(mensagem, emoji) => toggleReacao({ mensagemDiretaId: mensagem.id, emoji })}
+          onRemoveFailed={removeLocalMensagem}
         />
       )}
       {typingUsers.length > 0 ? (
