@@ -50,6 +50,26 @@ function Anexo({ anexo }) {
   );
 }
 
+const MENTION_PATTERN = /@\[([^\]]+)\]/g;
+
+function renderConteudoComMencoes(conteudo) {
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  MENTION_PATTERN.lastIndex = 0;
+  while ((match = MENTION_PATTERN.exec(conteudo)) !== null) {
+    if (match.index > lastIndex) parts.push(conteudo.slice(lastIndex, match.index));
+    parts.push(
+      <span key={match.index} className="rounded bg-primary/20 px-1 font-medium text-primary">
+        @{match[1]}
+      </span>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < conteudo.length) parts.push(conteudo.slice(lastIndex));
+  return parts;
+}
+
 function initials(name = '') {
   return name
     .trim()
@@ -142,7 +162,7 @@ export default function MessageBubble({ mensagem, isOwn, onUpdate, onDelete, onR
               </div>
             ) : null}
             {mensagem.conteudo ? (
-              <p className="whitespace-pre-wrap break-words text-sm">{mensagem.conteudo}</p>
+              <p className="whitespace-pre-wrap break-words text-sm">{renderConteudoComMencoes(mensagem.conteudo)}</p>
             ) : null}
             {Array.isArray(mensagem.anexos)
               ? mensagem.anexos.map((anexo) => <Anexo key={anexo.id} anexo={anexo} />)

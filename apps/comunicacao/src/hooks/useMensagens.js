@@ -19,8 +19,8 @@ export function useMensagens(canalId) {
   });
 
   const createMutation = useMutation({
-    mutationFn: ({ conteudo, anexos, respostaAId }) =>
-      comunicacaoApi.mensagens.create({ canalId, conteudo, anexos, respostaAId }),
+    mutationFn: ({ conteudo, anexos, respostaAId, mencoes }) =>
+      comunicacaoApi.mensagens.create({ canalId, conteudo, anexos, respostaAId, mencoes }),
     onSuccess: (row) => {
       if (!row) return;
       queryClient.setQueryData(queryKey, (current) => (Array.isArray(current) ? [...current, row] : [row]));

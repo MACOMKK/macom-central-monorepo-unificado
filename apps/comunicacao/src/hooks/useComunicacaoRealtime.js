@@ -56,6 +56,28 @@ function findAutorInfo(queryClient, autorId) {
   return null;
 }
 
+function getCanalNome(queryClient, canalId) {
+  const canais = queryClient.getQueryData(CANAIS_QUERY_KEY) || [];
+  return canais.find((canal) => canal.id === canalId)?.nome || null;
+}
+
+function notifyNovaMensagem({ titulo, corpo, tag }) {
+  if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+  if (!document.hidden) return;
+
+  const notification = new Notification(titulo, {
+    body: corpo || 'Nova mensagem',
+    icon: '/favicon.svg',
+    tag,
+    renotify: true,
+  });
+  notification.onclick = () => {
+    window.focus();
+    notification.close();
+  };
+}
+
 function findMensagemPreview(queryClient, mensagemId) {
   if (!mensagemId) return null;
 
@@ -96,6 +118,10 @@ export function useComunicacaoRealtime(enabled = true) {
 
     setStatus('connecting');
 
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const channel = supabase.channel('comunicacao-realtime');
 
     channel.on(
@@ -120,6 +146,14 @@ export function useComunicacaoRealtime(enabled = true) {
         }
         if (eventType === 'INSERT') {
           queryClient.invalidateQueries({ queryKey: CANAIS_QUERY_KEY });
+          if (item.autor_id !== user?.id) {
+            const canalNome = getCanalNome(queryClient, item.canal_id);
+            notifyNovaMensagem({
+              titulo: `${item.autor?.nome || 'Alguém'} em #${canalNome || 'canal'}`,
+              corpo: item.conteudo,
+              tag: `comunicacao-mensagem-${item.id}`,
+            });
+          }
         }
       },
     );
@@ -209,6 +243,13 @@ export function useComunicacaoRealtime(enabled = true) {
         }
         if (eventType === 'INSERT') {
           queryClient.invalidateQueries({ queryKey: CONVERSAS_QUERY_KEY });
+          if (item.autor_id !== user?.id) {
+            notifyNovaMensagem({
+              titulo: item.autor?.nome || 'Nova mensagem direta',
+              corpo: item.conteudo,
+              tag: `comunicacao-mensagem-direta-${item.id}`,
+            });
+          }
         }
       },
     );

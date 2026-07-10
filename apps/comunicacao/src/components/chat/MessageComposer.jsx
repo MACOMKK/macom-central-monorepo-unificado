@@ -1,10 +1,29 @@
 import { useRef, useState } from 'react';
 import { Loader2, Paperclip, SendHorizontal, X } from 'lucide-react';
-import { Button, Textarea } from '@macom/ui';
+import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+import { useColaboradores } from '@/hooks/useColaboradores';
 
 const TYPING_DEBOUNCE_MS = 3000;
+
+function getInitials(nome = '') {
+  return (
+    nome
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || '?'
+  );
+}
+
+function findMentionQuery(value, cursorPos) {
+  const uptoCursor = value.slice(0, cursorPos);
+  const match = uptoCursor.match(/(?:^|\s)@([^\s@[\]]*)$/);
+  if (!match) return null;
+  return { query: match[1], start: cursorPos - match[1].length - 1 };
+}
 
 const ACCEPT =
   'image/jpeg,image/png,image/webp,image/gif,application/pdf,.doc,.docx,.xls,.xlsx';
@@ -20,9 +39,16 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [mentionState, setMentionState] = useState(null); // { query, start }
+  const [mentionedById, setMentionedById] = useState({}); // { [id]: nome }
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const textareaRef = useRef(null);
   const { notifyTyping, stopTyping } = useTypingIndicator({ canalId, conversaId });
+  const { data: mentionCandidates = [] } = useColaboradores(mentionState?.query ?? '', {
+    enabled: mentionState !== null,
+  });
+  const showMentionDropdown = mentionState !== null;
 
   const clearTypingTimeout = () => {
     if (typingTimeoutRef.current) {
@@ -32,13 +58,33 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
   };
 
   const handleChange = (event) => {
-    setValue(event.target.value);
+    const nextValue = event.target.value;
+    setValue(nextValue);
     notifyTyping();
     clearTypingTimeout();
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping();
       typingTimeoutRef.current = null;
     }, TYPING_DEBOUNCE_MS);
+
+    setMentionState(findMentionQuery(nextValue, event.target.selectionStart));
+  };
+
+  const handleSelectMention = (colaborador) => {
+    if (!mentionState) return;
+    const before = value.slice(0, mentionState.start);
+    const after = value.slice(mentionState.start + 1 + mentionState.query.length);
+    const inserted = `@[${colaborador.nome}] `;
+    const nextValue = `${before}${inserted}${after}`;
+    setValue(nextValue);
+    setMentionedById((current) => ({ ...current, [colaborador.id]: colaborador.nome }));
+    setMentionState(null);
+
+    requestAnimationFrame(() => {
+      const cursor = before.length + inserted.length;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(cursor, cursor);
+    });
   };
 
   const handleSend = async () => {
@@ -54,9 +100,13 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
       for (const file of files) {
         anexos.push(await comunicacaoApi.anexos.upload({ file, canalId, conversaId }));
       }
-      await onSend({ conteudo: trimmed, anexos });
+      const mencoes = Object.entries(mentionedById)
+        .filter(([, nome]) => trimmed.includes(`@[${nome}]`))
+        .map(([id]) => id);
+      await onSend({ conteudo: trimmed, anexos, mencoes });
       setValue('');
       setFiles([]);
+      setMentionedById({});
     } catch (error) {
       setUploadError(error?.message || 'Nao foi possivel enviar a mensagem.');
     } finally {
@@ -65,6 +115,19 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
   };
 
   const handleKeyDown = (event) => {
+    if (showMentionDropdown) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMentionState(null);
+        return;
+      }
+      if (event.key === 'Enter' && mentionCandidates.length > 0) {
+        event.preventDefault();
+        handleSelectMention(mentionCandidates[0]);
+        return;
+      }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSend();
@@ -142,14 +205,36 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
         >
           <Paperclip className="h-4 w-4" />
         </Button>
-        <Textarea
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Escreva uma mensagem..."
-          className="min-h-11 flex-1 resize-none"
-          disabled={disabled || sending}
-        />
+        <div className="relative flex-1">
+          {showMentionDropdown && mentionCandidates.length > 0 ? (
+            <ul className="absolute bottom-full left-0 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
+              {mentionCandidates.map((colaborador) => (
+                <li key={colaborador.id}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleSelectMention(colaborador)}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-xs">{getInitials(colaborador.nome)}</AvatarFallback>
+                    </Avatar>
+                    <span className="min-w-0 truncate">{colaborador.nome}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Escreva uma mensagem... (@ para mencionar)"
+            className="min-h-11 w-full resize-none"
+            disabled={disabled || sending}
+          />
+        </div>
         <Button
           size="icon"
           onClick={handleSend}

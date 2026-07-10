@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Hash, LogOut, Plus, Search } from 'lucide-react';
+import { Download, Hash, LogOut, Plus, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, Button } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 import { useConversas } from '@/hooks/useConversas';
 import { usePresence } from '@/hooks/usePresence';
+import { useInstallPrompt } from '@/lib/useInstallPrompt';
 import NewChannelDialog from './NewChannelDialog';
 import NewDirectMessageDialog from './NewDirectMessageDialog';
 import SearchMessagesDialog from './SearchMessagesDialog';
@@ -26,6 +27,7 @@ export default function ChannelSidebar() {
   const { data: canais = [], isLoading, joinCanal, isJoining } = useCanais();
   const { conversas, isLoading: isLoadingConversas } = useConversas();
   const { onlineIds } = usePresence();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [isNewDmOpen, setIsNewDmOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNewChannelOpen, setIsNewChannelOpen] = useState(false);
@@ -88,6 +90,14 @@ export default function ChannelSidebar() {
                 >
                   <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">{canal.nome}</span>
+                  {canal.mencoes_nao_lidas > 0 ? (
+                    <span
+                      className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+                      title="Você foi mencionado"
+                    >
+                      @
+                    </span>
+                  ) : null}
                   {canal.nao_lidas > 0 ? (
                     <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
                       {canal.nao_lidas > 99 ? '99+' : canal.nao_lidas}
@@ -167,6 +177,14 @@ export default function ChannelSidebar() {
                       />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{outro.nome}</span>
+                    {conversa.mencoes_nao_lidas > 0 ? (
+                      <span
+                        className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+                        title="Você foi mencionado"
+                      >
+                        @
+                      </span>
+                    ) : null}
                     {conversa.nao_lidas > 0 ? (
                       <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
                         {conversa.nao_lidas > 99 ? '99+' : conversa.nao_lidas}
@@ -185,9 +203,16 @@ export default function ChannelSidebar() {
           <p className="truncate text-sm font-medium text-foreground">{user?.nome}</p>
           <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={logout} aria-label="Sair">
-          <LogOut className="h-4 w-4" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {canInstall ? (
+            <Button variant="ghost" size="icon" onClick={promptInstall} aria-label="Instalar app">
+              <Download className="h-4 w-4" />
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="icon" onClick={logout} aria-label="Sair">
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <NewDirectMessageDialog open={isNewDmOpen} onOpenChange={setIsNewDmOpen} />

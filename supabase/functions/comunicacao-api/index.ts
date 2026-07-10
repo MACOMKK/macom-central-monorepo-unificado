@@ -175,6 +175,29 @@ async function ensureCanAccessConversa(conversaId: string, collaboratorId: strin
   }
 }
 
+async function resolveMencoes(candidateIds: unknown): Promise<string[]> {
+  const ids = Array.isArray(candidateIds)
+    ? [...new Set(candidateIds.map((id) => String(id)))].filter(Boolean)
+    : [];
+  if (ids.length === 0) return [];
+
+  const rows = await sql.unsafe(
+    `
+      select c.id
+      from public.colaboradores c
+      join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id
+      join public.sistemas s on s.id = aus.sistema_id
+      where s.slug = $1
+        and s.ativo = true
+        and aus.ativo = true
+        and c.status = 'ativo'
+        and c.id = any($2::uuid[]);
+    `,
+    [SYSTEM_SLUG, ids],
+  );
+  return rows.map((row: { id: string }) => row.id);
+}
+
 function slugify(nome: string) {
   return nome
     .normalize('NFD')
@@ -248,7 +271,16 @@ Deno.serve(async (request) => {
                 and m.excluida_em is null
                 and m.autor_id <> $1
                 and m.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
-            ) as nao_lidas
+            ) as nao_lidas,
+            (
+              select count(*)::int
+              from ${SCHEMA}.mensagens m
+              where m.canal_id = c.id
+                and m.excluida_em is null
+                and m.autor_id <> $1
+                and m.mencoes @> array[$1]::uuid[]
+                and m.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
+            ) as mencoes_nao_lidas
           from ${SCHEMA}.canais c
           left join ${SCHEMA}.membros_canal mc on mc.canal_id = c.id and mc.colaborador_id = $1
           left join ${SCHEMA}.leituras_mensagem lm on lm.canal_id = c.id and lm.colaborador_id = $1
@@ -447,6 +479,7 @@ Deno.serve(async (request) => {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
       await ensureCanAccessCanal(canalId, collaborator.id);
+      const mencoes = await resolveMencoes(body.mencoes);
 
       let respostaA = null;
       if (respostaAId) {
@@ -470,11 +503,11 @@ Deno.serve(async (request) => {
       const row = await sql.begin(async (trx) => {
         const [mensagem] = await trx.unsafe(
           `
-            insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo, resposta_a_id)
-            values ($1, $2, $3, $4)
+            insert into ${SCHEMA}.mensagens (canal_id, autor_id, conteudo, resposta_a_id, mencoes)
+            values ($1, $2, $3, $4, $5::uuid[])
             returning *;
           `,
-          [canalId, collaborator.id, conteudo || '', respostaAId],
+          [canalId, collaborator.id, conteudo || '', respostaAId, mencoes],
         );
 
         const anexosRows = [];
@@ -621,7 +654,16 @@ Deno.serve(async (request) => {
                 and md.excluida_em is null
                 and md.autor_id <> $1
                 and md.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
-            ) as nao_lidas
+            ) as nao_lidas,
+            (
+              select count(*)::int
+              from ${SCHEMA}.mensagens_diretas md
+              where md.conversa_id = cd.id
+                and md.excluida_em is null
+                and md.autor_id <> $1
+                and md.mencoes @> array[$1]::uuid[]
+                and md.criado_em > coalesce(lm.ultima_leitura_em, '-infinity'::timestamptz)
+            ) as mencoes_nao_lidas
           from ${SCHEMA}.conversas_diretas cd
           join ${SCHEMA}.participantes_conversa pc on pc.conversa_id = cd.id and pc.colaborador_id = $1
           left join ${SCHEMA}.leituras_mensagem lm on lm.conversa_id = cd.id and lm.colaborador_id = $1
@@ -743,6 +785,7 @@ Deno.serve(async (request) => {
         return json({ error: 'Mensagem invalida.' }, 400);
       }
       await ensureCanAccessConversa(conversaId, collaborator.id);
+      const mencoes = await resolveMencoes(body.mencoes);
 
       let respostaA = null;
       if (respostaAId) {
@@ -766,11 +809,11 @@ Deno.serve(async (request) => {
       const row = await sql.begin(async (trx) => {
         const [mensagem] = await trx.unsafe(
           `
-            insert into ${SCHEMA}.mensagens_diretas (conversa_id, autor_id, conteudo, resposta_a_id)
-            values ($1, $2, $3, $4)
+            insert into ${SCHEMA}.mensagens_diretas (conversa_id, autor_id, conteudo, resposta_a_id, mencoes)
+            values ($1, $2, $3, $4, $5::uuid[])
             returning *;
           `,
-          [conversaId, collaborator.id, conteudo || '', respostaAId],
+          [conversaId, collaborator.id, conteudo || '', respostaAId, mencoes],
         );
 
         const anexosRows = [];
