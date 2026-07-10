@@ -26,7 +26,7 @@ function Anexo({ anexo }) {
     return (
       <a href={signedUrl || '#'} target="_blank" rel="noopener noreferrer" className="mt-1 block">
         {signedUrl ? (
-          <img src={signedUrl} alt={anexo.nome_arquivo} className="max-w-xs rounded-lg" />
+          <img src={signedUrl} alt={anexo.nome_arquivo} className="max-w-full rounded-lg sm:max-w-xs" />
         ) : (
           <div className="flex h-24 w-40 items-center justify-center rounded-lg bg-black/10 text-xs text-muted-foreground">
             Carregando...
@@ -102,14 +102,18 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
   };
 
   return (
-    <div className={`group flex w-full items-start gap-3 rounded-md px-2 py-1.5 hover:bg-accent/40 ${isOwn ? 'flex-row-reverse justify-start' : ''}`}>
-      <Avatar className="mt-0.5 h-8 w-8 shrink-0">
-        <AvatarFallback className="text-xs">{initials(mensagem.autor?.nome)}</AvatarFallback>
-      </Avatar>
+    <div className={`group flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-1.5 hover:bg-accent/40 ${isOwn ? 'flex-row-reverse justify-start' : ''}`}>
+      {isOwn ? null : (
+        <Avatar className="mt-0.5 h-8 w-8 shrink-0">
+          <AvatarFallback className="text-xs">{initials(mensagem.autor?.nome)}</AvatarFallback>
+        </Avatar>
+      )}
 
-      <div className={`flex min-w-0 max-w-[70%] flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+      <div className={`flex min-w-0 flex-col ${isOwn ? 'max-w-[75%] items-end' : 'max-w-[62%] items-start'}`}>
         <div className={`flex items-baseline gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-          <span className="text-sm font-semibold text-foreground">{isOwn ? 'Você' : mensagem.autor?.nome || 'Usuário'}</span>
+          {isOwn ? null : (
+            <span className="text-sm font-semibold text-foreground">{mensagem.autor?.nome || 'Usuário'}</span>
+          )}
           <span className="text-xs text-muted-foreground">{format(new Date(mensagem.criado_em), 'HH:mm')}</span>
           {mensagem.editada_em && !isDeleted ? (
             <span className="text-xs text-muted-foreground">(editada)</span>
@@ -190,7 +194,7 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
       </div>
 
       {!isDeleted && !isEditing ? (
-        <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           <ReactionPicker onSelect={onToggleReacao} />
           <MessageActionsMenu
             onReply={() => onReply(mensagem)}
