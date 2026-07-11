@@ -47,17 +47,19 @@ export default function MobileNav({ open = false, onClose }) {
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {visibleNavItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const itemClassName = cn(
+              'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-sidebar-primary text-white'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
+            );
+
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-primary text-white'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent'
-                )}
+                className={itemClassName}
               >
                 <item.icon className="w-5 h-5" />
                 <span>{item.label}</span>

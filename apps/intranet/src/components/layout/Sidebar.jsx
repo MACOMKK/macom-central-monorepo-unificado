@@ -65,17 +65,19 @@ export default function Sidebar({ collapsed = false, onToggle }) {
       <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
         {visibleNavItems.map((item) => {
           const isActive = location.pathname === item.path;
+          const itemClassName = cn(
+            'rounded-xl text-sm font-medium transition-all duration-200',
+            collapsed ? 'flex items-center justify-center px-2 py-3' : 'flex items-center gap-3 px-4 py-2.5',
+            isActive
+              ? 'bg-sidebar-primary text-white shadow-lg shadow-sidebar-primary/20'
+              : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+          );
+
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={cn(
-                'rounded-xl text-sm font-medium transition-all duration-200',
-                collapsed ? 'flex items-center justify-center px-2 py-3' : 'flex items-center gap-3 px-4 py-2.5',
-                isActive
-                  ? 'bg-sidebar-primary text-white shadow-lg shadow-sidebar-primary/20'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-              )}
+              className={itemClassName}
               title={collapsed ? item.label : undefined}
             >
               <item.icon className="w-[18px] h-[18px] shrink-0" />
