@@ -171,6 +171,7 @@ describe('CatalogManager departments and units', () => {
         telefone: '9130000000',
         ativo: true,
         responsavel: 'Carlos Silva',
+        empresa_id: null,
       });
     });
 

@@ -795,6 +795,7 @@ async function buildCurrentUser(authUser: { id: string; email?: string | null; u
     position: collaborator.cargo || null,
     function_role: collaborator.funcao || null,
     status: collaborator.status || null,
+    must_change_password: Boolean(collaborator.precisa_trocar_senha),
     permissions: permission,
     backend_status: 'ok',
     backend_reason: null,
@@ -4340,6 +4341,14 @@ Deno.serve(async (request) => {
         await registrarAcessoIntranet(context.collaboratorId, request);
       }
       return json({ user: context.user });
+    }
+
+    if (action === 'clear_password_change_required') {
+      await runSql(
+        'update public.colaboradores set precisa_trocar_senha = false, atualizado_em = now() where id = $1;',
+        [context.collaboratorId],
+      );
+      return json({ success: true });
     }
 
     if (resource === 'notifications') {

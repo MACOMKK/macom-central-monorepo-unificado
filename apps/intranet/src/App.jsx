@@ -1,5 +1,5 @@
 import { Toaster } from '@macom/ui';
-import React from 'react';
+import React, { lazy } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
@@ -11,18 +11,19 @@ import PasswordChangeForm from '@/components/auth/PasswordChangeForm';
 import TemporaryEmailChangeForm from '@/components/auth/TemporaryEmailChangeForm';
 
 import AppLayout from './components/layout/AppLayout';
-import Dashboard from './pages/Dashboard';
-import Announcements from './pages/Announcements';
-import QuickLinks from './pages/QuickLinks';
-import Employees from './pages/Employees';
-import Documents from './pages/Documents';
-import Calendar from './pages/Calendar';
-import Feedback from './pages/Feedback';
-import KnowledgeBase from './pages/KnowledgeBase';
 import Login from './pages/Login';
-import PlatformGuide from './pages/PlatformGuide';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Announcements = lazy(() => import('./pages/Announcements'));
+const QuickLinks = lazy(() => import('./pages/QuickLinks'));
+const Employees = lazy(() => import('./pages/Employees'));
+const Documents = lazy(() => import('./pages/Documents'));
+const Calendar = lazy(() => import('./pages/Calendar'));
+const Feedback = lazy(() => import('./pages/Feedback'));
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'));
+const PlatformGuide = lazy(() => import('./pages/PlatformGuide'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 

@@ -43,6 +43,7 @@ export function useCatalogMutations({
   onAssignAssetSuccess,
   onAssignCorporateLineSuccess,
   onCollaboratorsImportReport,
+  onCollaboratorPasswordGenerated,
   onResetAssetsImport,
   onResetCollaboratorsImport,
   onResetContactsImport,
@@ -96,6 +97,13 @@ export function useCatalogMutations({
     mutationFn: async ({ record, payload }) => {
       if (record?.id) {
         return catalogApi[lockedEntityKey].update(record.id, payload);
+      }
+      if (lockedEntityKey === 'colaboradores') {
+        const { row, generatedPassword } = await catalogApi.colaboradores.create(payload);
+        if (generatedPassword) {
+          onCollaboratorPasswordGenerated?.(generatedPassword);
+        }
+        return row;
       }
       return catalogApi[lockedEntityKey].create(payload);
     },
@@ -332,8 +340,8 @@ export function useCatalogMutations({
         rowsToImport,
         units,
       }),
-    onSuccess: ({ created, errors }) => {
-      onCollaboratorsImportReport?.({ created, errors });
+    onSuccess: ({ created, createdCredentials, errors }) => {
+      onCollaboratorsImportReport?.({ created, createdCredentials, errors });
       handleImportSuccess({
         queryKey: 'colaboradores',
         created,

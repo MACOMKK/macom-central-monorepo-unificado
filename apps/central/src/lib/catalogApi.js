@@ -114,7 +114,7 @@ export const catalogApi = {
     list: () => listCentralEntity('colaboradores'),
     create: async (payload) => {
       const result = await invokeSupabaseFunction('admin-create-user', payload);
-      return result.row || null;
+      return { row: result.row || null, generatedPassword: result.generated_password || null };
     },
     update: async (id, payload) => {
       const result = await invokeCentralApi('update', { entity: 'colaboradores', id, payload });

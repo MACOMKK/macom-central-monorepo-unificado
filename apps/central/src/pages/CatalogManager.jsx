@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Globe, Monitor, Network, Trash2 } from 'lucide-react';
+import { Building2, Copy, Globe, Monitor, Network, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -150,6 +150,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [importCollaboratorsFile, setImportCollaboratorsFile] = useState(null);
   const [importCollaboratorsPreview, setImportCollaboratorsPreview] = useState([]);
   const [collaboratorsImportReport, setCollaboratorsImportReport] = useState(null);
+  const [generatedCollaboratorPassword, setGeneratedCollaboratorPassword] = useState(null);
   const [importContactsOpen, setImportContactsOpen] = useState(false);
   const [importContactsFile, setImportContactsFile] = useState(null);
   const [importContactsPreview, setImportContactsPreview] = useState([]);
@@ -517,12 +518,14 @@ export default function CatalogManager({ lockedEntityKey }) {
     setImportCollaboratorsPreview([]);
   };
 
-  const handleCollaboratorsImportReport = ({ created = [], errors = [] }) => {
+  const handleCollaboratorsImportReport = ({ created = [], createdCredentials = [], errors = [] }) => {
+    const passwordByEmail = new Map(createdCredentials.map((item) => [item.email, item.generatedPassword]));
     setCollaboratorsImportReport({
       created: created.map((item) => ({
         id: item.id,
         name: item.nome || item.email || 'Colaborador importado',
         email: item.email || '',
+        generatedPassword: passwordByEmail.get(item.email) || null,
       })),
       errors,
       generatedAt: new Date().toISOString(),
@@ -620,6 +623,7 @@ export default function CatalogManager({ lockedEntityKey }) {
     onAssignAssetSuccess: () => setAssigningAsset(null),
     onAssignCorporateLineSuccess: () => setAssigningCorporateLine(null),
     onCollaboratorsImportReport: handleCollaboratorsImportReport,
+    onCollaboratorPasswordGenerated: setGeneratedCollaboratorPassword,
     onResetAssetsImport: resetImportAssetsDialog,
     onResetCollaboratorsImport: resetImportCollaboratorsDialog,
     onResetContactsImport: resetImportContactsDialog,
@@ -924,6 +928,11 @@ export default function CatalogManager({ lockedEntityKey }) {
                     <div key={item.id || item.email || item.name} className="rounded-lg bg-white/80 px-3 py-2 text-sm">
                       <p className="font-medium text-foreground">{item.name}</p>
                       {item.email ? <p className="text-xs text-muted-foreground">{item.email}</p> : null}
+                      {item.generatedPassword ? (
+                        <p className="text-xs text-muted-foreground">
+                          Senha temporaria: <span className="font-mono font-medium text-foreground">{item.generatedPassword}</span>
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -1223,6 +1232,31 @@ export default function CatalogManager({ lockedEntityKey }) {
               )}
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(generatedCollaboratorPassword)} onOpenChange={(open) => !open && setGeneratedCollaboratorPassword(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Colaborador criado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Senha temporaria gerada para o primeiro acesso. Copie e repasse ao colaborador — ela nao sera exibida novamente.
+            </p>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <span className="font-mono text-sm font-medium text-foreground">{generatedCollaboratorPassword}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => navigator.clipboard?.writeText(generatedCollaboratorPassword || '').catch(() => null)}
+                title="Copiar senha"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

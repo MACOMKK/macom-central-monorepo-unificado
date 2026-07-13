@@ -20,6 +20,13 @@ const sql = databaseUrl
     })
   : null;
 
+function generateTemporaryPassword(length = 12) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -401,6 +408,11 @@ Deno.serve(async (request) => {
         return json({ error: updatePasswordError.message || 'Falha ao atualizar senha no Auth.' }, 400);
       }
 
+      await sql.unsafe(
+        'update public.colaboradores set precisa_trocar_senha = true, atualizado_em = now() where id = $1;',
+        [collaboratorId],
+      );
+
       await insertCentralAuditLog({
         action: 'redefinir_senha',
         entity: 'colaboradores',
@@ -449,13 +461,16 @@ Deno.serve(async (request) => {
         return json({ error: 'Ja existe um colaborador com este email.' }, 400);
       }
 
+      const shouldResetPassword = body.reset_password === true;
+      const generatedPassword = shouldResetPassword ? generateTemporaryPassword() : null;
+
       const updateAuthPayload: Record<string, unknown> = {
         email,
         email_confirm: true,
       };
 
-      if (body.reset_password === true) {
-        updateAuthPayload.password = 'Kmacom.123';
+      if (generatedPassword) {
+        updateAuthPayload.password = generatedPassword;
       }
 
       const { error: updateEmailError } = await adminClient.auth.admin.updateUserById(collaboratorId, updateAuthPayload);
@@ -467,11 +482,11 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           update public.colaboradores
-          set email = $2, atualizado_em = now()
+          set email = $2, precisa_trocar_senha = coalesce($3, precisa_trocar_senha), atualizado_em = now()
           where id = $1
           returning *;
         `,
-        [collaboratorId, email],
+        [collaboratorId, email, shouldResetPassword ? true : null],
       );
 
       await insertCentralAuditLog({
@@ -489,12 +504,12 @@ Deno.serve(async (request) => {
             campo: 'email',
             email_anterior: collaboratorRow.email || null,
             email_novo: email,
-            senha_redefinida: body.reset_password === true,
+            senha_redefinida: shouldResetPassword,
           },
         }),
       });
 
-      return json({ row: rows[0] || null });
+      return json({ row: rows[0] || null, generated_password: generatedPassword });
     }
 
     if (action === 'unlink_assignments') {
@@ -593,16 +608,14 @@ Deno.serve(async (request) => {
       return json({ error: 'Email obrigatorio.' }, 400);
     }
 
-    if (!password || password.length < 6) {
-      return json({ error: 'Senha obrigatoria com pelo menos 6 caracteres.' }, 400);
-    }
+    const generatedPassword = generateTemporaryPassword();
 
     validateCollaboratorDocumentFields(payload);
     await validateUniqueCollaboratorFields({ email, telefone: payload.telefone, cpf: payload.cpf });
 
     const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
-      password,
+      password: generatedPassword,
       email_confirm: true,
       user_metadata: {
         full_name: payload.nome || email.split('@')[0],
@@ -647,9 +660,10 @@ Deno.serve(async (request) => {
             data_admissao,
             status,
             unidade_id,
-            empresa_id
+            empresa_id,
+            precisa_trocar_senha
           )
-          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true)
           on conflict (id) do update
           set
             nome = excluded.nome,
@@ -665,6 +679,7 @@ Deno.serve(async (request) => {
             status = excluded.status,
             unidade_id = excluded.unidade_id,
             empresa_id = excluded.empresa_id,
+            precisa_trocar_senha = true,
             atualizado_em = now()
           returning *;
         `,
@@ -700,7 +715,7 @@ Deno.serve(async (request) => {
         }),
       });
 
-      return json({ row: rows[0] || null });
+      return json({ row: rows[0] || null, generated_password: generatedPassword });
     } catch (dbError) {
       await adminClient.auth.admin.deleteUser(createdUser.user.id).catch(() => null);
       throw dbError;

@@ -476,7 +476,7 @@ export function resetCatalogManagerMocks() {
   catalogApi.ativos.remove.mockImplementation(deleteMutateMock);
   catalogApi.ativos.create.mockResolvedValue({ id: 'asset-created' });
   catalogApi.ativos.update.mockResolvedValue({ id: 'asset-updated' });
-  catalogApi.colaboradores.create.mockResolvedValue({ id: 'col-created' });
+  catalogApi.colaboradores.create.mockResolvedValue({ row: { id: 'col-created' }, generatedPassword: 'Temp-Senha123' });
   catalogApi.colaboradores.update.mockResolvedValue({ id: 'col-updated' });
   catalogApi.colaboradores.updateEmail.mockResolvedValue({ id: 'col-updated', email: 'novo@macom.com' });
   catalogApi.colaboradores.remove.mockResolvedValue(true);

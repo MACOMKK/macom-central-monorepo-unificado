@@ -747,17 +747,6 @@ export function buildCollaboratorsConfig({
     fields: [
       { key: 'nome', label: 'Nome', required: true, placeholder: 'Ex.: Kevin Kley Soares' },
       { key: 'email', label: 'Email', required: true, disabled: Boolean(editingRecord?.id), placeholder: 'Ex.: kevinkleymacom@gmail.com' },
-      ...(editingRecord?.id
-        ? []
-        : [{
-            key: 'password',
-            label: 'Senha de acesso',
-            type: 'text',
-            required: true,
-            defaultValue: 'Kmacom.123',
-            disabled: true,
-            placeholder: 'Minimo de 6 caracteres',
-          }]),
       {
         key: 'funcao',
         label: 'Funcao',

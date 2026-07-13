@@ -16,7 +16,6 @@ function escapeCsv(value) {
   return text;
 }
 
-const DEFAULT_COLLABORATOR_PASSWORD = 'Kmacom.123';
 const DEFAULT_COLLABORATOR_ROLE = 'usuario';
 
 export function getImportTemplateExamples({ collaborators, departments, units }) {
@@ -104,8 +103,8 @@ export function exportAssetsCsv({ assets, collaborators, units }) {
 export function downloadCollaboratorsTemplate(examples) {
   const { departmentName, unitName } = examples;
   const csv = [
-    'nome,email,password,funcao,cpf,telefone,departamento,cargo,data_nascimento,data_admissao,status,unidade',
-    `Maria Souza,maria.souza@empresa.com.br,${DEFAULT_COLLABORATOR_PASSWORD},${DEFAULT_COLLABORATOR_ROLE},11122233344,91999999999,${departmentName},Assistente,1994-08-10,2026-05-07,ativo,${unitName}`,
+    'nome,email,funcao,cpf,telefone,departamento,cargo,data_nascimento,data_admissao,status,unidade',
+    `Maria Souza,maria.souza@empresa.com.br,${DEFAULT_COLLABORATOR_ROLE},11122233344,91999999999,${departmentName},Assistente,1994-08-10,2026-05-07,ativo,${unitName}`,
   ].join('\n');
 
   downloadFile(csv, 'modelo-importacao-colaboradores.csv', 'text/csv;charset=utf-8;');
@@ -117,7 +116,6 @@ export function downloadCollaboratorsJsonTemplate(examples) {
     {
       nome: 'Maria Souza',
       email: 'maria.souza@empresa.com.br',
-      password: DEFAULT_COLLABORATOR_PASSWORD,
       funcao: DEFAULT_COLLABORATOR_ROLE,
       cpf: '11122233344',
       telefone: '91999999999',

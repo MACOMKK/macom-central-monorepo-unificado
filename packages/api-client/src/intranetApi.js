@@ -139,6 +139,14 @@ export const intranetApi = {
       }, undefined, { allowAnonymous: true });
       return result.user || result.data || null;
     },
+
+    async clearPasswordChangeRequired() {
+      await invokeIntranet({
+        resource: 'auth',
+        action: 'clear_password_change_required',
+      });
+      return true;
+    },
   },
   catalogs: {
     async listDepartments() {

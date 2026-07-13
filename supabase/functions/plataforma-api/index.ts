@@ -83,6 +83,13 @@ const CENTRAL_MODULES = [
   'termos_posse',
 ] as const;
 
+function generateTemporaryPassword(length = 12) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+}
+
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -422,6 +429,11 @@ async function updateCollaboratorPassword({
     return json({ error: mapAuthError(error.message || 'Falha ao atualizar senha no Auth.') }, 400);
   }
 
+  await sql!.unsafe(
+    'update public.colaboradores set precisa_trocar_senha = true, atualizado_em = now() where id = $1;',
+    [id],
+  );
+
   return json({ success: true });
 }
 
@@ -461,13 +473,16 @@ async function updateCollaboratorEmail({
     return json({ error: 'Ja existe um colaborador com este email.' }, 400);
   }
 
+  const shouldResetPassword = resetPassword === true;
+  const generatedPassword = shouldResetPassword ? generateTemporaryPassword() : null;
+
   const updateAuthPayload: Record<string, unknown> = {
     email: nextEmail,
     email_confirm: true,
   };
 
-  if (resetPassword === true) {
-    updateAuthPayload.password = 'Kmacom.123';
+  if (generatedPassword) {
+    updateAuthPayload.password = generatedPassword;
   }
 
   const adminClient = getAdminClient();
@@ -480,14 +495,14 @@ async function updateCollaboratorEmail({
   const rows = await sql!.unsafe(
     `
       update public.colaboradores
-      set email = $2, atualizado_em = now()
+      set email = $2, precisa_trocar_senha = coalesce($3, precisa_trocar_senha), atualizado_em = now()
       where id = $1
       returning *;
     `,
-    [id, nextEmail],
+    [id, nextEmail, shouldResetPassword ? true : null],
   );
 
-  return json({ row: rows[0] || null });
+  return json({ row: rows[0] || null, generated_password: generatedPassword });
 }
 
 async function saveSystemAccess({

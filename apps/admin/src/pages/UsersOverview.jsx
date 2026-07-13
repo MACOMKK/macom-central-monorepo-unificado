@@ -158,7 +158,7 @@ export default function UsersOverview() {
 
       return { previousCollaborators, queryKey };
     },
-    onSuccess: (updatedUser, _variables, context) => {
+    onSuccess: ({ row: updatedUser, generatedPassword }, _variables, context) => {
       if (updatedUser?.id) {
         queryClient.setQueryData(context.queryKey, (old = []) => (
           Array.isArray(old)
@@ -169,7 +169,15 @@ export default function UsersOverview() {
       queryClient.invalidateQueries({ queryKey: ['console', 'users', 'collaborators'] });
       setEmailUser(null);
       setEmailForm({ email: '', confirmEmail: '', resetPassword: false });
-      setFeedback({ type: 'success', message: 'E-mail de acesso atualizado pelo Console.' });
+      if (generatedPassword) {
+        navigator.clipboard?.writeText(generatedPassword).catch(() => null);
+        setFeedback({
+          type: 'success',
+          message: `E-mail atualizado. Senha temporaria gerada (copiada para a area de transferencia): ${generatedPassword}`,
+        });
+      } else {
+        setFeedback({ type: 'success', message: 'E-mail de acesso atualizado pelo Console.' });
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.queryKey) {

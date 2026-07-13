@@ -2,8 +2,6 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { appClient } from '@/api/client';
 
 const AuthContext = createContext();
-const DEFAULT_INITIAL_PASSWORD = 'Kmacom.123';
-const PASSWORD_CHANGE_REQUIRED_PREFIX = 'intranet:password-change-required:';
 const TEMPORARY_EMAIL_PATTERN = /^[^@\s]+@cadastro\.macom\.(local|com\.br)$/i;
 const TRUSTED_IP_ACCESS_STORAGE_KEY = 'intranet:trusted-ip-access';
 const TRUSTED_IP_AUTO_SUPPRESSED_STORAGE_KEY = 'intranet:trusted-ip-auto-suppressed';
@@ -29,37 +27,6 @@ const isUnauthenticatedSessionError = (error) => {
     message.includes('auth session missing')
   );
 };
-
-function getPasswordChangeStorageKey(user) {
-  const userKey = user?.id || user?.collaborator_id || user?.email;
-  return userKey ? `${PASSWORD_CHANGE_REQUIRED_PREFIX}${userKey}` : null;
-}
-
-function readPasswordChangeRequired(user) {
-  const key = getPasswordChangeStorageKey(user);
-  if (!key) return false;
-
-  try {
-    return window.localStorage.getItem(key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function writePasswordChangeRequired(user, required) {
-  const key = getPasswordChangeStorageKey(user);
-  if (!key) return;
-
-  try {
-    if (required) {
-      window.localStorage.setItem(key, 'true');
-    } else {
-      window.localStorage.removeItem(key);
-    }
-  } catch {
-    // Local storage is only a client-side reminder for the active session.
-  }
-}
 
 function isTemporaryCadastroEmail(value) {
   return typeof value === 'string' && TEMPORARY_EMAIL_PATTERN.test(value.trim());
@@ -239,7 +206,7 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await appClient.auth.me();
       writeTrustedIpAccessEnabled(currentUser?.auth_mode === 'trusted_ip');
       setUser(currentUser);
-      setMustChangePassword(readPasswordChangeRequired(currentUser));
+      setMustChangePassword(Boolean(currentUser?.must_change_password));
       setMustChangeEmail(isTemporaryCadastroEmail(currentUser?.email));
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
@@ -309,10 +276,8 @@ export const AuthProvider = ({ children }) => {
       const currentUser = await appClient.auth.signIn(credentials);
       writeTrustedIpAutoSuppressed(false);
       writeTrustedIpAccessEnabled(false);
-      const shouldRequirePasswordChange = credentials?.password === DEFAULT_INITIAL_PASSWORD;
-      writePasswordChangeRequired(currentUser, shouldRequirePasswordChange);
       setUser(currentUser);
-      setMustChangePassword(shouldRequirePasswordChange);
+      setMustChangePassword(Boolean(currentUser?.must_change_password));
       setMustChangeEmail(isTemporaryCadastroEmail(currentUser?.email));
       setIsAuthenticated(Boolean(currentUser));
       setAuthChecked(true);
@@ -349,7 +314,6 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (newPassword) => {
     await appClient.auth.updatePassword(newPassword);
-    writePasswordChangeRequired(user, false);
     setMustChangePassword(false);
     await checkUserAuth({ silent: true });
   };
@@ -377,7 +341,6 @@ export const AuthProvider = ({ children }) => {
       changePassword,
       navigateToLogin,
       checkUserAuth,
-      defaultInitialPassword: DEFAULT_INITIAL_PASSWORD,
       mustChangePassword,
       mustChangeEmail,
       changeTemporaryEmail,

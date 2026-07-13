@@ -128,11 +128,11 @@ export async function importCollaboratorRows({
   rowsToImport,
   units,
 }) {
-  const defaultPassword = 'Kmacom.123';
   const provisionalEmailDomain = 'cadastro.macom.com.br';
   const departmentOptions = departments.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
   const unitOptions = units.map((item) => ({ id: item.id, normalized: normalizeText(item.nome) }));
   const created = [];
+  const createdCredentials = [];
   const errors = [];
 
   for (let index = 0; index < rowsToImport.length; index += 1) {
@@ -157,7 +157,6 @@ export async function importCollaboratorRows({
       const payload = {
         nome: row.nome || null,
         email,
-        password: row.password || defaultPassword,
         funcao: 'usuario',
         cpf: cpf || null,
         telefone: row.telefone || null,
@@ -172,14 +171,15 @@ export async function importCollaboratorRows({
       if (!payload.nome) throw new Error('Nome obrigatorio.');
       if (!payload.email) throw new Error('Email obrigatorio ou CPF obrigatorio para gerar email provisório.');
 
-      const createdRow = await collaboratorsApiCreate(payload);
+      const { row: createdRow, generatedPassword } = await collaboratorsApiCreate(payload);
       created.push(createdRow);
+      createdCredentials.push({ id: createdRow?.id, email: createdRow?.email || email, generatedPassword });
     } catch (error) {
       errors.push(`Linha ${index + 2}: ${error.message || 'Falha ao importar.'}`);
     }
   }
 
-  return { created, errors };
+  return { created, createdCredentials, errors };
 }
 
 export async function importContactRows({

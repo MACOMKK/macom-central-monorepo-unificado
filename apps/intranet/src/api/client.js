@@ -200,6 +200,7 @@ export const appClient = {
       assertSupabaseConfigured();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw normalizeFunctionError(error, 'Falha ao atualizar senha.');
+      await intranetApi.auth.clearPasswordChangeRequired();
       return true;
     },
 

@@ -14,7 +14,7 @@ export default function PasswordChangeForm({
   onCancel,
   onSuccess,
 }) {
-  const { changePassword, defaultInitialPassword } = useAuth();
+  const { changePassword } = useAuth();
   const [form, setForm] = useState(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -26,10 +26,6 @@ export default function PasswordChangeForm({
 
     if (password.length < 8) {
       return 'A nova senha deve ter pelo menos 8 caracteres.';
-    }
-
-    if (password === defaultInitialPassword) {
-      return 'A nova senha nao pode ser a senha padrao.';
     }
 
     if (password !== confirmPassword) {

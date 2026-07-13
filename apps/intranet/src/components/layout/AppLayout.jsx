@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
@@ -7,6 +7,12 @@ import Header from './Header';
 import InstallPromptBanner from './InstallPromptBanner';
 import FloatingChatButton from './FloatingChatButton';
 import { useIntranetRealtime } from '@/lib/useIntranetRealtime';
+
+const ContentLoader = () => (
+  <div className="flex min-h-[50vh] items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
+  </div>
+);
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -40,7 +46,9 @@ export default function AppLayout() {
       <main className={`min-h-screen transition-[margin] duration-200 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-[240px]'}`}>
         <Header />
         <div className="p-4 pb-safe-bottom-nav md:p-6 lg:p-8 lg:pb-8">
-          <Outlet />
+          <Suspense fallback={<ContentLoader />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

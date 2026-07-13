@@ -221,7 +221,6 @@ describe('CatalogManager collaborators', () => {
       expect(catalogApi.colaboradores.create).toHaveBeenCalledWith({
         nome: 'Maria Souza',
         email: 'maria@macom.com',
-        password: 'Kmacom.123',
         funcao: 'admin',
         cpf: '12345678901',
         telefone: '85999999999',
@@ -231,6 +230,7 @@ describe('CatalogManager collaborators', () => {
         data_admissao: '2026-05-11',
         status: 'inativo',
         unidade_id: 'unit-1',
+        empresa_id: null,
       });
     });
 
@@ -297,6 +297,7 @@ describe('CatalogManager collaborators', () => {
         data_admissao: '2026-05-11',
         status: 'ativo',
         unidade_id: 'unit-1',
+        empresa_id: null,
       });
     });
 
@@ -363,7 +364,6 @@ describe('CatalogManager collaborators', () => {
       expect(catalogApi.colaboradores.create).toHaveBeenCalledWith({
         nome: 'Maria Souza',
         email: 'maria@macom.com',
-        password: 'Temp123',
         funcao: 'usuario',
         cpf: '12345678901',
         telefone: '85999999999',
@@ -398,9 +398,12 @@ describe('CatalogManager collaborators', () => {
     ]);
     catalogApi.colaboradores.create
       .mockResolvedValueOnce({
-        id: 'col-imported-1',
-        nome: 'Maria Importada',
-        email: 'maria.importada@macom.com',
+        row: {
+          id: 'col-imported-1',
+          nome: 'Maria Importada',
+          email: 'maria.importada@macom.com',
+        },
+        generatedPassword: 'Temp-Gerada123',
       })
       .mockRejectedValueOnce(new Error('Ja existe um colaborador com este email.'));
 
@@ -419,7 +422,7 @@ describe('CatalogManager collaborators', () => {
     expect(screen.getByText('Linha 3: Ja existe um colaborador com este email.')).toBeInTheDocument();
   });
 
-  it('usa senha padrao e funcao usuario quando importacao de colaboradores nao informa senha ou tenta funcao elevada', async () => {
+  it('ignora senha da planilha (gerada pelo servidor) e usa funcao usuario quando importacao de colaboradores tenta funcao elevada', async () => {
     const user = userEvent.setup();
     catalogApi.ativos.list.mockResolvedValue([]);
     readImportFileRows.mockResolvedValue([
@@ -446,7 +449,6 @@ describe('CatalogManager collaborators', () => {
         expect.objectContaining({
           nome: 'Joao Importado',
           email: 'joao.importado@macom.com',
-          password: 'Kmacom.123',
           funcao: 'usuario',
           departamento_id: 'dep-1',
           unidade_id: 'unit-1',
@@ -483,7 +485,6 @@ describe('CatalogManager collaborators', () => {
         expect.objectContaining({
           nome: 'Sem Email Importado',
           email: '12345678901@cadastro.macom.com.br',
-          password: 'Kmacom.123',
           funcao: 'usuario',
           cpf: '12345678901',
           cargo: 'Consultor',

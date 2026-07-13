@@ -135,7 +135,7 @@ export const platformUsersApi = {
           senha_redefinida: Boolean(options.resetPassword),
         },
       });
-      return result.row || null;
+      return { row: result.row || null, generatedPassword: result.generated_password || null };
     },
   },
   systems: {
