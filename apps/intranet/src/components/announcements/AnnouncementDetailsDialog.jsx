@@ -5,6 +5,8 @@ import { Share2 } from 'lucide-react';
 
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@macom/ui';
 
+import AnnouncementDocumentReference from './AnnouncementDocumentReference';
+
 const categoryLabels = {
   geral: 'Geral',
   rh: 'RH',
@@ -33,7 +35,7 @@ function wasAnnouncementEdited(announcement) {
   return updatedAt - createdAt > 1000;
 }
 
-export default function AnnouncementDetailsDialog({ announcement, open, onOpenChange, onShare }) {
+export default function AnnouncementDetailsDialog({ announcement, open, onOpenChange, onShare, onDocumentError }) {
   if (!announcement) return null;
 
   return (
@@ -90,6 +92,11 @@ export default function AnnouncementDetailsDialog({ announcement, open, onOpenCh
           <div className="whitespace-pre-wrap text-sm leading-6 text-foreground sm:leading-7">
             {announcement.content}
           </div>
+
+          <AnnouncementDocumentReference
+            documents={announcement.documents}
+            onError={onDocumentError}
+          />
         </div>
       </DialogContent>
     </Dialog>

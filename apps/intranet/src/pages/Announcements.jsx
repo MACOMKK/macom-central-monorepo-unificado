@@ -24,6 +24,7 @@ import {
 } from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
 import AnnouncementDetailsDialog from '../components/announcements/AnnouncementDetailsDialog';
+import AnnouncementDocumentReference from '../components/announcements/AnnouncementDocumentReference';
 import AnnouncementInteractions from '../components/announcements/AnnouncementInteractions';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 import Pagination, { usePaginatedItems } from '../components/Pagination';
@@ -485,6 +486,12 @@ export default function Announcements() {
 
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">{preview}</p>
 
+                        <AnnouncementDocumentReference
+                          documents={announcement.documents}
+                          maxVisible={2}
+                          onError={(message) => setFeedback({ type: 'error', message })}
+                        />
+
                         <Button
                           type="button"
                           variant="link"
@@ -587,6 +594,7 @@ export default function Announcements() {
         open={Boolean(selectedAnnouncement)}
         onOpenChange={(open) => !open && closeAnnouncement()}
         onShare={handleShareAnnouncement}
+        onDocumentError={(message) => setFeedback({ type: 'error', message })}
       />
 
       <Dialog open={Boolean(shareAnnouncement)} onOpenChange={(open) => !open && setShareAnnouncement(null)}>

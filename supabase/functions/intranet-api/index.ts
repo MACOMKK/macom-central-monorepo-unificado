@@ -78,6 +78,7 @@ const ENTITY_CONFIG = {
       'image_name',
       'image_type',
       'image_size',
+      'document_ids',
     ],
     updateFields: [
       'title',
@@ -92,6 +93,7 @@ const ENTITY_CONFIG = {
       'image_name',
       'image_type',
       'image_size',
+      'document_ids',
     ],
   },
   AnnouncementComment: {
@@ -954,9 +956,14 @@ function buildWhereClause(entityName: keyof typeof ENTITY_CONFIG, filters: Recor
   return { clauses, values };
 }
 
-function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<string, Record<string, unknown>>()) {
+function mapAnnouncement(
+  row: Record<string, unknown>,
+  creatorMap = new Map<string, Record<string, unknown>>(),
+  documentsByAnnouncement = new Map<string, Record<string, unknown>[]>(),
+) {
   const creator = creatorMap.get(String(row.criado_por));
   const status = getAnnouncementStatus(row);
+  const documents = documentsByAnnouncement.get(String(row.id)) || [];
   return {
     id: row.id,
     title: row.titulo,
@@ -972,6 +979,8 @@ function mapAnnouncement(row: Record<string, unknown>, creatorMap = new Map<stri
     image_name: row.imagem_nome || null,
     image_type: row.imagem_tipo || null,
     image_size: row.imagem_tamanho || null,
+    document_ids: documents.map((document) => document.id),
+    documents,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -1006,12 +1015,65 @@ async function createAnnouncementImageSignedUrl(announcement: Record<string, unk
 async function mapAnnouncementWithSignedUrl(
   row: Record<string, unknown>,
   creatorMap = new Map<string, Record<string, unknown>>(),
+  documentsByAnnouncement = new Map<string, Record<string, unknown>[]>(),
 ) {
   const signedImageUrl = await createAnnouncementImageSignedUrl(row);
   return {
-    ...mapAnnouncement(row, creatorMap),
+    ...mapAnnouncement(row, creatorMap, documentsByAnnouncement),
     image_url: signedImageUrl,
   };
+}
+
+async function fetchAnnouncementDocuments(announcementIds: string[]) {
+  const ids = normalizeIdArray(announcementIds);
+  if (ids.length === 0) return new Map<string, Record<string, unknown>[]>();
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select ad.aviso_id, d.id, d.titulo, d.categoria, d.arquivo_nome
+      from gestao_intranet.avisos_documentos ad
+      join gestao_intranet.documentos d on d.id = ad.documento_id
+      where ad.aviso_id = any($1::uuid[])
+      order by d.titulo asc;
+    `,
+    [ids],
+  );
+
+  const documentsByAnnouncement = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((row) => {
+    const announcementId = String(row.aviso_id || '');
+    const documents = documentsByAnnouncement.get(announcementId) || [];
+    documents.push({
+      id: row.id,
+      title: row.titulo,
+      category: row.categoria,
+      file_name: row.arquivo_nome,
+    });
+    documentsByAnnouncement.set(announcementId, documents);
+  });
+
+  return documentsByAnnouncement;
+}
+
+async function syncAnnouncementDocuments(announcementId: string, documentIds: unknown) {
+  if (!announcementId) return;
+  const ids = normalizeIdArray(documentIds);
+
+  await runSql(
+    'delete from gestao_intranet.avisos_documentos where aviso_id = $1;',
+    [announcementId],
+  );
+
+  if (ids.length === 0) return;
+
+  await runSql(
+    `
+      insert into gestao_intranet.avisos_documentos (aviso_id, documento_id)
+      select $1::uuid, unnest($2::uuid[])
+      on conflict (aviso_id, documento_id) do nothing;
+    `,
+    [announcementId, ids],
+  );
 }
 
 function mapAnnouncementComment(row: Record<string, unknown>, creatorMap = new Map<string, Record<string, unknown>>()) {
@@ -2165,8 +2227,11 @@ async function listAnnouncements(
     `select * from gestao_intranet.avisos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
     values,
   );
-  const creators = await enrichWithCreators(rows);
-  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, creators)));
+  const [creators, documentsByAnnouncement] = await Promise.all([
+    enrichWithCreators(rows),
+    fetchAnnouncementDocuments(rows.map((row) => String(row.id))),
+  ]);
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, creators, documentsByAnnouncement)));
 }
 
 function canViewAllDocuments(user?: Record<string, unknown>) {
@@ -2247,7 +2312,8 @@ async function listHomeAnnouncements(limit = 5) {
     [safeLimit],
   );
 
-  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row)));
+  const documentsByAnnouncement = await fetchAnnouncementDocuments(rows.map((row) => String(row.id)));
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, undefined, documentsByAnnouncement)));
 }
 
 async function listAnnouncementComments(filters: Record<string, unknown>, orderBy?: string, limit?: number) {
@@ -3034,9 +3100,14 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
     ],
   );
 
-  const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  const announcementId = String(rows[0].id);
+  await syncAnnouncementDocuments(announcementId, sanitized.document_ids);
+  const [creators, documentsByAnnouncement] = await Promise.all([
+    fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
+    fetchAnnouncementDocuments([announcementId]),
+  ]);
   await notifyAnnouncementAudience(rows[0], 'created', collaboratorId);
-  return mapAnnouncementWithSignedUrl(rows[0], creators);
+  return mapAnnouncementWithSignedUrl(rows[0], creators, documentsByAnnouncement);
 }
 
 function validateAnnouncementImage(payload: Record<string, unknown>) {
@@ -3138,9 +3209,15 @@ async function updateAnnouncement(
       resolveAnnouncementStorageBucket(previousAnnouncement),
     );
   }
-  const creators = await fetchCollaboratorsByIds([String(rows[0].criado_por || '')]);
+  if ('document_ids' in sanitized) {
+    await syncAnnouncementDocuments(id, sanitized.document_ids);
+  }
+  const [creators, documentsByAnnouncement] = await Promise.all([
+    fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
+    fetchAnnouncementDocuments([id]),
+  ]);
   await notifyAnnouncementAudience(rows[0], 'updated', collaboratorId);
-  return mapAnnouncementWithSignedUrl(rows[0], creators);
+  return mapAnnouncementWithSignedUrl(nextAnnouncement, creators, documentsByAnnouncement);
 }
 
 async function createComment(payload: Record<string, unknown>, collaboratorId: string | null) {

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 
 import { appClient } from '@/api/client';
 import {
   Button,
+  Checkbox,
   Input,
   Label,
   Select,
@@ -28,6 +30,7 @@ const emptyAnnouncementForm = {
   image_name: '',
   image_type: '',
   image_size: null,
+  document_ids: [],
 };
 
 function toDatetimeLocal(value) {
@@ -62,6 +65,7 @@ function buildInitialForm(initialData) {
     image_name: initialData.image_name || '',
     image_type: initialData.image_type || '',
     image_size: initialData.image_size ?? null,
+    document_ids: Array.isArray(initialData.document_ids) ? initialData.document_ids : [],
   };
 }
 
@@ -77,6 +81,17 @@ export default function AnnouncementForm({
   });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ['documents-picker'],
+    queryFn: async () => {
+      try {
+        return await appClient.entities.Document.list('-created_date', 200);
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const handleImageUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -102,6 +117,16 @@ export default function AnnouncementForm({
     } finally {
       setUploading(false);
     }
+  };
+
+  const toggleDocument = (documentId, checked) => {
+    setForm((currentForm) => {
+      const currentIds = Array.isArray(currentForm.document_ids) ? currentForm.document_ids : [];
+      const nextIds = checked
+        ? Array.from(new Set([...currentIds, documentId]))
+        : currentIds.filter((id) => id !== documentId);
+      return { ...currentForm, document_ids: nextIds };
+    });
   };
 
   const clearImage = () => {
@@ -176,6 +201,24 @@ export default function AnnouncementForm({
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Documentos relacionados</Label>
+        <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
+          {documents.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum documento disponível.</p>
+          ) : documents.map((document) => (
+            <label key={document.id} className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={(form.document_ids || []).includes(document.id)}
+                onCheckedChange={(checked) => toggleDocument(document.id, checked)}
+              />
+              {document.title}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Opcional. Linka o aviso a documentos já cadastrados.</p>
       </div>
 
       <div className="space-y-2">
