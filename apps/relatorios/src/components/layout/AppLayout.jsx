@@ -3,6 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import Sidebar from './Sidebar';
 import MobileHeader from './MobileHeader';
+import MobileNav from './MobileNav';
+import BottomNav from './BottomNav';
 
 function PageContentFallback() {
   return (
@@ -28,7 +30,7 @@ function PageContentFallback() {
 export default function AppLayout() {
   const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMd, setIsMd] = useState(() => window.innerWidth >= 768);
 
   useEffect(() => {
@@ -54,33 +56,17 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div
-        className="fixed left-0 top-0 h-full z-40 transition-transform duration-300"
-        style={{ transform: isMd || mobileOpen ? 'translateX(0)' : 'translateX(-100%)' }}
-      >
-        <Sidebar
-          user={user}
-          collapsed={collapsed}
-          onToggle={handleToggleSidebar}
-          onClose={() => setMobileOpen(false)}
-        />
+      <div className="hidden md:block fixed left-0 top-0 h-full z-40">
+        <Sidebar user={user} collapsed={collapsed} onToggle={handleToggleSidebar} />
       </div>
 
-      {/* Mobile top header */}
-      <MobileHeader user={user} onMenuOpen={() => setMobileOpen(true)} />
+      <MobileHeader user={user} />
+      <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+      <BottomNav onOpenMore={() => setMobileNavOpen(true)} />
 
       {/* Main content */}
       <main
-        className="transition-all duration-300"
+        className="transition-all duration-300 pb-safe-bottom-nav md:pb-0"
         style={{ marginLeft: sidebarWidth, paddingTop: isMd ? 0 : 56 }}
       >
         <Suspense fallback={<PageContentFallback />}>

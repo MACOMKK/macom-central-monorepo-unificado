@@ -63,6 +63,14 @@ na intranet.
   `beforeinstallprompt` num script inline no `index.html` (guarda em
   `window.__relatoriosInstallPrompt` antes do React montar) — necessário porque o evento do Chrome
   dispara cedo demais para um listener só em React pegar de forma confiável.
+- Navegação mobile segue o padrão da intranet (não hambúrguer-only): `MobileHeader` (topo,
+  simplificado — só logo/instalar/sair), `BottomNav` (barra fixa inferior, `md:hidden`, com os
+  itens visíveis ao usuário atual, até 4 + botão "Mais") e `MobileNav` (drawer acionado pelo
+  "Mais", com os itens que não couberam na barra + troca de senha + suporte). A lista de itens de
+  navegação e a lógica de permissão (`adminOnly`/`managerModule`) vivem em `src/lib/navigation.js`,
+  compartilhada por `Sidebar`, `BottomNav` e `MobileNav` — não duplicar essa lista. O diálogo de
+  troca de senha também foi extraído (`PasswordChangeDialog.jsx`) pelo mesmo motivo: é usado tanto
+  pela `Sidebar` quanto pela `MobileNav`.
 
 ## Convenções
 

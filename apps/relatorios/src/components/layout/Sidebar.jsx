@@ -1,27 +1,12 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, History, Download } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
+import { LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/api/supabaseClient';
-import { canReportsFunction } from '@/api/dataClient';
 import { MACOM_LOGO_URL } from '@/config/branding';
 import { useInstallPrompt } from '@/lib/useInstallPrompt';
-
-const navItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
-  { path: '/relatorios', icon: FileText, label: 'Relatórios', adminOnly: true },
-  { path: '/unidades', icon: Building2, label: 'Unidades', adminOnly: true },
-  { path: '/permissoes', icon: Shield, label: 'Permissões', adminOnly: true },
-  { path: '/acessos', icon: Settings, label: 'Acessos', adminOnly: true },
-  { path: '/logs', icon: History, label: 'Logs', adminOnly: true },
-];
-
-const managerPermissionByPath = {
-  '/relatorios': 'relatorios',
-  '/permissoes': 'permissoes_relatorios',
-  '/logs': 'logs_auditoria',
-};
+import { getVisibleNavItems } from '@/lib/navigation';
+import PasswordChangeDialog from './PasswordChangeDialog';
 
 const routePrefetchers = {
   '/': () => import('@/pages/Dashboard'),
@@ -34,27 +19,15 @@ const routePrefetchers = {
 
 const prefetchLoginRoute = () => import('@/pages/Login');
 
-export default function Sidebar({ user, collapsed, onToggle, onClose }) {
+export default function Sidebar({ user, collapsed, onToggle }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { toast } = useToast();
   const location = useLocation();
   const { canInstall, promptInstall } = useInstallPrompt();
   const [passwordOpen, setPasswordOpen] = React.useState(false);
-  const [newPassword, setNewPassword] = React.useState('');
-  const [confirmPassword, setConfirmPassword] = React.useState('');
-  const [isSavingPassword, setIsSavingPassword] = React.useState(false);
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
-  const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'manager';
 
-  const filteredItems = navItems.filter((item) => {
-    if (!item.adminOnly || isAdmin) return true;
-    if (!isManager) return false;
-
-    const module = managerPermissionByPath[item.path];
-    return module ? canReportsFunction(user?.reports_permissions, module, 'ver') : false;
-  });
+  const filteredItems = getVisibleNavItems(user);
   const supportItems = [
     {
       href: 'https://wa.me/5591983927903',
@@ -69,31 +42,6 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
       value: 'kevinsoares@jcmempresas.com.br'
     }
   ];
-
-  const handleUpdateMyPassword = async () => {
-    if (newPassword.length < 8) {
-      toast({ title: 'Senha invalida', description: 'Use pelo menos 8 caracteres.' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast({ title: 'Senha invalida', description: 'As senhas nao conferem.' });
-      return;
-    }
-
-    setIsSavingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setIsSavingPassword(false);
-
-    if (error) {
-      toast({ title: 'Falha ao alterar senha', description: error.message });
-      return;
-    }
-
-    toast({ title: 'Senha alterada com sucesso!' });
-    setPasswordOpen(false);
-    setNewPassword('');
-    setConfirmPassword('');
-  };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -177,7 +125,6 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={onClose}
                 onMouseEnter={() => handlePrefetch(item.path)}
                 onFocus={() => handlePrefetch(item.path)}
                 onTouchStart={() => handlePrefetch(item.path)}
@@ -359,43 +306,7 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
           )}
         </div>
 
-        <Dialog open={passwordOpen} onOpenChange={setPasswordOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="font-black uppercase tracking-wider text-sm">Alterar Minha Senha</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest">Nova senha</Label>
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Minimo 8 caracteres"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest">Confirmar senha</Label>
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setPasswordOpen(false)}
-                  className="px-5 py-2.5 text-xs font-black uppercase tracking-widest border border-gray-300 hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <Button onClick={handleUpdateMyPassword} disabled={isSavingPassword || !newPassword || !confirmPassword}>
-                  {isSavingPassword ? 'Salvando...' : 'Salvar senha'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <PasswordChangeDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
       </aside>
     </TooltipProvider>
   );
