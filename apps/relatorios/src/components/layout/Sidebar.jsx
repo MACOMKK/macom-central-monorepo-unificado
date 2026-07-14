@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, History } from 'lucide-react';
+import { LayoutDashboard, Settings, Building2, FileText, Shield, LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, History, Download } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Label, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/api/supabaseClient';
 import { canReportsFunction } from '@/api/dataClient';
 import { MACOM_LOGO_URL } from '@/config/branding';
+import { useInstallPrompt } from '@/lib/useInstallPrompt';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
@@ -38,6 +39,7 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
   const { logout } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [passwordOpen, setPasswordOpen] = React.useState(false);
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
@@ -306,6 +308,38 @@ export default function Sidebar({ user, collapsed, onToggle, onClose }) {
               </TooltipTrigger>
               <TooltipContent side="right" className="font-bold uppercase tracking-wider text-xs">
                 Alterar senha
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {!collapsed && canInstall && (
+            <button
+              onClick={promptInstall}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors"
+              style={{ color: '#555' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
+            >
+              <Download className="w-4 h-4" />
+              Instalar app
+            </button>
+          )}
+
+          {collapsed && canInstall && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={promptInstall}
+                  className="w-full flex items-center justify-center py-2 transition-colors"
+                  style={{ color: '#555' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#fff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="font-bold uppercase tracking-wider text-xs">
+                Instalar app
               </TooltipContent>
             </Tooltip>
           )}

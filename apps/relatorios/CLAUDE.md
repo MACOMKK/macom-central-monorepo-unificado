@@ -46,6 +46,24 @@ que ele tenha unidades associadas ou ficará invisível para todos.
 `relatorios.embed_code` guarda o código de embed do provedor de BI externo. `ReportViewer`
 renderiza esse embed — não há lógica de agregação/cálculo própria neste app, é só apresentação.
 
+## PWA
+
+App instalável via `vite-plugin-pwa`, config isolada em `apps/relatorios/vite.config.js`
+(mesclada via `mergeConfig`, sem alterar o `createAppConfig` compartilhado) — mesmo padrão usado
+na intranet.
+
+- Ícones em `apps/relatorios/public/pwa-icons/`, gerados a partir do `packages/assets/favicon.svg`
+  compartilhado (`npm run generate:pwa-icons`, usa `pwa-assets.config.js`). O manifest
+  (`manifest.json`) é gerado pelo plugin, não é mais um arquivo manual em `public/`.
+- Cache: app shell (JS/CSS/ícones) fica `CacheFirst`; chamadas a `*.supabase.co` são `NetworkOnly`
+  — nunca cacheadas. O embed de BI externo (`ReportViewer`) também não é pré-cacheado, só carrega
+  sob demanda via rede.
+- Botão de instalação customizado: hook `apps/relatorios/src/lib/useInstallPrompt.js`, usado na
+  `Sidebar` (desktop) e `MobileHeader` (mobile). Segue o mesmo padrão de captura antecipada do
+  `beforeinstallprompt` num script inline no `index.html` (guarda em
+  `window.__relatoriosInstallPrompt` antes do React montar) — necessário porque o evento do Chrome
+  dispara cedo demais para um listener só em React pegar de forma confiável.
+
 ## Convenções
 
 - Fluxo de primeiro acesso (convite → `SetPassword`) não deve ser confundido com o login padrão

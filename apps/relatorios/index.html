@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/pwa-icons/apple-touch-icon-180x180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Relatórios" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Relatorios e indicadores da MACOM em um portal de consulta e acompanhamento." />
     <meta name="theme-color" content="#0f3d2e" />
@@ -19,11 +24,21 @@
     <meta name="twitter:title" content="Relatórios Macom" />
     <meta name="twitter:description" content="Portal de relatorios e indicadores da MACOM para consulta de dados e acompanhamento operacional." />
     <meta name="twitter:image" content="https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png" />
-    <link rel="manifest" href="/manifest.json" />
     <title>Relatórios Macom</title>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.__relatoriosInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        window.__relatoriosInstallPrompt = event;
+        window.dispatchEvent(new CustomEvent('relatorios:install-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', () => {
+        window.__relatoriosInstallPrompt = null;
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
