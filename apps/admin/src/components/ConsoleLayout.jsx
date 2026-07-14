@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -13,6 +14,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@macom/ui';
 import { useAuth } from '@macom/auth';
+
+const ContentLoader = () => (
+  <div className="flex min-h-[50vh] items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#881337]/20 border-t-[#881337]" />
+  </div>
+);
 
 const navItems = [
   { path: '/', label: 'Visao geral', icon: LayoutDashboard, end: true },
@@ -97,7 +104,9 @@ export default function ConsoleLayout() {
         </div>
 
         <main className="w-full px-4 py-6 md:px-6 lg:px-8">
-          <Outlet />
+          <Suspense fallback={<ContentLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

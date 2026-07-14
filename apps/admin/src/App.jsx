@@ -1,20 +1,22 @@
+import { lazy } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, ProtectedRoute, useAuth } from '@macom/auth';
 import { NotFoundPage } from '@macom/ui';
 
 import ConsoleLayout from '@/components/ConsoleLayout';
-import ConsoleDashboard from '@/pages/ConsoleDashboard';
-import AccessLogOverview from '@/pages/AccessLogOverview';
-import AuditOverview from '@/pages/AuditOverview';
-import PlaceholderPage from '@/pages/PlaceholderPage';
-import PlatformGuide from '@/pages/PlatformGuide';
-import SystemAccessManagement from '@/pages/SystemAccessManagement';
-import SystemPermissions from '@/pages/SystemPermissions';
-import SystemsCatalog from '@/pages/SystemsCatalog';
-import UsersOverview from '@/pages/UsersOverview';
 import { queryClient } from '@/lib/query-client';
 import Login from './Login';
+
+const ConsoleDashboard = lazy(() => import('@/pages/ConsoleDashboard'));
+const AccessLogOverview = lazy(() => import('@/pages/AccessLogOverview'));
+const AuditOverview = lazy(() => import('@/pages/AuditOverview'));
+const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'));
+const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
+const SystemAccessManagement = lazy(() => import('@/pages/SystemAccessManagement'));
+const SystemPermissions = lazy(() => import('@/pages/SystemPermissions'));
+const SystemsCatalog = lazy(() => import('@/pages/SystemsCatalog'));
+const UsersOverview = lazy(() => import('@/pages/UsersOverview'));
 
 function LoginRoute() {
   const { isAuthenticated, loading, login } = useAuth();

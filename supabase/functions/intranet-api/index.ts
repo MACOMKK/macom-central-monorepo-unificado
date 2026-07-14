@@ -14,9 +14,13 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const sql = databaseUrl
   ? postgres(databaseUrl, {
       prepare: false,
-      max: 3,
+      max: 6,
       idle_timeout: 5,
       connect_timeout: 15,
+      max_lifetime: 1800,
+      connection: {
+        statement_timeout: 15000,
+      },
     })
   : null;
 
@@ -365,7 +369,7 @@ function parseTags(value: unknown) {
 
 async function runSql<T = Record<string, unknown>>(query: string, values: unknown[] = []) {
   if (!sql) throw new Error('Conexao com banco indisponivel.');
-  return (await sql.unsafe(query, values)) as T[];
+  return (await withTimeout(sql.unsafe(query, values), 15000, 'Consulta ao banco de dados')) as T[];
 }
 
 async function resolveAuthenticatedCollaborators(authUser: { id: string; email?: string | null }) {
@@ -1714,6 +1718,69 @@ async function createDocumentSignedUrl(document: Record<string, unknown>) {
   return data?.signedUrl || null;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} excedeu o tempo limite de ${ms}ms.`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function createBulkDocumentSignedUrls(rows: Record<string, unknown>[]) {
+  const urlByPath = new Map<string, string | null>();
+  const storageClient = createStorageAdminClient();
+  if (!storageClient) return urlByPath;
+
+  const pathsByBucket = new Map<string, string[]>();
+  for (const row of rows) {
+    const filePath = typeof row.arquivo_path === 'string' ? row.arquivo_path.trim() : '';
+    if (!filePath) continue;
+    const bucket = resolveDocumentStorageBucket(row);
+    const paths = pathsByBucket.get(bucket) || [];
+    paths.push(filePath);
+    pathsByBucket.set(bucket, paths);
+  }
+
+  await Promise.all(
+    Array.from(pathsByBucket.entries()).map(async ([bucket, paths]) => {
+      let data: { path: string; error: string | null; signedUrl: string }[] | null = null;
+      let error: { message: string } | null = null;
+      try {
+        ({ data, error } = await withTimeout(
+          storageClient.storage.from(bucket).createSignedUrls(paths, DOCUMENT_SIGNED_URL_TTL_SECONDS),
+          8000,
+          'Geracao de signed URLs em lote',
+        ));
+      } catch (timeoutError) {
+        console.error('Timed out creating signed document URLs (batch):', {
+          bucket,
+          message: (timeoutError as Error).message,
+        });
+        return;
+      }
+
+      if (error) {
+        console.error('Failed to create signed document URLs (batch):', { bucket, message: error.message });
+        return;
+      }
+
+      (data || []).forEach((entry) => {
+        urlByPath.set(entry.path || '', entry.error ? null : entry.signedUrl || null);
+      });
+    }),
+  );
+
+  return urlByPath;
+}
+
 async function mapDocumentWithSignedUrl(
   row: Record<string, unknown>,
   departmentsById: Map<string, Record<string, unknown>>,
@@ -2300,7 +2367,12 @@ async function listDocuments(orderBy?: string, limit?: number, user?: Record<str
   const departmentsById = new Map(departments.map((item) => [String(item.id), item]));
   const positionsById = new Map(positions.map((item) => [String(item.id), item]));
   const companiesById = new Map(companies.map((item) => [String(item.id), item]));
-  return Promise.all(rows.map((row) => mapDocumentWithSignedUrl(row, departmentsById, positionsById, creators, companiesById)));
+  const urlByPath = await createBulkDocumentSignedUrls(rows);
+  return rows.map((row) => {
+    const filePath = typeof row.arquivo_path === 'string' ? row.arquivo_path.trim() : '';
+    const signedFileUrl = filePath ? urlByPath.get(filePath) : null;
+    return mapDocument(row, departmentsById, positionsById, creators, signedFileUrl, companiesById);
+  });
 }
 
 async function listDocumentStorageOrphans(user?: Record<string, unknown>) {

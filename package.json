@@ -40,9 +40,12 @@
     "build:intranet": "npm --prefix apps/intranet run build",
     "lint": "eslint apps/central/src --quiet",
     "lint:relatorios": "eslint apps/relatorios/src --quiet",
+    "lint:admin": "npm --prefix apps/admin run lint",
     "lint:fix": "eslint apps/central/src --fix",
     "test": "vitest --configLoader runner",
     "test:run": "vitest run --configLoader runner",
+    "test:admin": "npm --prefix apps/admin run test",
+    "test:admin:run": "npm --prefix apps/admin run test:run",
     "typecheck": "tsc -p ./apps/central/jsconfig.json",
     "preview": "vite preview --configLoader runner"
   },

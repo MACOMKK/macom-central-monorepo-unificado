@@ -7,5 +7,4 @@ export default createAppConfig(import.meta.url, {
     strictPort: true,
     allowedHosts: ['.ngrok-free.app'],
   },
-  includeTestConfig: false,
 });
