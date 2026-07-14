@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { X, MessageCircle, Mail } from 'lucide-react';
+import { X, MessageCircle, Mail, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { MACOM_LOGO_URL } from '@/config/branding';
 import { getOverflowNavItems } from '@/lib/navigation';
@@ -13,7 +13,7 @@ const supportItems = [
 
 export default function MobileNav({ open, onClose }) {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [passwordOpen, setPasswordOpen] = React.useState(false);
   const overflowItems = getOverflowNavItems(user);
 
@@ -81,6 +81,15 @@ export default function MobileNav({ open, onClose }) {
               </div>
             </button>
           )}
+
+          <button
+            onClick={() => logout()}
+            className="w-full text-left flex items-center gap-2.5 px-2 py-2 rounded-sm transition-colors"
+            style={{ color: '#aaa' }}
+          >
+            <LogOut className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Sair</span>
+          </button>
 
           <p className="px-2 pt-3 text-[9px] uppercase tracking-widest font-bold" style={{ color: '#555' }}>
             Suporte

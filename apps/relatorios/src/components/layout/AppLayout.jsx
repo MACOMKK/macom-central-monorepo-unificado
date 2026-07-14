@@ -60,7 +60,7 @@ export default function AppLayout() {
         <Sidebar user={user} collapsed={collapsed} onToggle={handleToggleSidebar} />
       </div>
 
-      <MobileHeader user={user} />
+      <MobileHeader />
       <MobileNav open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
       <BottomNav onOpenMore={() => setMobileNavOpen(true)} />
 
