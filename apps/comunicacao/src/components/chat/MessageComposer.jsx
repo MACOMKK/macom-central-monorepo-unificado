@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useColaboradores } from '@/hooks/useColaboradores';
+import AudioRecorder from './AudioRecorder';
 
 const TYPING_DEBOUNCE_MS = 3000;
 
@@ -207,6 +208,10 @@ export default function MessageComposer({ onSend, disabled, canalId, conversaId,
         >
           <Paperclip className="h-4 w-4" />
         </Button>
+        <AudioRecorder
+          disabled={disabled}
+          onRecorded={(file) => setFiles((current) => [...current, file])}
+        />
         <div className="relative flex-1">
           {showMentionDropdown && mentionCandidates.length > 0 ? (
             <ul className="absolute bottom-full left-0 mb-1 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">

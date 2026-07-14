@@ -21,6 +21,17 @@ function Anexo({ anexo }) {
   });
 
   const isImage = anexo.tipo_mime?.startsWith('image/');
+  const isAudio = anexo.tipo_mime?.startsWith('audio/');
+
+  if (isAudio) {
+    return signedUrl ? (
+      <audio controls preload="none" src={signedUrl} className="mt-1 h-10 max-w-full sm:max-w-xs">
+        Seu navegador não suporta áudio.
+      </audio>
+    ) : (
+      <div className="mt-1 h-10 w-40 animate-pulse rounded-md bg-black/10" />
+    );
+  }
 
   if (isImage) {
     return (

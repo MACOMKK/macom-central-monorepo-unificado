@@ -12,6 +12,11 @@ const ALLOWED_ANEXO_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'audio/webm',
+  'audio/mp4',
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/wav',
 ];
 
 function sanitizeFileName(name = 'anexo') {
