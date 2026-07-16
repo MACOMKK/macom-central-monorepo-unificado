@@ -1409,6 +1409,24 @@ function validateContatosPayload(payload: Record<string, unknown>, requireAllFie
   }
 }
 
+async function validateContatosUniqueFields(payload: Record<string, unknown>, excludeId?: string) {
+  if (!sql) return;
+
+  const telefone = typeof payload.telefone === 'string' ? payload.telefone.trim() : null;
+  if (!telefone) return;
+
+  const rows = excludeId
+    ? await sql.unsafe(
+        'select id from public.contatos where telefone = $1 and id <> $2 limit 1;',
+        [telefone, excludeId],
+      )
+    : await sql.unsafe('select id from public.contatos where telefone = $1 limit 1;', [telefone]);
+
+  if (rows[0]) {
+    throw new Error('Ja existe um contato com este telefone.');
+  }
+}
+
 function mapDatabaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
 
@@ -1424,6 +1442,10 @@ function mapDatabaseError(error: unknown) {
     return 'Ja existe um colaborador com este telefone.';
   }
 
+  if (message.includes('contatos_telefone_unique_idx')) {
+    return 'Ja existe um contato com este telefone.';
+  }
+
   return message || 'Erro interno.';
 }
 
@@ -1434,6 +1456,7 @@ function getErrorStatus(error: unknown) {
     message === 'Ja existe um colaborador com este CPF.' ||
     message === 'Ja existe um colaborador com este email.' ||
     message === 'Ja existe um colaborador com este telefone.' ||
+    message === 'Ja existe um contato com este telefone.' ||
     message === 'CPF deve conter exatamente 11 digitos.' ||
     message === 'Telefone deve conter exatamente 11 digitos.'
   ) {
@@ -2342,6 +2365,7 @@ Deno.serve(async (request) => {
       }
       if (entity === 'contatos') {
         validateContatosPayload(normalized, true);
+        await validateContatosUniqueFields(normalized);
       }
       if (entity === 'colaboradores') {
         if (!isGlobalAdmin && normalized.funcao && normalized.funcao !== 'usuario') {
@@ -2455,6 +2479,7 @@ Deno.serve(async (request) => {
       }
       if (entity === 'contatos') {
         validateContatosPayload(normalized);
+        await validateContatosUniqueFields(normalized, id);
       }
       if (entity === 'colaboradores') {
         if (

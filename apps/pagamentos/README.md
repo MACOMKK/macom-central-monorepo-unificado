@@ -1,10 +1,12 @@
 # Pagamentos
 
-Aplicativo futuro para solicitacoes e fluxo de pagamentos.
+App para solicitacoes e fluxo de aprovacao de pagamentos.
 
-Responsabilidades previstas:
+Responsabilidades:
 
-- solicitacoes de pagamento
-- aprovacoes
-- historico e acompanhamento
-- consumo de autenticacao e validacoes compartilhadas
+- solicitacoes de pagamento (com comprovante opcional)
+- aprovacao unica (gestor/admin aprova ou reprova)
+- marcacao de pagamento pelo financeiro (admin)
+- notificacao por e-mail a cada mudanca de status
+
+Ver `CLAUDE.md` deste app para detalhes de papeis, backend e convencoes.
