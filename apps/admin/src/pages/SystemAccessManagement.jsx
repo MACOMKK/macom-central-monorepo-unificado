@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, KeyRound, Plus, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import { platformUsersApi } from '@macom/api-client';
 import {
   AlertDialog,
@@ -14,6 +14,10 @@ import {
   Badge,
   Button,
   Card,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
   FeedbackToast,
   Input,
   Label,
@@ -41,7 +45,7 @@ const accessOptions = [
   { value: 'usuario', label: 'Usuario' },
 ];
 
-const hiddenAccessSystemSlugs = new Set(['central', 'rh', 'pagamentos']);
+const hiddenAccessSystemSlugs = new Set(['central', 'rh']);
 
 function accessKey(access) {
   if (access.colaborador_id && access.sistema_id) {
@@ -62,7 +66,7 @@ export default function SystemAccessManagement() {
   const [feedback, setFeedback] = useState(null);
   const [form, setForm] = useState({
     colaborador_id: '',
-    sistema_id: '',
+    sistema_ids: [],
     nivel_acesso: 'usuario',
     ativo: 'true',
   });
@@ -144,7 +148,7 @@ export default function SystemAccessManagement() {
       const previousAccesses = queryClient.getQueryData(queryKey);
       const optimisticAccess = {
         ...payload,
-        id: `temp-access-${Date.now()}`,
+        id: `temp-access-${payload.sistema_id}-${Date.now()}`,
         criado_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
       };
@@ -152,14 +156,6 @@ export default function SystemAccessManagement() {
       queryClient.setQueryData(queryKey, (old = []) => (
         Array.isArray(old) ? upsertAccess(old, optimisticAccess) : old
       ));
-
-      setForm({
-        colaborador_id: '',
-        sistema_id: '',
-        nivel_acesso: 'usuario',
-        ativo: 'true',
-      });
-      setCollaboratorSearch('');
 
       return { optimisticId: optimisticAccess.id, previousAccesses, queryKey };
     },
@@ -173,7 +169,6 @@ export default function SystemAccessManagement() {
       });
       queryClient.invalidateQueries({ queryKey: ['console', 'accesses'] });
       queryClient.invalidateQueries({ queryKey: ['console', 'users', 'accesses'] });
-      setFeedback({ type: 'success', message: 'Acesso salvo pelo Console.' });
     },
     onError: (error, _variables, context) => {
       if (context?.queryKey) {
@@ -182,6 +177,34 @@ export default function SystemAccessManagement() {
       setFeedback({ type: 'error', message: error.message || 'Falha ao salvar acesso.' });
     },
   });
+
+  const handleSaveAccess = async () => {
+    if (!form.colaborador_id || form.sistema_ids.length === 0) return;
+
+    try {
+      for (const sistemaId of form.sistema_ids) {
+        await saveMutation.mutateAsync({
+          colaborador_id: form.colaborador_id,
+          sistema_id: sistemaId,
+          nivel_acesso: form.nivel_acesso,
+          ativo: form.ativo === 'true',
+        });
+      }
+      setForm({
+        colaborador_id: '',
+        sistema_ids: [],
+        nivel_acesso: 'usuario',
+        ativo: 'true',
+      });
+      setCollaboratorSearch('');
+      setFeedback({
+        type: 'success',
+        message: form.sistema_ids.length > 1 ? 'Acessos salvos pelo Console.' : 'Acesso salvo pelo Console.',
+      });
+    } catch {
+      // erro individual ja tratado pelo onError do saveMutation
+    }
+  };
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, ativo }) => platformUsersApi.accesses.update(id, { ativo }),
@@ -211,6 +234,37 @@ export default function SystemAccessManagement() {
         queryClient.setQueryData(context.queryKey, context.previousAccesses);
       }
       setFeedback({ type: 'error', message: error.message || 'Falha ao atualizar acesso.' });
+    },
+  });
+
+  const levelMutation = useMutation({
+    mutationFn: ({ id, nivel_acesso }) => platformUsersApi.accesses.update(id, { nivel_acesso }),
+    onMutate: async ({ id, nivel_acesso }) => {
+      const queryKey = ['console', 'accesses'];
+      await queryClient.cancelQueries({ queryKey });
+      const previousAccesses = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old = []) => (
+        Array.isArray(old)
+          ? old.map((entry) => (entry.id === id ? { ...entry, nivel_acesso, atualizado_em: new Date().toISOString() } : entry))
+          : old
+      ));
+
+      return { previousAccesses, queryKey };
+    },
+    onSuccess: (updatedAccess, _variables, context) => {
+      queryClient.setQueryData(context.queryKey, (old = []) => (
+        Array.isArray(old) ? upsertAccess(old, updatedAccess) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['console', 'accesses'] });
+      queryClient.invalidateQueries({ queryKey: ['console', 'users', 'accesses'] });
+      setFeedback({ type: 'success', message: 'Nivel de acesso atualizado.' });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousAccesses);
+      }
+      setFeedback({ type: 'error', message: error.message || 'Falha ao atualizar nivel de acesso.' });
     },
   });
 
@@ -294,19 +348,41 @@ export default function SystemAccessManagement() {
           </div>
 
           <div className="space-y-2">
-            <Label>Sistema</Label>
-            <Select value={form.sistema_id} onValueChange={(value) => setForm((current) => ({ ...current, sistema_id: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o sistema" />
-              </SelectTrigger>
-              <SelectContent>
+            <Label>Sistemas</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between font-normal">
+                  <span className="truncate text-left">
+                    {form.sistema_ids.length === 0
+                      ? 'Selecione o(s) sistema(s)'
+                      : form.sistema_ids
+                        .map((id) => systemsById.get(id)?.nome)
+                        .filter(Boolean)
+                        .join(', ')}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64" align="start">
                 {grantableSystems.map((system) => (
-                  <SelectItem key={system.id} value={system.id}>
+                  <DropdownMenuCheckboxItem
+                    key={system.id}
+                    checked={form.sistema_ids.includes(system.id)}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      setForm((current) => ({
+                        ...current,
+                        sistema_ids: checked
+                          ? [...current.sistema_ids, system.id]
+                          : current.sistema_ids.filter((id) => id !== system.id),
+                      }));
+                    }}
+                  >
                     {system.nome}
-                  </SelectItem>
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="space-y-2">
@@ -341,13 +417,8 @@ export default function SystemAccessManagement() {
 
         <div className="flex justify-end">
           <Button
-            disabled={!form.colaborador_id || !form.sistema_id || saveMutation.isPending}
-            onClick={() => saveMutation.mutate({
-              colaborador_id: form.colaborador_id,
-              sistema_id: form.sistema_id,
-              nivel_acesso: form.nivel_acesso,
-              ativo: form.ativo === 'true',
-            })}
+            disabled={!form.colaborador_id || form.sistema_ids.length === 0 || saveMutation.isPending}
+            onClick={handleSaveAccess}
           >
             <Plus className="h-4 w-4" />
             {saveMutation.isPending ? 'Salvando...' : 'Salvar acesso'}
@@ -397,7 +468,27 @@ export default function SystemAccessManagement() {
                   <TableCell className="font-medium">{entry.colaborador?.nome || '-'}</TableCell>
                   <TableCell>{entry.colaborador?.email || '-'}</TableCell>
                   <TableCell>{entry.sistema?.nome || '-'}</TableCell>
-                  <TableCell className="uppercase">{entry.nivel_acesso}</TableCell>
+                  <TableCell>
+                    <Select
+                      value={entry.nivel_acesso}
+                      onValueChange={(value) => {
+                        if (value !== entry.nivel_acesso) {
+                          levelMutation.mutate({ id: entry.id, nivel_acesso: value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accessOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={getStatusBadgeClass(entry.ativo ? 'active' : 'inativo')}>
                       {entry.ativo ? 'Liberado' : 'Bloqueado'}

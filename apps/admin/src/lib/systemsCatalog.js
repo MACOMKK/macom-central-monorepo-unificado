@@ -31,10 +31,10 @@ export const permissionSystems = [
   {
     key: 'pagamentos',
     label: 'Pagamentos',
-    description: 'Fluxo futuro de solicitacoes e aprovacoes de pagamento.',
-    status: 'planned',
+    description: 'Solicitacoes e fluxo de aprovacao de pagamentos.',
+    status: 'active',
     route: '/',
-    devPort: null,
+    devPort: 5177,
     modules: [],
   },
   {
