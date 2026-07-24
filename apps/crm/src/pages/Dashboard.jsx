@@ -1,12 +1,13 @@
 import { crmDataClient } from '@/api/crmDataClient';
 import { useQuery } from '@tanstack/react-query';
-import { Tag, DollarSign, ThumbsUp, Users, TrendingUp } from 'lucide-react';
+import { Tag, DollarSign, ThumbsUp, Users, TrendingUp, ClipboardList } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { useEmpresa } from '@/context/EmpresaContext';
 
 const CORES_STATUS = ['#94a3b8', '#3b82f6', '#16a34a', '#E30613'];
 const ORIGENS = ['telefone', 'whatsapp', 'site', 'showroom', 'indicacao'];
 const STATUS_ATIVIDADES = ['planejada', 'concluida', 'cancelada'];
+const FUNIL_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
 
 async function countEntity(repository, filters = {}) {
   const result = await repository.listPage({
@@ -24,22 +25,25 @@ export default function Dashboard() {
     clientesTotal: 0,
     leadsConvertidos: 0,
     leadsTotal: 0,
+    preLeadsTotal: 0,
     origemCounts: {},
     statusCounts: {},
-  }, isFetching } = useQuery({
+  }, isFetching, isError, error } = useQuery({
     queryKey: ['dashboard-metrics', { empresa }],
     queryFn: async () => {
       const [
         clientesTotal,
         leadsTotal,
         leadsConvertidos,
+        preLeadsTotal,
         atividadesTotal,
         statusResults,
         origemResults,
       ] = await Promise.all([
         countEntity(crmDataClient.entities.Cliente, baseFilters),
-        countEntity(crmDataClient.entities.Lead, baseFilters),
+        countEntity(crmDataClient.entities.Lead, { ...baseFilters, status: FUNIL_STATUSES }),
         countEntity(crmDataClient.entities.Lead, { ...baseFilters, status: 'convertido' }),
+        countEntity(crmDataClient.entities.Lead, { ...baseFilters, status: 'triagem' }),
         countEntity(crmDataClient.entities.Atividade, baseFilters),
         Promise.all(STATUS_ATIVIDADES.map((status) => (
           countEntity(crmDataClient.entities.Atividade, { ...baseFilters, status })
@@ -56,6 +60,7 @@ export default function Dashboard() {
         clientesTotal,
         leadsConvertidos,
         leadsTotal,
+        preLeadsTotal,
         origemCounts: Object.fromEntries(origemResults),
         statusCounts: Object.fromEntries(statusResults),
       };
@@ -80,6 +85,7 @@ export default function Dashboard() {
   const cards = [
     { label: 'Contatos', value: metrics.clientesTotal, icon: Users, color: 'text-[#1a1a1a]', border: 'border-l-[#1a1a1a]' },
     { label: 'Leads', value: metrics.leadsTotal, icon: DollarSign, color: 'text-blue-600', border: 'border-l-blue-600' },
+    { label: 'Pré-Leads em Triagem', value: metrics.preLeadsTotal, icon: ClipboardList, color: 'text-slate-600', border: 'border-l-slate-500' },
     { label: 'Atividades', value: metrics.atividadesTotal, icon: Tag, color: 'text-primary', border: 'border-l-primary' },
     { label: 'Leads Convertidos', value: metrics.leadsConvertidos, icon: ThumbsUp, color: 'text-green-600', border: 'border-l-green-600' },
   ];
@@ -93,8 +99,14 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {isError ? (
+        <div className="mb-6 border border-dashed border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold uppercase tracking-widest text-red-700">
+          {error?.message || 'Nao foi possivel carregar os indicadores do dashboard.'}
+        </div>
+      ) : null}
+
       {/* Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
         {cards.map((c) => (
           <div key={c.label} className={`bg-white shadow-sm border-l-4 ${c.border} p-5 flex items-center justify-between`}>
             <div>

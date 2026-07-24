@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Loader2, X } from 'lucide-react';
 
-import { pagamentosApi } from '@macom/api-client/pagamentosApi';
+import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
 
 function formatValor(valor) {
@@ -23,7 +23,7 @@ export default function Aprovacoes() {
   async function load() {
     setLoading(true);
     try {
-      const data = await pagamentosApi.solicitacoes.list({ status: 'pendente' });
+      const data = await financeiroApi.solicitacoes.list({ status: 'pendente' });
       setRows(data);
     } catch (error) {
       toast({ title: 'Nao foi possivel carregar as solicitacoes', description: error.message });
@@ -40,7 +40,7 @@ export default function Aprovacoes() {
   async function handleDecision(id, status) {
     setProcessingId(id);
     try {
-      await pagamentosApi.solicitacoes.setStatus(id, status, observacoes[id] || null);
+      await financeiroApi.solicitacoes.setStatus(id, status, observacoes[id] || null);
       toast({
         title: status === 'aprovado' ? 'Solicitacao aprovada' : 'Solicitacao reprovada',
       });
@@ -67,6 +67,7 @@ export default function Aprovacoes() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Solicitante</TableHead>
               <TableHead>Fornecedor</TableHead>
               <TableHead>Descricao</TableHead>
               <TableHead>Valor</TableHead>
@@ -78,6 +79,7 @@ export default function Aprovacoes() {
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id}>
+                <TableCell>{row.solicitante_nome}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
                 <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
                 <TableCell>{formatValor(row.valor)}</TableCell>

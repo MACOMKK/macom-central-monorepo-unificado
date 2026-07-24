@@ -8,6 +8,7 @@ import { AlarmClock, Plus, Search } from 'lucide-react';
 import StatusTabs from '@/components/eventos/StatusTabs';
 import EventoCard from '@/components/eventos/EventoCard';
 import EventoForm from '@/components/eventos/EventoForm';
+import ListPagination from '@/components/ListPagination';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { startOfToday } from 'date-fns';
 import { toast } from '@/components/ui/use-toast';
@@ -415,34 +416,15 @@ export default function Eventos() {
             ))
           )}
         </div>
-        <div className="mt-3 flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm">
-          <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-            {eventosPage.count || 0} registros {isFetching ? 'carregando...' : ''}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Anterior
-            </Button>
-            <span className="min-w-20 text-center font-bold uppercase tracking-wider">
-              {page}/{totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-              disabled={page >= totalPages}
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            >
-              Proxima
-            </Button>
-          </div>
-        </div>
+        <ListPagination
+          className="mt-3"
+          count={eventosPage.count}
+          isFetching={isFetching}
+          page={page}
+          totalPages={totalPages}
+          onPrev={() => setPage((current) => Math.max(1, current - 1))}
+          onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+        />
       </div>
 
       {formOpen && (

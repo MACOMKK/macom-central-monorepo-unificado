@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { pagamentosApi } from '@macom/api-client/pagamentosApi';
+import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
@@ -12,7 +12,7 @@ function mapAccessLevel(level) {
   return 'solicitante';
 }
 
-function normalizePagamentosUser(authUser, authPayload = {}) {
+function normalizeServicosUser(authUser, authPayload = {}) {
   const collaborator = authPayload.row || null;
   const access = authPayload.access || null;
   const role = mapAccessLevel(access?.nivel_acesso);
@@ -49,20 +49,20 @@ function mapAuthError(error) {
   if (error?.status === 401) {
     return {
       type: 'auth_required',
-      message: error.message || 'Faca login para acessar o sistema de pagamentos.',
+      message: error.message || 'Faca login para acessar o sistema Servicos.',
     };
   }
 
   if (error?.status === 403) {
     return {
       type: 'access_denied',
-      message: error.message || 'Seu usuario nao possui acesso liberado ao sistema de pagamentos.',
+      message: error.message || 'Seu usuario nao possui acesso liberado ao sistema Servicos.',
     };
   }
 
   return {
     type: 'unknown',
-    message: error?.message || 'Nao foi possivel validar o acesso ao sistema de pagamentos.',
+    message: error?.message || 'Nao foi possivel validar o acesso ao sistema Servicos.',
   };
 }
 
@@ -99,11 +99,11 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const authPayload = await pagamentosApi.auth.me(nextSession.access_token);
-      const currentUser = normalizePagamentosUser(nextSession.user, authPayload);
+      const authPayload = await financeiroApi.auth.me(nextSession.access_token);
+      const currentUser = normalizeServicosUser(nextSession.user, authPayload);
 
       if (!currentUser.active) {
-        const accessError = new Error('Seu usuario nao possui acesso ativo ao sistema de pagamentos.');
+        const accessError = new Error('Seu usuario nao possui acesso ativo ao sistema Servicos.');
         accessError.status = 403;
         throw accessError;
       }

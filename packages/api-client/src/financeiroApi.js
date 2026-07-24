@@ -4,7 +4,7 @@ function toError(message, status = 500, code, details, hint) {
   const normalizedMessage =
     typeof message === 'string'
       ? message
-      : message?.message || 'Falha ao consultar o sistema de pagamentos.';
+      : message?.message || 'Falha ao consultar o modulo financeiro.';
 
   const error = new Error(normalizedMessage);
   error.status = status;
@@ -14,7 +14,7 @@ function toError(message, status = 500, code, details, hint) {
   return error;
 }
 
-async function invokePagamentos(body = {}, accessTokenOverride) {
+async function invokeServicos(body = {}, accessTokenOverride) {
   assertSupabaseConfigured();
 
   const { data } = accessTokenOverride
@@ -26,7 +26,7 @@ async function invokePagamentos(body = {}, accessTokenOverride) {
     throw toError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pagamentos-api`, {
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/servicos-api`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -52,10 +52,10 @@ async function invokePagamentos(body = {}, accessTokenOverride) {
   return result;
 }
 
-export const pagamentosApi = {
+export const financeiroApi = {
   auth: {
     async me(accessToken) {
-      const result = await invokePagamentos({ action: 'me' }, accessToken);
+      const result = await invokeServicos({ action: 'me' }, accessToken);
       return {
         row: result.row || null,
         access: result.access || null,
@@ -67,27 +67,27 @@ export const pagamentosApi = {
   },
   solicitacoes: {
     async list(filters = {}) {
-      const result = await invokePagamentos({ action: 'list', filters });
+      const result = await invokeServicos({ action: 'list', filters });
       return result.rows || [];
     },
     async getById(id) {
-      const result = await invokePagamentos({ action: 'get', id });
+      const result = await invokeServicos({ action: 'get', id });
       return result.row || null;
     },
     async create(payload) {
-      const result = await invokePagamentos({ action: 'create', payload });
+      const result = await invokeServicos({ action: 'create', payload });
       return result.row || null;
     },
     async update(id, payload) {
-      const result = await invokePagamentos({ action: 'update', id, payload });
+      const result = await invokeServicos({ action: 'update', id, payload });
       return result.row || null;
     },
     async setStatus(id, status, observacao_analise) {
-      const result = await invokePagamentos({ action: 'set_status', id, status, observacao_analise });
+      const result = await invokeServicos({ action: 'set_status', id, status, observacao_analise });
       return result.row || null;
     },
     async getSignedUrl(id) {
-      const result = await invokePagamentos({ action: 'signed_url', id });
+      const result = await invokeServicos({ action: 'signed_url', id });
       return result.url || null;
     },
   },

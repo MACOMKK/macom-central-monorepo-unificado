@@ -26,11 +26,22 @@ Gestão comercial automotiva: leads, clientes, atendimentos e distribuição par
 | Tabela | Campos-chave |
 |---|---|
 | `clientes` | `status_relacionamento` (lead/cliente/pos_venda) |
-| `leads` | `origem` (telefone/whatsapp/site/showroom/indicacao), `status` (novo/em_atendimento/convertido/perdido), SLA, responsável |
+| `leads` | `origem` (telefone/whatsapp/site/showroom/indicacao), `status` (triagem/novo/tentativa_contato/em_contato/qualificado/proposta/convertido/perdido/descartado), SLA, responsável |
 | `atendimentos` | `tipo` (venda/pos_venda/agendamento/retorno), `temperatura` (frio/morno/quente) |
 | `historico_atendimentos` | auditoria de mudanças |
 | `veiculos_interesse` | veículos associados a um lead |
 | `configuracoes_distribuicao` / `vendedores_distribuicao` | regras de distribuição automática de leads |
+
+## Pré-Lead (triagem)
+
+Contatos podem entrar em `leads` com `status = 'triagem'` (pré-lead) antes de virarem lead
+oficial. Enquanto em triagem, o lead **não** participa da distribuição automática de vendedor
+nem do SLA de primeiro contato — essas regras só disparam na transição `triagem → status ativo`
+("promoção", `promovido_em`). `status = 'descartado'` é o terminal para pré-leads sem potencial
+de compra (exige `motivo_descarte`, mesmo padrão de `motivo_perda`). Atividades (`atendimentos`)
+não podem ser criadas para um lead ainda em `triagem`. Ver `gestao_crm.prepare_lead_phase1()` e
+`apps/crm/src/pages/Leads.jsx` (aba "Pré-Leads", com sub-visões "Em Triagem" e "Descartados" —
+esta última só para consulta, sem ações de qualificar/descartar).
 
 ## Realtime
 

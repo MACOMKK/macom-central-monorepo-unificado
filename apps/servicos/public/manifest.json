@@ -1,6 +1,6 @@
 {
-  "name": "MACOM Pagamentos",
-  "short_name": "Pagamentos",
+  "name": "MACOM Servicos",
+  "short_name": "Servicos",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f4f5",

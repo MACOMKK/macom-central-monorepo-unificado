@@ -290,7 +290,16 @@ export default function EventoForm({ open, onOpenChange, evento, leads = [], ate
           </div>
           <div className="flex justify-between border-t pt-2">
             {evento && onDelete ? (
-              <Button type="button" variant="destructive" className="rounded-none text-xs font-bold uppercase tracking-wider" onClick={() => onDelete(evento.id)}>
+              <Button
+                type="button"
+                variant="destructive"
+                className="rounded-none text-xs font-bold uppercase tracking-wider"
+                onClick={() => {
+                  const confirmed = window.confirm('Excluir esta atividade?');
+                  if (!confirmed) return;
+                  onDelete(evento.id);
+                }}
+              >
                 Excluir
               </Button>
             ) : <span />}

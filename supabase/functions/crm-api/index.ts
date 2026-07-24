@@ -1,12 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
+import { CRM_SCHEMA, buildAccessScope, getAccessLevel } from './access-scope.ts';
+import type { EntityName } from './access-scope.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const CRM_SCHEMA = 'gestao_crm';
 const CRM_SYSTEM_SLUG = 'crm';
 
 const ENTITY_CONFIG = {
@@ -43,6 +44,7 @@ const ENTITY_CONFIG = {
       'convertido_em',
       'perdido_em',
       'motivo_perda',
+      'motivo_descarte',
       'responsavel_id',
       'unidade_id',
       'primeiro_contato_em',
@@ -107,7 +109,6 @@ const ENTITY_CONFIG = {
   },
 } as const;
 
-type EntityName = keyof typeof ENTITY_CONFIG;
 
 const ORDER_FIELD_MAP: Record<string, string> = {
   created_date: 'criado_em',
@@ -145,6 +146,10 @@ function mapDatabaseError(error: unknown) {
     return 'Ja existe um lead ativo para este cliente.';
   }
 
+  if (message.includes('idx_crm_leads_cliente_triagem_unique')) {
+    return 'Ja existe um pre-lead em triagem para este cliente.';
+  }
+
   if (message.includes('idx_crm_atendimentos_lead_aberto_unique')) {
     return 'Este lead ja possui uma atividade planejada.';
   }
@@ -163,6 +168,14 @@ function mapDatabaseError(error: unknown) {
 
   if (message.includes('Motivo da perda e obrigatorio')) {
     return 'Informe o motivo da perda para encerrar este lead.';
+  }
+
+  if (message.includes('Motivo do descarte e obrigatorio')) {
+    return 'Informe o motivo do descarte para encerrar este pre-lead.';
+  }
+
+  if (message.includes('Promova o pre-lead antes de registrar atividades')) {
+    return 'Promova o pre-lead a lead antes de registrar atividades.';
   }
 
   if (message.includes('Informe o resultado para concluir')) {
@@ -406,133 +419,6 @@ function buildAdvancedFilters(entity: EntityName, filters: Record<string, unknow
   }
 
   return { clauses, values };
-}
-
-function getAccessLevel(access: Record<string, unknown> | null) {
-  return String(access?.nivel_acesso || '');
-}
-
-function buildAccessScope(
-  entity: EntityName,
-  access: Record<string, unknown> | null,
-  collaborator: Record<string, unknown> | null,
-  startIndex: number,
-) {
-  const level = getAccessLevel(access);
-  if (level === 'admin') return { clause: '', values: [] as unknown[] };
-
-  const collaboratorId = String(collaborator?.id || '');
-  const unitId = String(collaborator?.unidade_id || '');
-  if (!collaboratorId) {
-    throw Object.assign(new Error('Colaborador nao identificado.'), { status: 403 });
-  }
-
-  if (level === 'gestor') {
-    if (!unitId) {
-      throw Object.assign(new Error('Gestor sem unidade vinculada.'), { status: 403 });
-    }
-    if (entity === 'leads') {
-      return { clause: `l."unidade_id" = $${startIndex}`, values: [unitId] };
-    }
-    if (entity === 'atendimentos') {
-      return { clause: `l."unidade_id" = $${startIndex}`, values: [unitId] };
-    }
-    if (entity === 'clientes') {
-      return {
-        clause: `(
-          "criado_por" = $${startIndex + 1}
-          or exists (
-            select 1 from ${CRM_SCHEMA}.leads scope_lead
-            where scope_lead.cliente_id = clientes.id
-              and scope_lead.unidade_id = $${startIndex}
-          )
-        )`,
-        values: [unitId, collaboratorId],
-      };
-    }
-    if (entity === 'historico_atendimentos') {
-      return {
-        clause: `(
-          exists (
-            select 1 from ${CRM_SCHEMA}.leads scope_lead
-            where scope_lead.id = historico_atendimentos.lead_id
-              and scope_lead.unidade_id = $${startIndex}
-          )
-          or exists (
-            select 1 from ${CRM_SCHEMA}.leads scope_lead
-            where scope_lead.cliente_id = historico_atendimentos.cliente_id
-              and scope_lead.unidade_id = $${startIndex}
-          )
-        )`,
-        values: [unitId],
-      };
-    }
-    if (entity === 'veiculos_interesse') {
-      return {
-        clause: `exists (
-          select 1 from ${CRM_SCHEMA}.leads scope_lead
-          where scope_lead.id = veiculos_interesse.lead_id
-            and scope_lead.unidade_id = $${startIndex}
-        )`,
-        values: [unitId],
-      };
-    }
-  }
-
-  if (entity === 'leads') {
-    return {
-      clause: `(l."responsavel_id" = $${startIndex} or l."criado_por" = $${startIndex})`,
-      values: [collaboratorId],
-    };
-  }
-  if (entity === 'atendimentos') {
-    return {
-      clause: `(l."responsavel_id" = $${startIndex} or a."criado_por" = $${startIndex})`,
-      values: [collaboratorId],
-    };
-  }
-  if (entity === 'clientes') {
-    return {
-      clause: `(
-        "criado_por" = $${startIndex}
-        or exists (
-          select 1 from ${CRM_SCHEMA}.leads scope_lead
-          where scope_lead.cliente_id = clientes.id
-            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
-        )
-      )`,
-      values: [collaboratorId],
-    };
-  }
-  if (entity === 'historico_atendimentos') {
-    return {
-      clause: `(
-        exists (
-          select 1 from ${CRM_SCHEMA}.leads scope_lead
-          where scope_lead.id = historico_atendimentos.lead_id
-            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
-        )
-        or exists (
-          select 1 from ${CRM_SCHEMA}.leads scope_lead
-          where scope_lead.cliente_id = historico_atendimentos.cliente_id
-            and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
-        )
-      )`,
-      values: [collaboratorId],
-    };
-  }
-  if (entity === 'veiculos_interesse') {
-    return {
-      clause: `exists (
-        select 1 from ${CRM_SCHEMA}.leads scope_lead
-        where scope_lead.id = veiculos_interesse.lead_id
-          and (scope_lead.responsavel_id = $${startIndex} or scope_lead.criado_por = $${startIndex})
-      )`,
-      values: [collaboratorId],
-    };
-  }
-
-  return { clause: '', values: [] as unknown[] };
 }
 
 function applyCreateScope(
@@ -910,7 +796,34 @@ Deno.serve(async (request) => {
         return json({ error: 'Apenas administradores podem limpar os dados do CRM.' }, 403);
       }
 
-      await sql.begin(async (transaction) => {
+      const CLEAR_CONFIRM_PHRASE = 'LIMPAR-DADOS-CRM';
+      if (String(body.confirm || '') !== CLEAR_CONFIRM_PHRASE) {
+        return json({ error: 'Confirmacao ausente ou invalida para limpar os dados do CRM.' }, 400);
+      }
+
+      const counts = await sql.begin(async (transaction) => {
+        const [{ count: clientesCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.clientes;`);
+        const [{ count: leadsCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.leads;`);
+        const [{ count: atendimentosCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.atendimentos;`);
+        const [{ count: historicoCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.historico_atendimentos;`);
+
+        await transaction.unsafe(
+          `insert into ${CRM_SCHEMA}.logs_auditoria (entidade, acao, actor_colaborador_id, actor_email, metadados)
+           values ($1, $2, $3, $4, $5::jsonb);`,
+          [
+            'crm',
+            'clear_crm_test_data',
+            collaborator?.id || null,
+            user.email || null,
+            JSON.stringify({
+              clientes: clientesCount,
+              leads: leadsCount,
+              atendimentos: atendimentosCount,
+              historico_atendimentos: historicoCount,
+            }),
+          ],
+        );
+
         await transaction.unsafe(`delete from ${CRM_SCHEMA}.historico_atendimentos;`);
         await transaction.unsafe(`delete from ${CRM_SCHEMA}.atendimentos;`);
         await transaction.unsafe(`delete from ${CRM_SCHEMA}.leads;`);
@@ -919,6 +832,14 @@ Deno.serve(async (request) => {
           update ${CRM_SCHEMA}.vendedores_distribuicao
           set ultimo_lead_atribuido_em = null;
         `);
+
+        return { clientesCount, leadsCount, atendimentosCount, historicoCount };
+      });
+
+      console.log('[crm-api] clear_crm_test_data executado', {
+        actor: user.email,
+        collaboratorId: collaborator?.id,
+        counts,
       });
 
       return json({ success: true });
@@ -1052,6 +973,10 @@ Deno.serve(async (request) => {
 
     return json({ error: 'Acao invalida.' }, 400);
   } catch (error) {
-    return json({ error: mapDatabaseError(error) }, getErrorStatus(error));
+    const status = getErrorStatus(error);
+    if (status >= 500) {
+      console.error('[crm-api] erro interno:', error);
+    }
+    return json({ error: mapDatabaseError(error) }, status);
   }
 });

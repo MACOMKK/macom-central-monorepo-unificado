@@ -8,6 +8,7 @@ import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
 import NovaSolicitacao from '@/pages/NovaSolicitacao';
 import Aprovacoes from '@/pages/Aprovacoes';
 import Pagamentos from '@/pages/Pagamentos';
+import ModuloEmBreve from '@/pages/ModuloEmBreve';
 
 const getFromPath = (search) => {
   const params = new URLSearchParams(search);
@@ -26,7 +27,7 @@ const LoadingScreen = () => (
   <main className="flex min-h-screen items-center justify-center bg-background">
     <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
       <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary" />
-      <span className="text-sm font-semibold text-muted-foreground">Preparando MACOM Pagamentos...</span>
+      <span className="text-sm font-semibold text-muted-foreground">Preparando MACOM Servicos...</span>
     </div>
   </main>
 );
@@ -42,7 +43,7 @@ const LoginRoute = () => {
   return <Login loading={isLoadingAuth} />;
 };
 
-const PagamentosRoutes = () => {
+const ServicosRoutes = () => {
   const { isAuthenticated, isLoadingAuth, user } = useAuth();
   const location = useLocation();
 
@@ -63,6 +64,26 @@ const PagamentosRoutes = () => {
         <Route path="/solicitacoes/nova" element={<NovaSolicitacao />} />
         {user?.isAprovador && <Route path="/aprovacoes" element={<Aprovacoes />} />}
         {user?.isFinanceiro && <Route path="/pagamentos" element={<Pagamentos />} />}
+        <Route
+          path="/atendimento"
+          element={<ModuloEmBreve titulo="Atendimento" descricao="Recepcao de clientes, abertura de OS, agendamento e historico de veiculos." />}
+        />
+        <Route
+          path="/oficina"
+          element={<ModuloEmBreve titulo="Oficina" descricao="Servicos executados, mecanicos responsaveis, checklist e controle de pecas." />}
+        />
+        <Route
+          path="/estoque"
+          element={<ModuloEmBreve titulo="Estoque" descricao="Pecas, pneus, oleos e entradas/saidas." />}
+        />
+        <Route
+          path="/compras"
+          element={<ModuloEmBreve titulo="Compras" descricao="Solicitacao de compra, aprovacao e pedidos para fornecedores." />}
+        />
+        <Route
+          path="/rh"
+          element={<ModuloEmBreve titulo="RH" descricao="Funcionarios, ferias e reembolsos." />}
+        />
         <Route path="*" element={<Navigate replace to="/solicitacoes" />} />
       </Route>
     </Routes>
@@ -76,7 +97,7 @@ function App() {
         <Routes>
           <Route path="/entrar" element={<LoginRoute />} />
           <Route path="/login" element={<Navigate replace to="/entrar" />} />
-          <Route path="*" element={<PagamentosRoutes />} />
+          <Route path="*" element={<ServicosRoutes />} />
         </Routes>
       </Router>
       <Toaster />

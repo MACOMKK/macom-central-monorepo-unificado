@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Paperclip } from 'lucide-react';
 
-import { pagamentosApi } from '@macom/api-client/pagamentosApi';
+import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { supabase } from '@macom/api-client/supabaseClient';
 import {
   Button,
@@ -30,6 +30,14 @@ const CATEGORIAS = [
   { value: 'outros', label: 'Outros' },
 ];
 
+const FORMAS_PAGAMENTO = [
+  { value: 'pix', label: 'Pix' },
+  { value: 'boleto', label: 'Boleto' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'cartao', label: 'Cartao' },
+  { value: 'outros', label: 'Outros' },
+];
+
 const MAX_COMPROVANTE_SIZE = 5 * 1024 * 1024;
 
 export default function NovaSolicitacao() {
@@ -41,6 +49,8 @@ export default function NovaSolicitacao() {
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [categoria, setCategoria] = useState('outros');
+  const [dataVencimento, setDataVencimento] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState('');
   const [comprovante, setComprovante] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,19 +76,21 @@ export default function NovaSolicitacao() {
         const extension = comprovante.name.split('.').pop();
         const path = `${user.id}/${Date.now()}.${extension}`;
         const { error: uploadError } = await supabase.storage
-          .from(pagamentosApi.storage.bucket)
+          .from(financeiroApi.storage.bucket)
           .upload(path, comprovante, { upsert: false });
 
         if (uploadError) throw uploadError;
         comprovante_path = path;
       }
 
-      await pagamentosApi.solicitacoes.create({
+      await financeiroApi.solicitacoes.create({
         fornecedor,
         descricao,
         valor: Number(valor),
         categoria,
         comprovante_path,
+        data_vencimento: dataVencimento || null,
+        forma_pagamento: formaPagamento || null,
       });
 
       toast({ title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' });
@@ -141,6 +153,34 @@ export default function NovaSolicitacao() {
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORIAS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dataVencimento">Data de vencimento (opcional)</Label>
+              <Input
+                id="dataVencimento"
+                type="date"
+                value={dataVencimento}
+                onChange={(event) => setDataVencimento(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="formaPagamento">Forma de pagamento (opcional)</Label>
+              <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                <SelectTrigger id="formaPagamento">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORMAS_PAGAMENTO.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
                       {item.label}
                     </SelectItem>

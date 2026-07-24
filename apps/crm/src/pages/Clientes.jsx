@@ -13,9 +13,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { cn } from '@/lib/utils';
+import ListPagination from '@/components/ListPagination';
 import { Building2, Car, Clock3, History, Mail, Paperclip, Pencil, Phone, Save, Search, Tag, UserRound, X } from 'lucide-react';
 
-const EMPRESAS = ['Macom Ananindeua', 'Macom BelÃ©m', 'Macom Paragominas'];
+const EMPRESAS = ['Macom Ananindeua', 'Macom Belém', 'Macom Paragominas'];
 
 const STATUS_LABEL = {
   lead: 'Lead',
@@ -137,7 +138,31 @@ export default function Clientes() {
   const filtrados = clientes;
   const selectedId = selected?.id || '';
 
-  const { data: selectedLeadsPage = { rows: [] }, isFetching: loadingSelectedLeads } = useQuery({
+  const clienteIds = useMemo(() => clientes.map((cliente) => cliente.id), [clientes]);
+
+  const { data: activeLeadsByCliente = {} } = useQuery({
+    queryKey: ['clientes-active-leads', clienteIds],
+    enabled: clienteIds.length > 0,
+    queryFn: async () => {
+      const leadsPage = await crmDataClient.entities.Lead.listPage({
+        orderBy: '-created_date',
+        limit: Math.max(clienteIds.length * 3, 100),
+        filters: { cliente_id: clienteIds, status: [...ACTIVE_LEAD_STATUSES] },
+      });
+      const map = {};
+      for (const lead of leadsPage.rows || []) {
+        if (!map[lead.cliente_id]) map[lead.cliente_id] = lead;
+      }
+      return map;
+    },
+  });
+
+  const {
+    data: selectedLeadsPage = { rows: [] },
+    isFetching: loadingSelectedLeads,
+    isError: errorSelectedLeads,
+    error: selectedLeadsError,
+  } = useQuery({
     queryKey: ['cliente-leads', selectedId],
     enabled: Boolean(selectedId),
     queryFn: () => crmDataClient.entities.Lead.listPage({
@@ -147,7 +172,12 @@ export default function Clientes() {
     }),
   });
 
-  const { data: selectedAtendimentosPage = { rows: [] }, isFetching: loadingSelectedAtendimentos } = useQuery({
+  const {
+    data: selectedAtendimentosPage = { rows: [] },
+    isFetching: loadingSelectedAtendimentos,
+    isError: errorSelectedAtendimentos,
+    error: selectedAtendimentosError,
+  } = useQuery({
     queryKey: ['cliente-atendimentos', selectedId],
     enabled: Boolean(selectedId),
     queryFn: () => crmDataClient.entities.Atividade.listPage({
@@ -157,7 +187,12 @@ export default function Clientes() {
     }),
   });
 
-  const { data: selectedHistoricoPage = { rows: [] }, isFetching: loadingSelectedHistorico } = useQuery({
+  const {
+    data: selectedHistoricoPage = { rows: [] },
+    isFetching: loadingSelectedHistorico,
+    isError: errorSelectedHistorico,
+    error: selectedHistoricoError,
+  } = useQuery({
     queryKey: ['cliente-historico', selectedId],
     enabled: Boolean(selectedId),
     queryFn: () => crmDataClient.entities.HistoricoAtendimento.listPage({
@@ -171,6 +206,10 @@ export default function Clientes() {
   const selectedLeads = selectedLeadsPage.rows || [];
   const selectedAtendimentos = selectedAtendimentosPage.rows || [];
   const loadingSelectedTimeline = loadingSelectedLeads || loadingSelectedAtendimentos || loadingSelectedHistorico;
+  const errorSelectedTimeline = errorSelectedLeads || errorSelectedAtendimentos || errorSelectedHistorico;
+  const selectedTimelineErrorMessage =
+    selectedLeadsError?.message || selectedAtendimentosError?.message || selectedHistoricoError?.message
+    || 'Nao foi possivel carregar os dados do cliente.';
   const activeLead = selectedLeads.find((lead) => ACTIVE_LEAD_STATUSES.has(lead.status));
   const selectedTimeline = useMemo(() => {
     if (!selected) return [];
@@ -426,34 +465,15 @@ export default function Clientes() {
         </div>
       </div>
 
-      <div className="mb-3 flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm">
-        <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-          {clientesPage.count || 0} registros {isFetching ? 'carregando...' : ''}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-            disabled={page <= 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            Anterior
-          </Button>
-          <span className="min-w-20 text-center font-bold uppercase tracking-wider">
-            {page}/{totalPages}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-            disabled={page >= totalPages}
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-          >
-            Proxima
-          </Button>
-        </div>
-      </div>
+      <ListPagination
+        className="mb-3"
+        count={clientesPage.count}
+        isFetching={isFetching}
+        page={page}
+        totalPages={totalPages}
+        onPrev={() => setPage((current) => Math.max(1, current - 1))}
+        onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+      />
 
       <div className="overflow-x-auto bg-white shadow-sm">
         <Table>
@@ -490,7 +510,18 @@ export default function Clientes() {
                     {cliente.email ? <div className="flex items-center gap-1"><Mail className="h-3 w-3" />{cliente.email}</div> : null}
                   </TableCell>
                   <TableCell className="text-xs">
-                    <span className="text-muted-foreground">Carrega ao abrir</span>
+                    {activeLeadsByCliente[cliente.id] ? (
+                      <div className="space-y-1">
+                        <Badge className={cn('rounded-sm border text-[10px] uppercase tracking-wider', LEAD_STATUS_STYLE[activeLeadsByCliente[cliente.id].status] || LEAD_STATUS_STYLE.novo)}>
+                          {LEAD_STATUS_LABEL[activeLeadsByCliente[cliente.id].status] || activeLeadsByCliente[cliente.id].status}
+                        </Badge>
+                        <div className="text-[11px] text-muted-foreground">
+                          {activeLeadsByCliente[cliente.id].modelo_interesse || 'Modelo nao informado'}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Nenhum</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{cliente.empresa}</TableCell>
                   <TableCell>
@@ -603,7 +634,11 @@ export default function Clientes() {
                 </TabsList>
 
                 <TabsContent value="visao" className="mt-4 space-y-4">
-                  {loadingSelectedTimeline ? (
+                  {errorSelectedTimeline ? (
+                    <div className="border border-dashed border-red-300 bg-red-50 py-6 text-center text-xs font-semibold uppercase tracking-widest text-red-700">
+                      {selectedTimelineErrorMessage}
+                    </div>
+                  ) : loadingSelectedTimeline ? (
                     <div className="border border-dashed py-6 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Carregando dados do cliente...
                     </div>
@@ -642,7 +677,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="leads" className="mt-4">
-                  {loadingSelectedLeads ? (
+                  {errorSelectedLeads ? (
+                    <div className="border border-dashed border-red-300 bg-red-50 py-8 text-center text-xs font-semibold uppercase tracking-widest text-red-700">
+                      {selectedLeadsError?.message || 'Nao foi possivel carregar os leads.'}
+                    </div>
+                  ) : loadingSelectedLeads ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Carregando leads...
                     </div>
@@ -676,7 +715,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="atendimentos" className="mt-4">
-                  {loadingSelectedAtendimentos ? (
+                  {errorSelectedAtendimentos ? (
+                    <div className="border border-dashed border-red-300 bg-red-50 py-8 text-center text-xs font-semibold uppercase tracking-widest text-red-700">
+                      {selectedAtendimentosError?.message || 'Nao foi possivel carregar as atividades.'}
+                    </div>
+                  ) : loadingSelectedAtendimentos ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Carregando atividades...
                     </div>
@@ -706,7 +749,11 @@ export default function Clientes() {
                 </TabsContent>
 
                 <TabsContent value="historico" className="mt-4">
-                  {loadingSelectedTimeline ? (
+                  {errorSelectedTimeline ? (
+                    <div className="border border-dashed border-red-300 bg-red-50 py-8 text-center text-xs font-semibold uppercase tracking-widest text-red-700">
+                      {selectedTimelineErrorMessage}
+                    </div>
+                  ) : loadingSelectedTimeline ? (
                     <div className="border border-dashed py-8 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                       Carregando timeline...
                     </div>

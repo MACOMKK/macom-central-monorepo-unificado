@@ -6,15 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const PAGAMENTOS_SCHEMA = 'gestao_pagamentos';
-const PAGAMENTOS_SYSTEM_SLUG = 'pagamentos';
+const SERVICOS_SCHEMA = 'gestao_servicos';
+const SERVICOS_SYSTEM_SLUG = 'servicos';
 const COMPROVANTES_STORAGE_BUCKET = 'comprovantes-pagamento';
 const COMPROVANTE_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_COMPROVANTE_FILE_SIZE = 5 * 1024 * 1024;
 
-const CREATE_FIELDS = ['fornecedor', 'descricao', 'valor', 'categoria', 'comprovante_path'] as const;
+const CREATE_FIELDS = [
+  'fornecedor',
+  'descricao',
+  'valor',
+  'categoria',
+  'comprovante_path',
+  'data_vencimento',
+  'forma_pagamento',
+] as const;
 const UPDATE_FIELDS = CREATE_FIELDS;
 const CATEGORIAS = ['fornecedor', 'servico', 'viagem', 'reembolso', 'outros'];
+const FORMAS_PAGAMENTO = ['pix', 'boleto', 'transferencia', 'cartao', 'outros'];
+const ORDER_BY_COLUMNS: Record<string, string> = {
+  criado_em: 'sp.criado_em desc',
+  data_vencimento: 'sp.data_vencimento asc nulls last',
+};
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -47,7 +60,7 @@ function getErrorStatus(error: unknown) {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Falha ao consultar o sistema de pagamentos.';
+  return error instanceof Error ? error.message : 'Falha ao consultar o modulo financeiro.';
 }
 
 function quoteIdentifier(value: string) {
@@ -116,7 +129,7 @@ async function getCurrentCollaborator(user: { id: string; email?: string }) {
   return rows[0] || null;
 }
 
-async function getPagamentosAccess(collaboradorId: string) {
+async function getServicosAccess(collaboradorId: string) {
   if (!sql) return null;
 
   const rows = await sql.unsafe(
@@ -130,7 +143,7 @@ async function getPagamentosAccess(collaboradorId: string) {
         and s.ativo = true
       limit 1;
     `,
-    [collaboradorId, PAGAMENTOS_SYSTEM_SLUG],
+    [collaboradorId, SERVICOS_SYSTEM_SLUG],
   );
 
   return rows[0] || null;
@@ -138,7 +151,7 @@ async function getPagamentosAccess(collaboradorId: string) {
 
 function ensureHasAccess(access: Record<string, unknown> | null) {
   if (!access || !['admin', 'gestor', 'usuario'].includes(getAccessLevel(access))) {
-    throw Object.assign(new Error('Seu usuario nao possui acesso liberado ao sistema de pagamentos.'), { status: 403 });
+    throw Object.assign(new Error('Seu usuario nao possui acesso liberado ao modulo financeiro.'), { status: 403 });
   }
 }
 
@@ -156,11 +169,25 @@ function validateCreatePayload(payload: Record<string, unknown>) {
   if (!CATEGORIAS.includes(categoria)) {
     throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
   }
+
+  if (payload.forma_pagamento && !FORMAS_PAGAMENTO.includes(String(payload.forma_pagamento))) {
+    throw Object.assign(new Error('Forma de pagamento invalida.'), { status: 400 });
+  }
+
+  if (payload.data_vencimento && Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
+    throw Object.assign(new Error('Data de vencimento invalida.'), { status: 400 });
+  }
 }
 
 async function ensureRowAccess(id: string, access: Record<string, unknown> | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
-    `select * from ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento where id = $1 limit 1;`,
+    `
+      select sp.*, c.nome as solicitante_nome
+      from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
+      join public.colaboradores c on c.id = sp.solicitante_id
+      where sp.id = $1
+      limit 1;
+    `,
     [id],
   );
   const row = rows[0];
@@ -224,7 +251,7 @@ async function enqueueStatusEmail(row: Record<string, unknown>, status: string) 
   const label = statusLabel[status] || status;
   const tipo = status === 'pago' ? 'pagamento_efetuado' : 'aprovacao_pagamento';
   const assunto = `Sua solicitacao de pagamento foi ${label}`;
-  const bodyText = `Ola ${solicitante.nome},\n\nSua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi ${label}.\n\nMACOM Pagamentos`;
+  const bodyText = `Ola ${solicitante.nome},\n\nSua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi ${label}.\n\nMACOM Servicos - Financeiro`;
 
   await sql.unsafe(
     `
@@ -252,7 +279,7 @@ Deno.serve(async (request) => {
 
     const user = await getAuthenticatedUser(request);
     const collaborator = await getCurrentCollaborator(user);
-    const access = collaborator?.id ? await getPagamentosAccess(String(collaborator.id)) : null;
+    const access = collaborator?.id ? await getServicosAccess(String(collaborator.id)) : null;
 
     const body = await request.json().catch(() => ({}));
     const action = String(body.action || 'list');
@@ -273,17 +300,25 @@ Deno.serve(async (request) => {
 
       if (!isAprovador(access)) {
         values.push(collaborator!.id);
-        clauses.push(`solicitante_id = $${values.length}`);
+        clauses.push(`sp.solicitante_id = $${values.length}`);
       }
 
       if (status) {
         values.push(status);
-        clauses.push(`status = $${values.length}`);
+        clauses.push(`sp.status = $${values.length}`);
       }
 
       const whereClause = clauses.length ? `where ${clauses.join(' and ')}` : '';
+      const orderBy = ORDER_BY_COLUMNS[String(filters.order_by || '')] || ORDER_BY_COLUMNS.criado_em;
       const rows = await sql.unsafe(
-        `select * from ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento ${whereClause} order by criado_em desc limit 200;`,
+        `
+          select sp.*, c.nome as solicitante_nome
+          from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
+          join public.colaboradores c on c.id = sp.solicitante_id
+          ${whereClause}
+          order by ${orderBy}
+          limit 200;
+        `,
         values,
       );
 
@@ -318,7 +353,7 @@ Deno.serve(async (request) => {
       const columns = fields.map(quoteIdentifier).join(', ');
       const placeholders = fields.map((_, index) => `$${index + 1}`).join(', ');
       const rows = await sql.unsafe(
-        `insert into ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento (${columns}) values (${placeholders}) returning *;`,
+        `insert into ${SERVICOS_SCHEMA}.solicitacoes_pagamento (${columns}) values (${placeholders}) returning *;`,
         fields.map((field) => payload[field]),
       );
 
@@ -343,7 +378,7 @@ Deno.serve(async (request) => {
       const fields = Object.keys(payload);
       const assignments = fields.map((field, index) => `${quoteIdentifier(field)} = $${index + 2}`).join(', ');
       const rows = await sql.unsafe(
-        `update ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
+        `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
         [id, ...fields.map((field) => payload[field])],
       );
 
@@ -372,7 +407,7 @@ Deno.serve(async (request) => {
 
         const rows = await sql.unsafe(
           `
-            update ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento
+            update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
             set status = $2, observacao_analise = $3, analisado_por = $4, analisado_em = now()
             where id = $1
             returning *;
@@ -394,7 +429,7 @@ Deno.serve(async (request) => {
 
         const rows = await sql.unsafe(
           `
-            update ${PAGAMENTOS_SCHEMA}.solicitacoes_pagamento
+            update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
             set status = 'pago', pago_por = $2, pago_em = now()
             where id = $1
             returning *;

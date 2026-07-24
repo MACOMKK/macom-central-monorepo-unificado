@@ -5,12 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, LayoutGrid, List, Search, RotateCcw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, LayoutGrid, List, Search, RotateCcw, UserCheck } from 'lucide-react';
 import LeadForm from '@/components/leads/LeadForm';
 import LeadsKanban from '@/components/leads/LeadsKanban';
+import PreLeadForm from '@/components/leads/PreLeadForm';
+import ListPagination from '@/components/ListPagination';
+import { Textarea } from '@/components/ui/textarea';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
+
+const FUNIL_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
 
 const STATUS_STYLES = {
   novo: 'bg-blue-600 text-white',
@@ -20,6 +26,8 @@ const STATUS_STYLES = {
   proposta: 'bg-orange-500 text-white',
   convertido: 'bg-green-600 text-white',
   perdido: 'bg-red-600 text-white',
+  triagem: 'bg-slate-500 text-white',
+  descartado: 'bg-slate-400 text-white',
 };
 
 const STATUS_LABEL = {
@@ -30,6 +38,8 @@ const STATUS_LABEL = {
   proposta: 'Proposta',
   convertido: 'Convertido',
   perdido: 'Perdido',
+  triagem: 'Em triagem',
+  descartado: 'Descartado',
 };
 
 const SLA_STYLES = {
@@ -48,6 +58,10 @@ const SLA_LABELS = {
 
 const formatDate = (value) => value
   ? new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T00:00:00`))
+  : '-';
+
+const formatDateTime = (value) => value
+  ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   : '-';
 
 const getClosingStatus = (lead) => {
@@ -89,8 +103,14 @@ const formatVehicleLabel = (vehicle = {}, fallback = '') => {
 };
 
 export default function Leads() {
+  const [viewSection, setViewSection] = useState('central');
+  const [preLeadView, setPreLeadView] = useState('triagem');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [promoting, setPromoting] = useState(false);
+  const [preLeadFormOpen, setPreLeadFormOpen] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState(null);
+  const [discardReason, setDiscardReason] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [viewMode, setViewMode] = useState('kanban');
   const [busca, setBusca] = useState('');
@@ -107,14 +127,16 @@ export default function Leads() {
 
   const filters = useMemo(() => ({
     ...(empresa !== 'Todas' ? { empresa } : {}),
-    ...(statusFiltro !== 'todos' ? { status: statusFiltro } : {}),
+    ...(viewSection === 'pre_leads'
+      ? { status: preLeadView === 'descartados' ? 'descartado' : 'triagem' }
+      : { status: statusFiltro !== 'todos' ? statusFiltro : FUNIL_STATUSES }),
     ...(responsavelFiltro !== 'todos' && responsavelFiltro !== 'sem_responsavel' ? { responsavel_id: responsavelFiltro } : {}),
     ...(responsavelFiltro === 'sem_responsavel' ? { responsavel_id: '__NULL__' } : {}),
     ...(origemFiltro !== 'todas' ? { origem: origemFiltro } : {}),
     ...(slaFiltro !== 'todos' ? { sla_status: slaFiltro } : {}),
     ...(periodoInicio ? { created_from: `${periodoInicio}T00:00:00` } : {}),
     ...(periodoFim ? { created_to: `${periodoFim}T23:59:59.999` } : {}),
-  }), [empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
+  }), [empresa, origemFiltro, periodoFim, periodoInicio, preLeadView, responsavelFiltro, slaFiltro, statusFiltro, viewSection]);
 
   const leadsQueryKey = ['leads', { filters, busca: buscaDebounced, page, pageSize }];
 
@@ -128,7 +150,7 @@ export default function Leads() {
 
   useEffect(() => {
     setPage(1);
-  }, [buscaDebounced, empresa, origemFiltro, periodoFim, periodoInicio, responsavelFiltro, slaFiltro, statusFiltro]);
+  }, [buscaDebounced, empresa, origemFiltro, periodoFim, periodoInicio, preLeadView, responsavelFiltro, slaFiltro, statusFiltro, viewSection]);
 
   const { data: leadsPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
     queryKey: leadsQueryKey,
@@ -216,11 +238,12 @@ export default function Leads() {
       if (saved?.id) {
         queryClient.invalidateQueries({ queryKey: ['lead-historico', saved.id] });
       }
+      const isPreLead = variables.data.status === 'triagem';
       toast({
-        title: context?.id ? 'Lead atualizado' : 'Lead criado',
+        title: context?.id ? 'Lead atualizado' : (isPreLead ? 'Pré-lead criado' : 'Lead criado'),
         description: context?.id
           ? 'As informacoes do lead foram salvas.'
-          : 'O lead foi cadastrado na central.',
+          : (isPreLead ? 'O pré-lead foi enviado para triagem.' : 'O lead foi cadastrado na central.'),
         variant: 'success',
       });
     },
@@ -303,6 +326,52 @@ export default function Leads() {
       toast({
         title: 'Nao foi possivel atualizar o lead',
         description: error.message || 'Revise os dados informados.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const promoteMutation = useMutation({
+    mutationFn: ({ id, data }) => crmDataClient.entities.Lead.promote(id, data),
+    onSuccess: () => {
+      setFormOpen(false);
+      setEditing(null);
+      setPromoting(false);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      toast({
+        title: 'Pré-lead qualificado',
+        description: 'O contato entrou no funil oficial de leads.',
+        variant: 'success',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel qualificar o pré-lead',
+        description: error.message || 'Revise os dados informados.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const discardMutation = useMutation({
+    mutationFn: ({ id, motivo }) => crmDataClient.entities.Lead.discard(id, motivo),
+    onSuccess: () => {
+      setDiscardTarget(null);
+      setDiscardReason('');
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      toast({
+        title: 'Pré-lead descartado',
+        description: 'O contato foi removido da triagem.',
+        variant: 'success',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Nao foi possivel descartar o pré-lead',
+        description: error.message || 'Informe o motivo do descarte.',
         variant: 'destructive',
       });
     },
@@ -509,29 +578,75 @@ export default function Leads() {
     <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-5">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-black uppercase tracking-widest">Central de Leads</h1>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">Funil comercial de captacao e conversao</p>
+          <h1 className="text-xl font-black uppercase tracking-widest">
+            {viewSection === 'pre_leads'
+              ? (preLeadView === 'descartados' ? 'Pré-Leads — Descartados' : 'Pré-Leads')
+              : 'Central de Leads'}
+          </h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">
+            {viewSection === 'pre_leads'
+              ? (preLeadView === 'descartados' ? 'Contatos sem potencial de compra' : 'Triagem de contatos antes de entrar no funil')
+              : 'Funil comercial de captacao e conversao'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
           <div className="flex border border-border bg-white">
             <button
-              onClick={() => setViewMode('kanban')}
-              className={cn('p-2 transition-colors', viewMode === 'kanban' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
-              title="Kanban"
+              onClick={() => setViewSection('central')}
+              className={cn('px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors', viewSection === 'central' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
+              Central de Leads
             </button>
             <button
-              onClick={() => setViewMode('table')}
-              className={cn('p-2 transition-colors', viewMode === 'table' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
-              title="Tabela"
+              onClick={() => { setViewSection('pre_leads'); setPreLeadView('triagem'); }}
+              className={cn('px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors', viewSection === 'pre_leads' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
             >
-              <List className="w-3.5 h-3.5" />
+              Pré-Leads
             </button>
           </div>
+          {viewSection === 'pre_leads' && (
+            <div className="flex border border-border bg-white">
+              <button
+                onClick={() => setPreLeadView('triagem')}
+                className={cn('px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors', preLeadView === 'triagem' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
+              >
+                Em Triagem
+              </button>
+              <button
+                onClick={() => setPreLeadView('descartados')}
+                className={cn('px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors', preLeadView === 'descartados' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
+              >
+                Descartados
+              </button>
+            </div>
+          )}
+          {viewSection === 'central' && (
+            <div className="flex border border-border bg-white">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={cn('p-2 transition-colors', viewMode === 'kanban' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
+                title="Kanban"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={cn('p-2 transition-colors', viewMode === 'table' ? 'bg-[#1a1a1a] text-white' : 'text-muted-foreground hover:text-foreground')}
+                title="Tabela"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           <Button
-            onClick={() => { setEditing(null); setFormOpen(true); }}
+            onClick={() => setPreLeadFormOpen(true)}
+            variant="outline"
+            className="h-9 text-xs font-bold uppercase tracking-widest rounded-none px-5"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Novo Pré-Lead
+          </Button>
+          <Button
+            onClick={() => { setPromoting(false); setEditing(null); setFormOpen(true); }}
             className="h-9 text-xs font-bold uppercase tracking-widest rounded-none px-5 bg-primary hover:bg-primary/90"
           >
             <Plus className="w-3.5 h-3.5 mr-1.5" /> Novo Lead
@@ -600,16 +715,16 @@ export default function Leads() {
       </div>
 
       {/* Kanban View */}
-      {viewMode === 'kanban' && (
+      {viewSection === 'central' && viewMode === 'kanban' && (
         <LeadsKanban
           leads={filtrados}
           onDragEnd={handleDragEnd}
-          onCardClick={(lead) => { setEditing(lead); setFormOpen(true); }}
+          onCardClick={(lead) => { setPromoting(false); setEditing(lead); setFormOpen(true); }}
         />
       )}
 
       {/* Table View */}
-      {viewMode === 'table' && (
+      {viewSection === 'central' && viewMode === 'table' && (
         <>
           <div className="flex gap-0 border-b border-border bg-white shadow-sm mb-4 overflow-x-auto">
             {STATUS_TABS.map((s) => (
@@ -656,7 +771,7 @@ export default function Leads() {
                     <TableRow
                       key={lead.id}
                       className={cn('cursor-pointer hover:bg-red-50 transition-colors', i % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]')}
-                      onClick={() => { setEditing(lead); setFormOpen(true); }}
+                      onClick={() => { setPromoting(false); setEditing(lead); setFormOpen(true); }}
                     >
                       <TableCell className="font-bold text-sm">{lead.nome}</TableCell>
                       <TableCell className="text-sm">{lead.telefone}</TableCell>
@@ -681,34 +796,118 @@ export default function Leads() {
               </TableBody>
             </Table>
           </div>
-          <div className="mt-3 flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm">
-            <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-              {leadsPage.count || 0} registros {isFetching ? 'carregando...' : ''}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-                disabled={page <= 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Anterior
-              </Button>
-              <span className="min-w-20 text-center font-bold uppercase tracking-wider">
-                {page}/{totalPages}
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 rounded-none text-xs font-bold uppercase tracking-wider"
-                disabled={page >= totalPages}
-                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-              >
-                Proxima
-              </Button>
-            </div>
+          <ListPagination
+            className="mt-3"
+            count={leadsPage.count}
+            isFetching={isFetching}
+            page={page}
+            totalPages={totalPages}
+            onPrev={() => setPage((current) => Math.max(1, current - 1))}
+            onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+          />
+        </>
+      )}
+
+      {/* Pré-Leads (triagem / descartados) */}
+      {viewSection === 'pre_leads' && (
+        <>
+          <div className="bg-white shadow-sm overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-[#1a1a1a] hover:bg-[#1a1a1a]">
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Nome</TableHead>
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Telefone</TableHead>
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Origem</TableHead>
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Empresa</TableHead>
+                  {preLeadView === 'descartados' ? (
+                    <>
+                      <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Motivo do descarte</TableHead>
+                      <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Descartado em</TableHead>
+                    </>
+                  ) : (
+                    <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Em triagem desde</TableHead>
+                  )}
+                  <TableHead className="text-white text-[10px] font-bold uppercase tracking-widest">Acoes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtrados.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground py-10">
+                      {preLeadView === 'descartados' ? 'Nenhum pré-lead descartado' : 'Nenhum pré-lead em triagem'}
+                    </TableCell>
+                  </TableRow>
+                ) : filtrados.map((lead, i) => {
+                  const isSaving = String(lead.id).startsWith('temp-');
+                  return (
+                  <TableRow
+                    key={lead.id}
+                    className={cn(i % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]')}
+                  >
+                    <TableCell className="font-bold text-sm">{lead.nome}</TableCell>
+                    <TableCell className="text-sm">{lead.telefone}</TableCell>
+                    <TableCell className="text-xs font-semibold uppercase">{lead.origem}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{lead.empresa}</TableCell>
+                    {preLeadView === 'descartados' ? (
+                      <>
+                        <TableCell className="text-xs text-muted-foreground max-w-[280px]">{lead.motivo_descarte}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{formatDateTime(lead.updated_date)}</TableCell>
+                      </>
+                    ) : (
+                      <TableCell className="text-xs text-muted-foreground">{formatDateTime(lead.created_date)}</TableCell>
+                    )}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {preLeadView === 'descartados' ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-none text-[11px] font-bold uppercase tracking-wider"
+                            onClick={() => { setPromoting(false); setEditing(lead); setFormOpen(true); }}
+                          >
+                            Ver detalhes
+                          </Button>
+                        ) : isSaving ? (
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Salvando...</span>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 rounded-none text-[11px] font-bold uppercase tracking-wider bg-primary hover:bg-primary/90"
+                              onClick={() => { setPromoting(true); setEditing({ ...lead, status: 'novo' }); setFormOpen(true); }}
+                            >
+                              <UserCheck className="w-3.5 h-3.5 mr-1" /> Qualificar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-none text-[11px] font-bold uppercase tracking-wider text-red-600 hover:text-red-700"
+                              onClick={() => { setDiscardTarget(lead); setDiscardReason(''); }}
+                            >
+                              Descartar
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
+          <ListPagination
+            className="mt-3"
+            count={leadsPage.count}
+            isFetching={isFetching}
+            page={page}
+            totalPages={totalPages}
+            onPrev={() => setPage((current) => Math.max(1, current - 1))}
+            onNext={() => setPage((current) => Math.min(totalPages, current + 1))}
+          />
         </>
       )}
 
@@ -716,10 +915,14 @@ export default function Leads() {
         <LeadForm
           key={editing?.id || 'new'}
           open={formOpen}
-          onOpenChange={setFormOpen}
+          onOpenChange={(next) => { setFormOpen(next); if (!next) setPromoting(false); }}
           lead={editing}
           responsaveis={responsaveis}
-          onSave={(data) => saveMutation.mutate({ id: editing?.id || null, data })}
+          onSave={(data) => (
+            promoting
+              ? promoteMutation.mutate({ id: editing.id, data })
+              : saveMutation.mutate({ id: editing?.id || null, data })
+          )}
           notes={editingNotes}
           attachments={editingAttachments}
           addingNote={noteMutation.isPending}
@@ -731,6 +934,51 @@ export default function Leads() {
           onDeleteAttachment={deleteAttachment}
         />
       )}
+
+      <PreLeadForm
+        open={preLeadFormOpen}
+        onOpenChange={setPreLeadFormOpen}
+        responsaveis={responsaveis}
+        onSave={(data) => { saveMutation.mutate({ id: null, data }); setPreLeadFormOpen(false); }}
+      />
+
+      <Dialog open={Boolean(discardTarget)} onOpenChange={(next) => { if (!next) { setDiscardTarget(null); setDiscardReason(''); } }}>
+        <DialogContent className="max-w-md rounded-none p-0">
+          <DialogHeader className="bg-[#1a1a1a] px-6 py-4">
+            <DialogTitle className="text-sm font-black uppercase tracking-widest text-white">
+              Descartar pré-lead
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!discardTarget) return;
+              discardMutation.mutate({ id: discardTarget.id, motivo: discardReason });
+            }}
+            className="flex flex-col gap-4 p-6"
+          >
+            <p className="text-xs text-muted-foreground">
+              Informe o motivo do descarte de <strong>{discardTarget?.nome}</strong>. Este pré-lead nao entrara no funil de leads.
+            </p>
+            <Textarea
+              required
+              value={discardReason}
+              onChange={(event) => setDiscardReason(event.target.value)}
+              placeholder="Ex.: numero errado, sem intencao de compra, contato duplicado..."
+              className="resize-none rounded-none text-sm"
+              rows={3}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" className="rounded-none text-xs font-bold uppercase tracking-wider" onClick={() => { setDiscardTarget(null); setDiscardReason(''); }}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={discardMutation.isPending} className="rounded-none bg-red-600 text-xs font-bold uppercase tracking-wider hover:bg-red-700">
+                {discardMutation.isPending ? 'Descartando...' : 'Descartar pré-lead'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

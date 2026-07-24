@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
 
-import { pagamentosApi } from '@macom/api-client/pagamentosApi';
+import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -40,7 +40,7 @@ export default function MinhasSolicitacoes() {
 
     async function load() {
       try {
-        const data = await pagamentosApi.solicitacoes.list();
+        const data = await financeiroApi.solicitacoes.list();
         if (mounted) setRows(data);
       } catch (error) {
         toast({ title: 'Nao foi possivel carregar as solicitacoes', description: error.message });

@@ -1,7 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
-  Bell,
   Calendar,
   CalendarDays,
   ChevronDown,
@@ -14,7 +13,6 @@ import {
   LogOut,
   PieChart,
   RefreshCw,
-  Settings,
   SlidersHorizontal,
   Tag,
   Users,
@@ -60,7 +58,11 @@ function NavMenu({ label, items }) {
               {item.path ? <item.icon className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
             </span>
             {item.label}
-            {!item.path ? <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-slate-400">Sem acesso</span> : null}
+            {!item.path ? (
+              <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-slate-400">
+                {item.comingSoon ? 'Em breve' : 'Sem acesso'}
+              </span>
+            ) : null}
           </DropdownMenuItem>
         )) : (
           <div className="flex flex-col items-center bg-white px-4 py-8 text-center">
@@ -155,22 +157,22 @@ export default function Navbar({ realtime }) {
             { label: 'Agenda de Atividades', icon: Tag, path: '/atividades' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Contatos e Clientes', icon: Users, path: '/clientes' },
-            { label: 'Estoque', icon: Columns3 },
-            { label: 'Recepção', icon: Headphones },
+            { label: 'Estoque', icon: Columns3, comingSoon: true },
+            { label: 'Recepção', icon: Headphones, comingSoon: true },
           ]} />
           <NavMenu label="Pós-Vendas" items={[
             { label: 'Agenda de Atividades', icon: Tag, path: '/atividades' },
             { label: 'Leads', icon: DollarSign, path: '/leads' },
-            { label: 'Agenda Online', icon: Calendar },
-            { label: 'Agenda V2', icon: CalendarDays },
-            { label: 'Painel de Retenção', icon: PieChart },
+            { label: 'Agenda Online', icon: Calendar, comingSoon: true },
+            { label: 'Agenda V2', icon: CalendarDays, comingSoon: true },
+            { label: 'Painel de Retenção', icon: PieChart, comingSoon: true },
           ]} />
           <NavMenu label="Marketing" items={null} />
           <NavMenu label="Gestão" items={[
             { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
             { label: 'Contatos e Clientes', icon: Users, path: '/clientes' },
-            { label: "KPI's", icon: BarChart3 },
-            { label: 'Treinamentos', icon: GraduationCap },
+            { label: "KPI's", icon: BarChart3, comingSoon: true },
+            { label: 'Treinamentos', icon: GraduationCap, comingSoon: true },
           ]} />
           <NavMenu label="Configurações" items={[
             {
@@ -178,17 +180,17 @@ export default function Navbar({ realtime }) {
               icon: SlidersHorizontal,
               path: user?.role === 'admin' || user?.role === 'manager' ? '/configuracoes/distribuicao' : undefined,
             },
-            { label: 'Funil', icon: SlidersHorizontal },
-            { label: 'Etapas do Funil', icon: SlidersHorizontal },
-            { label: 'Tipos de Atividade', icon: SlidersHorizontal },
-            { label: 'Origens', icon: SlidersHorizontal },
-            { label: 'Mídias', icon: SlidersHorizontal },
-            { label: 'Modelos de Interesse', icon: SlidersHorizontal },
-            { label: 'Motivos Insucesso', icon: SlidersHorizontal },
-            { label: 'Motivos Andamento', icon: SlidersHorizontal },
-            { label: 'Empresas', icon: SlidersHorizontal },
-            { label: 'Temperatura', icon: SlidersHorizontal },
-            { label: 'Tipo de Ação', icon: SlidersHorizontal },
+            { label: 'Funil', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Etapas do Funil', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Tipos de Atividade', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Origens', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Mídias', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Modelos de Interesse', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Motivos Insucesso', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Motivos Andamento', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Empresas', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Temperatura', icon: SlidersHorizontal, comingSoon: true },
+            { label: 'Tipo de Ação', icon: SlidersHorizontal, comingSoon: true },
           ]} />
         </nav>
 
@@ -212,12 +214,6 @@ export default function Navbar({ realtime }) {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <button type="button" className="text-white/60 transition-colors hover:text-white">
-            <Bell className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" className="text-white/60 transition-colors hover:text-white">
-            <Settings className="h-3.5 w-3.5" />
-          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white transition-colors hover:bg-primary/80">
               {userInitial}

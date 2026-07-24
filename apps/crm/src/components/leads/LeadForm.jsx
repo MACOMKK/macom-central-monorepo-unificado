@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { companyFromUnit } from '@/lib/empresa';
 import {
   BriefcaseBusiness,
   Car,
@@ -26,13 +27,6 @@ function formatDate(value) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
-}
-
-function companyFromUnit(unitName = '') {
-  const normalized = unitName.toLowerCase();
-  if (normalized.includes('paragominas')) return 'Macom Paragominas';
-  if (normalized.includes('bel')) return 'Macom Belém';
-  return 'Macom Ananindeua';
 }
 
 function formatBytes(value = 0) {
@@ -95,6 +89,7 @@ export default function LeadForm({
   });
   const [noteText, setNoteText] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
+  const [unidadeError, setUnidadeError] = useState('');
   const set = (field, value) => setData((current) => ({ ...current, [field]: value }));
   const setVehicle = (field, value) => setData((current) => ({
     ...current,
@@ -151,6 +146,7 @@ export default function LeadForm({
         ? current.responsavel_id
         : '',
     }));
+    setUnidadeError('');
   };
 
   const saveNote = () => {
@@ -171,6 +167,16 @@ export default function LeadForm({
   const goNext = () => setCurrentStep((step) => Math.min(step + 1, steps.length - 1));
   const goBack = () => setCurrentStep((step) => Math.max(step - 1, 0));
 
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!data.unidade_id) {
+      setUnidadeError('Selecione uma unidade antes de salvar.');
+      setCurrentStep(steps.findIndex((step) => step.key === 'responsavel'));
+      return;
+    }
+    onSave(data);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92vh] max-w-2xl flex-col gap-0 rounded-none p-0">
@@ -180,7 +186,7 @@ export default function LeadForm({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={(event) => { event.preventDefault(); onSave(data); }} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="border-b bg-white px-6 py-4">
             <div className="mb-4 h-1.5 overflow-hidden bg-slate-100">
               <div
@@ -337,14 +343,15 @@ export default function LeadForm({
             {currentStepKey === 'responsavel' ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Unidade *">
-                  <Select value={data.unidade_id || ''} onValueChange={setUnidade} required>
-                    <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
+                  <Select value={data.unidade_id || ''} onValueChange={setUnidade}>
+                    <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue placeholder="Selecione a unidade" /></SelectTrigger>
                     <SelectContent className="rounded-none">
                       {unidades.map((unidade) => (
                         <SelectItem key={unidade.id} value={unidade.id}>{unidade.nome}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {unidadeError ? <p className="text-xs font-semibold text-red-600">{unidadeError}</p> : null}
                 </Field>
                 <Field label="Responsavel">
                   <Select

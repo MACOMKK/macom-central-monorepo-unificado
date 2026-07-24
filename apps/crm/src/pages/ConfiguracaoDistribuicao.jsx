@@ -22,6 +22,25 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+export function validateDraft(value) {
+  const isBlankOrPositiveInt = (raw) => raw === '' || raw === null || raw === undefined || (Number.isInteger(Number(raw)) && Number(raw) >= 1);
+
+  if (!isBlankOrPositiveInt(value.limite_padrao_leads_ativos)) {
+    return 'Limite padrao por vendedor deve ser vazio (sem limite) ou um numero inteiro maior ou igual a 1.';
+  }
+  if (value.sla_primeiro_contato_minutos === '' || !Number.isInteger(Number(value.sla_primeiro_contato_minutos)) || Number(value.sla_primeiro_contato_minutos) < 1) {
+    return 'SLA do primeiro contato deve ser um numero inteiro maior ou igual a 1.';
+  }
+  if (value.sla_alerta_minutos === '' || !Number.isInteger(Number(value.sla_alerta_minutos)) || Number(value.sla_alerta_minutos) < 0) {
+    return 'Alerta antes de vencer deve ser um numero inteiro maior ou igual a 0.';
+  }
+  const invalidSeller = (value.sellers || []).find((seller) => !isBlankOrPositiveInt(seller.limite_leads_ativos));
+  if (invalidSeller) {
+    return 'Limite individual do vendedor deve ser vazio (usar padrao) ou um numero inteiro maior ou igual a 1.';
+  }
+  return null;
+}
+
 export default function ConfiguracaoDistribuicao() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -102,6 +121,15 @@ export default function ConfiguracaoDistribuicao() {
     ...current,
     sellers: current.sellers.map((seller) => seller.colaborador_id === collaboratorId ? { ...seller, ...changes } : seller),
   }));
+
+  function handleSave() {
+    const validationError = validateDraft(draft);
+    if (validationError) {
+      toast({ title: 'Revise os valores informados', description: validationError, variant: 'destructive' });
+      return;
+    }
+    saveMutation.mutate(draft);
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
@@ -206,7 +234,7 @@ export default function ConfiguracaoDistribuicao() {
           </section>
 
           <div className="mt-5 flex justify-end">
-            <Button onClick={() => saveMutation.mutate(draft)} disabled={saveMutation.isPending} className="rounded-none text-xs font-bold uppercase tracking-wider">
+            <Button onClick={handleSave} disabled={saveMutation.isPending} className="rounded-none text-xs font-bold uppercase tracking-wider">
               <Save className="mr-2 h-4 w-4" /> {saveMutation.isPending ? 'Salvando...' : 'Salvar regras'}
             </Button>
           </div>

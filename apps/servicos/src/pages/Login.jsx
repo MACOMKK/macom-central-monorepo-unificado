@@ -23,7 +23,7 @@ export default function Login({ loading = false }) {
     } catch (error) {
       toast({
         title: 'Acesso indisponivel',
-        description: error.message || 'Nao foi possivel entrar no sistema de pagamentos.',
+        description: error.message || 'Nao foi possivel entrar no sistema Servicos.',
       });
     } finally {
       setSubmitting(false);
@@ -37,7 +37,7 @@ export default function Login({ loading = false }) {
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <LogIn className="h-6 w-6" />
           </div>
-          <h1 className="text-xl font-bold">Acessar Pagamentos</h1>
+          <h1 className="text-xl font-bold">Acessar Servicos</h1>
           <p className="mt-1 text-sm text-muted-foreground">Use o mesmo login interno da MACOM</p>
         </div>
 
@@ -105,7 +105,7 @@ export default function Login({ loading = false }) {
         </form>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Sem acesso ao sistema de pagamentos? Solicite a liberacao ao administrador.
+          Sem acesso ao sistema Servicos? Solicite a liberacao ao administrador.
         </p>
       </div>
     </main>

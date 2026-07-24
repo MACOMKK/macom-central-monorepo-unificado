@@ -66,6 +66,10 @@ function toError(error, fallbackMessage) {
     return new Error('Ja existe um lead ativo para este cliente.');
   }
 
+  if (normalized.includes('idx_crm_leads_cliente_triagem_unique')) {
+    return new Error('Ja existe um pre-lead em triagem para este cliente.');
+  }
+
   if (normalized.includes('idx_crm_atendimentos_lead_aberto_unique')) {
     return new Error('Este lead ja possui uma atividade planejada.');
   }
@@ -153,6 +157,8 @@ function mapLeadRow(row = {}) {
     convertido_em: row.convertido_em || null,
     perdido_em: row.perdido_em || null,
     motivo_perda: row.motivo_perda || '',
+    motivo_descarte: row.motivo_descarte || '',
+    promovido_em: row.promovido_em || null,
     responsavel_id: row.responsavel_id || '',
     responsavel: row.responsavel || null,
     responsavel_nome: row.responsavel?.nome || '',
@@ -170,7 +176,8 @@ function mapLeadRow(row = {}) {
   };
 }
 
-function formatVehicleLabel(vehicle = {}) {
+function formatVehicleLabel(vehicle) {
+  vehicle = vehicle || {};
   return [
     vehicle.marca,
     vehicle.modelo,
@@ -282,6 +289,10 @@ function mapLeadPayload(data = {}, clienteId) {
     throw new Error('Informe o motivo da perda para encerrar este lead.');
   }
 
+  if (data.status === 'descartado' && !String(data.motivo_descarte || '').trim()) {
+    throw new Error('Informe o motivo do descarte para encerrar este pre-lead.');
+  }
+
   return {
     cliente_id: clienteId || data.cliente_id,
     nome: data.nome || '',
@@ -300,6 +311,7 @@ function mapLeadPayload(data = {}, clienteId) {
       ? (data.perdido_em || new Date().toISOString())
       : (data.perdido_em || null),
     motivo_perda: data.status === 'perdido' ? String(data.motivo_perda).trim() : null,
+    motivo_descarte: data.status === 'descartado' ? String(data.motivo_descarte).trim() : null,
     responsavel_id: data.responsavel_id || null,
     unidade_id: data.unidade_id || null,
     previsao_fechamento: data.previsao_fechamento || null,
@@ -674,6 +686,14 @@ const LeadRepository = {
     }
 
     return lead;
+  },
+
+  async promote(id, data = {}) {
+    return this.update(id, { ...data, status: data.status || 'novo' });
+  },
+
+  async discard(id, motivoDescarte) {
+    return this.update(id, { status: 'descartado', motivo_descarte: motivoDescarte });
   },
 };
 
