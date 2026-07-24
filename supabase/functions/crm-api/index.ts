@@ -1,6 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
-import { CRM_SCHEMA, buildAccessScope, getAccessLevel } from './access-scope.ts';
+import {
+  CRM_SCHEMA,
+  buildAccessScope,
+  getAccessLevel,
+  applyCreateScope,
+  ensureCanManage,
+  ensureCanConfigure,
+} from './access-scope.ts';
 import type { EntityName } from './access-scope.ts';
 
 const corsHeaders = {
@@ -421,29 +428,6 @@ function buildAdvancedFilters(entity: EntityName, filters: Record<string, unknow
   return { clauses, values };
 }
 
-function applyCreateScope(
-  entity: EntityName,
-  payload: Record<string, unknown>,
-  access: Record<string, unknown> | null,
-  collaborator: Record<string, unknown> | null,
-) {
-  const level = getAccessLevel(access);
-  if (level === 'admin') return payload;
-
-  const collaboratorId = String(collaborator?.id || '');
-  const unitId = String(collaborator?.unidade_id || '');
-
-  if (entity === 'leads') {
-    if (!unitId) throw Object.assign(new Error('Usuario sem unidade vinculada.'), { status: 403 });
-    payload.unidade_id = unitId;
-    if (level === 'usuario') {
-      payload.responsavel_id = collaboratorId;
-    }
-  }
-
-  return payload;
-}
-
 async function ensureEntityAccess(
   entity: EntityName,
   id: string,
@@ -573,9 +557,7 @@ async function getAuthenticatedUser(request: Request) {
 }
 
 async function getCurrentCollaborator(user: { id: string; email?: string }) {
-  if (!sql) return null;
-
-  const rows = await sql.unsafe(
+  const rows = await sql!.unsafe(
     `
       select *
       from public.colaboradores
@@ -591,9 +573,7 @@ async function getCurrentCollaborator(user: { id: string; email?: string }) {
 }
 
 async function getCrmAccess(collaboratorId: string) {
-  if (!sql) return null;
-
-  const rows = await sql.unsafe(
+  const rows = await sql!.unsafe(
     `
       select
         aus.*,
@@ -612,18 +592,6 @@ async function getCrmAccess(collaboratorId: string) {
   return rows[0] || null;
 }
 
-function ensureCanManage(access: Record<string, unknown> | null) {
-  if (!access || !['admin', 'gestor', 'usuario'].includes(String(access.nivel_acesso || ''))) {
-    throw Object.assign(new Error('Seu usuario nao possui acesso liberado ao CRM.'), { status: 403 });
-  }
-}
-
-function ensureCanConfigure(access: Record<string, unknown> | null) {
-  if (!access || !['admin', 'gestor'].includes(String(access.nivel_acesso || ''))) {
-    throw Object.assign(new Error('Apenas administradores e gestores podem configurar a distribuicao.'), { status: 403 });
-  }
-}
-
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -637,6 +605,20 @@ Deno.serve(async (request) => {
     const user = await getAuthenticatedUser(request);
     const collaborator = await getCurrentCollaborator(user);
     const access = collaborator?.id ? await getCrmAccess(String(collaborator.id)) : null;
+
+    if (!collaborator) {
+      console.warn('[crm-api] acesso negado: usuario autenticado sem colaborador vinculado', {
+        userId: user.id,
+        email: user.email,
+      });
+    } else if (!access) {
+      console.warn('[crm-api] acesso negado: colaborador sem acesso ativo ao CRM', {
+        userId: user.id,
+        colaboradorId: collaborator.id,
+        email: user.email,
+      });
+    }
+
     ensureCanManage(access);
 
     const body = await request.json().catch(() => ({}));
@@ -801,11 +783,48 @@ Deno.serve(async (request) => {
         return json({ error: 'Confirmacao ausente ou invalida para limpar os dados do CRM.' }, 400);
       }
 
+      const scopeUnitId = typeof body.unidade_id === 'string' && body.unidade_id ? body.unidade_id : null;
+      let scopeUnitName: string | null = null;
+
+      if (scopeUnitId) {
+        const [unidade] = await sql.unsafe(`select nome from public.unidades where id = $1;`, [scopeUnitId]);
+        if (!unidade) return json({ error: 'Unidade nao encontrada.' }, 400);
+        if (String(body.confirm_unidade_nome || '').trim() !== unidade.nome) {
+          return json({ error: 'Nome da unidade nao confere para confirmar a limpeza parcial.' }, 400);
+        }
+        scopeUnitName = unidade.nome;
+      } else if (body.confirmar_global !== true) {
+        return json(
+          { error: 'Confirme explicitamente que deseja limpar TODAS as unidades (confirmar_global: true).' },
+          400,
+        );
+      }
+
       const counts = await sql.begin(async (transaction) => {
-        const [{ count: clientesCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.clientes;`);
-        const [{ count: leadsCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.leads;`);
-        const [{ count: atendimentosCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.atendimentos;`);
-        const [{ count: historicoCount }] = await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.historico_atendimentos;`);
+        const leadFilter = scopeUnitId ? `where unidade_id = $1` : '';
+        const leadFilterValues = scopeUnitId ? [scopeUnitId] : [];
+
+        const [{ count: leadsCount }] = await transaction.unsafe(
+          `select count(*)::int as count from ${CRM_SCHEMA}.leads ${leadFilter};`,
+          leadFilterValues,
+        );
+        const [{ count: atendimentosCount }] = await transaction.unsafe(
+          scopeUnitId
+            ? `select count(*)::int as count from ${CRM_SCHEMA}.atendimentos
+               where lead_id in (select id from ${CRM_SCHEMA}.leads where unidade_id = $1);`
+            : `select count(*)::int as count from ${CRM_SCHEMA}.atendimentos;`,
+          leadFilterValues,
+        );
+        const [{ count: historicoCount }] = await transaction.unsafe(
+          scopeUnitId
+            ? `select count(*)::int as count from ${CRM_SCHEMA}.historico_atendimentos
+               where lead_id in (select id from ${CRM_SCHEMA}.leads where unidade_id = $1);`
+            : `select count(*)::int as count from ${CRM_SCHEMA}.historico_atendimentos;`,
+          leadFilterValues,
+        );
+        const [{ count: clientesCount }] = scopeUnitId
+          ? [{ count: 0 }]
+          : await transaction.unsafe(`select count(*)::int as count from ${CRM_SCHEMA}.clientes;`);
 
         await transaction.unsafe(
           `insert into ${CRM_SCHEMA}.logs_auditoria (entidade, acao, actor_colaborador_id, actor_email, metadados)
@@ -816,6 +835,9 @@ Deno.serve(async (request) => {
             collaborator?.id || null,
             user.email || null,
             JSON.stringify({
+              escopo: scopeUnitId ? 'unidade' : 'global',
+              unidade_id: scopeUnitId,
+              unidade_nome: scopeUnitName,
               clientes: clientesCount,
               leads: leadsCount,
               atendimentos: atendimentosCount,
@@ -824,14 +846,34 @@ Deno.serve(async (request) => {
           ],
         );
 
-        await transaction.unsafe(`delete from ${CRM_SCHEMA}.historico_atendimentos;`);
-        await transaction.unsafe(`delete from ${CRM_SCHEMA}.atendimentos;`);
-        await transaction.unsafe(`delete from ${CRM_SCHEMA}.leads;`);
-        await transaction.unsafe(`delete from ${CRM_SCHEMA}.clientes;`);
-        await transaction.unsafe(`
-          update ${CRM_SCHEMA}.vendedores_distribuicao
-          set ultimo_lead_atribuido_em = null;
-        `);
+        if (scopeUnitId) {
+          await transaction.unsafe(
+            `delete from ${CRM_SCHEMA}.historico_atendimentos
+             where lead_id in (select id from ${CRM_SCHEMA}.leads where unidade_id = $1);`,
+            [scopeUnitId],
+          );
+          await transaction.unsafe(
+            `delete from ${CRM_SCHEMA}.atendimentos
+             where lead_id in (select id from ${CRM_SCHEMA}.leads where unidade_id = $1);`,
+            [scopeUnitId],
+          );
+          await transaction.unsafe(`delete from ${CRM_SCHEMA}.leads where unidade_id = $1;`, [scopeUnitId]);
+          await transaction.unsafe(
+            `update ${CRM_SCHEMA}.vendedores_distribuicao
+             set ultimo_lead_atribuido_em = null
+             where unidade_id = $1;`,
+            [scopeUnitId],
+          );
+        } else {
+          await transaction.unsafe(`delete from ${CRM_SCHEMA}.historico_atendimentos;`);
+          await transaction.unsafe(`delete from ${CRM_SCHEMA}.atendimentos;`);
+          await transaction.unsafe(`delete from ${CRM_SCHEMA}.leads;`);
+          await transaction.unsafe(`delete from ${CRM_SCHEMA}.clientes;`);
+          await transaction.unsafe(`
+            update ${CRM_SCHEMA}.vendedores_distribuicao
+            set ultimo_lead_atribuido_em = null;
+          `);
+        }
 
         return { clientesCount, leadsCount, atendimentosCount, historicoCount };
       });
@@ -839,10 +881,16 @@ Deno.serve(async (request) => {
       console.log('[crm-api] clear_crm_test_data executado', {
         actor: user.email,
         collaboratorId: collaborator?.id,
+        escopo: scopeUnitId ? 'unidade' : 'global',
+        unidadeId: scopeUnitId,
         counts,
       });
 
-      return json({ success: true });
+      return json({
+        success: true,
+        scope: scopeUnitId ? 'unidade' : 'global',
+        clientesPreservados: Boolean(scopeUnitId),
+      });
     }
 
     const entity = String(body.entity || '') as EntityName;
