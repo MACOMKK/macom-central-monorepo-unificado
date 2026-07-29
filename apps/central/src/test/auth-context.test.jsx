@@ -98,7 +98,7 @@ describe('AuthProvider', () => {
           funcao: 'admin',
           status: 'ativo',
         },
-        access: null,
+        access: { id: 'access-1', nivel_acesso: 'admin', ativo: true },
       }),
     });
 
@@ -152,7 +152,7 @@ describe('AuthProvider', () => {
           funcao: 'admin',
           status: 'ativo',
         },
-        access: null,
+        access: { id: 'access-3', nivel_acesso: 'admin', ativo: true },
       }),
     });
 
@@ -196,7 +196,7 @@ describe('AuthProvider', () => {
           funcao: 'admin',
           status: 'ativo',
         },
-        access: null,
+        access: { id: 'access-4', nivel_acesso: 'admin', ativo: true },
       }),
     });
 
@@ -290,7 +290,7 @@ describe('AuthProvider', () => {
           funcao: 'gestor',
           status: 'ativo',
         },
-        access: null,
+        access: { id: 'access-2', nivel_acesso: 'gestor', ativo: true },
       }),
     });
 
@@ -313,6 +313,130 @@ describe('AuthProvider', () => {
       );
       expect(screen.getByText('autenticado')).toBeInTheDocument();
       expect(screen.getByText('Gestor Central')).toBeInTheDocument();
+    });
+  });
+
+  it('permite acesso via fallback de funcao quando allowFunctionFallback esta ativo (padrao, usado pelo Console)', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-fallback-funcao',
+          user: { id: 'user-5', email: 'funcao-apenas@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-5',
+          nome: 'Gestor Por Funcao',
+          email: 'funcao-apenas@macom.com',
+          funcao: 'gestor',
+          status: 'ativo',
+        },
+        access: null,
+      }),
+    });
+
+    render(
+      <AuthProvider>
+        <Harness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('autenticado')).toBeInTheDocument();
+      expect(screen.getByText('Gestor Por Funcao')).toBeInTheDocument();
+    });
+  });
+
+  it('nega acesso ao Console (allowFunctionFallback=true) quando funcao=usuario, mesmo com grant explicito ativo em acessos_usuario_sistema', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-grant-nao-deve-valer-no-console',
+          user: { id: 'user-7', email: 'usuario-com-grant@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-7',
+          nome: 'Usuario Com Grant De Central',
+          email: 'usuario-com-grant@macom.com',
+          funcao: 'usuario',
+          status: 'ativo',
+        },
+        access: { id: 'access-7', nivel_acesso: 'admin', ativo: true },
+      }),
+    });
+
+    render(
+      <AuthProvider>
+        <ErrorHarness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('anonimo')).toBeInTheDocument();
+      expect(screen.getByText('Acesso restrito a administradores e gestores.')).toBeInTheDocument();
+    });
+  });
+
+  it('nega acesso quando allowFunctionFallback=false (Central) e ha apenas funcao, sem grant explicito ativo', async () => {
+    const user = userEvent.setup();
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'token-sem-acesso',
+          user: { id: 'user-6', email: 'sem-acesso@macom.com' },
+        },
+      },
+      error: null,
+    });
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        row: {
+          id: 'user-6',
+          nome: 'Sem Acesso Explicito',
+          email: 'sem-acesso@macom.com',
+          funcao: 'gestor',
+          status: 'ativo',
+        },
+        access: null,
+      }),
+    });
+
+    render(
+      <AuthProvider allowFunctionFallback={false}>
+        <ErrorHarness />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(signOutMock).toHaveBeenCalled();
+      expect(screen.getByText('anonimo')).toBeInTheDocument();
+      expect(screen.getByText('Acesso restrito a administradores e gestores.')).toBeInTheDocument();
     });
   });
 });

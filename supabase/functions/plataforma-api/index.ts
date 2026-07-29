@@ -48,6 +48,13 @@ const ENTITY_CONFIG = {
     orderDirection: 'asc',
     allowedFilters: ['id', 'funcao', 'modulo', 'nivel_acesso'],
   },
+  permissoes_central_nivel: {
+    schema: 'gestao_ativos',
+    table: 'permissoes_central_nivel',
+    orderBy: 'modulo',
+    orderDirection: 'asc',
+    allowedFilters: ['id', 'nivel_acesso', 'modulo', 'permissao'],
+  },
   permissoes_funcoes_relatorios: {
     schema: 'gestao_relatorio',
     table: 'permissoes_funcoes',
@@ -215,13 +222,12 @@ async function getAuthenticatedCollaborator(authUser: { id: string; email?: stri
   return byEmailRows[0] || null;
 }
 
-async function getCentralPermissions(funcao: string | null | undefined) {
-  if (!sql || !funcao) return [];
+async function getCentralPermissions(tier: string | null | undefined) {
+  if (!sql || !tier) return [];
 
-  if (funcao === 'admin') {
+  if (tier === 'admin') {
     return CENTRAL_MODULES.map((modulo) => ({
       id: `admin-${modulo}`,
-      funcao,
       modulo,
       nivel_acesso: 'gerenciar',
     }));
@@ -229,15 +235,41 @@ async function getCentralPermissions(funcao: string | null | undefined) {
 
   const rows = await sql.unsafe(
     `
-      select id, funcao, modulo, nivel_acesso, criado_em, atualizado_em
+      select id, modulo, permissao as nivel_acesso, criado_em, atualizado_em
+      from gestao_ativos.permissoes_central_nivel
+      where nivel_acesso = $1
+      order by modulo asc;
+    `,
+    [tier],
+  );
+
+  if (rows.length) return rows;
+
+  // Fallback de leitura na matriz antiga (por funcao) enquanto ela ainda existir.
+  return await sql.unsafe(
+    `
+      select id, modulo, nivel_acesso, criado_em, atualizado_em
       from gestao_ativos.permissoes_central
       where funcao = $1
       order by modulo asc;
     `,
-    [funcao],
+    [tier],
   );
+}
 
-  return rows;
+async function resolveCentralAccessTier(collaborator: Record<string, unknown> | null) {
+  if (!collaborator || collaborator.status === 'inativo') return null;
+
+  // O Console (admin) e gerenciado por `funcao`, nao pela tela "Acessos" — essa tela
+  // (acessos_usuario_sistema) passou a ser o mecanismo de acesso exclusivo da Central
+  // (apps/central), um app separado que so compartilha o registro `sistemas.slug='central'`.
+  // Usar o grant explicito aqui misturaria os dois modelos e pode divergir do cargo real
+  // do colaborador (ex.: grant de teste desatualizado travando um admin de verdade).
+  if (collaborator.funcao === 'admin' || collaborator.funcao === 'gestor') {
+    return collaborator.funcao as string;
+  }
+
+  return null;
 }
 
 async function getSystemAccessForCollaborator({
@@ -267,15 +299,12 @@ async function getSystemAccessForCollaborator({
   return rows[0] || null;
 }
 
-function canAccessPlataforma(collaborator: Record<string, unknown> | null) {
-  return (
-    collaborator?.status !== 'inativo' &&
-    (collaborator?.funcao === 'admin' || collaborator?.funcao === 'gestor')
-  );
+function canAccessPlataforma(centralAccessTier: string | null) {
+  return centralAccessTier === 'admin' || centralAccessTier === 'gestor';
 }
 
-function isGlobalAdmin(collaborator: Record<string, unknown>) {
-  return collaborator.funcao === 'admin' && collaborator.status !== 'inativo';
+function isGlobalAdmin(centralAccessTier: string | null) {
+  return centralAccessTier === 'admin';
 }
 
 async function fetchRowById(schema: string, table: string, id: string) {
@@ -348,11 +377,11 @@ function sanitizeCollaboratorAccessPayload(payload: Record<string, unknown> = {}
 async function updateCollaboratorAccessProfile({
   id,
   payload,
-  collaborator,
+  centralAccessTier,
 }: {
   id?: string | null;
   payload: Record<string, unknown>;
-  collaborator: Record<string, unknown>;
+  centralAccessTier: string | null;
 }) {
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
@@ -366,12 +395,12 @@ async function updateCollaboratorAccessProfile({
     return json({ error: 'Colaborador nao encontrado.' }, 404);
   }
 
-  if (!isGlobalAdmin(collaborator) && sanitized.funcao && sanitized.funcao !== 'usuario') {
+  if (!isGlobalAdmin(centralAccessTier) && sanitized.funcao && sanitized.funcao !== 'usuario') {
     return json({ error: 'Apenas administradores podem definir colaboradores como admin ou gestor.' }, 403);
   }
 
   if (
-    !isGlobalAdmin(collaborator) &&
+    !isGlobalAdmin(centralAccessTier) &&
     sanitized.status === 'inativo' &&
     ['admin', 'gestor'].includes(String(beforeRow.funcao || '')) &&
     beforeRow.status !== 'inativo'
@@ -402,11 +431,11 @@ async function updateCollaboratorAccessProfile({
 async function updateCollaboratorPassword({
   id,
   password,
-  collaborator,
+  centralAccessTier,
 }: {
   id?: string | null;
   password?: string | null;
-  collaborator: Record<string, unknown>;
+  centralAccessTier: string | null;
 }) {
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
   if (!password || password.length < 6) {
@@ -418,7 +447,7 @@ async function updateCollaboratorPassword({
     return json({ error: 'Colaborador nao encontrado.' }, 404);
   }
 
-  if (!isGlobalAdmin(collaborator) && collaboratorRow.funcao === 'admin') {
+  if (!isGlobalAdmin(centralAccessTier) && collaboratorRow.funcao === 'admin') {
     return json({ error: 'Apenas administradores podem redefinir senha de colaboradores admin.' }, 403);
   }
 
@@ -441,12 +470,12 @@ async function updateCollaboratorEmail({
   id,
   email,
   resetPassword,
-  collaborator,
+  centralAccessTier,
 }: {
   id?: string | null;
   email?: string | null;
   resetPassword?: boolean;
-  collaborator: Record<string, unknown>;
+  centralAccessTier: string | null;
 }) {
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
@@ -460,7 +489,7 @@ async function updateCollaboratorEmail({
     return json({ error: 'Colaborador nao encontrado.' }, 404);
   }
 
-  if (!isGlobalAdmin(collaborator) && (collaboratorRow.funcao === 'admin' || collaboratorRow.funcao === 'gestor')) {
+  if (!isGlobalAdmin(centralAccessTier) && (collaboratorRow.funcao === 'admin' || collaboratorRow.funcao === 'gestor')) {
     return json({ error: 'Apenas administradores podem alterar email de colaboradores admin ou gestor.' }, 403);
   }
 
@@ -507,10 +536,10 @@ async function updateCollaboratorEmail({
 
 async function saveSystemAccess({
   payload,
-  collaborator,
+  centralAccessTier,
 }: {
   payload: Record<string, unknown>;
-  collaborator: Record<string, unknown>;
+  centralAccessTier: string | null;
 }) {
   const sanitized = sanitizeSystemAccessPayload(payload);
   const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
@@ -521,7 +550,7 @@ async function saveSystemAccess({
     return json({ error: 'Colaborador e sistema sao obrigatorios.' }, 400);
   }
 
-  if (!isGlobalAdmin(collaborator) && nextAccessLevel === 'admin') {
+  if (!isGlobalAdmin(centralAccessTier) && nextAccessLevel === 'admin') {
     return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
   }
 
@@ -556,11 +585,11 @@ async function saveSystemAccess({
 async function updateSystemAccess({
   id,
   payload,
-  collaborator,
+  centralAccessTier,
 }: {
   id?: string | null;
   payload: Record<string, unknown>;
-  collaborator: Record<string, unknown>;
+  centralAccessTier: string | null;
 }) {
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
@@ -572,7 +601,7 @@ async function updateSystemAccess({
     return json({ error: 'Payload vazio.' }, 400);
   }
 
-  if (!isGlobalAdmin(collaborator) && sanitized.nivel_acesso === 'admin') {
+  if (!isGlobalAdmin(centralAccessTier) && sanitized.nivel_acesso === 'admin') {
     return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
   }
 
@@ -631,6 +660,35 @@ async function saveCentralPermission(payload: Record<string, unknown> = {}) {
       returning *;
     `,
     [funcao, modulo, nivelAcesso],
+  );
+
+  return json({ row: rows[0] || null });
+}
+
+async function saveCentralPermissionNivel(payload: Record<string, unknown> = {}) {
+  const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
+  const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
+  const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
+
+  if (!nivelAcesso || !modulo) {
+    return json({ error: 'Nivel de acesso e modulo sao obrigatorios.' }, 400);
+  }
+
+  const rows = await sql!.unsafe(
+    `
+      insert into gestao_ativos.permissoes_central_nivel (
+        nivel_acesso,
+        modulo,
+        permissao
+      )
+      values ($1, $2, $3)
+      on conflict (nivel_acesso, modulo)
+      do update set
+        permissao = excluded.permissao,
+        atualizado_em = now()
+      returning *;
+    `,
+    [nivelAcesso, modulo, permissao],
   );
 
   return json({ row: rows[0] || null });
@@ -809,12 +867,12 @@ Deno.serve(async (request) => {
     const body = await request.json().catch(() => ({}));
     const { action, entity } = body || {};
 
+    const centralAccessTier = await resolveCentralAccessTier(collaborator as Record<string, unknown> | null);
+
     if (action === 'me' && entity === 'colaboradores') {
       const activeCollaborator = collaborator as Record<string, unknown> | null;
       const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
-      const permissions = await getCentralPermissions(
-        typeof activeCollaborator?.funcao === 'string' ? activeCollaborator.funcao : null,
-      );
+      const permissions = await getCentralPermissions(centralAccessTier);
       const access = systemSlug
         ? await getSystemAccessForCollaborator({
             collaboratorId: typeof activeCollaborator?.id === 'string' ? activeCollaborator.id : null,
@@ -829,7 +887,7 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (!canAccessPlataforma(collaborator)) {
+    if (!canAccessPlataforma(centralAccessTier)) {
       return json({ error: 'Acesso restrito ao MACOM Console.' }, 403);
     }
     const activeCollaborator = collaborator as Record<string, unknown>;
@@ -847,12 +905,16 @@ Deno.serve(async (request) => {
     if (action === 'save' && entity === 'acessos_usuario_sistema') {
       return saveSystemAccess({
         payload: body.payload || {},
-        collaborator: activeCollaborator,
+        centralAccessTier,
       });
     }
 
     if (action === 'save' && entity === 'permissoes_central') {
       return saveCentralPermission(body.payload || {});
+    }
+
+    if (action === 'save' && entity === 'permissoes_central_nivel') {
+      return saveCentralPermissionNivel(body.payload || {});
     }
 
     if (action === 'save' && entity === 'permissoes_funcoes_relatorios') {
@@ -863,7 +925,7 @@ Deno.serve(async (request) => {
       return updateCollaboratorAccessProfile({
         id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
-        collaborator: activeCollaborator,
+        centralAccessTier,
       });
     }
 
@@ -871,7 +933,7 @@ Deno.serve(async (request) => {
       return updateCollaboratorPassword({
         id: typeof body.id === 'string' ? body.id : null,
         password: typeof body.password === 'string' ? body.password : null,
-        collaborator: activeCollaborator,
+        centralAccessTier,
       });
     }
 
@@ -880,7 +942,7 @@ Deno.serve(async (request) => {
         id: typeof body.id === 'string' ? body.id : null,
         email: typeof body.email === 'string' ? body.email : null,
         resetPassword: body.reset_password === true,
-        collaborator: activeCollaborator,
+        centralAccessTier,
       });
     }
 
@@ -888,7 +950,7 @@ Deno.serve(async (request) => {
       return updateSystemAccess({
         id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
-        collaborator: activeCollaborator,
+        centralAccessTier,
       });
     }
 

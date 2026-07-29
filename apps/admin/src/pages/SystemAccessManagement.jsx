@@ -45,7 +45,7 @@ const accessOptions = [
   { value: 'usuario', label: 'Usuario' },
 ];
 
-const hiddenAccessSystemSlugs = new Set(['central', 'rh']);
+const hiddenAccessSystemSlugs = new Set(['rh']);
 
 function accessKey(access) {
   if (access.colaborador_id && access.sistema_id) {

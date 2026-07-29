@@ -37,7 +37,7 @@ const permissionSystemCards = permissionSystems.map((system) => (
 ));
 
 function upsertCentralPermission(permissions, permission) {
-  return upsertByKey(permissions, permission, (item) => `${item.funcao}:${item.modulo}`);
+  return upsertByKey(permissions, permission, (item) => `${item.nivel_acesso}:${item.modulo}`);
 }
 
 function upsertReportsPermission(permissions, permission) {
@@ -66,7 +66,7 @@ export default function SystemPermissions() {
     error: centralError,
   } = useQuery({
     queryKey: ['console', 'permissions', 'central'],
-    queryFn: platformPermissionsApi.central.list,
+    queryFn: platformPermissionsApi.centralNivel.list,
     enabled: isAdmin,
   });
 
@@ -82,8 +82,8 @@ export default function SystemPermissions() {
 
   useEffect(() => {
     const nextDraft = centralModules.reduce((acc, module) => {
-      const permission = centralPermissions.find((item) => item.funcao === 'gestor' && item.modulo === module.key);
-      acc[module.key] = permission?.nivel_acesso || PERMISSION_LEVELS.none;
+      const permission = centralPermissions.find((item) => item.nivel_acesso === 'gestor' && item.modulo === module.key);
+      acc[module.key] = permission?.permissao || PERMISSION_LEVELS.none;
       return acc;
     }, {});
 
@@ -115,8 +115,8 @@ export default function SystemPermissions() {
   const hasCentralChanges = useMemo(
     () =>
       centralModules.some((module) => {
-        const saved = centralPermissions.find((item) => item.funcao === 'gestor' && item.modulo === module.key);
-        return (saved?.nivel_acesso || PERMISSION_LEVELS.none) !== draftCentral[module.key];
+        const saved = centralPermissions.find((item) => item.nivel_acesso === 'gestor' && item.modulo === module.key);
+        return (saved?.permissao || PERMISSION_LEVELS.none) !== draftCentral[module.key];
       }),
     [centralPermissions, draftCentral],
   );
@@ -133,16 +133,16 @@ export default function SystemPermissions() {
   const saveCentralMutation = useMutation({
     mutationFn: async () => {
       const changedModules = centralModules.filter((module) => {
-        const saved = centralPermissions.find((item) => item.funcao === 'gestor' && item.modulo === module.key);
-        return (saved?.nivel_acesso || PERMISSION_LEVELS.none) !== draftCentral[module.key];
+        const saved = centralPermissions.find((item) => item.nivel_acesso === 'gestor' && item.modulo === module.key);
+        return (saved?.permissao || PERMISSION_LEVELS.none) !== draftCentral[module.key];
       });
 
       const savedRows = [];
       for (const module of changedModules) {
-        const saved = await platformPermissionsApi.central.save({
-          funcao: 'gestor',
+        const saved = await platformPermissionsApi.centralNivel.save({
+          nivel_acesso: 'gestor',
           modulo: module.key,
-          nivel_acesso: draftCentral[module.key] || PERMISSION_LEVELS.none,
+          permissao: draftCentral[module.key] || PERMISSION_LEVELS.none,
         });
         savedRows.push(saved);
       }
@@ -158,9 +158,9 @@ export default function SystemPermissions() {
         return centralModules.reduce(
           (acc, module) =>
             upsertCentralPermission(acc, {
-              funcao: 'gestor',
+              nivel_acesso: 'gestor',
               modulo: module.key,
-              nivel_acesso: draftCentral[module.key] || PERMISSION_LEVELS.none,
+              permissao: draftCentral[module.key] || PERMISSION_LEVELS.none,
             }),
           old,
         );

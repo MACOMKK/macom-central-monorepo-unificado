@@ -83,6 +83,39 @@ export const platformPermissionsApi = {
       return result.row || null;
     },
   },
+  centralNivel: {
+    list: async (options = {}, accessTokenOverride) => {
+      const result = await invokePlataformaApi(
+        'list',
+        {
+          entity: 'permissoes_central_nivel',
+          filters: options.filters || {},
+        },
+        accessTokenOverride,
+      );
+      return result.rows || [];
+    },
+    save: async (payload) => {
+      const result = await invokePlataformaApi('save', {
+        entity: 'permissoes_central_nivel',
+        payload,
+      });
+      await writeConsoleAudit({
+        entidade: 'permissoes_sistemas',
+        acao: 'atualizar',
+        registro_id: result.row?.id || payload.id || null,
+        antes: null,
+        depois: result.row || null,
+        metadados: {
+          sistema_slug: 'central',
+          modulo: result.row?.modulo || payload.modulo || null,
+          permissao: result.row?.permissao || payload.permissao || null,
+          nivel_acesso_novo: result.row?.nivel_acesso || payload.nivel_acesso || null,
+        },
+      });
+      return result.row || null;
+    },
+  },
   relatorios: {
     list: async (options = {}, accessTokenOverride) => {
       const result = await invokePlataformaApi(

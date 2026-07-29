@@ -402,7 +402,8 @@ export default function UsersOverview() {
           <DialogHeader>
             <DialogTitle>Editar perfil de acesso</DialogTitle>
             <DialogDescription>
-              Altere somente o perfil e o status usados para acesso aos sistemas.
+              Altere o perfil (funcao) e o status do colaborador. O acesso ao Central e ao Console
+              e liberado separadamente na tela "Acessos".
             </DialogDescription>
           </DialogHeader>
 

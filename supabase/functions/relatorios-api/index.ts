@@ -318,13 +318,12 @@ async function userHasActiveSystemAccess(userId: string, systemSlug: string) {
   return Boolean(rows[0]);
 }
 
-async function getCentralPermissions(funcao: string | null | undefined) {
-  if (!sql || !funcao) return [];
+async function getCentralPermissions(tier: string | null | undefined) {
+  if (!sql || !tier) return [];
 
-  if (funcao === 'admin') {
+  if (tier === 'admin') {
     return CENTRAL_MODULES.map((modulo) => ({
       id: `admin-${modulo}`,
-      funcao,
       modulo,
       nivel_acesso: 'gerenciar',
     }));
@@ -332,15 +331,45 @@ async function getCentralPermissions(funcao: string | null | undefined) {
 
   const rows = await sql.unsafe(
     `
-      select id, funcao, modulo, nivel_acesso, criado_em, atualizado_em
+      select id, modulo, permissao as nivel_acesso, criado_em, atualizado_em
+      from gestao_ativos.permissoes_central_nivel
+      where nivel_acesso = $1
+      order by modulo asc;
+    `,
+    [tier],
+  );
+
+  if (rows.length) return rows;
+
+  // Fallback de leitura na matriz antiga (por funcao) enquanto ela ainda existir.
+  return await sql.unsafe(
+    `
+      select id, modulo, nivel_acesso, criado_em, atualizado_em
       from gestao_ativos.permissoes_central
       where funcao = $1
       order by modulo asc;
     `,
-    [funcao],
+    [tier],
   );
+}
 
-  return rows;
+async function resolveCentralAccessTier(
+  collaboratorIds: string[],
+  collaborator: Record<string, unknown> | null,
+) {
+  if (!collaborator || collaborator.status === 'inativo') return null;
+
+  const explicitAccess = await getSystemAccessAny(collaboratorIds, 'central', { onlyActive: true });
+  const explicitTier = typeof explicitAccess?.nivel_acesso === 'string' ? explicitAccess.nivel_acesso : null;
+  if (explicitTier) return explicitTier;
+
+  // Fallback de transicao (dual-gate) enquanto o backfill de acessos_usuario_sistema
+  // para 'central' nao tiver sido validado e o cutover final aprovado.
+  if (collaborator.funcao === 'admin' || collaborator.funcao === 'gestor') {
+    return collaborator.funcao as string;
+  }
+
+  return null;
 }
 
 function centralPermissionLevel(permissions: Array<Record<string, unknown>>, modulo: string | null | undefined) {
@@ -1497,9 +1526,8 @@ Deno.serve(async (request) => {
     ];
     const authenticatedCollaboratorId = authenticatedCollaborator?.id || user.id;
     const accessProfile = authenticatedCollaborator;
-    const centralPermissions = await getCentralPermissions(
-      typeof accessProfile?.funcao === 'string' ? accessProfile.funcao : null,
-    );
+    const centralAccessTier = await resolveCentralAccessTier(authenticatedCollaboratorIds, accessProfile);
+    const centralPermissions = await getCentralPermissions(centralAccessTier);
 
     if (action === 'me' && entity === 'colaboradores') {
       const systemSlug = typeof body.system_slug === 'string' ? body.system_slug.trim() : '';
@@ -1558,8 +1586,8 @@ Deno.serve(async (request) => {
       }
 
       const reportsSystemSlug = 'relatorios';
-      const isGlobalAdmin = accessProfile?.funcao === 'admin' && accessProfile?.status !== 'inativo';
-      const isGlobalManager = accessProfile?.funcao === 'gestor' && accessProfile?.status !== 'inativo';
+      const isGlobalAdmin = centralAccessTier === 'admin';
+      const isGlobalManager = centralAccessTier === 'gestor';
       const reportsAccess = await getSystemAccessAny(authenticatedCollaboratorIds, reportsSystemSlug, { onlyActive: true });
       const hasReportsAccess = Boolean(reportsAccess);
       const isReportsAdmin = reportsAccess?.nivel_acesso === 'admin';

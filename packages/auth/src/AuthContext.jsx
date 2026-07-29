@@ -13,12 +13,22 @@ export const PERMISSION_LEVELS = {
   manage: 'gerenciar',
 };
 
-function canAccessSystem(profile, accessRoles = DEFAULT_ACCESS_ROLES) {
-  return accessRoles.includes(profile?.funcao) && profile?.status !== 'inativo';
+function canAccessSystem(profile, access, accessRoles = DEFAULT_ACCESS_ROLES, allowFunctionFallback = true) {
+  const explicitTier = access?.ativo ? access?.nivel_acesso : null;
+  // `allowFunctionFallback` permite que cada app decida: a Central so libera acesso
+  // via grant explicito ativo em acessos_usuario_sistema (tela "Acessos"), igual aos
+  // demais sistemas; o Console (admin) usa exclusivamente `funcao`, ignorando
+  // qualquer grant explicito de acessos_usuario_sistema (que so vale para a Central,
+  // mesmo os dois apps compartilhando sistemas.slug='central').
+  const effectiveTier = allowFunctionFallback ? profile?.funcao : explicitTier;
+  return accessRoles.includes(effectiveTier) && profile?.status !== 'inativo';
 }
 
-function hasPermission(profile, permissions = [], moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
-  if (profile?.funcao === 'admin' && profile?.status !== 'inativo') {
+function hasPermission(profile, access, permissions = [], moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
+  const explicitTier = access?.ativo ? access?.nivel_acesso : null;
+  const effectiveTier = explicitTier || profile?.funcao;
+
+  if (effectiveTier === 'admin' && profile?.status !== 'inativo') {
     return true;
   }
 
@@ -87,29 +97,37 @@ export function AuthProvider({
   authFunctionName = DEFAULT_AUTH_FUNCTION_NAME,
   accessRoles = DEFAULT_ACCESS_ROLES,
   accessDeniedMessage = 'Acesso restrito a administradores e gestores.',
+  allowFunctionFallback = true,
 }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [access, setAccess] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const inFlightValidationRef = useRef(null);
   const validatedTokenRef = useRef(null);
   const profileRef = useRef(null);
+  const accessRef = useRef(null);
   const permissionsRef = useRef([]);
 
   function clearAuthState() {
     validatedTokenRef.current = null;
     profileRef.current = null;
+    accessRef.current = null;
     permissionsRef.current = [];
     setSession(null);
     setProfile(null);
+    setAccess(null);
     setPermissions([]);
     setLoading(false);
   }
 
   function scheduleSignOut() {
     window.setTimeout(() => {
-      supabase.auth.signOut().catch(() => null);
+      // scope: 'local' evita revogar a sessao do usuario em outros apps/abas MACOM
+      // (signOut sem scope e global por padrao no supabase-js e derruba o Supabase
+      // Auth inteiro para a conta, nao so o app atual).
+      supabase.auth.signOut({ scope: 'local' }).catch(() => null);
     }, 0);
   }
 
@@ -122,9 +140,10 @@ export function AuthProvider({
     try {
       const authPayload = await getAuthProfile(nextSession.access_token, systemSlug, authFunctionName);
       const collaborator = authPayload?.row || null;
+      const nextAccess = authPayload?.access || null;
       const nextPermissions = Array.isArray(authPayload?.permissions) ? authPayload.permissions : [];
 
-      if (!canAccessSystem(collaborator, accessRoles)) {
+      if (!canAccessSystem(collaborator, nextAccess, accessRoles, allowFunctionFallback)) {
         clearAuthState();
         scheduleSignOut();
         throw new Error(accessDeniedMessage);
@@ -132,9 +151,11 @@ export function AuthProvider({
 
       validatedTokenRef.current = nextSession.access_token;
       profileRef.current = collaborator;
+      accessRef.current = nextAccess;
       permissionsRef.current = nextPermissions;
       setSession(nextSession);
       setProfile(collaborator);
+      setAccess(nextAccess);
       setPermissions(nextPermissions);
       setLoading(false);
     } catch (error) {
@@ -157,6 +178,7 @@ export function AuthProvider({
     if (!force && validatedTokenRef.current && validatedTokenRef.current === accessToken && profileRef.current) {
       setSession(nextSession);
       setProfile(profileRef.current);
+      setAccess(accessRef.current);
       setPermissions(permissionsRef.current);
       setLoading(false);
       return;
@@ -222,8 +244,9 @@ export function AuthProvider({
     () => ({
       session,
       profile,
+      access,
       user: session?.user || null,
-      isAuthenticated: Boolean(session?.user && canAccessSystem(profile, accessRoles)),
+      isAuthenticated: Boolean(session?.user && canAccessSystem(profile, access, accessRoles, allowFunctionFallback)),
       loading,
       systemSlug,
       authFunctionName,
@@ -236,18 +259,19 @@ export function AuthProvider({
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
+        setAccess(null);
         setPermissions([]);
       },
       permissions,
       canAccessModule(moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
-        return hasPermission(profile, permissions, moduleKey, requiredLevel);
+        return hasPermission(profile, access, permissions, moduleKey, requiredLevel);
       },
       centralPermissions: permissions,
       canCentral(moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
-        return hasPermission(profile, permissions, moduleKey, requiredLevel);
+        return hasPermission(profile, access, permissions, moduleKey, requiredLevel);
       },
     }),
-    [accessRoles, authFunctionName, loading, permissions, profile, session, systemSlug]
+    [access, accessRoles, allowFunctionFallback, authFunctionName, loading, permissions, profile, session, systemSlug]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

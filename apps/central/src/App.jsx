@@ -75,7 +75,7 @@ function withCentralPermission(path, element, options = {}) {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <AuthProvider allowFunctionFallback={false}>
       <QueryClientProvider client={queryClientInstance}>
         <BrowserRouter>
           <Routes>
