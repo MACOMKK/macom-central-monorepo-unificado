@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { ImagePlus, Loader2, Plus, X } from 'lucide-react';
 
 import { appClient } from '@/api/client';
 import {
@@ -31,6 +31,7 @@ const emptyAnnouncementForm = {
   image_type: '',
   image_size: null,
   document_ids: [],
+  links: [],
 };
 
 function toDatetimeLocal(value) {
@@ -66,6 +67,9 @@ function buildInitialForm(initialData) {
     image_type: initialData.image_type || '',
     image_size: initialData.image_size ?? null,
     document_ids: Array.isArray(initialData.document_ids) ? initialData.document_ids : [],
+    links: Array.isArray(initialData.links)
+      ? initialData.links.map((link) => ({ url: link.url || '', label: link.label || '' }))
+      : [],
   };
 }
 
@@ -141,12 +145,30 @@ export default function AnnouncementForm({
     }));
   };
 
+  const addLink = () => {
+    setForm((prev) => ({ ...prev, links: [...prev.links, { url: '', label: '' }] }));
+  };
+
+  const updateLink = (index, field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      links: prev.links.map((link, linkIndex) => (linkIndex === index ? { ...link, [field]: value } : link)),
+    }));
+  };
+
+  const removeLink = (index) => {
+    setForm((prev) => ({ ...prev, links: prev.links.filter((_, linkIndex) => linkIndex !== index) }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     await onSubmit({
       ...form,
       publish_date: datetimeLocalToIso(form.publish_date),
       expiration_date: datetimeLocalToIso(form.expiration_date),
+      links: form.links
+        .filter((link) => link.url.trim())
+        .map((link) => ({ url: link.url.trim(), label: link.label.trim() || 'Saiba mais' })),
     });
   };
 
@@ -171,6 +193,42 @@ export default function AnnouncementForm({
           rows={4}
           placeholder="Descreva o aviso..."
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Links (opcional)</Label>
+        <div className="space-y-3">
+          {form.links.map((link, index) => (
+            <div key={index} className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-start">
+              <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  type="url"
+                  value={link.url}
+                  onChange={(event) => updateLink(index, 'url', event.target.value)}
+                  placeholder="https://..."
+                />
+                <Input
+                  value={link.label}
+                  onChange={(event) => updateLink(index, 'label', event.target.value)}
+                  placeholder="Texto do botão (ex.: Saiba mais)"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="px-3 sm:mt-0"
+                onClick={() => removeLink(index)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+
+          <Button type="button" variant="outline" className="w-full gap-2 sm:w-auto" onClick={addLink}>
+            <Plus className="h-4 w-4" />
+            Adicionar link
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

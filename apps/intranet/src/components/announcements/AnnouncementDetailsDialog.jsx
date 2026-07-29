@@ -93,6 +93,18 @@ export default function AnnouncementDetailsDialog({ announcement, open, onOpenCh
             {announcement.content}
           </div>
 
+          {Array.isArray(announcement.links) && announcement.links.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {announcement.links.map((link) => (
+                <Button key={link.id || link.url} asChild className="w-full sm:w-auto">
+                  <a href={link.url} target="_blank" rel="noopener noreferrer">
+                    {link.label || 'Saiba mais'}
+                  </a>
+                </Button>
+              ))}
+            </div>
+          ) : null}
+
           <AnnouncementDocumentReference
             documents={announcement.documents}
             onError={onDocumentError}

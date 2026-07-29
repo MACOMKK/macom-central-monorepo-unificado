@@ -79,6 +79,7 @@ const ENTITY_CONFIG = {
       'image_type',
       'image_size',
       'document_ids',
+      'links',
     ],
     updateFields: [
       'title',
@@ -94,6 +95,7 @@ const ENTITY_CONFIG = {
       'image_type',
       'image_size',
       'document_ids',
+      'links',
     ],
   },
   AnnouncementComment: {
@@ -960,10 +962,12 @@ function mapAnnouncement(
   row: Record<string, unknown>,
   creatorMap = new Map<string, Record<string, unknown>>(),
   documentsByAnnouncement = new Map<string, Record<string, unknown>[]>(),
+  linksByAnnouncement = new Map<string, Record<string, unknown>[]>(),
 ) {
   const creator = creatorMap.get(String(row.criado_por));
   const status = getAnnouncementStatus(row);
   const documents = documentsByAnnouncement.get(String(row.id)) || [];
+  const links = linksByAnnouncement.get(String(row.id)) || [];
   return {
     id: row.id,
     title: row.titulo,
@@ -981,6 +985,7 @@ function mapAnnouncement(
     image_size: row.imagem_tamanho || null,
     document_ids: documents.map((document) => document.id),
     documents,
+    links,
     created_date: row.criado_em,
     updated_date: row.atualizado_em,
     created_by: creator?.email || creator?.nome || null,
@@ -1016,12 +1021,81 @@ async function mapAnnouncementWithSignedUrl(
   row: Record<string, unknown>,
   creatorMap = new Map<string, Record<string, unknown>>(),
   documentsByAnnouncement = new Map<string, Record<string, unknown>[]>(),
+  linksByAnnouncement = new Map<string, Record<string, unknown>[]>(),
 ) {
   const signedImageUrl = await createAnnouncementImageSignedUrl(row);
   return {
-    ...mapAnnouncement(row, creatorMap, documentsByAnnouncement),
+    ...mapAnnouncement(row, creatorMap, documentsByAnnouncement, linksByAnnouncement),
     image_url: signedImageUrl,
   };
+}
+
+async function fetchAnnouncementLinks(announcementIds: string[]) {
+  const ids = normalizeIdArray(announcementIds);
+  if (ids.length === 0) return new Map<string, Record<string, unknown>[]>();
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id, aviso_id, url, rotulo, ordem
+      from gestao_intranet.avisos_links
+      where aviso_id = any($1::uuid[])
+      order by ordem asc, criado_em asc;
+    `,
+    [ids],
+  );
+
+  const linksByAnnouncement = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((row) => {
+    const announcementId = String(row.aviso_id || '');
+    const links = linksByAnnouncement.get(announcementId) || [];
+    links.push({
+      id: row.id,
+      url: row.url,
+      label: row.rotulo || 'Saiba mais',
+    });
+    linksByAnnouncement.set(announcementId, links);
+  });
+
+  return linksByAnnouncement;
+}
+
+function normalizeAnnouncementLinks(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const url = typeof (item as Record<string, unknown>).url === 'string' ? (item as Record<string, unknown>).url.trim() : '';
+      const label = typeof (item as Record<string, unknown>).label === 'string' ? (item as Record<string, unknown>).label.trim() : '';
+      if (!url) return null;
+      return { url, label: label || 'Saiba mais' };
+    })
+    .filter((item): item is { url: string; label: string } => item !== null);
+}
+
+async function syncAnnouncementLinks(announcementId: string, links: unknown) {
+  if (!announcementId) return;
+  const normalized = normalizeAnnouncementLinks(links);
+
+  await runSql(
+    'delete from gestao_intranet.avisos_links where aviso_id = $1;',
+    [announcementId],
+  );
+
+  if (normalized.length === 0) return;
+
+  await runSql(
+    `
+      insert into gestao_intranet.avisos_links (aviso_id, url, rotulo, ordem)
+      select $1::uuid, link.url, link.rotulo, link.ordem
+      from unnest($2::text[], $3::text[], $4::int[]) as link(url, rotulo, ordem);
+    `,
+    [
+      announcementId,
+      normalized.map((link) => link.url),
+      normalized.map((link) => link.label),
+      normalized.map((_, index) => index),
+    ],
+  );
 }
 
 async function fetchAnnouncementDocuments(announcementIds: string[]) {
@@ -2227,11 +2301,12 @@ async function listAnnouncements(
     `select * from gestao_intranet.avisos ${whereSql} order by "${column}" ${ascending ? 'asc' : 'desc'} ${limitSql};`,
     values,
   );
-  const [creators, documentsByAnnouncement] = await Promise.all([
+  const [creators, documentsByAnnouncement, linksByAnnouncement] = await Promise.all([
     enrichWithCreators(rows),
     fetchAnnouncementDocuments(rows.map((row) => String(row.id))),
+    fetchAnnouncementLinks(rows.map((row) => String(row.id))),
   ]);
-  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, creators, documentsByAnnouncement)));
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, creators, documentsByAnnouncement, linksByAnnouncement)));
 }
 
 function canViewAllDocuments(user?: Record<string, unknown>) {
@@ -2312,8 +2387,11 @@ async function listHomeAnnouncements(limit = 5) {
     [safeLimit],
   );
 
-  const documentsByAnnouncement = await fetchAnnouncementDocuments(rows.map((row) => String(row.id)));
-  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, undefined, documentsByAnnouncement)));
+  const [documentsByAnnouncement, linksByAnnouncement] = await Promise.all([
+    fetchAnnouncementDocuments(rows.map((row) => String(row.id))),
+    fetchAnnouncementLinks(rows.map((row) => String(row.id))),
+  ]);
+  return Promise.all(rows.map((row) => mapAnnouncementWithSignedUrl(row, undefined, documentsByAnnouncement, linksByAnnouncement)));
 }
 
 async function listAnnouncementComments(filters: Record<string, unknown>, orderBy?: string, limit?: number) {
@@ -3075,6 +3153,7 @@ async function listProfileChangeRequests(user: Record<string, unknown>) {
 async function createAnnouncement(payload: Record<string, unknown>, collaboratorId: string | null) {
   const sanitized = sanitizePayload(payload, ENTITY_CONFIG.Announcement.createFields);
   validateAnnouncementImage(sanitized);
+  validateAnnouncementLinks(sanitized);
   const rows = await runSql<Record<string, unknown>>(
     `
       insert into gestao_intranet.avisos (
@@ -3101,13 +3180,17 @@ async function createAnnouncement(payload: Record<string, unknown>, collaborator
   );
 
   const announcementId = String(rows[0].id);
-  await syncAnnouncementDocuments(announcementId, sanitized.document_ids);
-  const [creators, documentsByAnnouncement] = await Promise.all([
+  await Promise.all([
+    syncAnnouncementDocuments(announcementId, sanitized.document_ids),
+    syncAnnouncementLinks(announcementId, sanitized.links),
+  ]);
+  const [creators, documentsByAnnouncement, linksByAnnouncement] = await Promise.all([
     fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
     fetchAnnouncementDocuments([announcementId]),
+    fetchAnnouncementLinks([announcementId]),
   ]);
   await notifyAnnouncementAudience(rows[0], 'created', collaboratorId);
-  return mapAnnouncementWithSignedUrl(rows[0], creators, documentsByAnnouncement);
+  return mapAnnouncementWithSignedUrl(rows[0], creators, documentsByAnnouncement, linksByAnnouncement);
 }
 
 function validateAnnouncementImage(payload: Record<string, unknown>) {
@@ -3148,6 +3231,24 @@ function validateAnnouncementImage(payload: Record<string, unknown>) {
   }
 }
 
+function validateAnnouncementLinks(payload: Record<string, unknown>) {
+  if (!('links' in payload)) return;
+
+  const links = normalizeAnnouncementLinks(payload.links);
+  links.forEach((link) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(link.url);
+    } catch {
+      throw new Error('Um dos links do aviso nao e uma URL valida.');
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Os links do aviso precisam comecar com http:// ou https://.');
+    }
+  });
+}
+
 function resolveAnnouncementStorageBucket(announcement: Record<string, unknown> | null | undefined) {
   const imageUrl = typeof announcement?.imagem_url === 'string' ? announcement.imagem_url : '';
   if (imageUrl.includes('/object/public/announcements/')) {
@@ -3166,6 +3267,7 @@ async function updateAnnouncement(
 ) {
   const sanitized = sanitizePayload(payload, ENTITY_CONFIG.Announcement.updateFields);
   validateAnnouncementImage(sanitized);
+  validateAnnouncementLinks(sanitized);
   const previousRows = await runSql<Record<string, unknown>>(
     'select * from gestao_intranet.avisos where id = $1 limit 1;',
     [id],
@@ -3212,12 +3314,16 @@ async function updateAnnouncement(
   if ('document_ids' in sanitized) {
     await syncAnnouncementDocuments(id, sanitized.document_ids);
   }
-  const [creators, documentsByAnnouncement] = await Promise.all([
+  if ('links' in sanitized) {
+    await syncAnnouncementLinks(id, sanitized.links);
+  }
+  const [creators, documentsByAnnouncement, linksByAnnouncement] = await Promise.all([
     fetchCollaboratorsByIds([String(rows[0].criado_por || '')]),
     fetchAnnouncementDocuments([id]),
+    fetchAnnouncementLinks([id]),
   ]);
   await notifyAnnouncementAudience(rows[0], 'updated', collaboratorId);
-  return mapAnnouncementWithSignedUrl(nextAnnouncement, creators, documentsByAnnouncement);
+  return mapAnnouncementWithSignedUrl(nextAnnouncement, creators, documentsByAnnouncement, linksByAnnouncement);
 }
 
 async function createComment(payload: Record<string, unknown>, collaboratorId: string | null) {
