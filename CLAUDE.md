@@ -63,11 +63,15 @@ npm --prefix apps/intranet run dev
 
 Build segue o mesmo padrão: `npm run build:<app>` (roda `sync:favicons` antes).
 
-Lint e testes hoje só estão configurados para o `central`:
+Lint, testes e typecheck no root cobrem apenas o `central`; o `crm` já tem
+testes próprios (Vitest, `apps/crm/src/test/`), rodados via script dedicado:
 ```bash
 npm run lint          # eslint apps/central/src
-npm run test          # vitest
+npm run test          # vitest (central)
 npm run typecheck     # tsc sobre apps/central/jsconfig.json
+npm run test:crm      # vitest (crm), watch mode
+npm run test:crm:run  # vitest (crm), single run
+npm --prefix apps/crm run lint   # eslint do crm
 ```
 
 Não há CI configurado (`.github/`) — validar localmente antes de subir.

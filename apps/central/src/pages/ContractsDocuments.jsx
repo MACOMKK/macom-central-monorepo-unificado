@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Edit, FilePlus2, Link as LinkIcon, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, Edit, FilePlus2, Link as LinkIcon, Plus, Search, Trash2, UploadCloud } from 'lucide-react';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,7 @@ const statusOptions = [
   { value: 'vencendo', label: 'Vencendo', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300' },
   { value: 'vencido', label: 'Vencido', className: 'border-red-300 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300' },
   { value: 'encerrado', label: 'Encerrado', className: 'border-slate-300 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300' },
+  { value: 'a_revisar', label: 'A revisar', className: 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300' },
 ];
 
 function formatDate(value) {
@@ -121,6 +122,12 @@ function daysUntil(value) {
   return Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
 }
 
+function prettifyFileNameAsTitle(fileName) {
+  const withoutExt = fileName.replace(/\.[^./\\]+$/, '');
+  const spaced = withoutExt.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return spaced || fileName;
+}
+
 async function uploadContractFile(file, documentId) {
   if (!file) return null;
 
@@ -159,6 +166,10 @@ export default function ContractsDocuments() {
   const [file, setFile] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [filters, setFilters] = useState({ search: '', tipo: 'all', status: 'all', vencimento: 'all' });
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFiles, setImportFiles] = useState([]);
+  const [importSkipped, setImportSkipped] = useState([]);
+  const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
 
   const documentsQuery = useQuery({
     queryKey: ['central', 'contratos_documentos'],
@@ -245,6 +256,63 @@ export default function ContractsDocuments() {
     },
   });
 
+  const bulkImportMutation = useMutation({
+    mutationFn: async (files) => {
+      const results = { success: 0, failed: [] };
+      setImportProgress({ done: 0, total: files.length });
+
+      for (const currentFile of files) {
+        try {
+          const created = await catalogApi.contratos_documentos.create({
+            titulo: prettifyFileNameAsTitle(currentFile.name),
+            tipo: 'outro',
+            status: 'a_revisar',
+            fornecedor: null,
+            sistema_id: null,
+            unidade_id: null,
+            data_inicio: null,
+            data_vencimento: null,
+            valor: null,
+            responsavel_colaborador_id: null,
+            observacoes: null,
+            link_externo: null,
+            criado_por: profile?.id || null,
+          });
+          try {
+            const filePayload = await uploadContractFile(currentFile, created.id);
+            await catalogApi.contratos_documentos.update(created.id, filePayload);
+            results.success += 1;
+          } catch (uploadError) {
+            results.failed.push({ name: currentFile.name, reason: uploadError.message || 'Falha no upload do arquivo.' });
+          }
+        } catch (createError) {
+          results.failed.push({ name: currentFile.name, reason: createError.message || 'Falha ao criar o registro.' });
+        }
+        setImportProgress((current) => ({ ...current, done: current.done + 1 }));
+      }
+
+      return results;
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      setImportDialogOpen(false);
+      setImportFiles([]);
+      setImportSkipped([]);
+      setImportProgress({ done: 0, total: 0 });
+      const failedCount = results.failed.length;
+      setFeedback({
+        type: failedCount ? 'error' : 'success',
+        message: failedCount
+          ? `${results.success} documento(s) importado(s). ${failedCount} falharam: ${results.failed.map((item) => item.name).join(', ')}`
+          : `${results.success} documento(s) importado(s) com sucesso. Status "A revisar".`,
+      });
+    },
+    onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      setFeedback({ type: 'error', message: error.message || 'Nao foi possivel concluir a importacao.' });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (document) => {
       if (document.arquivo_path) {
@@ -295,6 +363,32 @@ export default function ContractsDocuments() {
     setFile(selected);
   };
 
+  const handleOpenImport = () => {
+    setImportFiles([]);
+    setImportSkipped([]);
+    setImportProgress({ done: 0, total: 0 });
+    setImportDialogOpen(true);
+  };
+
+  const handleImportFilesChange = (event) => {
+    const selected = Array.from(event.target.files || []);
+    const valid = [];
+    const skipped = [];
+    selected.forEach((currentFile) => {
+      if (currentFile.size > MAX_FILE_SIZE) {
+        skipped.push({ name: currentFile.name, reason: 'Arquivo maior que 10MB' });
+      } else {
+        valid.push(currentFile);
+      }
+    });
+    setImportFiles(valid);
+    setImportSkipped(skipped);
+  };
+
+  const handleConfirmImport = () => {
+    if (importFiles.length) bulkImportMutation.mutate(importFiles);
+  };
+
   const handleFileOpen = async (document) => {
     try {
       if (document.arquivo_path) {
@@ -319,10 +413,16 @@ export default function ContractsDocuments() {
           <p className="text-sm text-muted-foreground">Controle de contratos, licencas, certificados e anexos importantes.</p>
         </div>
         {canManage ? (
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo documento
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleOpenImport} className="gap-2">
+              <UploadCloud className="h-4 w-4" />
+              Importar arquivos
+            </Button>
+            <Button onClick={handleOpenCreate} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo documento
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -533,6 +633,51 @@ export default function ContractsDocuments() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importDialogOpen} onOpenChange={(open) => !open && !bulkImportMutation.isPending && setImportDialogOpen(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Importar arquivos</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              Selecione varios arquivos (PDF, fotos, etc). Um documento sera criado para cada
+              arquivo com status "A revisar" - edite os detalhes depois pela tela.
+            </p>
+            <div className="space-y-2">
+              <Input type="file" multiple onChange={handleImportFilesChange} disabled={bulkImportMutation.isPending} />
+              {importFiles.length ? (
+                <p className="text-xs text-muted-foreground">{importFiles.length} arquivo(s) selecionado(s)</p>
+              ) : null}
+              {importSkipped.length ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                  <p className="font-semibold">Ignorados (acima de 10MB):</p>
+                  <ul className="list-disc pl-4">
+                    {importSkipped.map((item) => <li key={item.name}>{item.name}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+            {bulkImportMutation.isPending ? (
+              <p className="text-sm font-medium">{importProgress.done}/{importProgress.total} enviados...</p>
+            ) : null}
+            <div className="flex justify-end gap-2 border-t pt-4">
+              <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)} disabled={bulkImportMutation.isPending}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="gap-2"
+                onClick={handleConfirmImport}
+                disabled={!importFiles.length || bulkImportMutation.isPending}
+              >
+                <UploadCloud className="h-4 w-4" />
+                {bulkImportMutation.isPending ? 'Importando...' : `Importar ${importFiles.length || ''}`}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

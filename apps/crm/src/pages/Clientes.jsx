@@ -12,11 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { useEmpresa } from '@/context/EmpresaContext';
+import { useUnidadesEmpresa } from '@/hooks/useUnidadesEmpresa';
 import { cn } from '@/lib/utils';
 import ListPagination from '@/components/ListPagination';
 import { Building2, Car, Clock3, History, Mail, Paperclip, Pencil, Phone, Save, Search, Tag, UserRound, X } from 'lucide-react';
-
-const EMPRESAS = ['Macom Ananindeua', 'Macom Belém', 'Macom Paragominas'];
 
 const STATUS_LABEL = {
   lead: 'Lead',
@@ -106,6 +105,7 @@ export default function Clientes() {
   const [periodoInicio, setPeriodoInicio] = useState('');
   const [periodoFim, setPeriodoFim] = useState('');
   const { empresa } = useEmpresa();
+  const { empresas: EMPRESAS } = useUnidadesEmpresa();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const pageSize = 50;

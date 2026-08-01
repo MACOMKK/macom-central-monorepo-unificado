@@ -20,9 +20,9 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { useAuth } from '@/lib/AuthContext';
+import { useUnidadesEmpresa } from '@/hooks/useUnidadesEmpresa';
 import { cn } from '@/lib/utils';
 
-const EMPRESAS = ['Todas', 'Macom Ananindeua', 'Macom Belém', 'Macom Paragominas'];
 const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
 function NavMenu({ label, items }) {
@@ -139,6 +139,8 @@ function RealtimeIndicator({ realtime }) {
 
 export default function Navbar({ realtime }) {
   const { empresa, setEmpresa } = useEmpresa();
+  const { empresas } = useUnidadesEmpresa();
+  const empresasFiltro = ['Todas', ...empresas];
   const { logout, user } = useAuth();
   const userInitial = (user?.name || user?.email || 'U').slice(0, 1).toUpperCase();
 
@@ -203,7 +205,7 @@ export default function Navbar({ realtime }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 rounded-none border-0 p-0 shadow-2xl">
               <div className="border-b border-white/10 bg-[#1a1a1a] px-3 py-2 text-xs font-bold uppercase tracking-widest text-white">Unidade</div>
-              {EMPRESAS.map((item) => (
+              {empresasFiltro.map((item) => (
                 <DropdownMenuItem
                   key={item}
                   className="cursor-pointer rounded-none px-4 py-2.5 text-xs font-semibold uppercase"

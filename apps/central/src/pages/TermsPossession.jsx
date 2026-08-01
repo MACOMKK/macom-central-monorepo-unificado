@@ -9,6 +9,7 @@ import {
   Download,
   Mail,
   Monitor,
+  Paperclip,
   Search,
   UserRound,
 } from 'lucide-react';
@@ -19,7 +20,109 @@ import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { catalogApi } from '@/lib/catalogApi';
+import { supabase } from '@/lib/supabaseClient';
 import { normalizeText, sanitizeFileName } from '@/lib/text';
+
+const SIGNED_FILE_BUCKET = 'central-anexos';
+const SIGNED_FILE_FOLDER = 'termos-posse';
+const SIGNED_FILE_MAX_SIZE = 10 * 1024 * 1024;
+const SIGNED_FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png';
+const IMAGE_MAX_WIDTH = 2000;
+const IMAGE_JPEG_QUALITY = 0.8;
+
+function formatFileSize(value) {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) return '';
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function replaceFileExtension(fileName, newExt) {
+  const withoutExt = fileName.replace(/\.[^./\\]+$/, '');
+  return `${withoutExt || 'comprovante'}.${newExt}`;
+}
+
+async function compressImageFile(file) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Nao foi possivel ler a imagem.'));
+      img.src = objectUrl;
+    });
+
+    const scale = Math.min(1, IMAGE_MAX_WIDTH / image.naturalWidth);
+    const targetWidth = Math.round(image.naturalWidth * scale);
+    const targetHeight = Math.round(image.naturalHeight * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas indisponivel.');
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (result) => (result ? resolve(result) : reject(new Error('Falha ao gerar imagem comprimida.'))),
+        'image/jpeg',
+        IMAGE_JPEG_QUALITY
+      );
+    });
+
+    if (blob.size >= file.size) {
+      return file;
+    }
+
+    return new File([blob], replaceFileExtension(file.name, 'jpg'), { type: 'image/jpeg' });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function prepareSignedTermFile(file) {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+    return file;
+  }
+  return compressImageFile(file);
+}
+
+async function uploadSignedTermFile(file, termId) {
+  if (!file) return null;
+
+  const preparedFile = await prepareSignedTermFile(file);
+
+  if (preparedFile.size > SIGNED_FILE_MAX_SIZE) {
+    throw new Error('O arquivo deve ter no maximo 10 MB.');
+  }
+
+  const safeName = sanitizeFileName(preparedFile.name, 'comprovante');
+  const storagePath = `${SIGNED_FILE_FOLDER}/${termId}/${Date.now()}-${safeName}`;
+  const { error } = await supabase.storage.from(SIGNED_FILE_BUCKET).upload(storagePath, preparedFile, { upsert: true });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel enviar o comprovante.');
+  }
+
+  return {
+    arquivo_path: storagePath,
+    arquivo_nome: preparedFile.name,
+    arquivo_tipo: preparedFile.type || null,
+    arquivo_tamanho: preparedFile.size || null,
+  };
+}
+
+async function openSignedTermFile(path) {
+  const { data, error } = await supabase.storage.from(SIGNED_FILE_BUCKET).createSignedUrl(path, 300);
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || 'Nao foi possivel abrir o comprovante.');
+  }
+  window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+}
 
 const statusMeta = {
   sem_termo: {
@@ -664,6 +767,32 @@ export default function TermsPossession() {
     },
   });
 
+  const attachSignedFileMutation = useMutation({
+    mutationFn: async ({ term, file }) => {
+      const filePayload = await uploadSignedTermFile(file, term.id);
+      const updated = await catalogApi.termos_posse.update(term.id, filePayload);
+
+      if (term.arquivo_path && term.arquivo_path !== filePayload.arquivo_path) {
+        await supabase.storage.from(SIGNED_FILE_BUCKET).remove([term.arquivo_path]);
+      }
+
+      return updated;
+    },
+    onSuccess: (updatedTerm) => {
+      queryClient.setQueryData(['termos_posse'], (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, updatedTerm) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
+      setFeedback({ type: 'success', message: 'Comprovante assinado anexado com sucesso.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: error.message || 'Nao foi possivel anexar o comprovante assinado.',
+      });
+    },
+  });
+
   const isLoading =
     collaboratorsQuery.isLoading ||
     assetsQuery.isLoading ||
@@ -795,23 +924,77 @@ export default function TermsPossession() {
 
                     <div className="space-y-2">
                       {linkedAssets.map((asset) => {
+                        const term = latestTermsByAsset[asset.id];
+                        const inputId = `signed-file-${asset.id}`;
+                        const isAttaching = attachSignedFileMutation.isPending && attachSignedFileMutation.variables?.term?.id === term?.id;
+
                         return (
                           <div
                             key={asset.id}
-                            className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2"
+                            className="flex flex-col gap-2 rounded-lg bg-muted/40 p-2"
                           >
-                            <Monitor className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <div className="flex items-center gap-2.5">
+                              <Monitor className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-medium text-foreground">{asset.nome || '-'}</p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {asset.patrimonio || '-'} · {asset.numero_serie || '-'}
-                              </p>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-foreground">{asset.nome || '-'}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {asset.patrimonio || '-'} · {asset.numero_serie || '-'}
+                                </p>
+                              </div>
+
+                              <span className="shrink-0 rounded-md border border-border bg-background/60 px-2 py-0.5 text-xs text-foreground">
+                                {asset.categoria || 'Equipamento'}
+                              </span>
                             </div>
 
-                            <span className="shrink-0 rounded-md border border-border bg-background/60 px-2 py-0.5 text-xs text-foreground">
-                              {asset.categoria || 'Equipamento'}
-                            </span>
+                            {term ? (
+                              <div className="flex items-center gap-2 pl-6">
+                                {term.arquivo_path ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="truncate text-xs text-primary underline-offset-2 hover:underline"
+                                      onClick={() => openSignedTermFile(term.arquivo_path).catch((error) => (
+                                        setFeedback({ type: 'error', message: error.message })
+                                      ))}
+                                    >
+                                      {term.arquivo_nome || 'Comprovante assinado'}
+                                    </button>
+                                    <span className="shrink-0 text-xs text-muted-foreground">
+                                      {formatFileSize(term.arquivo_tamanho)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Sem comprovante assinado anexado.</span>
+                                )}
+
+                                <input
+                                  id={inputId}
+                                  type="file"
+                                  accept={SIGNED_FILE_ACCEPT}
+                                  className="hidden"
+                                  onChange={(event) => {
+                                    const file = event.target.files?.[0];
+                                    event.target.value = '';
+                                    if (file) {
+                                      attachSignedFileMutation.mutate({ term, file });
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={inputId}
+                                  className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground hover:bg-muted"
+                                >
+                                  <Paperclip className="h-3 w-3" />
+                                  {isAttaching ? 'Enviando...' : term.arquivo_path ? 'Substituir' : 'Anexar comprovante'}
+                                </label>
+                              </div>
+                            ) : (
+                              <p className="pl-6 text-xs text-muted-foreground">
+                                Gere o termo para poder anexar o comprovante assinado.
+                              </p>
+                            )}
                           </div>
                         );
                       })}

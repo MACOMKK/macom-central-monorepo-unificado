@@ -957,11 +957,6 @@ export function buildTermsConfig({
         options: termStatusOptions,
       },
       {
-        key: 'arquivo_url',
-        label: 'URL do arquivo',
-        placeholder: 'Ex.: https://...',
-      },
-      {
         key: 'observacoes',
         label: 'Observacoes',
         type: 'textarea',
@@ -1019,6 +1014,11 @@ export function buildTermsConfig({
       },
       { key: 'gerado_em', label: 'Gerado em', render: (value) => formatDateTime(value) },
       { key: 'assinado_em', label: 'Assinado em', render: (value) => formatDateTime(value) },
+      {
+        key: 'arquivo_nome',
+        label: 'Comprovante assinado',
+        render: (value) => value || '-',
+      },
     ],
     searchPlaceholder: 'Buscar por codigo, equipamento, colaborador ou patrimonio...',
     queryKey: 'termos_posse',

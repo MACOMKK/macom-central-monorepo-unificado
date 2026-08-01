@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { companyFromUnit } from '@/lib/empresa';
+import { deriveUnidadesFromResponsaveis } from '@/hooks/useUnidadesEmpresa';
 import {
   BriefcaseBusiness,
   Car,
@@ -108,18 +109,7 @@ export default function LeadForm({
     ...(lead ? [{ key: 'historico', label: 'Historico', icon: Paperclip }] : []),
   ], [lead]);
 
-  const unidades = useMemo(() => {
-    const unique = new Map();
-    responsaveis.forEach((responsavel) => {
-      if (responsavel.unidade_id) {
-        unique.set(responsavel.unidade_id, {
-          id: responsavel.unidade_id,
-          nome: responsavel.unidade_nome || companyFromUnit(responsavel.unidade_nome),
-        });
-      }
-    });
-    return [...unique.values()].sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [responsaveis]);
+  const unidades = useMemo(() => deriveUnidadesFromResponsaveis(responsaveis), [responsaveis]);
 
   const currentStepKey = steps[currentStep]?.key;
   const isLastStep = currentStep === steps.length - 1;

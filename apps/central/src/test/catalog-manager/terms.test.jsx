@@ -55,7 +55,6 @@ describe('CatalogManager terms', () => {
     await user.type(screen.getByLabelText('Colaborador'), 'col-1');
     await user.clear(screen.getByLabelText('Status'));
     await user.type(screen.getByLabelText('Status'), 'assinado');
-    await user.type(screen.getByLabelText('URL do arquivo'), 'https://macom.com/termo.pdf');
     await user.type(screen.getByLabelText('Observacoes'), 'Assinado digitalmente');
     await user.type(screen.getByLabelText('Conteudo do termo'), 'Conteudo customizado do termo');
     await user.type(screen.getByLabelText('Data de assinatura'), '2026-05-11');
@@ -67,7 +66,6 @@ describe('CatalogManager terms', () => {
         ativo_id: 'asset-1',
         colaborador_id: 'col-1',
         status: 'assinado',
-        arquivo_url: 'https://macom.com/termo.pdf',
         observacoes: 'Assinado digitalmente',
         conteudo: 'Conteudo customizado do termo',
         assinado_em: '2026-05-11',
