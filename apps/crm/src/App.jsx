@@ -12,6 +12,7 @@ import Leads from '@/pages/Leads';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 import ConfiguracaoDistribuicao from '@/pages/ConfiguracaoDistribuicao';
+import CategoriasVeiculo from '@/pages/CategoriasVeiculo';
 
 const getFromPath = (search) => {
   const params = new URLSearchParams(search);
@@ -69,6 +70,7 @@ const CrmRoutes = () => {
         <Route path="/leads" element={<Leads />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/configuracoes/distribuicao" element={<ConfiguracaoDistribuicao />} />
+        <Route path="/configuracoes/categorias-veiculo" element={<CategoriasVeiculo />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

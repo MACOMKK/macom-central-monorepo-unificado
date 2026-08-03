@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { companyFromUnit } from '@/lib/empresa';
 import { deriveUnidadesFromResponsaveis } from '@/hooks/useUnidadesEmpresa';
+import { crmDataClient } from '@/api/crmDataClient';
 import {
   BriefcaseBusiness,
   Car,
@@ -74,6 +76,7 @@ export default function LeadForm({
       modelo: '',
       versao: '',
       ano: '',
+      categoria_veiculo_id: null,
       condicao: 'novo',
       faixa_preco_min: '',
       faixa_preco_max: '',
@@ -110,6 +113,16 @@ export default function LeadForm({
   ], [lead]);
 
   const unidades = useMemo(() => deriveUnidadesFromResponsaveis(responsaveis), [responsaveis]);
+
+  const { data: categoriasVeiculo = [] } = useQuery({
+    queryKey: ['crm-categorias-veiculo'],
+    queryFn: () => crmDataClient.entities.CategoriaVeiculo.list('nome'),
+    enabled: open,
+  });
+  const categoriasAtivas = useMemo(
+    () => categoriasVeiculo.filter((categoria) => categoria.ativo),
+    [categoriasVeiculo],
+  );
 
   const currentStepKey = steps[currentStep]?.key;
   const isLastStep = currentStep === steps.length - 1;
@@ -276,6 +289,20 @@ export default function LeadForm({
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Marca">
                     <Input value={data.veiculo_interesse?.marca || ''} onChange={(event) => setVehicle('marca', event.target.value)} className="h-9 rounded-none text-sm" />
+                  </Field>
+                  <Field label="Categoria do veiculo">
+                    <Select
+                      value={data.veiculo_interesse?.categoria_veiculo_id || 'nenhuma'}
+                      onValueChange={(value) => setVehicle('categoria_veiculo_id', value === 'nenhuma' ? null : value)}
+                    >
+                      <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="nenhuma">Sem categoria</SelectItem>
+                        {categoriasAtivas.map((categoria) => (
+                          <SelectItem key={categoria.id} value={categoria.id}>{categoria.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </Field>
                   <Field label="Modelo">
                     <Input

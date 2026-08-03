@@ -8,6 +8,7 @@ const REALTIME_TABLES = [
   'atendimentos',
   'historico_atendimentos',
   'veiculos_interesse',
+  'categorias_veiculo',
   'configuracoes_distribuicao',
   'vendedores_distribuicao',
 ];
@@ -31,6 +32,9 @@ const TABLE_CACHE_CONFIG = {
   },
   veiculos_interesse: {
     queryKeys: [['leads'], ['cliente-leads'], ['lead-historico']],
+  },
+  categorias_veiculo: {
+    queryKeys: [['crm-categorias-veiculo']],
   },
   configuracoes_distribuicao: {
     queryKeys: [['crm-distribuicao']],

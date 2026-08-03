@@ -29,7 +29,8 @@ Gestão comercial automotiva: leads, clientes, atendimentos e distribuição par
 | `leads` | `origem` (telefone/whatsapp/site/showroom/indicacao), `status` (triagem/novo/tentativa_contato/em_contato/qualificado/proposta/convertido/perdido/descartado), SLA, responsável |
 | `atendimentos` | `tipo` (venda/pos_venda/agendamento/retorno), `temperatura` (frio/morno/quente) |
 | `historico_atendimentos` | auditoria de mudanças |
-| `veiculos_interesse` | veículos associados a um lead |
+| `veiculos_interesse` | veículos associados a um lead; `categoria_veiculo_id` referencia `categorias_veiculo` (FK), pois a concessionária pode vender motos e/ou carros |
+| `categorias_veiculo` | catálogo de categorias de veículo (`nome`, `ativo`) — cadastro livre via tela de configuração (admin/gestor), sem lista fixa no schema |
 | `configuracoes_distribuicao` / `vendedores_distribuicao` | regras de distribuição automática de leads |
 
 ## Pré-Lead (triagem)
@@ -46,7 +47,7 @@ esta última só para consulta, sem ações de qualificar/descartar).
 ## Realtime
 
 `useCrmRealtime.js` escuta INSERT/UPDATE/DELETE em `gestao_crm` (leads, clientes, atendimentos,
-historico_atendimentos, veiculos_interesse, configuracoes_distribuicao, vendedores_distribuicao)
+historico_atendimentos, veiculos_interesse, categorias_veiculo, configuracoes_distribuicao, vendedores_distribuicao)
 e sincroniza o cache do React Query. Estados possíveis: `connecting`, `active`, `syncing`, `error`, `disabled`.
 Ao adicionar uma nova tabela ao schema `gestao_crm` que precise refletir em tempo real na UI,
 lembrar de registrá-la aqui também.

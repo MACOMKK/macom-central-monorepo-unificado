@@ -194,6 +194,7 @@ function mapVeiculoInteresseRow(row = {}) {
     modelo: row.modelo || '',
     versao: row.versao || '',
     ano: row.ano || '',
+    categoria_veiculo_id: row.categoria_veiculo_id || null,
     condicao: row.condicao || 'novo',
     faixa_preco_min: row.faixa_preco_min ?? '',
     faixa_preco_max: row.faixa_preco_max ?? '',
@@ -202,6 +203,15 @@ function mapVeiculoInteresseRow(row = {}) {
     cambio: row.cambio || '',
     principal: row.principal !== false,
     observacoes: row.observacoes || '',
+    ...mapBaseDates(row),
+  };
+}
+
+function mapCategoriaVeiculoRow(row = {}) {
+  return {
+    id: row.id,
+    nome: row.nome || '',
+    ativo: row.ativo !== false,
     ...mapBaseDates(row),
   };
 }
@@ -333,6 +343,7 @@ function mapVeiculoInteressePayload(data = {}, leadId) {
     modelo: vehicle.modelo || data.modelo_interesse || null,
     versao: vehicle.versao || null,
     ano: toNullableNumber(vehicle.ano),
+    categoria_veiculo_id: vehicle.categoria_veiculo_id || null,
     condicao: vehicle.condicao || 'novo',
     faixa_preco_min: toNullableNumber(vehicle.faixa_preco_min),
     faixa_preco_max: toNullableNumber(vehicle.faixa_preco_max),
@@ -351,6 +362,7 @@ function hasVehicleInterest(data = {}) {
     || vehicle.modelo
     || vehicle.versao
     || vehicle.ano
+    || vehicle.categoria_veiculo_id
     || vehicle.condicao
     || vehicle.faixa_preco_min
     || vehicle.faixa_preco_max
@@ -711,6 +723,20 @@ const VeiculoInteresseRepository = {
   },
 };
 
+const CategoriaVeiculoRepository = {
+  ...createListRepository('CategoriaVeiculo', crmApi.categorias_veiculo, mapCategoriaVeiculoRow),
+
+  async create(data) {
+    const row = await crmApi.categorias_veiculo.create({ nome: data.nome, ativo: data.ativo !== false });
+    return mapCategoriaVeiculoRow(row);
+  },
+
+  async update(id, data) {
+    const row = await crmApi.categorias_veiculo.update(id, { nome: data.nome, ativo: data.ativo !== false });
+    return mapCategoriaVeiculoRow(row);
+  },
+};
+
 const ResponsavelRepository = {
   async list() {
     return crmApi.responsaveis.list();
@@ -843,5 +869,6 @@ export const crmDataClient = {
     Responsavel: ResponsavelRepository,
     Distribuicao: DistribuicaoRepository,
     VeiculoInteresse: VeiculoInteresseRepository,
+    CategoriaVeiculo: CategoriaVeiculoRepository,
   },
 };

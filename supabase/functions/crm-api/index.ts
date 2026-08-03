@@ -104,6 +104,7 @@ const ENTITY_CONFIG = {
       'modelo',
       'versao',
       'ano',
+      'categoria_veiculo_id',
       'condicao',
       'faixa_preco_min',
       'faixa_preco_max',
@@ -113,6 +114,12 @@ const ENTITY_CONFIG = {
       'principal',
       'observacoes',
     ],
+  },
+  categorias_veiculo: {
+    table: 'categorias_veiculo',
+    orderBy: 'nome',
+    orderDirection: 'asc',
+    allowedFields: ['nome', 'ativo'],
   },
 } as const;
 
@@ -898,6 +905,10 @@ Deno.serve(async (request) => {
 
     if (!config) {
       return json({ error: 'Entidade invalida.' }, 400);
+    }
+
+    if (entity === 'categorias_veiculo' && ['create', 'update', 'delete'].includes(action)) {
+      ensureCanConfigure(access);
     }
 
     const id = typeof body.id === 'string' ? body.id : '';
