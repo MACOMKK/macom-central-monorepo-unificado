@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -6,13 +7,14 @@ import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Layout from '@/components/Layout';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import Clientes from '@/pages/Clientes';
-import Eventos from '@/pages/Eventos';
-import Leads from '@/pages/Leads';
-import Dashboard from '@/pages/Dashboard';
-import Login from '@/pages/Login';
-import ConfiguracaoDistribuicao from '@/pages/ConfiguracaoDistribuicao';
-import CategoriasVeiculo from '@/pages/CategoriasVeiculo';
+
+const Clientes = lazy(() => import('@/pages/Clientes'));
+const Eventos = lazy(() => import('@/pages/Eventos'));
+const Leads = lazy(() => import('@/pages/Leads'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const Login = lazy(() => import('@/pages/Login'));
+const ConfiguracaoDistribuicao = lazy(() => import('@/pages/ConfiguracaoDistribuicao'));
+const CategoriasVeiculo = lazy(() => import('@/pages/CategoriasVeiculo'));
 
 const getFromPath = (search) => {
   const params = new URLSearchParams(search);
@@ -44,7 +46,11 @@ const LoginRoute = () => {
     return <Navigate replace to={getFromPath(location.search)} />;
   }
 
-  return <Login loading={isLoadingAuth} />;
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <Login loading={isLoadingAuth} />
+    </Suspense>
+  );
 };
 
 const CrmRoutes = () => {
@@ -61,19 +67,21 @@ const CrmRoutes = () => {
   }
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Navigate replace to="/leads" />} />
-        <Route path="/atividades" element={<Eventos />} />
-        <Route path="/atendimentos" element={<Navigate replace to="/atividades" />} />
-        <Route path="/clientes" element={<Clientes />} />
-        <Route path="/leads" element={<Leads />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/configuracoes/distribuicao" element={<ConfiguracaoDistribuicao />} />
-        <Route path="/configuracoes/categorias-veiculo" element={<CategoriasVeiculo />} />
-      </Route>
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Navigate replace to="/leads" />} />
+          <Route path="/atividades" element={<Eventos />} />
+          <Route path="/atendimentos" element={<Navigate replace to="/atividades" />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/leads" element={<Leads />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/configuracoes/distribuicao" element={<ConfiguracaoDistribuicao />} />
+          <Route path="/configuracoes/categorias-veiculo" element={<CategoriasVeiculo />} />
+        </Route>
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </Suspense>
   );
 };
 

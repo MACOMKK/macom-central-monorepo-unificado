@@ -15,7 +15,7 @@ import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
 const createTempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const ACTIVE_LEAD_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'];
+import { ACTIVE_LEAD_STATUSES } from '@/lib/leadStatus';
 const STATUS_TABS = ['planejada', 'concluida', 'cancelada'];
 
 const formatDateOnly = (date) => date.toISOString().slice(0, 10);
@@ -81,7 +81,7 @@ export default function Eventos() {
     setPage(1);
   }, [agendaFiltro, busca, empresa, periodoFim, periodoInicio, responsavelFiltro, statusTab]);
 
-  const { data: eventosPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
+  const { data: eventosPage = { rows: [], count: 0, page: 1, pageSize }, isFetching, isError, error: eventosError } = useQuery({
     queryKey: eventosQueryKey,
     queryFn: () => crmDataClient.entities.Atividade.listPage({
       orderBy: '-updated_date',
@@ -357,6 +357,12 @@ export default function Eventos() {
           </Button>
         </div>
       </div>
+
+      {isError ? (
+        <div className="mb-4 border border-dashed border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold uppercase tracking-widest text-red-700">
+          {eventosError?.message || 'Nao foi possivel carregar as atividades.'}
+        </div>
+      ) : null}
 
       <div className="mb-3 grid gap-2 md:grid-cols-3">
         <button

@@ -1,18 +1,17 @@
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { cn } from '@/lib/utils';
 import { Phone, Car, Building2, CalendarClock, UserRound, AlertTriangle } from 'lucide-react';
-
-export const ACTIVE_LEAD_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'];
+import { ACTIVE_LEAD_STATUSES, LEAD_STATUS_LABEL } from '@/lib/leadStatus';
 
 const COLUNAS = [
-  { key: 'novo', label: 'Novo', color: 'border-t-blue-500', headerBg: 'bg-blue-500', dot: 'bg-blue-500' },
-  { key: 'tentativa_contato', label: 'Tentativa', color: 'border-t-amber-400', headerBg: 'bg-amber-400', dot: 'bg-amber-400' },
-  { key: 'em_contato', label: 'Em Contato', color: 'border-t-cyan-500', headerBg: 'bg-cyan-500', dot: 'bg-cyan-500' },
-  { key: 'qualificado', label: 'Qualificado', color: 'border-t-violet-500', headerBg: 'bg-violet-500', dot: 'bg-violet-500' },
-  { key: 'proposta', label: 'Proposta', color: 'border-t-orange-500', headerBg: 'bg-orange-500', dot: 'bg-orange-500' },
-  { key: 'convertido', label: 'Convertido', color: 'border-t-green-600', headerBg: 'bg-green-600', dot: 'bg-green-600' },
-  { key: 'perdido', label: 'Perdido', color: 'border-t-red-600', headerBg: 'bg-red-600', dot: 'bg-red-600' },
-];
+  { key: 'novo', color: 'border-t-blue-500', headerBg: 'bg-blue-500', dot: 'bg-blue-500' },
+  { key: 'tentativa_contato', color: 'border-t-amber-400', headerBg: 'bg-amber-400', dot: 'bg-amber-400' },
+  { key: 'em_contato', color: 'border-t-cyan-500', headerBg: 'bg-cyan-500', dot: 'bg-cyan-500' },
+  { key: 'qualificado', color: 'border-t-violet-500', headerBg: 'bg-violet-500', dot: 'bg-violet-500' },
+  { key: 'proposta', color: 'border-t-orange-500', headerBg: 'bg-orange-500', dot: 'bg-orange-500' },
+  { key: 'convertido', color: 'border-t-green-600', headerBg: 'bg-green-600', dot: 'bg-green-600' },
+  { key: 'perdido', color: 'border-t-red-600', headerBg: 'bg-red-600', dot: 'bg-red-600' },
+].map((col) => ({ ...col, label: LEAD_STATUS_LABEL[col.key] }));
 
 const toLocalDate = (value) => {
   if (!value) return null;

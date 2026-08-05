@@ -15,32 +15,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useEmpresa } from '@/context/EmpresaContext';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/use-toast';
+import { LEAD_STATUS_BADGE as STATUS_STYLES, LEAD_STATUS_LABEL as STATUS_LABEL } from '@/lib/leadStatus';
 
 const FUNIL_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta', 'convertido', 'perdido'];
-
-const STATUS_STYLES = {
-  novo: 'bg-blue-600 text-white',
-  tentativa_contato: 'bg-amber-500 text-white',
-  em_contato: 'bg-cyan-600 text-white',
-  qualificado: 'bg-violet-600 text-white',
-  proposta: 'bg-orange-500 text-white',
-  convertido: 'bg-green-600 text-white',
-  perdido: 'bg-red-600 text-white',
-  triagem: 'bg-slate-500 text-white',
-  descartado: 'bg-slate-400 text-white',
-};
-
-const STATUS_LABEL = {
-  novo: 'Novo',
-  tentativa_contato: 'Tentativa de contato',
-  em_contato: 'Em contato',
-  qualificado: 'Qualificado',
-  proposta: 'Proposta',
-  convertido: 'Convertido',
-  perdido: 'Perdido',
-  triagem: 'Em triagem',
-  descartado: 'Descartado',
-};
 
 const SLA_STYLES = {
   atrasado: 'bg-red-100 text-red-700',
@@ -154,7 +131,7 @@ export default function Leads() {
     setPage(1);
   }, [buscaDebounced, empresa, origemFiltro, periodoFim, periodoInicio, preLeadView, responsavelFiltro, slaFiltro, statusFiltro, viewSection]);
 
-  const { data: leadsPage = { rows: [], count: 0, page: 1, pageSize }, isFetching } = useQuery({
+  const { data: leadsPage = { rows: [], count: 0, page: 1, pageSize }, isFetching, isError, error: leadsError } = useQuery({
     queryKey: leadsQueryKey,
     queryFn: () => crmDataClient.entities.Lead.listPage({
       orderBy: '-created_date',
@@ -696,6 +673,12 @@ export default function Leads() {
           </Button>
         </div>
       </div>
+
+      {isError ? (
+        <div className="mb-4 border border-dashed border-red-300 bg-red-50 px-4 py-3 text-xs font-semibold uppercase tracking-widest text-red-700">
+          {leadsError?.message || 'Nao foi possivel carregar os leads.'}
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 border border-border bg-white p-3 shadow-sm">
         <div className="relative min-w-[240px] flex-1">

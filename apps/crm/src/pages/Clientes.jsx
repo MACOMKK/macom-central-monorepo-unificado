@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils';
 import ListPagination from '@/components/ListPagination';
 import { Building2, Car, Clock3, History, Mail, Paperclip, Pencil, Phone, Save, Search, Tag, UserRound, X } from 'lucide-react';
 
+import { ACTIVE_LEAD_STATUSES as ACTIVE_LEAD_STATUSES_LIST, LEAD_STATUS_LABEL, LEAD_STATUS_STYLE } from '@/lib/leadStatus';
+
 const STATUS_LABEL = {
   lead: 'Lead',
   cliente: 'Cliente',
@@ -29,27 +31,7 @@ const STATUS_STYLE = {
   pos_venda: 'border-amber-200 bg-amber-50 text-amber-700',
 };
 
-const LEAD_STATUS_LABEL = {
-  novo: 'Novo',
-  tentativa_contato: 'Tentativa de contato',
-  em_contato: 'Em contato',
-  qualificado: 'Qualificado',
-  proposta: 'Proposta',
-  convertido: 'Convertido',
-  perdido: 'Perdido',
-};
-
-const LEAD_STATUS_STYLE = {
-  novo: 'border-blue-200 bg-blue-50 text-blue-700',
-  tentativa_contato: 'border-amber-200 bg-amber-50 text-amber-700',
-  em_contato: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-  qualificado: 'border-violet-200 bg-violet-50 text-violet-700',
-  proposta: 'border-orange-200 bg-orange-50 text-orange-700',
-  convertido: 'border-green-200 bg-green-50 text-green-700',
-  perdido: 'border-red-200 bg-red-50 text-red-700',
-};
-
-const ACTIVE_LEAD_STATUSES = new Set(['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta']);
+const ACTIVE_LEAD_STATUSES = new Set(ACTIVE_LEAD_STATUSES_LIST);
 
 const ATTENDANCE_RESULT_LABEL = {
   contato_realizado: 'Contato realizado',
@@ -646,8 +628,8 @@ export default function Clientes() {
                     <div className="border-l-4 border-blue-600 bg-blue-50 p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Lead ativo</p>
-                        <Badge className={cn('rounded-sm border text-[10px] uppercase tracking-wider', LEAD_STATUS_STYLE[activeLead.status])}>
-                          {LEAD_STATUS_LABEL[activeLead.status]}
+                        <Badge className={cn('rounded-sm border text-[10px] uppercase tracking-wider', LEAD_STATUS_STYLE[activeLead.status] || LEAD_STATUS_STYLE.novo)}>
+                          {LEAD_STATUS_LABEL[activeLead.status] || activeLead.status}
                         </Badge>
                       </div>
                       <p className="text-sm font-bold">{activeLead.modelo_interesse || 'Modelo nao informado'}</p>

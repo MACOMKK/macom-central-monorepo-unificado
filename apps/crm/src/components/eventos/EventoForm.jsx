@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Car, Phone, Tag, UserRound } from 'lucide-react';
 
-const ACTIVE_LEAD_STATUSES = new Set(['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta']);
+import { ACTIVE_LEAD_STATUSES as ACTIVE_LEAD_STATUSES_LIST } from '@/lib/leadStatus';
+
+const ACTIVE_LEAD_STATUSES = new Set(ACTIVE_LEAD_STATUSES_LIST);
 const PLANNED_ACTIVITY_STATUSES = new Set(['planejada']);
 
 function Field({ label, children }) {

@@ -14,6 +14,8 @@ function toError(message, status = 500, code, details, hint) {
   return error;
 }
 
+const CRM_API_TIMEOUT_MS = 20000;
+
 async function invokeCrm(body = {}, accessTokenOverride) {
   assertSupabaseConfigured();
 
@@ -26,15 +28,29 @@ async function invokeCrm(body = {}, accessTokenOverride) {
     throw toError('Sessao expirada. Faca login novamente.', 401, 'auth_required');
   }
 
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-api`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CRM_API_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw toError('A requisicao demorou demais. Tente novamente.', 504, 'timeout');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const result = await response.json().catch(() => ({}));
 
