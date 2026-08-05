@@ -119,9 +119,11 @@ export default function LeadForm({
     queryFn: () => crmDataClient.entities.CategoriaVeiculo.list('nome'),
     enabled: open,
   });
-  const categoriasAtivas = useMemo(
-    () => categoriasVeiculo.filter((categoria) => categoria.ativo),
-    [categoriasVeiculo],
+  const categoriasSelecionaveis = useMemo(
+    () => categoriasVeiculo.filter(
+      (categoria) => categoria.ativo || categoria.id === data.veiculo_interesse?.categoria_veiculo_id,
+    ),
+    [categoriasVeiculo, data.veiculo_interesse?.categoria_veiculo_id],
   );
 
   const currentStepKey = steps[currentStep]?.key;
@@ -232,11 +234,19 @@ export default function LeadForm({
             {currentStepKey === 'contato' ? (
               <div className="space-y-4">
                 <Field label="Nome *">
-                  <Input required value={data.nome} onChange={(event) => set('nome', event.target.value)} className="h-9 rounded-none text-sm" />
+                  <Input required placeholder="Nome e sobrenome" value={data.nome} onChange={(event) => set('nome', event.target.value)} className="h-9 rounded-none text-sm" />
                 </Field>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Telefone">
-                    <Input required value={data.telefone} onChange={(event) => set('telefone', event.target.value)} className="h-9 rounded-none text-sm" />
+                    <Input
+                      required
+                      inputMode="numeric"
+                      placeholder="DDD + numero"
+                      maxLength={11}
+                      value={data.telefone}
+                      onChange={(event) => set('telefone', event.target.value.replace(/\D/g, '').slice(0, 11))}
+                      className="h-9 rounded-none text-sm"
+                    />
                   </Field>
                   <Field label="E-mail">
                     <Input type="email" value={data.email} onChange={(event) => set('email', event.target.value)} className="h-9 rounded-none text-sm" />
@@ -298,8 +308,10 @@ export default function LeadForm({
                       <SelectTrigger className="h-9 rounded-none text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-none">
                         <SelectItem value="nenhuma">Sem categoria</SelectItem>
-                        {categoriasAtivas.map((categoria) => (
-                          <SelectItem key={categoria.id} value={categoria.id}>{categoria.nome}</SelectItem>
+                        {categoriasSelecionaveis.map((categoria) => (
+                          <SelectItem key={categoria.id} value={categoria.id}>
+                            {categoria.nome}{!categoria.ativo ? ' (inativa)' : ''}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -380,7 +392,7 @@ export default function LeadForm({
                       <SelectItem value="automatico">Distribuicao automatica</SelectItem>
                       {responsaveisDaUnidade.map((responsavel) => (
                         <SelectItem key={responsavel.id} value={responsavel.id}>
-                          {responsavel.nome}
+                          {responsavel.nome}{responsavel.distribuicao_ativa === false ? ' (fora da distribuicao automatica)' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>

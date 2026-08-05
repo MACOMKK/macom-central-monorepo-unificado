@@ -53,7 +53,29 @@ function requireNormalizedPhone(phone, context) {
   if (!normalized) {
     throw new Error(`${context} deve ter telefone.`);
   }
+  if (normalized.length < 10 || normalized.length > 11) {
+    throw new Error(`Telefone de ${context.toLowerCase()} invalido. Informe DDD + numero (10 ou 11 digitos).`);
+  }
   return normalized;
+}
+
+function requireValidEmail(email, context) {
+  const trimmed = String(email || '').trim();
+  if (!trimmed) return '';
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new Error(`E-mail de ${context.toLowerCase()} invalido. Informe um e-mail no formato nome@dominio.com.`);
+  }
+  return trimmed;
+}
+
+function requireFullName(name, context) {
+  const trimmed = String(name || '').trim().replace(/\s+/g, ' ');
+  const parts = trimmed.split(' ').filter((part) => part.length >= 2);
+  if (parts.length < 2) {
+    throw new Error(`Nome de ${context.toLowerCase()} deve ter nome e sobrenome.`);
+  }
+  return trimmed;
 }
 
 function toError(error, fallbackMessage) {
@@ -276,15 +298,16 @@ function mapHistoricoRow(row = {}) {
 }
 
 function mapClientePayload(data = {}) {
+  const nome = requireFullName(data.nome || data.cliente_nome, 'Cliente');
   const phone = requireNormalizedPhone(data.telefone, 'Cliente');
-  const email = normalizeEmail(data.email);
+  const email = requireValidEmail(data.email, 'Cliente');
 
   return {
-    nome: data.nome || data.cliente_nome || '',
-    telefone: data.telefone || '',
+    nome,
+    telefone: phone,
     telefone_normalizado: phone,
-    email: data.email || null,
-    email_normalizado: email || null,
+    email: email || null,
+    email_normalizado: normalizeEmail(email) || null,
     empresa: normalizeEmpresa(data.empresa),
     status_relacionamento: data.status_relacionamento || 'lead',
     observacoes: data.observacoes || null,
@@ -292,8 +315,9 @@ function mapClientePayload(data = {}) {
 }
 
 function mapLeadPayload(data = {}, clienteId) {
+  const nome = requireFullName(data.nome, 'Lead');
   const phone = requireNormalizedPhone(data.telefone, 'Lead');
-  const email = normalizeEmail(data.email);
+  const email = requireValidEmail(data.email, 'Lead');
 
   if (data.status === 'perdido' && !String(data.motivo_perda || '').trim()) {
     throw new Error('Informe o motivo da perda para encerrar este lead.');
@@ -305,11 +329,11 @@ function mapLeadPayload(data = {}, clienteId) {
 
   return {
     cliente_id: clienteId || data.cliente_id,
-    nome: data.nome || '',
-    telefone: data.telefone || '',
+    nome,
+    telefone: phone,
     telefone_normalizado: phone,
-    email: data.email || null,
-    email_normalizado: email || null,
+    email: email || null,
+    email_normalizado: normalizeEmail(email) || null,
     origem: data.origem || 'site',
     status: data.status || 'novo',
     modelo_interesse: data.modelo_interesse || formatVehicleLabel(data.veiculo_interesse) || null,

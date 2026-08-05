@@ -153,6 +153,41 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function validationError(message: string) {
+  const error = new Error(message) as Error & { status?: number };
+  error.status = 400;
+  return error;
+}
+
+function validateContactFields(entity: EntityName, payload: Record<string, unknown>) {
+  if (entity !== 'clientes' && entity !== 'leads') return;
+
+  if (typeof payload.nome === 'string') {
+    const parts = payload.nome.trim().replace(/\s+/g, ' ').split(' ').filter((part) => part.length >= 2);
+    if (parts.length < 2) {
+      throw validationError('Nome deve ter nome e sobrenome.');
+    }
+  }
+
+  if (typeof payload.telefone === 'string') {
+    const digits = payload.telefone.replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 11) {
+      throw validationError('Telefone invalido. Informe DDD + numero (10 ou 11 digitos).');
+    }
+    payload.telefone = digits;
+    payload.telefone_normalizado = digits;
+  }
+
+  if (typeof payload.email === 'string' && payload.email.trim()) {
+    const email = payload.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw validationError('E-mail invalido. Informe um e-mail no formato nome@dominio.com.');
+    }
+    payload.email = email;
+    payload.email_normalizado = email.toLowerCase();
+  }
+}
+
 function mapDatabaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
 
@@ -178,6 +213,10 @@ function mapDatabaseError(error: unknown) {
 
   if (message.includes('idx_crm_clientes_email_unique')) {
     return 'Ja existe outro cliente com este e-mail.';
+  }
+
+  if (message.includes('categorias_veiculo_nome_key')) {
+    return 'Ja existe uma categoria com este nome.';
   }
 
   if (message.includes('Motivo da perda e obrigatorio')) {
@@ -210,6 +249,14 @@ function mapDatabaseError(error: unknown) {
 
   if (message.includes('Nenhum vendedor elegivel')) {
     return 'Nenhum vendedor desta unidade esta disponivel para receber o lead.';
+  }
+
+  if (message.includes('Todos os vendedores ativos desta unidade atingiram o limite')) {
+    return 'Todos os vendedores ativos desta unidade ja atingiram o limite de leads ativos. Aumente o limite, adicione outro vendedor ou atribua o lead manualmente.';
+  }
+
+  if (message.includes('Nenhum vendedor ativo nesta unidade')) {
+    return 'Nenhum vendedor esta ativo na distribuicao automatica desta unidade. Ative ao menos um vendedor na configuracao de distribuicao ou atribua o lead manualmente.';
   }
 
   if (message.includes('Unidade do lead e obrigatoria')) {
@@ -647,7 +694,8 @@ Deno.serve(async (request) => {
             c.email,
             c.unidade_id,
             u.nome as unidade_nome,
-            aus.nivel_acesso
+            aus.nivel_acesso,
+            coalesce(vd.ativo, true) as distribuicao_ativa
           from public.colaboradores c
           join public.acessos_usuario_sistema aus
             on aus.colaborador_id = c.id
@@ -657,6 +705,8 @@ Deno.serve(async (request) => {
             and s.slug = $1
             and s.ativo = true
           left join public.unidades u on u.id = c.unidade_id
+          left join ${CRM_SCHEMA}.vendedores_distribuicao vd
+            on vd.unidade_id = c.unidade_id and vd.colaborador_id = c.id
           where c.status <> 'inativo'
             and ($2::uuid is null or c.unidade_id = $2::uuid)
             and ($3::uuid is null or c.id = $3::uuid)
@@ -992,7 +1042,8 @@ Deno.serve(async (request) => {
     if (action === 'create') {
       const payload = applyCreateScope(entity, sanitizePayload(entity, body.payload || {}), access, collaborator);
       if (!Object.keys(payload).length) return json({ error: 'Payload vazio.' }, 400);
-      if (collaborator?.id) payload.criado_por = collaborator.id;
+      validateContactFields(entity, payload);
+      if (collaborator?.id && entity !== 'categorias_veiculo') payload.criado_por = collaborator.id;
       if (entity === 'atendimentos' && payload.lead_id) {
         await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
       }
@@ -1012,6 +1063,7 @@ Deno.serve(async (request) => {
       await ensureEntityAccess(entity, id, access, collaborator);
       const payload = applyCreateScope(entity, sanitizePayload(entity, body.payload || {}), access, collaborator);
       if (!Object.keys(payload).length) return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      validateContactFields(entity, payload);
       if (entity === 'atendimentos' && payload.lead_id) {
         await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
       }

@@ -111,6 +111,8 @@ export default function Leads() {
   const [preLeadFormOpen, setPreLeadFormOpen] = useState(false);
   const [discardTarget, setDiscardTarget] = useState(null);
   const [discardReason, setDiscardReason] = useState('');
+  const [lossTarget, setLossTarget] = useState(null);
+  const [lossReason, setLossReason] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [viewMode, setViewMode] = useState('kanban');
   const [busca, setBusca] = useState('');
@@ -164,6 +166,20 @@ export default function Leads() {
   });
   const leads = leadsPage.rows;
   const totalPages = Math.max(1, Math.ceil((leadsPage.count || 0) / pageSize));
+
+  const kanbanAtivo = viewSection === 'central' && viewMode === 'kanban';
+  const { data: atividadesPlanejadas = [] } = useQuery({
+    queryKey: ['atividade-planejadas-kanban', { empresa }],
+    enabled: kanbanAtivo,
+    queryFn: () => crmDataClient.entities.Atividade.listPage({
+      limit: 500,
+      filters: { ...(empresa !== 'Todas' ? { empresa } : {}), status: 'planejada' },
+    }).then((result) => result.rows || []),
+  });
+  const leadsComAtividadePendente = useMemo(
+    () => new Set(atividadesPlanejadas.map((atividade) => atividade.lead_id).filter(Boolean)),
+    [atividadesPlanejadas]
+  );
 
   const saveMutation = useMutation({
     mutationFn: ({ id, data }) => id
@@ -301,7 +317,10 @@ export default function Leads() {
   };
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }) => crmDataClient.entities.Lead.update(id, { status }),
+    mutationFn: ({ id, status, motivo_perda }) => crmDataClient.entities.Lead.update(id, {
+      status,
+      ...(motivo_perda ? { motivo_perda } : {}),
+    }),
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ['leads'] });
       const previousLeads = queryClient.getQueryData(leadsQueryKey);
@@ -317,6 +336,8 @@ export default function Leads() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['lead-historico', editingId] });
+      setLossTarget(null);
+      setLossReason('');
     },
     onError: (error, _variables, context) => {
       if (context?.previousLeads) {
@@ -333,10 +354,24 @@ export default function Leads() {
 
   const promoteMutation = useMutation({
     mutationFn: ({ id, data }) => crmDataClient.entities.Lead.promote(id, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData(leadsQueryKey);
+      const nextStatus = data.status || 'novo';
+
+      queryClient.setQueryData(leadsQueryKey, (currentPage = leadsPage) => ({
+        ...currentPage,
+        rows: (currentPage.rows || []).filter((lead) => lead.id !== id),
+        count: Math.max(0, (currentPage.count || 0) - 1),
+      }));
+
       setFormOpen(false);
       setEditing(null);
       setPromoting(false);
+
+      return { previousLeads, nextStatus };
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
@@ -346,7 +381,10 @@ export default function Leads() {
         variant: 'success',
       });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(leadsQueryKey, context.previousLeads);
+      }
       toast({
         title: 'Nao foi possivel qualificar o pré-lead',
         description: error.message || 'Revise os dados informados.',
@@ -547,9 +585,14 @@ export default function Leads() {
     const { draggableId, destination } = result;
     const novoStatus = destination.droppableId;
     const lead = leads.find((l) => l.id === draggableId);
-    if (lead && lead.status !== novoStatus) {
-      updateStatusMutation.mutate({ id: draggableId, status: novoStatus });
+    if (!lead || lead.status === novoStatus) return;
+
+    if (novoStatus === 'perdido') {
+      setLossTarget(lead);
+      return;
     }
+
+    updateStatusMutation.mutate({ id: draggableId, status: novoStatus });
   };
 
   const filtrados = leads;
@@ -720,6 +763,7 @@ export default function Leads() {
           leads={filtrados}
           onDragEnd={handleDragEnd}
           onCardClick={(lead) => { setPromoting(false); setEditing(lead); setFormOpen(true); }}
+          leadsComAtividadePendente={leadsComAtividadePendente}
         />
       )}
 
@@ -974,6 +1018,44 @@ export default function Leads() {
               </Button>
               <Button type="submit" disabled={discardMutation.isPending} className="rounded-none bg-red-600 text-xs font-bold uppercase tracking-wider hover:bg-red-700">
                 {discardMutation.isPending ? 'Descartando...' : 'Descartar pré-lead'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(lossTarget)} onOpenChange={(next) => { if (!next) { setLossTarget(null); setLossReason(''); } }}>
+        <DialogContent className="max-w-md rounded-none p-0">
+          <DialogHeader className="bg-[#1a1a1a] px-6 py-4">
+            <DialogTitle className="text-sm font-black uppercase tracking-widest text-white">
+              Marcar lead como perdido
+            </DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!lossTarget) return;
+              updateStatusMutation.mutate({ id: lossTarget.id, status: 'perdido', motivo_perda: lossReason });
+            }}
+            className="flex flex-col gap-4 p-6"
+          >
+            <p className="text-xs text-muted-foreground">
+              Informe o motivo da perda de <strong>{lossTarget?.nome}</strong>. Este campo e obrigatorio para encerrar o lead.
+            </p>
+            <Textarea
+              required
+              value={lossReason}
+              onChange={(event) => setLossReason(event.target.value)}
+              placeholder="Ex.: preco, comprou com concorrente, desistiu da compra..."
+              className="resize-none rounded-none text-sm"
+              rows={3}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" className="rounded-none text-xs font-bold uppercase tracking-wider" onClick={() => { setLossTarget(null); setLossReason(''); }}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateStatusMutation.isPending} className="rounded-none bg-red-600 text-xs font-bold uppercase tracking-wider hover:bg-red-700">
+                {updateStatusMutation.isPending ? 'Salvando...' : 'Marcar como perdido'}
               </Button>
             </div>
           </form>

@@ -81,11 +81,19 @@ export default function PreLeadForm({ open, onOpenChange, responsaveis = [], onS
           </p>
 
           <Field label="Nome *">
-            <Input required value={data.nome} onChange={(event) => set('nome', event.target.value)} className="h-9 rounded-none text-sm" />
+            <Input required placeholder="Nome e sobrenome" value={data.nome} onChange={(event) => set('nome', event.target.value)} className="h-9 rounded-none text-sm" />
           </Field>
 
           <Field label="Telefone *">
-            <Input required value={data.telefone} onChange={(event) => set('telefone', event.target.value)} className="h-9 rounded-none text-sm" />
+            <Input
+              required
+              inputMode="numeric"
+              placeholder="DDD + numero"
+              maxLength={11}
+              value={data.telefone}
+              onChange={(event) => set('telefone', event.target.value.replace(/\D/g, '').slice(0, 11))}
+              className="h-9 rounded-none text-sm"
+            />
           </Field>
 
           <Field label="Origem">

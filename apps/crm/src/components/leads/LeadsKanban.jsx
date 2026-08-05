@@ -1,6 +1,8 @@
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { cn } from '@/lib/utils';
-import { Phone, Car, Building2, CalendarClock, UserRound } from 'lucide-react';
+import { Phone, Car, Building2, CalendarClock, UserRound, AlertTriangle } from 'lucide-react';
+
+export const ACTIVE_LEAD_STATUSES = ['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'];
 
 const COLUNAS = [
   { key: 'novo', label: 'Novo', color: 'border-t-blue-500', headerBg: 'bg-blue-500', dot: 'bg-blue-500' },
@@ -64,7 +66,8 @@ const getClosingInfo = (lead) => {
   };
 };
 
-function LeadCard({ lead, index, onClick }) {
+function LeadCard({ lead, index, onClick, semContatoAgendado }) {
+  const isSaving = String(lead.id).startsWith('temp-');
   const slaLabel = lead.sla_status === 'concluido'
     ? 'SLA ok'
     : lead.sla_status === 'atrasado'
@@ -95,13 +98,24 @@ function LeadCard({ lead, index, onClick }) {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onClick={() => onClick(lead)}
+          onClick={() => { if (!isSaving) onClick(lead); }}
           className={cn(
-            'bg-white border border-border shadow-sm p-3 cursor-pointer select-none transition-shadow',
+            'bg-white border border-border shadow-sm p-3 select-none transition-shadow',
+            isSaving ? 'cursor-wait opacity-60' : 'cursor-pointer',
             snapshot.isDragging ? 'shadow-xl rotate-1 opacity-95' : 'hover:shadow-md hover:border-primary/30'
           )}
         >
-          <p className="font-bold text-sm leading-tight">{lead.nome}</p>
+          <div className="flex items-start justify-between gap-1.5">
+            <p className="font-bold text-sm leading-tight">{lead.nome}</p>
+            {semContatoAgendado && (
+              <span title="Sem contato agendado" className="shrink-0 mt-0.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              </span>
+            )}
+          </div>
+          {isSaving && (
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Salvando...</p>
+          )}
           {lead.modelo_interesse && (
             <p className="text-xs text-primary font-semibold mt-1 flex items-center gap-1">
               <Car className="w-3 h-3" />{lead.modelo_interesse}
@@ -122,7 +136,7 @@ function LeadCard({ lead, index, onClick }) {
               <UserRound className="w-3 h-3" />{lead.responsavel_nome || 'Distribuicao automatica'}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
-              {['novo', 'tentativa_contato', 'em_contato', 'qualificado', 'proposta'].includes(lead.status) ? (
+              {ACTIVE_LEAD_STATUSES.includes(lead.status) ? (
                 <span
                   title={slaTitle}
                   className={cn('inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider', slaStyle)}
@@ -149,7 +163,7 @@ function LeadCard({ lead, index, onClick }) {
   );
 }
 
-export default function LeadsKanban({ leads, onDragEnd, onCardClick }) {
+export default function LeadsKanban({ leads, onDragEnd, onCardClick, leadsComAtividadePendente }) {
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex gap-3 overflow-x-auto pb-4 items-start">
@@ -180,7 +194,16 @@ export default function LeadsKanban({ leads, onDragEnd, onCardClick }) {
                     )}
                   >
                     {colLeads.map((lead, index) => (
-                      <LeadCard key={lead.id} lead={lead} index={index} onClick={onCardClick} />
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        index={index}
+                        onClick={onCardClick}
+                        semContatoAgendado={
+                          ACTIVE_LEAD_STATUSES.includes(lead.status) &&
+                          !leadsComAtividadePendente?.has(lead.id)
+                        }
+                      />
                     ))}
                     {provided.placeholder}
                     {colLeads.length === 0 && !snapshot.isDraggingOver && (

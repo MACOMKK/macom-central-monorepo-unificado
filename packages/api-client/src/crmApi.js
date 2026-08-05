@@ -156,7 +156,7 @@ export const crmApi = {
       return invokeCrm({ action: 'save_distribution_config', ...payload });
     },
     async clearTestData() {
-      return invokeCrm({ action: 'clear_crm_test_data', confirm: 'LIMPAR-DADOS-CRM' });
+      return invokeCrm({ action: 'clear_crm_test_data', confirm: 'LIMPAR-DADOS-CRM', confirmar_global: true });
     },
   },
   clientes: buildEntity('clientes'),

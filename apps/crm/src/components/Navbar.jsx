@@ -164,8 +164,6 @@ export default function Navbar({ realtime }) {
             { label: 'Recepção', icon: Headphones, comingSoon: true },
           ]} />
           <NavMenu label="Pós-Vendas" items={[
-            { label: 'Agenda de Atividades', icon: Tag, path: '/atividades' },
-            { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Agenda Online', icon: Calendar, comingSoon: true },
             { label: 'Agenda V2', icon: CalendarDays, comingSoon: true },
             { label: 'Painel de Retenção', icon: PieChart, comingSoon: true },
