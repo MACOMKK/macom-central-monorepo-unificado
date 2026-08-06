@@ -6,16 +6,18 @@ import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom
 const AuthContext = createContext(null);
 
 // usuario = solicitante, gestor = aprovador, admin = financeiro/pagador (admin tambem aprova)
-function mapAccessLevel(level) {
-  if (level === 'admin') return 'financeiro';
-  if (level === 'gestor') return 'aprovador';
+// Vem do papel efetivo no modulo Financeiro (Camada 2, gestao_servicos.permissoes_usuario),
+// nao do nivel de acesso ao sistema inteiro (Camada 1) - ver `role` no retorno de financeiroApi.auth.me.
+function mapModuleRole(role) {
+  if (role === 'admin') return 'financeiro';
+  if (role === 'gestor') return 'aprovador';
   return 'solicitante';
 }
 
 function normalizeServicosUser(authUser, authPayload = {}) {
   const collaborator = authPayload.row || null;
   const access = authPayload.access || null;
-  const role = mapAccessLevel(access?.nivel_acesso);
+  const role = mapModuleRole(authPayload.role);
 
   return {
     id: collaborator?.id || authUser?.id || null,

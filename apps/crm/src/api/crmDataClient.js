@@ -574,33 +574,6 @@ async function getLead(id) {
   return mapLeadRow(row);
 }
 
-async function saveLeadVehicleInterest(lead, data = {}) {
-  if (!lead?.id || !hasVehicleInterest(data)) return null;
-
-  const payload = mapVeiculoInteressePayload(data, lead.id);
-  const vehicleId = data.veiculo_interesse?.id || lead.veiculo_interesse?.id;
-
-  if (vehicleId) {
-    const row = await crmApi.veiculos_interesse.update(vehicleId, payload);
-    return mapVeiculoInteresseRow(row);
-  }
-
-  const existing = await crmApi.veiculos_interesse.list({
-    filters: { lead_id: lead.id },
-    orderBy: 'criado_em',
-    ascending: true,
-    limit: 1,
-  });
-
-  if (existing?.[0]?.id) {
-    const row = await crmApi.veiculos_interesse.update(existing[0].id, payload);
-    return mapVeiculoInteresseRow(row);
-  }
-
-  const row = await crmApi.veiculos_interesse.create(payload);
-  return mapVeiculoInteresseRow(row);
-}
-
 function createListRepository(entityName, entityApi, mapper) {
 
   return {
@@ -667,18 +640,31 @@ const LeadRepository = {
   },
 
   async create(data) {
-    const cliente = await upsertCliente({
+    const clientePayload = mapClientePayload({
       nome: data.nome,
       telefone: data.telefone,
       email: data.email,
       empresa: data.empresa,
       status_relacionamento: data.status === 'convertido' ? 'cliente' : 'lead',
     });
-    const payload = mapLeadPayload(data, cliente.id);
-    const row = await crmApi.leads.create(payload);
-    let lead = mapLeadRow(row);
-    const vehicle = await saveLeadVehicleInterest(lead, data);
-    if (vehicle) {
+    const leadPayload = mapLeadPayload(data);
+    const vehiclePayload = hasVehicleInterest(data) ? mapVeiculoInteressePayload(data) : null;
+
+    const result = await crmApi.leads.saveFull({
+      leadId: null,
+      clientePayload,
+      leadPayload,
+      vehiclePayload,
+      vehicleId: null,
+      historico: {
+        tipo: 'entrada_lead',
+        descricao: `Lead criado na central: ${leadPayload.nome}`,
+      },
+    });
+
+    let lead = mapLeadRow(result.lead);
+    if (result.vehicle) {
+      const vehicle = mapVeiculoInteresseRow(result.vehicle);
       lead = {
         ...lead,
         veiculo_interesse: vehicle,
@@ -686,34 +672,33 @@ const LeadRepository = {
       };
     }
 
-    await addHistoricoAtendimento({
-      cliente_id: lead.cliente_id,
-      lead_id: lead.id,
-      tipo: 'entrada_lead',
-      descricao: `Lead criado na central: ${lead.nome}`,
-      entidade: 'Lead',
-      entidade_id: lead.id,
-      status: lead.status,
-    });
-
     return lead;
   },
 
   async update(id, data) {
     const current = await getLead(id);
     const nextData = { ...current, ...data };
-    const cliente = await upsertCliente({
+    const clientePayload = mapClientePayload({
       nome: nextData.nome,
       telefone: nextData.telefone,
       email: nextData.email,
       empresa: nextData.empresa,
       status_relacionamento: nextData.status === 'convertido' ? 'cliente' : 'lead',
     });
-    const payload = mapLeadPayload(nextData, cliente.id);
-    const row = await crmApi.leads.update(id, payload);
-    let lead = mapLeadRow(row);
-    const vehicle = await saveLeadVehicleInterest(lead, data);
-    if (vehicle) {
+    const leadPayload = mapLeadPayload(nextData);
+    const vehiclePayload = hasVehicleInterest(data) ? mapVeiculoInteressePayload(data, id) : null;
+
+    const result = await crmApi.leads.saveFull({
+      leadId: id,
+      clientePayload,
+      leadPayload,
+      vehiclePayload,
+      vehicleId: data.veiculo_interesse?.id || null,
+    });
+
+    let lead = mapLeadRow(result.lead);
+    if (result.vehicle) {
+      const vehicle = mapVeiculoInteresseRow(result.vehicle);
       lead = {
         ...lead,
         veiculo_interesse: vehicle,
@@ -789,40 +774,24 @@ const EventoRepository = {
 
     const lead = await getLead(data.lead_id);
     const payload = mapEventoPayload(data, lead);
-    const row = await crmApi.atendimentos.create(payload);
-    const evento = mapEventoRow(row);
 
-    await addHistoricoAtendimento({
-      cliente_id: evento.cliente_id,
-      lead_id: evento.lead_id,
-      atendimento_id: evento.id,
-      tipo: 'atendimento',
-      descricao: `${evento.titulo || 'Atividade'} - ${evento.status}`,
-      entidade: 'Evento',
-      entidade_id: evento.id,
-      status: evento.status,
+    const result = await crmApi.atendimentos.saveFull({
+      eventoId: null,
+      payload,
+      historico: {
+        tipo: 'atendimento',
+        descricao: `${payload.titulo || 'Atividade'} - ${payload.status}`,
+      },
     });
 
-    return evento;
+    return mapEventoRow(result.evento);
   },
 
   async update(id, data) {
     const lead = data.lead_id ? await getLead(data.lead_id) : null;
     const payload = mapEventoPayload(data, lead);
-    const row = await crmApi.atendimentos.update(id, payload);
-    const evento = mapEventoRow(row);
 
-    await addHistoricoAtendimento({
-      cliente_id: evento.cliente_id,
-      lead_id: evento.lead_id,
-      atendimento_id: evento.id,
-      tipo: 'atendimento',
-      descricao: `${evento.titulo || 'Atividade'} - ${evento.status}`,
-      entidade: 'Evento',
-      entidade_id: evento.id,
-      status: evento.status,
-    });
-
+    let proximaAtividade = null;
     if (
       data.status === 'concluida'
       && data.resultado
@@ -831,31 +800,35 @@ const EventoRepository = {
       && data.proxima_atividade?.proximo_contato
     ) {
       const nextPayload = mapEventoPayload({
-        lead_id: evento.lead_id,
-        cliente_id: evento.cliente_id,
+        lead_id: payload.lead_id,
+        cliente_id: payload.cliente_id,
         titulo: data.proxima_atividade.titulo,
         status: 'planejada',
         tipo_evento: data.proxima_atividade.tipo_evento || 'ligacao',
-        temperatura: data.temperatura || evento.temperatura || 'morno',
+        temperatura: data.temperatura || payload.temperatura || 'morno',
         proximo_contato: data.proxima_atividade.proximo_contato,
         observacoes: data.proxima_atividade.observacoes || null,
       }, lead);
-      const nextRow = await crmApi.atendimentos.create(nextPayload);
-      const nextEvento = mapEventoRow(nextRow);
-
-      await addHistoricoAtendimento({
-        cliente_id: nextEvento.cliente_id,
-        lead_id: nextEvento.lead_id,
-        atendimento_id: nextEvento.id,
-        tipo: 'atendimento',
-        descricao: `Proxima atividade planejada: ${nextEvento.titulo}`,
-        entidade: 'Evento',
-        entidade_id: nextEvento.id,
-        status: nextEvento.status,
-      });
+      proximaAtividade = {
+        payload: nextPayload,
+        historico: {
+          tipo: 'atendimento',
+          descricao: `Proxima atividade planejada: ${nextPayload.titulo}`,
+        },
+      };
     }
 
-    return evento;
+    const result = await crmApi.atendimentos.saveFull({
+      eventoId: id,
+      payload,
+      historico: {
+        tipo: 'atendimento',
+        descricao: `${payload.titulo || 'Atividade'} - ${payload.status}`,
+      },
+      proximaAtividade,
+    });
+
+    return mapEventoRow(result.evento);
   },
 };
 

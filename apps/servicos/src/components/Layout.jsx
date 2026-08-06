@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { CheckCircle2, LogOut, Plus, Receipt } from 'lucide-react';
+import { useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { ChevronDown, LogOut, ShieldCheck } from 'lucide-react';
 
 import { Button } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,27 +28,60 @@ function NavItem({ to, icon: Icon, label }) {
   );
 }
 
-function ModuleNavItem({ mod }) {
+function ModuleNavItem({ mod, user }) {
   const Icon = mod.icon;
-  return (
-    <NavLink
-      to={mod.path}
-      className={({ isActive }) =>
-        `flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-          isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-        }`
-      }
-    >
-      <span className="flex items-center gap-3">
-        <Icon className="h-4 w-4 shrink-0" />
-        {mod.label}
-      </span>
-      {mod.comingSoon && (
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Em breve
+  const location = useLocation();
+  const visibleChildren = (mod.children ?? []).filter((child) => !child.requires || user?.[child.requires]);
+  const hasChildren = visibleChildren.length > 0;
+  const childActive = visibleChildren.some((child) => location.pathname.startsWith(child.path));
+  const [open, setOpen] = useState(childActive);
+
+  if (!hasChildren) {
+    return (
+      <NavLink
+        to={mod.path}
+        className={({ isActive }) =>
+          `flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+            isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          }`
+        }
+      >
+        <span className="flex items-center gap-3">
+          <Icon className="h-4 w-4 shrink-0" />
+          {mod.label}
         </span>
+        {mod.comingSoon && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Em breve
+          </span>
+        )}
+      </NavLink>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          childActive ? 'text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+        }`}
+      >
+        <span className="flex items-center gap-3">
+          <Icon className="h-4 w-4 shrink-0" />
+          {mod.label}
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="ml-4 flex flex-col gap-1 border-l border-border pl-3">
+          {visibleChildren.map((child) => (
+            <NavItem key={child.key} to={child.path} icon={child.icon} label={child.label} />
+          ))}
+        </div>
       )}
-    </NavLink>
+    </div>
   );
 }
 
@@ -66,17 +100,18 @@ export default function Layout() {
           <div className="flex flex-col gap-1">
             <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Modulos</p>
             {servicosModules.map((mod) => (
-              <ModuleNavItem key={mod.key} mod={mod} />
+              <ModuleNavItem key={mod.key} mod={mod} user={user} />
             ))}
           </div>
 
-          <div className="flex flex-col gap-1 border-t border-border pt-4">
-            <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Financeiro</p>
-            <NavItem to="/solicitacoes" icon={Receipt} label="Minhas solicitacoes" />
-            <NavItem to="/solicitacoes/nova" icon={Plus} label="Nova solicitacao" />
-            {user?.isAprovador && <NavItem to="/aprovacoes" icon={CheckCircle2} label="Aprovacoes" />}
-            {user?.isFinanceiro && <NavItem to="/pagamentos" icon={Receipt} label="Contas a pagar" />}
-          </div>
+          {user?.system_access_level === 'admin' && (
+            <div className="flex flex-col gap-1 border-t border-border pt-4">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Administracao
+              </p>
+              <NavItem to="/permissoes" icon={ShieldCheck} label="Permissoes" />
+            </div>
+          )}
         </nav>
 
         <div className="flex items-center gap-3 border-t border-border px-4 py-4">

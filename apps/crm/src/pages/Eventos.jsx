@@ -227,8 +227,6 @@ export default function Eventos() {
         );
       }
 
-      setFormOpen(false);
-      setEditing(null);
       return { previousEventos, previousLeads, tempId, id };
     },
     onSuccess: (saved, _data, context) => {

@@ -59,11 +59,53 @@ export const financeiroApi = {
       return {
         row: result.row || null,
         access: result.access || null,
+        role: result.role || null,
       };
     },
   },
   storage: {
     bucket: 'comprovantes-pagamento',
+  },
+  empresas: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_empresas' });
+      return result.rows || [];
+    },
+  },
+  departamentos: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_departamentos' });
+      return result.rows || [];
+    },
+  },
+  fornecedores: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_fornecedores' });
+      return result.rows || [];
+    },
+    async criar(nome) {
+      const result = await invokeServicos({ action: 'criar_fornecedor', nome });
+      return result.row || null;
+    },
+  },
+  permissoes: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_permissoes' });
+      return {
+        colaboradores: result.colaboradores || [],
+        permissoes: result.permissoes || [],
+        modulos: result.modulos || [],
+      };
+    },
+    async set(colaboradorId, modulo, papel) {
+      const result = await invokeServicos({
+        action: 'set_permissao',
+        colaborador_id: colaboradorId,
+        modulo,
+        papel,
+      });
+      return result.row || null;
+    },
   },
   solicitacoes: {
     async list(filters = {}) {
@@ -89,6 +131,49 @@ export const financeiroApi = {
     async getSignedUrl(id) {
       const result = await invokeServicos({ action: 'signed_url', id });
       return result.url || null;
+    },
+  },
+  anexos: {
+    async list(solicitacaoId) {
+      const result = await invokeServicos({ action: 'list_anexos', solicitacao_id: solicitacaoId });
+      return result.rows || [];
+    },
+    async registrar({ solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, tamanhoBytes, storagePath }) {
+      const result = await invokeServicos({
+        action: 'registrar_anexo',
+        solicitacao_id: solicitacaoId,
+        parcela_id: parcelaId || null,
+        categoria,
+        tipo_documento: tipoDocumento,
+        nome_arquivo: nomeArquivo,
+        tipo_mime: tipoMime,
+        tamanho_bytes: tamanhoBytes,
+        storage_path: storagePath,
+      });
+      return result.row || null;
+    },
+    async remover(id) {
+      await invokeServicos({ action: 'remover_anexo', id });
+    },
+  },
+  parcelas: {
+    async list(solicitacaoId) {
+      const result = await invokeServicos({ action: 'list_parcelas', solicitacao_id: solicitacaoId });
+      return result.rows || [];
+    },
+    async criar(solicitacaoId, parcelas) {
+      const result = await invokeServicos({ action: 'criar_parcelas', solicitacao_id: solicitacaoId, parcelas });
+      return result.rows || [];
+    },
+    async registrarPagamento(id) {
+      const result = await invokeServicos({ action: 'registrar_pagamento_parcela', id });
+      return result.row || null;
+    },
+  },
+  historico: {
+    async list(solicitacaoId) {
+      const result = await invokeServicos({ action: 'historico', solicitacao_id: solicitacaoId });
+      return result.rows || [];
     },
   },
 };

@@ -25,53 +25,111 @@ mudanças funcionais. Os demais aparecem no menu como "em breve" (`src/lib/navig
 Colaborador solicita, um aprovador decide (aprovado/reprovado), o financeiro marca como pago.
 Máquina de estados: `pendente → aprovado | reprovado`, e `aprovado → pago`.
 
-### Papéis (sem Camada 2 de permissões por módulo — ainda)
+### Papéis (Camada 1 + Camada 2 por módulo)
 
-Diferente da intranet, este app **não** tem hoje uma tabela de permissões por módulo própria.
-Reaproveita diretamente `acessos_usuario_sistema.nivel_acesso` (Camada 1, sistema `servicos`):
+Duas camadas, mesmo padrão que a intranet usa (`gestao_intranet.permissoes_usuario` +
+`canViewModule`), adaptado pra papéis de aprovação em vez de `view/edit`:
 
-| `nivel_acesso` | Papel no app | Pode |
-|---|---|---|
-| `usuario` | Solicitante | Criar solicitações, editar/ver as próprias enquanto `pendente` |
-| `gestor` | Aprovador | Ver todas, aprovar/reprovar as `pendente` |
-| `admin` | Financeiro | Tudo do aprovador + marcar `aprovado` como `pago` |
+- **Camada 1 — acesso ao sistema**: `public.acessos_usuario_sistema.nivel_acesso` (sistema
+  `servicos`), concedida na console `admin` (`SystemAccessManagement.jsx`). Responde só "essa
+  pessoa pode entrar no Servicos?". `nivel_acesso = 'admin'` bypassa a Camada 2 em todo módulo
+  (super-admin do sistema).
+- **Camada 2 — papel por módulo**: `gestao_servicos.permissoes_modulo` — tabela normalizada
+  (`colaborador_id, modulo, papel`, unique por par), gerenciada dentro do próprio app em
+  `/permissoes` (`src/pages/Permissoes.jsx`, visível só pra quem é `admin` na Camada 1). Valores de
+  `papel`: `usuario | gestor | admin | nenhum`. Auto-provisionada com `usuario` no módulo
+  `financeiro` quando alguém ganha Camada 1 (trigger `auto_create_servicos_permissoes`), pra
+  ninguém ficar sem papel. Modelo normalizado (não uma coluna `mod_<modulo>` por módulo, como na
+  primeira versão em `20260805120000_add_gestao_servicos_permissoes_usuario.sql`) justamente pra
+  módulo novo não exigir migration — só inserir linhas com o `modulo` novo e adicionar a chave em
+  `SERVICOS_MODULOS` (`supabase/functions/servicos-api/index.ts`) e `MODULOS_PERMISSAO`
+  (`src/lib/modulosPermissao.js`, controla o que aparece editável vs. cinza "em breve" na tela).
+  Migration de normalização: `20260805130000_normalize_gestao_servicos_permissoes_usuario.sql`.
 
-O mapeamento vive em `src/lib/AuthContext.jsx` (`mapAccessLevel`). Enquanto só existir o módulo
-Financeiro, esse controle de acesso de sistema é suficiente. Quando um segundo módulo real for
-implementado, revisitar e adotar o padrão de permissão granular por módulo que já existe na
-intranet (`gestao_intranet.permissoes_usuario` + `canViewModule`).
+| Papel no módulo Financeiro | Pode |
+|---|---|
+| `usuario` | Criar solicitações, editar/ver as próprias enquanto `pendente` |
+| `gestor` | Ver todas, aprovar/reprovar as `pendente` |
+| `admin` | Tudo do gestor + marcar `aprovado` como `pago` |
+| `nenhum` | Sem acesso ao módulo (mas continua com Camada 1 ativa, pra outros módulos) |
+
+O papel efetivo (Camada 1 admin bypassando, senão lido da Camada 2) é calculado em
+`getServicosModuleRole` (`supabase/functions/servicos-api/index.ts`) e nos helpers SQL
+`servicos_module_role`/`servicos_is_aprovador`/`servicos_is_financeiro` (usados nas RLS policies).
+O mapeamento pro front vive em `src/lib/AuthContext.jsx` (`mapModuleRole`), a partir do campo
+`role` retornado por `financeiroApi.auth.me`.
+
+Um colaborador só precisa aparecer na Camada 2 nos módulos que usa — alguém pode ser `gestor` no
+Financeiro sem ter nenhum papel definido em Oficina/Estoque quando esses módulos ganharem telas
+reais (só adicionar coluna `mod_<novo>` na tabela, seguindo o mesmo padrão).
 
 ### Backend
 
 - Edge Function: `supabase/functions/servicos-api/index.ts` (renomeada de `pagamentos-api`)
-  - Entidade única: `solicitacoes_pagamento`. Ações: `me`, `list`, `get`, `create`, `update`
+  - Entidade principal: `solicitacoes_pagamento`. Ações: `me`, `list`, `get`, `create`, `update`
     (só solicitante, só enquanto `pendente`), `set_status` (transição de estado, valida papel +
-    estado atual), `signed_url` (URL assinada do comprovante).
+    estado atual), `signed_url` (URL assinada do comprovante), `list_empresas` (catálogo
+    `public.empresas` pro seletor da tela de nova solicitação — a tabela **não tem** coluna
+    `ativo`/`slug`, foram dropadas em `20260709120000_simplify_empresas_link_unidades.sql`; lista
+    todas as linhas, sem filtro).
+  - Anexos multi-arquivo: `list_anexos`, `registrar_anexo`, `remover_anexo` (tabela
+    `anexos_solicitacao`, categorias `comprovante_solicitacao | nf_boleto | pdf_unificado | rh |
+    comprovante_pagamento`; upload é feito direto do client pro Storage, a function só registra
+    metadados e gera signed URL).
+  - Parcelamento: `list_parcelas`, `criar_parcelas` (só financeiro, solicitação precisa estar
+    `aprovado`; substitui o plano de parcelas existente se nenhuma ainda foi paga),
+    `registrar_pagamento_parcela` (só financeiro, marca uma parcela como `pago` — quando a
+    última parcela de uma solicitação é paga, o trigger `trg_servicos_parcelas_rollup` marca a
+    própria solicitação como `pago` automaticamente).
+  - Histórico: ação `historico` lê `historico_solicitacao` (timeline de eventos: `criada`,
+    `aprovada`, `reprovada`, `parcela_criada`, `parcela_paga`, `pago`) — gravado pela própria
+    function via `insertHistorico()` a cada transição, sem precisar de trigger.
   - Toda a autorização é feita em código na função (não há motor genérico de entidades como em
-    `intranet-api`/`crm-api` — este app tem uma entidade só, não precisou do padrão `ENTITY_CONFIG`).
+    `intranet-api`/`crm-api` — este app tem uma entidade principal, não precisou do padrão
+    `ENTITY_CONFIG`).
 - Schema: `gestao_servicos` (renomeado de `gestao_pagamentos` na migration
   `20260720120000_rename_pagamentos_to_servicos.sql`; tabela original criada em
   `20260716090000_add_gestao_pagamentos_core.sql`)
-  - Tabela: `solicitacoes_pagamento`
+  - Tabelas: `solicitacoes_pagamento` (ganhou `numero`, `titulo`, `empresa_id`,
+    `departamento_id`, `observacao`, `aprovador_destino_id` na migration
+    `20260805150000_add_servicos_financeiro_parcelamento_anexos.sql` — parte da migração do
+    antigo fluxo em AppSheet), `anexos_solicitacao`, `parcelas_pagamento`,
+    `historico_solicitacao` (todas novas na mesma migration).
+  - `empresa_id`/`departamento_id` são **snapshot no momento da criação** (copiados de
+    `colaboradores.empresa_id`/`departamento_id` do solicitante na própria function, se não
+    vierem no payload), não um join ao vivo — preserva o setor/empresa corretos historicamente
+    mesmo que o colaborador mude de área depois.
+  - `parcelas_pagamento`/`anexos_solicitacao`/`historico_solicitacao` seguem o padrão de tabela
+    filha 1:N já usado em `gestao_comunicacao.anexos_mensagem`. "Tipo pagamento" (à vista/
+    parcelado) e "status pagamento" (pendente/parcial/pago) **não são colunas** — são derivados
+    agregando `parcelas_pagamento` na query da tela, pra não ter campo manual desincronizado.
   - Helpers SQL: `public.servicos_access_level()`, `public.servicos_has_access()`,
     `public.servicos_is_aprovador()`, `public.servicos_is_financeiro()` — usados nas policies
     de RLS (defesa em profundidade; a função roda com `DATABASE_URL` direto e já valida em código).
   - Slug em `public.sistemas`: `servicos` (renomeado de `pagamentos` — o app nunca tinha ido para
     produção real, então o rename de slug/schema foi feito sem custo de migração de dados).
-- Storage: bucket privado `comprovantes-pagamento` (5MB, mantém o nome original — ainda é o nome
-  correto para comprovantes de pagamento dentro do módulo Financeiro). Upload é feito direto do
-  client (`supabase.storage.from(financeiroApi.storage.bucket).upload(...)`), a function só gera
-  signed URL.
+- Storage: bucket privado `comprovantes-pagamento` (5MB por arquivo, PDF/imagem — validado tanto
+  em código quanto no próprio bucket via `allowed_mime_types`/`file_size_limit`). Upload é feito
+  direto do client (`supabase.storage.from(financeiroApi.storage.bucket).upload(...)`), a
+  function só registra o anexo e gera signed URL. Path organizado por
+  `<solicitacao_id>/<categoria>/<uuid>.<ext>`.
 - Notificação: ao aprovar/reprovar/pagar, a function insere em `gestao_ativos.fila_emails`
   (`tipo: 'aprovacao_pagamento'` ou `'pagamento_efetuado'`) — reaproveita a fila e o cron
   `processa-fila-email` já existentes, sem função nova.
 - API client: `packages/api-client/src/financeiroApi.js` (renomeado de `pagamentosApi.js`,
-  export `financeiroApi`).
+  export `financeiroApi`), agora com os namespaces `anexos`, `parcelas`, `historico` e
+  `empresas` além de `solicitacoes`/`permissoes`/`auth`.
 
 ### Convenções (Financeiro)
 
-- Alçada de aprovação é única (um aprovador decide) — não há regra por faixa de valor ainda. Se
-  isso mudar, revisar a máquina de estados e o `set_status` da edge function.
+- Alçada de aprovação é única (um aprovador decide) — a antiga coluna "APROVADO GESTOR SETOR" da
+  planilha AppSheet legada era redundante e não entrou no modelo novo; não há segunda etapa de
+  aprovação (diretoria) nem regra por faixa de valor ainda. Se isso mudar, revisar a máquina de
+  estados e o `set_status` da edge function.
+- Migração do AppSheet: o desenho completo (mapeamento das ~53 colunas da planilha legada pro
+  modelo atual) está registrado em `20260805150000_add_servicos_financeiro_parcelamento_anexos.sql`
+  e no histórico do plano que originou essa migration — importação de dados históricos do
+  AppSheet continua fora de escopo.
 
 ## Convenções (sistema Servicos)
 

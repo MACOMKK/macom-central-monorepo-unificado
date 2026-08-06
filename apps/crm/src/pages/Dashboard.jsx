@@ -50,7 +50,7 @@ export default function Dashboard() {
             .then((count) => [status, count])
         ))),
         Promise.all(ORIGENS.map((origem) => (
-          countEntity(crmDataClient.entities.Atividade, { ...baseFilters, origem })
+          countEntity(crmDataClient.entities.Lead, { ...baseFilters, origem })
             .then((count) => [origem, count])
         ))),
       ]);
@@ -148,7 +148,7 @@ export default function Dashboard() {
 
         <div className="bg-white shadow-sm">
           <div className="bg-[#1a1a1a] px-5 py-3">
-            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Atividades por Origem</p>
+            <p className="text-white text-[11px] font-bold uppercase tracking-widest">Leads por Origem</p>
           </div>
           <div className="p-4 h-64">
             <ResponsiveContainer width="100%" height="100%">

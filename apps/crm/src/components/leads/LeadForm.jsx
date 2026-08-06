@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -94,6 +94,8 @@ export default function LeadForm({
   const [noteText, setNoteText] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [unidadeError, setUnidadeError] = useState('');
+  const [telefoneError, setTelefoneError] = useState('');
+  const [showMaisDetalhesVeiculo, setShowMaisDetalhesVeiculo] = useState(false);
   const set = (field, value) => setData((current) => ({ ...current, [field]: value }));
   const setVehicle = (field, value) => setData((current) => ({
     ...current,
@@ -174,6 +176,12 @@ export default function LeadForm({
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (!data.telefone) {
+      setTelefoneError('Informe o telefone antes de salvar.');
+      setCurrentStep(steps.findIndex((step) => step.key === 'contato'));
+      return;
+    }
+    setTelefoneError('');
     if (!data.unidade_id) {
       setUnidadeError('Selecione uma unidade antes de salvar.');
       setCurrentStep(steps.findIndex((step) => step.key === 'responsavel'));
@@ -189,6 +197,9 @@ export default function LeadForm({
           <DialogTitle className="text-sm font-black uppercase tracking-widest text-white">
             {lead ? 'Editar Lead' : 'Novo Lead'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulario para {lead ? 'editar os dados do' : 'cadastrar um novo'} lead, organizado em etapas de contato, veiculo, dados comerciais, responsavel e observacoes.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -237,7 +248,7 @@ export default function LeadForm({
                   <Input required placeholder="Nome e sobrenome" value={data.nome} onChange={(event) => set('nome', event.target.value)} className="h-9 rounded-none text-sm" />
                 </Field>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Telefone">
+                  <Field label="Telefone *">
                     <Input
                       required
                       inputMode="numeric"
@@ -247,6 +258,7 @@ export default function LeadForm({
                       onChange={(event) => set('telefone', event.target.value.replace(/\D/g, '').slice(0, 11))}
                       className="h-9 rounded-none text-sm"
                     />
+                    {telefoneError ? <p className="text-xs font-semibold text-red-600">{telefoneError}</p> : null}
                   </Field>
                   <Field label="E-mail">
                     <Input type="email" value={data.email} onChange={(event) => set('email', event.target.value)} className="h-9 rounded-none text-sm" />
@@ -326,9 +338,6 @@ export default function LeadForm({
                       className="h-9 rounded-none text-sm"
                     />
                   </Field>
-                  <Field label="Versao">
-                    <Input value={data.veiculo_interesse?.versao || ''} onChange={(event) => setVehicle('versao', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
                   <Field label="Ano">
                     <Input type="number" min="1900" max="2100" value={data.veiculo_interesse?.ano || ''} onChange={(event) => setVehicle('ano', event.target.value)} className="h-9 rounded-none text-sm" />
                   </Field>
@@ -342,22 +351,36 @@ export default function LeadForm({
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field label="Cor preferida">
-                    <Input value={data.veiculo_interesse?.cor_preferida || ''} onChange={(event) => setVehicle('cor_preferida', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
-                  <Field label="Preco minimo">
-                    <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_min || ''} onChange={(event) => setVehicle('faixa_preco_min', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
-                  <Field label="Preco maximo">
-                    <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_max || ''} onChange={(event) => setVehicle('faixa_preco_max', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
-                  <Field label="Combustivel">
-                    <Input value={data.veiculo_interesse?.combustivel || ''} onChange={(event) => setVehicle('combustivel', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
-                  <Field label="Cambio">
-                    <Input value={data.veiculo_interesse?.cambio || ''} onChange={(event) => setVehicle('cambio', event.target.value)} className="h-9 rounded-none text-sm" />
-                  </Field>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMaisDetalhesVeiculo((value) => !value)}
+                  className="text-xs font-bold uppercase tracking-wider text-primary hover:underline"
+                >
+                  {showMaisDetalhesVeiculo ? 'Ocultar detalhes' : 'Mais detalhes'}
+                </button>
+                {showMaisDetalhesVeiculo ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Versao">
+                      <Input value={data.veiculo_interesse?.versao || ''} onChange={(event) => setVehicle('versao', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                    <Field label="Cor preferida">
+                      <Input value={data.veiculo_interesse?.cor_preferida || ''} onChange={(event) => setVehicle('cor_preferida', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                    <Field label="Preco minimo">
+                      <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_min || ''} onChange={(event) => setVehicle('faixa_preco_min', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                    <Field label="Preco maximo">
+                      <Input type="number" min="0" value={data.veiculo_interesse?.faixa_preco_max || ''} onChange={(event) => setVehicle('faixa_preco_max', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                    <Field label="Combustivel">
+                      <Input value={data.veiculo_interesse?.combustivel || ''} onChange={(event) => setVehicle('combustivel', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                    <Field label="Cambio">
+                      <Input value={data.veiculo_interesse?.cambio || ''} onChange={(event) => setVehicle('cambio', event.target.value)} className="h-9 rounded-none text-sm" />
+                    </Field>
+                  </div>
+                ) : null}
                 <Field label="Observacoes do veiculo">
                   <Textarea
                     value={data.veiculo_interesse?.observacoes || ''}

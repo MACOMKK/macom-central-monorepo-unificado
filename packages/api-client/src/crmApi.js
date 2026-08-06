@@ -176,8 +176,18 @@ export const crmApi = {
     },
   },
   clientes: buildEntity('clientes'),
-  leads: buildEntity('leads'),
-  atendimentos: buildEntity('atendimentos'),
+  leads: {
+    ...buildEntity('leads'),
+    async saveFull(payload) {
+      return invokeCrm({ action: 'save_lead_full', ...payload });
+    },
+  },
+  atendimentos: {
+    ...buildEntity('atendimentos'),
+    async saveFull(payload) {
+      return invokeCrm({ action: 'save_evento_full', ...payload });
+    },
+  },
   historico_atendimentos: buildEntity('historico_atendimentos'),
   veiculos_interesse: buildEntity('veiculos_interesse'),
   categorias_veiculo: buildEntity('categorias_veiculo'),

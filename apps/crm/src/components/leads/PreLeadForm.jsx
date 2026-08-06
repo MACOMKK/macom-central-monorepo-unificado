@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -73,6 +73,9 @@ export default function PreLeadForm({ open, onOpenChange, responsaveis = [], onS
           <DialogTitle className="text-sm font-black uppercase tracking-widest text-white">
             Novo Pré-Lead
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulario rapido para registrar um contato em triagem, antes de vira-lo lead oficial.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">

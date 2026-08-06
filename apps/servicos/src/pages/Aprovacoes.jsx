@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Check, Loader2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
+import { Button, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
+import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 
 function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -19,6 +20,7 @@ export default function Aprovacoes() {
   const [loading, setLoading] = useState(true);
   const [observacoes, setObservacoes] = useState({});
   const [processingId, setProcessingId] = useState(null);
+  const [selected, setSelected] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -45,6 +47,7 @@ export default function Aprovacoes() {
         title: status === 'aprovado' ? 'Solicitacao aprovada' : 'Solicitacao reprovada',
       });
       setRows((current) => current.filter((row) => row.id !== id));
+      setSelected((current) => (current?.id === id ? null : current));
     } catch (error) {
       toast({ title: 'Nao foi possivel processar a solicitacao', description: error.message });
     } finally {
@@ -72,50 +75,64 @@ export default function Aprovacoes() {
               <TableHead>Descricao</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Criado em</TableHead>
-              <TableHead>Observacao</TableHead>
-              <TableHead className="text-right">Acoes</TableHead>
+              <TableHead className="text-right">Detalhes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row)}>
                 <TableCell>{row.solicitante_nome}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
                 <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
                 <TableCell>{formatValor(row.valor)}</TableCell>
                 <TableCell>{formatData(row.criado_em)}</TableCell>
-                <TableCell className="min-w-[200px]">
-                  <Textarea
-                    rows={1}
-                    placeholder="Observacao (opcional)"
-                    value={observacoes[row.id] || ''}
-                    onChange={(event) =>
-                      setObservacoes((current) => ({ ...current, [row.id]: event.target.value }))
-                    }
-                  />
-                </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={processingId === row.id}
-                      onClick={() => handleDecision(row.id, 'reprovado')}
-                    >
-                      <X className="mr-1 h-4 w-4" />
-                      Reprovar
-                    </Button>
-                    <Button size="sm" disabled={processingId === row.id} onClick={() => handleDecision(row.id, 'aprovado')}>
-                      <Check className="mr-1 h-4 w-4" />
-                      Aprovar
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelected(row); }}>
+                    Ver
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <SolicitacaoDrawer
+        solicitacao={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+        footer={
+          selected && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="observacao-analise">Observacao (opcional)</Label>
+                <Textarea
+                  id="observacao-analise"
+                  rows={2}
+                  placeholder="Observacao (opcional)"
+                  value={observacoes[selected.id] || ''}
+                  onChange={(event) =>
+                    setObservacoes((current) => ({ ...current, [selected.id]: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  disabled={processingId === selected.id}
+                  onClick={() => handleDecision(selected.id, 'reprovado')}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Reprovar
+                </Button>
+                <Button disabled={processingId === selected.id} onClick={() => handleDecision(selected.id, 'aprovado')}>
+                  <Check className="mr-1 h-4 w-4" />
+                  Aprovar
+                </Button>
+              </div>
+            </div>
+          )
+        }
+      />
     </div>
   );
 }

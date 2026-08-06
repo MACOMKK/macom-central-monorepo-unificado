@@ -501,6 +501,28 @@ async function ensureEntityAccess(
   return rows[0];
 }
 
+// Checagem de autorizacao mais leve para escrita correlata (ex.: create/update de
+// atendimentos/veiculos_interesse que precisam validar um lead_id) — evita rodar o
+// select com todos os joins de buildListSelect('leads') so para autorizar, ja que
+// esses joins so sao necessarios para exibicao em listagem.
+async function ensureLeadAccessLight(
+  id: string,
+  access: Record<string, unknown> | null,
+  collaborator: Record<string, unknown> | null,
+) {
+  const scope = buildAccessScope('leads', access, collaborator, 2);
+  const whereScope = scope.clause ? `and ${scope.clause}` : '';
+  const rows = await sql.unsafe(
+    `select l.id, l.cliente_id, l.status, l.responsavel_id, l.unidade_id from ${CRM_SCHEMA}.leads l where l.id = $1 ${whereScope} limit 1;`,
+    [id, ...scope.values],
+  );
+
+  if (!rows[0]) {
+    throw Object.assign(new Error('Registro nao encontrado ou sem permissao.'), { status: 403 });
+  }
+  return rows[0];
+}
+
 function buildInsertQuery(schema: string, table: string, payload: Record<string, unknown>) {
   const fields = Object.keys(payload);
   const columns = fields.map(quoteIdentifier).join(', ');
@@ -520,11 +542,13 @@ function buildUpdateQuery(schema: string, table: string, id: string, payload: Re
   };
 }
 
-function buildListSelect(entity: EntityName) {
+function buildListSelect(entity: EntityName, options: { withCount?: boolean } = {}) {
+  const countExpr = options.withCount ? 'count(*) over() as crm_total_count, ' : '';
+
   if (entity === 'leads') {
     return `
       select
-        l.*,
+        ${countExpr}l.*,
         coalesce(cd.sla_alerta_minutos, 10) as sla_alerta_minutos,
         coalesce(cd.sla_primeiro_contato_minutos, 30) as sla_primeiro_contato_minutos,
         case
@@ -551,12 +575,12 @@ function buildListSelect(entity: EntityName) {
   }
 
   if (entity !== 'atendimentos') {
-    return `select * from ${CRM_SCHEMA}.${ENTITY_CONFIG[entity].table}`;
+    return `select ${countExpr}* from ${CRM_SCHEMA}.${ENTITY_CONFIG[entity].table}`;
   }
 
   return `
     select
-      a.*,
+      ${countExpr}a.*,
       row_to_json(l) as lead,
       row_to_json(c) as cliente,
       case
@@ -950,6 +974,190 @@ Deno.serve(async (request) => {
       });
     }
 
+    // Acoes compostas: agrupam em uma unica invocacao (e uma unica checagem de
+    // auth/acesso, ja feita acima) o que antes exigia varias chamadas HTTP
+    // sequenciais do client (cada uma pagando seu proprio round-trip de auth).
+    if (action === 'save_lead_full') {
+      const leadId = typeof body.leadId === 'string' && body.leadId ? body.leadId : '';
+      const clientePayloadRaw = sanitizePayload('clientes', body.clientePayload || {});
+      validateContactFields('clientes', clientePayloadRaw);
+      const leadPayloadRaw = sanitizePayload('leads', body.leadPayload || {});
+      validateContactFields('leads', leadPayloadRaw);
+
+      if (leadId) {
+        await ensureEntityAccess('leads', leadId, access, collaborator);
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        const phone = String(clientePayloadRaw.telefone_normalizado || '');
+        const email = String(clientePayloadRaw.email_normalizado || '');
+        const existingClienteRows = phone
+          ? await transaction.unsafe(
+              `select * from ${CRM_SCHEMA}.clientes where telefone_normalizado = $1 ${email ? 'or email_normalizado = $2' : ''} limit 1;`,
+              email ? [phone, email] : [phone],
+            )
+          : [];
+
+        let cliente;
+        if (existingClienteRows[0]) {
+          const mergedCliente = applyCreateScope('clientes', {
+            ...clientePayloadRaw,
+            nome: clientePayloadRaw.nome || existingClienteRows[0].nome,
+            email: clientePayloadRaw.email || existingClienteRows[0].email,
+            email_normalizado: clientePayloadRaw.email_normalizado || existingClienteRows[0].email_normalizado,
+            status_relacionamento: clientePayloadRaw.status_relacionamento || existingClienteRows[0].status_relacionamento,
+          }, access, collaborator);
+          const updateQuery = buildUpdateQuery(CRM_SCHEMA, 'clientes', existingClienteRows[0].id, mergedCliente);
+          const rows = await transaction.unsafe(updateQuery.text, updateQuery.values);
+          cliente = rows[0];
+        } else {
+          const insertPayload = applyCreateScope('clientes', { ...clientePayloadRaw }, access, collaborator);
+          if (collaborator?.id) insertPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'clientes', insertPayload);
+          const rows = await transaction.unsafe(insertQuery.text, insertQuery.values);
+          cliente = rows[0];
+        }
+
+        const leadPayload = applyCreateScope('leads', { ...leadPayloadRaw, cliente_id: cliente.id }, access, collaborator);
+        let leadRow;
+        if (leadId) {
+          const updateQuery = buildUpdateQuery(CRM_SCHEMA, 'leads', leadId, leadPayload);
+          const rows = await transaction.unsafe(updateQuery.text, updateQuery.values);
+          leadRow = rows[0];
+        } else {
+          if (collaborator?.id) leadPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'leads', leadPayload);
+          const rows = await transaction.unsafe(insertQuery.text, insertQuery.values);
+          leadRow = rows[0];
+        }
+
+        let vehicleRow = null;
+        if (body.vehiclePayload) {
+          const vehiclePayloadRaw = sanitizePayload('veiculos_interesse', {
+            ...body.vehiclePayload,
+            lead_id: leadRow.id,
+          });
+          let vehicleId = typeof body.vehicleId === 'string' && body.vehicleId ? body.vehicleId : '';
+          if (!vehicleId) {
+            const existingVehicle = await transaction.unsafe(
+              `select id from ${CRM_SCHEMA}.veiculos_interesse where lead_id = $1 order by principal desc, criado_em asc limit 1;`,
+              [leadRow.id],
+            );
+            vehicleId = existingVehicle[0]?.id || '';
+          }
+          if (vehicleId) {
+            const updateQuery = buildUpdateQuery(CRM_SCHEMA, 'veiculos_interesse', vehicleId, vehiclePayloadRaw);
+            const rows = await transaction.unsafe(updateQuery.text, updateQuery.values);
+            vehicleRow = rows[0];
+          } else {
+            const insertPayload = { ...vehiclePayloadRaw };
+            if (collaborator?.id) insertPayload.criado_por = collaborator.id;
+            const insertQuery = buildInsertQuery(CRM_SCHEMA, 'veiculos_interesse', insertPayload);
+            const rows = await transaction.unsafe(insertQuery.text, insertQuery.values);
+            vehicleRow = rows[0];
+          }
+        }
+
+        if (body.historico) {
+          const historicoPayload: Record<string, unknown> = {
+            cliente_id: leadRow.cliente_id,
+            lead_id: leadRow.id,
+            atendimento_id: null,
+            tipo: body.historico.tipo,
+            descricao: body.historico.descricao,
+            entidade: 'Lead',
+            entidade_id: leadRow.id,
+            status: leadRow.status,
+          };
+          if (collaborator?.id) historicoPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'historico_atendimentos', historicoPayload);
+          await transaction.unsafe(insertQuery.text, insertQuery.values);
+        }
+
+        return { lead: leadRow, vehicle: vehicleRow };
+      });
+
+      return json(result);
+    }
+
+    if (action === 'save_evento_full') {
+      const eventoId = typeof body.eventoId === 'string' && body.eventoId ? body.eventoId : '';
+      const payloadRaw = sanitizePayload('atendimentos', body.payload || {});
+      if (!Object.keys(payloadRaw).length) return json({ error: 'Payload vazio.' }, 400);
+
+      if (eventoId) {
+        await ensureEntityAccess('atendimentos', eventoId, access, collaborator);
+      }
+      if (payloadRaw.lead_id) {
+        await ensureLeadAccessLight(String(payloadRaw.lead_id), access, collaborator);
+      } else if (!eventoId) {
+        return json({ error: 'Atividade deve estar vinculada a um lead.' }, 400);
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        let eventoRow;
+        if (eventoId) {
+          const updateQuery = buildUpdateQuery(CRM_SCHEMA, 'atendimentos', eventoId, payloadRaw);
+          const rows = await transaction.unsafe(updateQuery.text, updateQuery.values);
+          eventoRow = rows[0];
+        } else {
+          const insertPayload = { ...payloadRaw };
+          if (collaborator?.id) insertPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'atendimentos', insertPayload);
+          const rows = await transaction.unsafe(insertQuery.text, insertQuery.values);
+          eventoRow = rows[0];
+        }
+
+        if (body.historico) {
+          const historicoPayload: Record<string, unknown> = {
+            cliente_id: eventoRow.cliente_id,
+            lead_id: eventoRow.lead_id,
+            atendimento_id: eventoRow.id,
+            tipo: body.historico.tipo,
+            descricao: body.historico.descricao,
+            entidade: 'Evento',
+            entidade_id: eventoRow.id,
+            status: eventoRow.status,
+          };
+          if (collaborator?.id) historicoPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'historico_atendimentos', historicoPayload);
+          await transaction.unsafe(insertQuery.text, insertQuery.values);
+        }
+
+        if (body.proximaAtividade?.payload) {
+          const nextPayloadRaw = sanitizePayload('atendimentos', body.proximaAtividade.payload);
+          // lead_id/cliente_id nunca vem do payload do client aqui: forcamos o mesmo lead/cliente
+          // ja validado do evento principal, para nao permitir vincular a proxima atividade a um
+          // lead fora do escopo do usuario.
+          const insertPayload = { ...nextPayloadRaw, lead_id: eventoRow.lead_id, cliente_id: eventoRow.cliente_id };
+          if (collaborator?.id) insertPayload.criado_por = collaborator.id;
+          const insertQuery = buildInsertQuery(CRM_SCHEMA, 'atendimentos', insertPayload);
+          const rows = await transaction.unsafe(insertQuery.text, insertQuery.values);
+          const nextEventoRow = rows[0];
+
+          if (body.proximaAtividade.historico) {
+            const nextHistoricoPayload: Record<string, unknown> = {
+              cliente_id: nextEventoRow.cliente_id,
+              lead_id: nextEventoRow.lead_id,
+              atendimento_id: nextEventoRow.id,
+              tipo: body.proximaAtividade.historico.tipo,
+              descricao: body.proximaAtividade.historico.descricao,
+              entidade: 'Evento',
+              entidade_id: nextEventoRow.id,
+              status: nextEventoRow.status,
+            };
+            if (collaborator?.id) nextHistoricoPayload.criado_por = collaborator.id;
+            const nextInsertQuery = buildInsertQuery(CRM_SCHEMA, 'historico_atendimentos', nextHistoricoPayload);
+            await transaction.unsafe(nextInsertQuery.text, nextInsertQuery.values);
+          }
+        }
+
+        return { evento: eventoRow };
+      });
+
+      return json(result);
+    }
+
     const entity = String(body.entity || '') as EntityName;
     const config = ENTITY_CONFIG[entity];
 
@@ -1022,17 +1230,15 @@ Deno.serve(async (request) => {
         ...searchPart.values,
         ...accessPart.values,
       ];
-      const countRows = await sql.unsafe(
-        `select count(*)::integer as total from (${buildListSelect(entity)} ${whereClause}) crm_count;`,
-        queryValues,
-      );
       const rows = await sql.unsafe(
-        `${buildListSelect(entity)} ${whereClause} order by ${scopedColumn(entity, orderBy)} ${orderDirection} limit ${limit} offset ${effectiveOffset};`,
+        `${buildListSelect(entity, { withCount: true })} ${whereClause} order by ${scopedColumn(entity, orderBy)} ${orderDirection} limit ${limit} offset ${effectiveOffset};`,
         queryValues,
       );
+      const total = rows[0]?.crm_total_count ?? 0;
+      for (const row of rows) delete row.crm_total_count;
       return json({
         rows,
-        count: countRows[0]?.total || 0,
+        count: Number(total) || 0,
         page,
         pageSize: limit,
         offset: effectiveOffset,
@@ -1045,13 +1251,13 @@ Deno.serve(async (request) => {
       validateContactFields(entity, payload);
       if (collaborator?.id && entity !== 'categorias_veiculo') payload.criado_por = collaborator.id;
       if (entity === 'atendimentos' && payload.lead_id) {
-        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+        await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
       if (entity === 'historico_atendimentos' && payload.lead_id) {
-        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+        await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
       if (entity === 'veiculos_interesse' && payload.lead_id) {
-        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+        await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
       const query = buildInsertQuery(CRM_SCHEMA, config.table, payload);
       const rows = await sql.unsafe(query.text, query.values);
@@ -1065,10 +1271,10 @@ Deno.serve(async (request) => {
       if (!Object.keys(payload).length) return json({ error: 'Nenhum campo para atualizar.' }, 400);
       validateContactFields(entity, payload);
       if (entity === 'atendimentos' && payload.lead_id) {
-        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+        await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
       if (entity === 'veiculos_interesse' && payload.lead_id) {
-        await ensureEntityAccess('leads', String(payload.lead_id), access, collaborator);
+        await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
       const query = buildUpdateQuery(CRM_SCHEMA, config.table, id, payload);
       const rows = await sql.unsafe(query.text, query.values);

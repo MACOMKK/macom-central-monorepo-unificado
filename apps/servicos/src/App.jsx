@@ -5,9 +5,9 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import Layout from '@/components/Layout';
 import Login from '@/pages/Login';
 import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
-import NovaSolicitacao from '@/pages/NovaSolicitacao';
 import Aprovacoes from '@/pages/Aprovacoes';
 import Pagamentos from '@/pages/Pagamentos';
+import Permissoes from '@/pages/Permissoes';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 
 const getFromPath = (search) => {
@@ -61,9 +61,9 @@ const ServicosRoutes = () => {
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate replace to="/solicitacoes" />} />
         <Route path="/solicitacoes" element={<MinhasSolicitacoes />} />
-        <Route path="/solicitacoes/nova" element={<NovaSolicitacao />} />
         {user?.isAprovador && <Route path="/aprovacoes" element={<Aprovacoes />} />}
         {user?.isFinanceiro && <Route path="/pagamentos" element={<Pagamentos />} />}
+        {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Permissoes />} />}
         <Route
           path="/atendimento"
           element={<ModuloEmBreve titulo="Atendimento" descricao="Recepcao de clientes, abertura de OS, agendamento e historico de veiculos." />}

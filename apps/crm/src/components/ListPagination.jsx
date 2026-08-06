@@ -5,7 +5,7 @@ export default function ListPagination({ count, isFetching, page, totalPages, on
   return (
     <div className={cn('flex items-center justify-between bg-white px-3 py-2 text-xs shadow-sm', className)}>
       <span className="font-semibold uppercase tracking-wider text-muted-foreground">
-        {count || 0} registros {isFetching ? 'carregando...' : ''}
+        {isFetching ? 'Carregando...' : `${count || 0} registros`}
       </span>
       <div className="flex items-center gap-2">
         <Button
