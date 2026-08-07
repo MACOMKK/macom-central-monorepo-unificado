@@ -4,6 +4,7 @@ import { Loader2, Paperclip, X } from 'lucide-react';
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { useAuth } from '@/lib/AuthContext';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
+import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import { FORMA_PAGAMENTO_LABEL, TIPOS_DOCUMENTO } from '@/lib/financeiroFormat';
 import {
   Button,
@@ -51,29 +52,18 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
   const [aprovadores, setAprovadores] = useState([]);
   const [anexos, setAnexos] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [catalogosLoading, setCatalogosLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    financeiroApi.empresas
-      .list()
-      .then(setEmpresas)
-      .catch(() => setEmpresas([]));
-    financeiroApi.departamentos
-      .list()
-      .then(setDepartamentos)
-      .catch(() => setDepartamentos([]));
-    financeiroApi.fornecedores
-      .list()
-      .then(setFornecedores)
-      .catch(() => setFornecedores([]));
-    financeiroApi.categorias
-      .list()
-      .then(setCategorias)
-      .catch(() => setCategorias([]));
-    financeiroApi.aprovadores
-      .list()
-      .then(setAprovadores)
-      .catch(() => setAprovadores([]));
+    setCatalogosLoading(true);
+    Promise.allSettled([
+      financeiroApi.empresas.list().then(setEmpresas).catch(() => setEmpresas([])),
+      financeiroApi.departamentos.list().then(setDepartamentos).catch(() => setDepartamentos([])),
+      financeiroApi.fornecedores.list().then(setFornecedores).catch(() => setFornecedores([])),
+      financeiroApi.categorias.list().then(setCategorias).catch(() => setCategorias([])),
+      financeiroApi.aprovadores.list().then(setAprovadores).catch(() => setAprovadores([])),
+    ]).finally(() => setCatalogosLoading(false));
   }, [open]);
 
   useEffect(() => {
@@ -182,7 +172,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       } catch (anexoError) {
         toast({
           title: isReenvio ? 'Solicitacao reenviada, mas houve falha no anexo' : 'Solicitacao enviada, mas houve falha no anexo',
-          description: `A solicitacao foi registrada normalmente, porem um anexo nao foi enviado: ${anexoError.message}. Voce pode adiciona-lo depois pela tela de detalhes.`,
+          description: `A solicitacao foi registrada normalmente, porem um anexo nao foi enviado: ${getFriendlyErrorMessage(anexoError)}. Voce pode adiciona-lo depois pela tela de detalhes.`,
         });
         onOpenChange(false);
         onCreated?.(row);
@@ -197,7 +187,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       onOpenChange(false);
       onCreated?.(row);
     } catch (error) {
-      toast({ title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar', description: error.message });
+      toast({ title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar', description: getFriendlyErrorMessage(error) });
     } finally {
       setSubmitting(false);
     }
@@ -234,9 +224,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
             <Label htmlFor="fornecedor">
               Fornecedor <span className="text-destructive">*</span>
             </Label>
-            <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')}>
+            <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
               <SelectTrigger id="fornecedor">
-                <SelectValue placeholder="Selecione o fornecedor" />
+                <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
               </SelectTrigger>
               <SelectContent>
                 {fornecedores.map((item) => (
@@ -252,9 +242,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
             <Label htmlFor="aprovadorDestino">
               Aprovador responsavel <span className="text-destructive">*</span>
             </Label>
-            <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')}>
+            <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')} disabled={catalogosLoading}>
               <SelectTrigger id="aprovadorDestino">
-                <SelectValue placeholder="Selecione quem vai aprovar" />
+                <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione quem vai aprovar'} />
               </SelectTrigger>
               <SelectContent>
                 {aprovadores.map((item) => (
@@ -299,9 +289,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
               <Label htmlFor="categoria">
                 Categoria <span className="text-destructive">*</span>
               </Label>
-              <Select value={form.categoriaId} onValueChange={setField('categoriaId')}>
+              <Select value={form.categoriaId} onValueChange={setField('categoriaId')} disabled={catalogosLoading}>
                 <SelectTrigger id="categoria">
-                  <SelectValue placeholder="Selecione a categoria" />
+                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione a categoria'} />
                 </SelectTrigger>
                 <SelectContent>
                   {categorias.map((item) => (

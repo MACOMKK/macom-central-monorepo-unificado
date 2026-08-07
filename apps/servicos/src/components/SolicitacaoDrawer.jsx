@@ -21,6 +21,7 @@ import {
 } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
+import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
   formatData,
   formatDataHora,
@@ -96,7 +97,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         if (mountedRef.current) setAnexos(data);
       })
       .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar os anexos', description: error.message });
+        toast({ title: 'Nao foi possivel carregar os anexos', description: getFriendlyErrorMessage(error) });
       })
       .finally(() => {
         if (mountedRef.current) setAnexosLoading(false);
@@ -133,7 +134,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       toast({ title: 'Anexo incluido' });
       loadAnexos();
     } catch (error) {
-      toast({ title: 'Nao foi possivel incluir o anexo', description: error.message });
+      toast({ title: 'Nao foi possivel incluir o anexo', description: getFriendlyErrorMessage(error) });
     } finally {
       setUploadingAnexo(false);
     }
@@ -148,7 +149,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       setRemoverTarget(null);
       loadAnexos();
     } catch (error) {
-      toast({ title: 'Nao foi possivel remover o anexo', description: error.message });
+      toast({ title: 'Nao foi possivel remover o anexo', description: getFriendlyErrorMessage(error) });
     } finally {
       setRemovendoAnexo(false);
     }
@@ -165,7 +166,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         if (mounted) setParcelas(data);
       })
       .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar as parcelas', description: error.message });
+        toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(error) });
       })
       .finally(() => {
         if (mounted) setParcelasLoading(false);
@@ -187,7 +188,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         if (mounted) setHistorico(data);
       })
       .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar o historico', description: error.message });
+        toast({ title: 'Nao foi possivel carregar o historico', description: getFriendlyErrorMessage(error) });
       })
       .finally(() => {
         if (mounted) setHistoricoLoading(false);

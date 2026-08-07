@@ -27,6 +27,7 @@ import {
 } from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
+import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import { formatData, formatValor, FORMA_PAGAMENTO_LABEL } from '@/lib/financeiroFormat';
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
@@ -84,7 +85,7 @@ export default function Pagamentos() {
       const data = await financeiroApi.solicitacoes.list(filters);
       setRows(data);
     } catch (error) {
-      toast({ title: 'Nao foi possivel carregar as solicitacoes', description: error.message });
+      toast({ title: 'Nao foi possivel carregar as solicitacoes', description: getFriendlyErrorMessage(error) });
     } finally {
       setLoading(false);
     }
@@ -201,7 +202,7 @@ export default function Pagamentos() {
 
       closePagamentoDialog();
     } catch (error) {
-      toast({ title: 'Nao foi possivel registrar o pagamento', description: error.message });
+      toast({ title: 'Nao foi possivel registrar o pagamento', description: getFriendlyErrorMessage(error) });
     } finally {
       setConfirmandoPagamento(false);
     }
@@ -221,7 +222,7 @@ export default function Pagamentos() {
       setRows((current) => current.filter((row) => row.id !== reprovarTarget.id));
       closeReprovar();
     } catch (error) {
-      toast({ title: 'Nao foi possivel reprovar a solicitacao', description: error.message });
+      toast({ title: 'Nao foi possivel reprovar a solicitacao', description: getFriendlyErrorMessage(error) });
     } finally {
       setReprovando(false);
     }
@@ -241,7 +242,7 @@ export default function Pagamentos() {
       );
     } catch (error) {
       setParcelasError(true);
-      toast({ title: 'Nao foi possivel carregar as parcelas', description: error.message });
+      toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(error) });
     } finally {
       setParcelasLoading(false);
     }
@@ -278,7 +279,7 @@ export default function Pagamentos() {
       setDraftParcelas([]);
       toast({ title: 'Plano de pagamento definido' });
     } catch (error) {
-      toast({ title: 'Nao foi possivel salvar o plano de pagamento', description: error.message });
+      toast({ title: 'Nao foi possivel salvar o plano de pagamento', description: getFriendlyErrorMessage(error) });
     } finally {
       setSavingParcelas(false);
     }
