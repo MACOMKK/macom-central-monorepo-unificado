@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Paperclip } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Paperclip, Trash2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sheet,
   SheetContent,
   SheetHeader,
@@ -14,30 +19,18 @@ import {
   TabsTrigger,
   useToast,
 } from '@macom/ui';
-
-const STATUS_VARIANT = {
-  pendente: 'warning',
-  aprovado: 'success',
-  reprovado: 'destructive',
-  pago: 'info',
-  cancelado: 'secondary',
-};
-
-const STATUS_LABEL = {
-  pendente: 'Pendente',
-  aprovado: 'Aprovado',
-  reprovado: 'Reprovado',
-  pago: 'Pago',
-  cancelado: 'Cancelado',
-};
-
-const FORMA_PAGAMENTO_LABEL = {
-  pix: 'Pix',
-  boleto: 'Boleto',
-  transferencia: 'Transferencia',
-  cartao: 'Cartao',
-  outros: 'Outros',
-};
+import { useAuth } from '@/lib/AuthContext';
+import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
+import {
+  formatData,
+  formatDataHora,
+  formatValor,
+  FORMA_PAGAMENTO_LABEL,
+  STATUS_LABEL,
+  STATUS_VARIANT,
+  TIPOS_DOCUMENTO,
+} from '@/lib/financeiroFormat';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 
 const ANEXO_CATEGORIA_LABEL = {
   comprovante_solicitacao: 'Comprovante da solicitacao',
@@ -57,6 +50,8 @@ const EVENTO_LABEL = {
   parcela_criada: 'Plano de pagamento definido',
   parcela_paga: 'Parcela paga',
   pago: 'Marcada como paga',
+  anexo_adicionado: 'Anexo incluido',
+  anexo_removido: 'Anexo removido',
 };
 
 const PARCELA_STATUS_LABEL = {
@@ -64,22 +59,11 @@ const PARCELA_STATUS_LABEL = {
   pago: 'Paga',
 };
 
-function formatValor(valor) {
-  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatData(data) {
-  if (!data) return '-';
-  return new Date(data).toLocaleDateString('pt-BR');
-}
-
-function formatDataHora(data) {
-  if (!data) return '-';
-  return new Date(data).toLocaleString('pt-BR');
-}
+const ANEXO_CATEGORIA_OPCOES = Object.entries(ANEXO_CATEGORIA_LABEL).map(([value, label]) => ({ value, label }));
 
 export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = null, parcelasSlot = null }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [anexos, setAnexos] = useState([]);
   const [anexosLoading, setAnexosLoading] = useState(true);
   const [parcelas, setParcelas] = useState([]);
@@ -87,28 +71,88 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [historico, setHistorico] = useState([]);
   const [historicoLoading, setHistoricoLoading] = useState(true);
 
-  useEffect(() => {
-    if (!solicitacao?.id) return undefined;
-    let mounted = true;
+  const [novaCategoria, setNovaCategoria] = useState(ANEXO_CATEGORIA_OPCOES[0]?.value || '');
+  const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
+  const [uploadingAnexo, setUploadingAnexo] = useState(false);
+  const [removerTarget, setRemoverTarget] = useState(null);
+  const [removendoAnexo, setRemovendoAnexo] = useState(false);
 
+  const podeGerenciarAnexos = Boolean(user?.isFinanceiro) && solicitacao?.status !== 'pendente';
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  function loadAnexos() {
+    if (!solicitacao?.id) return;
     setAnexosLoading(true);
     financeiroApi.anexos
       .list(solicitacao.id)
       .then((data) => {
-        if (mounted) setAnexos(data);
+        if (mountedRef.current) setAnexos(data);
       })
       .catch((error) => {
         toast({ title: 'Nao foi possivel carregar os anexos', description: error.message });
       })
       .finally(() => {
-        if (mounted) setAnexosLoading(false);
+        if (mountedRef.current) setAnexosLoading(false);
       });
+  }
 
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!solicitacao?.id) return undefined;
+    loadAnexos();
+    return undefined;
   }, [solicitacao?.id]);
+
+  async function handleUploadAnexo(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !solicitacao?.id) return;
+    if (file.size > MAX_ANEXO_SIZE) {
+      toast({ title: 'Arquivo muito grande', description: `"${file.name}" deve ter no maximo 5 MB.` });
+      return;
+    }
+    if (!isAllowedAnexoMimeType(file)) {
+      toast({ title: 'Tipo de arquivo nao suportado', description: `"${file.name}" deve ser PDF, JPEG, PNG ou WebP.` });
+      return;
+    }
+
+    setUploadingAnexo(true);
+    try {
+      await uploadAnexo({
+        file,
+        solicitacaoId: solicitacao.id,
+        categoria: novaCategoria,
+        tipoDocumento: novoTipoDocumento,
+      });
+      toast({ title: 'Anexo incluido' });
+      loadAnexos();
+    } catch (error) {
+      toast({ title: 'Nao foi possivel incluir o anexo', description: error.message });
+    } finally {
+      setUploadingAnexo(false);
+    }
+  }
+
+  async function handleRemoverAnexo() {
+    if (!removerTarget) return;
+    setRemovendoAnexo(true);
+    try {
+      await financeiroApi.anexos.remover(removerTarget.id);
+      toast({ title: 'Anexo removido' });
+      setRemoverTarget(null);
+      loadAnexos();
+    } catch (error) {
+      toast({ title: 'Nao foi possivel remover o anexo', description: error.message });
+    } finally {
+      setRemovendoAnexo(false);
+    }
+  }
 
   useEffect(() => {
     if (!solicitacao?.id || parcelasSlot) return undefined;
@@ -130,7 +174,6 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solicitacao?.id, Boolean(parcelasSlot)]);
 
   useEffect(() => {
@@ -153,7 +196,6 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solicitacao?.id]);
 
   const anexosPorCategoria = anexos.reduce((acc, anexo) => {
@@ -246,6 +288,52 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               </TabsContent>
 
               <TabsContent value="anexos" className="space-y-4">
+                {podeGerenciarAnexos && (
+                  <div className="space-y-2 rounded-md border border-dashed border-input p-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Incluir anexo (correcao pos-analise)</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={novaCategoria} onValueChange={setNovaCategoria}>
+                        <SelectTrigger className="h-8 w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ANEXO_CATEGORIA_OPCOES.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={novoTipoDocumento} onValueChange={setNovoTipoDocumento}>
+                        <SelectTrigger className="h-8 w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_DOCUMENTO.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <label
+                        htmlFor="anexo-drawer-upload"
+                        className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input px-3 text-xs text-muted-foreground hover:bg-accent"
+                      >
+                        {uploadingAnexo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                        Selecionar arquivo
+                      </label>
+                      <input
+                        id="anexo-drawer-upload"
+                        type="file"
+                        className="hidden"
+                        disabled={uploadingAnexo}
+                        onChange={handleUploadAnexo}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {anexosLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -269,22 +357,39 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                               <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                               <span className="truncate">{anexo.nome_arquivo}</span>
                             </span>
-                            {anexo.url ? (
-                              <a
-                                href={anexo.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="shrink-0 text-primary hover:underline"
-                              >
-                                Abrir
-                              </a>
-                            ) : null}
+                            <span className="flex shrink-0 items-center gap-2">
+                              {anexo.url ? (
+                                <a href={anexo.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                  Abrir
+                                </a>
+                              ) : null}
+                              {podeGerenciarAnexos && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRemoverTarget(anexo)}
+                                  className="text-muted-foreground hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   ))
                 )}
+
+                <ConfirmDeleteDialog
+                  open={Boolean(removerTarget)}
+                  onOpenChange={(open) => !open && setRemoverTarget(null)}
+                  onConfirm={handleRemoverAnexo}
+                  isLoading={removendoAnexo}
+                  title="Remover anexo"
+                  description={`Tem certeza que deseja remover "${removerTarget?.nome_arquivo || ''}"? Essa acao nao pode ser desfeita.`}
+                  confirmLabel="Remover"
+                  loadingLabel="Removendo..."
+                />
               </TabsContent>
 
               <TabsContent value="parcelas" className="space-y-3">

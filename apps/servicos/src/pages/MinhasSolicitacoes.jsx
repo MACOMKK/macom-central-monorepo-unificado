@@ -4,34 +4,10 @@ import { Loader2, Pencil, Plus, X } from 'lucide-react';
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
+import { formatData, formatValor, STATUS_LABEL, STATUS_VARIANT } from '@/lib/financeiroFormat';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import NovaSolicitacaoDrawer from '@/components/NovaSolicitacaoDrawer';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
-
-const STATUS_VARIANT = {
-  pendente: 'warning',
-  aprovado: 'success',
-  reprovado: 'destructive',
-  pago: 'info',
-  cancelado: 'secondary',
-};
-
-const STATUS_LABEL = {
-  pendente: 'Pendente',
-  aprovado: 'Aprovado',
-  reprovado: 'Reprovado',
-  pago: 'Pago',
-  cancelado: 'Cancelado',
-};
-
-function formatValor(valor) {
-  return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatData(data) {
-  if (!data) return '-';
-  return new Date(data).toLocaleDateString('pt-BR');
-}
 
 export default function MinhasSolicitacoes() {
   const { user } = useAuth();

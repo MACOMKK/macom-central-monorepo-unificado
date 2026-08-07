@@ -726,6 +726,7 @@ Deno.serve(async (request) => {
     if (action === 'list') {
       const filters = typeof body.filters === 'object' && body.filters ? body.filters : {};
       const status = typeof filters.status === 'string' ? filters.status : '';
+      const categoriaId = typeof filters.categoria_id === 'string' ? filters.categoria_id : '';
 
       const clauses: string[] = [];
       const values: unknown[] = [];
@@ -745,14 +746,31 @@ Deno.serve(async (request) => {
         clauses.push(`sp.status = $${values.length}`);
       }
 
+      if (categoriaId) {
+        values.push(categoriaId);
+        clauses.push(`sp.categoria_id = $${values.length}`);
+      }
+
       const whereClause = clauses.length ? `where ${clauses.join(' and ')}` : '';
       const orderBy = ORDER_BY_COLUMNS[String(filters.order_by || '')] || ORDER_BY_COLUMNS.criado_em;
       const rows = await sql.unsafe(
         `
-          select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome
+          select
+            sp.*,
+            c.nome as solicitante_nome,
+            ac.nome as aprovador_destino_nome,
+            coalesce(pp.parcelas_total, 0) as parcelas_total,
+            coalesce(pp.parcelas_pagas, 0) as parcelas_pagas
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
+          left join lateral (
+            select
+              count(*) as parcelas_total,
+              count(*) filter (where status = 'pago') as parcelas_pagas
+            from ${SERVICOS_SCHEMA}.parcelas_pagamento
+            where solicitacao_id = sp.id
+          ) pp on true
           ${whereClause}
           order by ${orderBy}
           limit 200;
@@ -1085,7 +1103,7 @@ Deno.serve(async (request) => {
       }
       validateComprovanteSize(body.tamanho_bytes);
 
-      await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
+      const existingSolicitacao = await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
       if (parcelaId) await ensureParcelaAccess(parcelaId, moduleRole, collaborator);
 
       const rows = await sql.unsafe(
@@ -1097,6 +1115,10 @@ Deno.serve(async (request) => {
         `,
         [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(body.tamanho_bytes) || 0, storagePath, collaborator!.id],
       );
+
+      if (existingSolicitacao.status !== 'pendente' && isFinanceiro(moduleRole)) {
+        await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
+      }
 
       return json({ row: rows[0] || null });
     }
@@ -1117,8 +1139,13 @@ Deno.serve(async (request) => {
       );
       const anexo = rows[0];
       if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
-      if (String(anexo.criado_por) !== String(collaborator!.id) || anexo.solicitacao_status !== 'pendente') {
-        throw Object.assign(new Error('Somente quem enviou pode remover o anexo, enquanto a solicitacao esta pendente.'), { status: 403 });
+      const podeComoDono = String(anexo.criado_por) === String(collaborator!.id) && anexo.solicitacao_status === 'pendente';
+      const podeComoFinanceiro = isFinanceiro(moduleRole);
+      if (!podeComoDono && !podeComoFinanceiro) {
+        throw Object.assign(
+          new Error('Somente quem enviou pode remover o anexo enquanto pendente, ou o financeiro a qualquer momento.'),
+          { status: 403 },
+        );
       }
 
       await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.anexos_solicitacao where id = $1;`, [id]);
@@ -1126,6 +1153,15 @@ Deno.serve(async (request) => {
       const storageClient = createStorageAdminClient();
       if (storageClient) {
         await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove([String(anexo.storage_path)]);
+      }
+
+      if (anexo.solicitacao_status !== 'pendente') {
+        await insertHistorico(
+          String(anexo.solicitacao_id),
+          'anexo_removido',
+          collaborator!.id as string,
+          String(anexo.nome_arquivo),
+        );
       }
 
       return json({ ok: true });

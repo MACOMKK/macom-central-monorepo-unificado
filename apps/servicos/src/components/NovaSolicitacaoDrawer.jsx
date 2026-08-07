@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Loader2, Paperclip, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { supabase } from '@macom/api-client/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
+import { FORMA_PAGAMENTO_LABEL, TIPOS_DOCUMENTO } from '@/lib/financeiroFormat';
 import {
   Button,
   Input,
@@ -21,24 +22,7 @@ import {
   useToast,
 } from '@macom/ui';
 
-const FORMAS_PAGAMENTO = [
-  { value: 'pix', label: 'Pix' },
-  { value: 'boleto', label: 'Boleto' },
-  { value: 'transferencia', label: 'Transferencia' },
-  { value: 'cartao', label: 'Cartao' },
-  { value: 'outros', label: 'Outros' },
-];
-
-const TIPOS_DOCUMENTO = [
-  { value: 'orcamento', label: 'Orcamento' },
-  { value: 'nota_fiscal', label: 'Nota fiscal' },
-  { value: 'boleto', label: 'Boleto' },
-  { value: 'recibo', label: 'Recibo' },
-  { value: 'comprovante_pix', label: 'Comprovante Pix' },
-  { value: 'outros', label: 'Outros' },
-];
-
-const MAX_COMPROVANTE_SIZE = 5 * 1024 * 1024;
+const FORMAS_PAGAMENTO = Object.entries(FORMA_PAGAMENTO_LABEL).map(([value, label]) => ({ value, label }));
 
 const EMPTY_FORM = {
   titulo: '',
@@ -117,16 +101,32 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       setForm(EMPTY_FORM);
       setAnexos([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
 
+  const hasUnsavedChanges = () =>
+    Boolean(form.titulo.trim() || form.descricao.trim() || form.valor || anexos.length > 0);
+
+  const handleOpenChange = (nextOpen) => {
+    if (!nextOpen && hasUnsavedChanges()) {
+      const confirmed = window.confirm('Existem dados preenchidos que serao perdidos. Deseja mesmo fechar?');
+      if (!confirmed) return;
+    }
+    onOpenChange(nextOpen);
+  };
+
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files || []);
-    const tooBig = files.find((file) => file.size > MAX_COMPROVANTE_SIZE);
+    const tooBig = files.find((file) => file.size > MAX_ANEXO_SIZE);
     if (tooBig) {
       toast({ title: 'Arquivo muito grande', description: `"${tooBig.name}" deve ter no maximo 5 MB.` });
+      event.target.value = '';
+      return;
+    }
+    const tipoInvalido = files.find((file) => !isAllowedAnexoMimeType(file));
+    if (tipoInvalido) {
+      toast({ title: 'Tipo de arquivo nao suportado', description: `"${tipoInvalido.name}" deve ser PDF, JPEG, PNG ou WebP.` });
       event.target.value = '';
       return;
     }
@@ -146,7 +146,16 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
     event.preventDefault();
     if (submitting) return;
 
+    if (!form.fornecedorId || !form.aprovadorDestinoId || !form.categoriaId) {
+      toast({
+        title: 'Campos obrigatorios faltando',
+        description: 'Selecione fornecedor, aprovador e categoria antes de enviar.',
+      });
+      return;
+    }
+
     setSubmitting(true);
+    let row = null;
     try {
       const payload = {
         titulo: form.titulo,
@@ -162,27 +171,22 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
         aprovador_destino_id: form.aprovadorDestinoId,
       };
 
-      const row = isReenvio
+      row = isReenvio
         ? await financeiroApi.solicitacoes.reenviar(solicitacao.id, payload)
         : await financeiroApi.solicitacoes.create(payload);
 
-      for (const { file, tipoDocumento } of anexos) {
-        const extension = file.name.split('.').pop();
-        const path = `${row.id}/comprovante_solicitacao/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage
-          .from(financeiroApi.storage.bucket)
-          .upload(path, file, { upsert: false });
-        if (uploadError) throw uploadError;
-
-        await financeiroApi.anexos.registrar({
-          solicitacaoId: row.id,
-          categoria: 'comprovante_solicitacao',
-          tipoDocumento,
-          nomeArquivo: file.name,
-          tipoMime: file.type || 'application/octet-stream',
-          tamanhoBytes: file.size,
-          storagePath: path,
+      try {
+        for (const { file, tipoDocumento } of anexos) {
+          await uploadAnexo({ file, solicitacaoId: row.id, categoria: 'comprovante_solicitacao', tipoDocumento });
+        }
+      } catch (anexoError) {
+        toast({
+          title: isReenvio ? 'Solicitacao reenviada, mas houve falha no anexo' : 'Solicitacao enviada, mas houve falha no anexo',
+          description: `A solicitacao foi registrada normalmente, porem um anexo nao foi enviado: ${anexoError.message}. Voce pode adiciona-lo depois pela tela de detalhes.`,
         });
+        onOpenChange(false);
+        onCreated?.(row);
+        return;
       }
 
       toast(
@@ -200,7 +204,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         className="sm:max-w-xl overflow-y-auto"
