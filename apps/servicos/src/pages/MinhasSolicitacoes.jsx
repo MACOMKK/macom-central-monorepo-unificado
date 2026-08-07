@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Pencil, Plus, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import NovaSolicitacaoDrawer from '@/components/NovaSolicitacaoDrawer';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 
 const STATUS_VARIANT = {
-  pendente: 'secondary',
-  aprovado: 'default',
+  pendente: 'warning',
+  aprovado: 'success',
   reprovado: 'destructive',
-  pago: 'default',
+  pago: 'info',
+  cancelado: 'secondary',
 };
 
 const STATUS_LABEL = {
@@ -19,6 +21,7 @@ const STATUS_LABEL = {
   aprovado: 'Aprovado',
   reprovado: 'Reprovado',
   pago: 'Pago',
+  cancelado: 'Cancelado',
 };
 
 function formatValor(valor) {
@@ -37,6 +40,9 @@ export default function MinhasSolicitacoes() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [novaOpen, setNovaOpen] = useState(false);
+  const [reenvioTarget, setReenvioTarget] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelando, setCancelando] = useState(false);
 
   async function load() {
     try {
@@ -55,6 +61,50 @@ export default function MinhasSolicitacoes() {
   }, []);
 
   const title = user?.isAprovador ? 'Todas as solicitacoes' : 'Minhas solicitacoes';
+
+  async function handleCancelar() {
+    if (!cancelTarget) return;
+    setCancelando(true);
+    try {
+      const row = await financeiroApi.solicitacoes.cancelar(cancelTarget.id);
+      setRows((current) => current.map((item) => (item.id === cancelTarget.id ? row || { ...item, status: 'cancelado' } : item)));
+      toast({ title: 'Solicitacao cancelada' });
+      setCancelTarget(null);
+      setSelected(null);
+    } catch (error) {
+      toast({ title: 'Nao foi possivel cancelar a solicitacao', description: error.message });
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  function handleReenviada(row) {
+    setRows((current) => current.map((item) => (item.id === row.id ? row : item)));
+    setReenvioTarget(null);
+  }
+
+  const isDono = (row) => String(row.solicitante_id) === String(user?.collaborator?.id);
+
+  function renderFooter() {
+    if (!selected) return null;
+    if (selected.status === 'pendente' && isDono(selected)) {
+      return (
+        <Button variant="outline" className="w-full" onClick={() => setCancelTarget(selected)}>
+          <X className="mr-2 h-4 w-4" />
+          Cancelar solicitacao
+        </Button>
+      );
+    }
+    if (selected.status === 'reprovado' && isDono(selected)) {
+      return (
+        <Button className="w-full" onClick={() => setReenvioTarget(selected)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Corrigir e reenviar
+        </Button>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-4">
@@ -108,8 +158,30 @@ export default function MinhasSolicitacoes() {
         </Table>
       )}
 
-      <SolicitacaoDrawer solicitacao={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      <SolicitacaoDrawer
+        solicitacao={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+        footer={renderFooter()}
+      />
       <NovaSolicitacaoDrawer open={novaOpen} onOpenChange={setNovaOpen} onCreated={load} />
+      <NovaSolicitacaoDrawer
+        open={Boolean(reenvioTarget)}
+        onOpenChange={(open) => !open && setReenvioTarget(null)}
+        solicitacao={reenvioTarget}
+        onCreated={handleReenviada}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(cancelTarget)}
+        onOpenChange={(open) => !open && setCancelTarget(null)}
+        onConfirm={handleCancelar}
+        isLoading={cancelando}
+        title="Cancelar solicitacao"
+        description="Tem certeza que deseja cancelar esta solicitacao? Essa acao nao pode ser desfeita."
+        confirmLabel="Cancelar solicitacao"
+        loadingLabel="Cancelando..."
+        cancelLabel="Manter solicitacao"
+      />
     </div>
   );
 }

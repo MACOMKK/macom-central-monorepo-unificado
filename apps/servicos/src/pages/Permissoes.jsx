@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
+  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -17,7 +18,8 @@ import {
   useToast,
 } from '@macom/ui';
 
-import { MODULOS_PERMISSAO, PAPEIS_MODULO } from '@/lib/modulosPermissao';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import { MODULOS_PERMISSAO } from '@/lib/modulosPermissao';
 
 const MODULOS_ATIVOS = MODULOS_PERMISSAO.filter((modulo) => modulo.ativo);
 
@@ -37,6 +39,8 @@ export default function Permissoes() {
   const [permissoesPorColaborador, setPermissoesPorColaborador] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
+  const [limpezaDialogOpen, setLimpezaDialogOpen] = useState(false);
+  const [limpandoDados, setLimpandoDados] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -78,6 +82,22 @@ export default function Permissoes() {
   }
 
   const modulosEmBreve = useMemo(() => MODULOS_PERMISSAO.filter((modulo) => !modulo.ativo), []);
+
+  async function handleLimparDadosTeste() {
+    setLimpandoDados(true);
+    try {
+      const result = await financeiroApi.admin.limparDadosTeste();
+      toast({
+        title: 'Dados de teste removidos',
+        description: `${result.solicitacoes_removidas || 0} solicitacao(oes) e ${result.anexos_removidos_storage || 0} anexo(s) do storage foram apagados.`,
+      });
+      setLimpezaDialogOpen(false);
+    } catch (error) {
+      toast({ title: 'Nao foi possivel limpar os dados de teste', description: error.message });
+    } finally {
+      setLimpandoDados(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -142,7 +162,7 @@ export default function Permissoes() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {PAPEIS_MODULO.map((papel) => (
+                                {modulo.papeis.map((papel) => (
                                   <SelectItem key={papel.value} value={papel.value}>
                                     {papel.label}
                                   </SelectItem>
@@ -165,6 +185,33 @@ export default function Permissoes() {
           </Table>
         </div>
       )}
+
+      <div className="mt-8 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+        <h3 className="text-sm font-bold text-destructive">Zona de risco</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Apaga todas as solicitacoes de pagamento, parcelas, anexos (incluindo os arquivos no
+          storage), fornecedores e categorias cadastrados no modulo Financeiro. As permissoes por
+          modulo nao sao afetadas. Use apenas para limpar dados de teste.
+        </p>
+        <Button
+          type="button"
+          variant="destructive"
+          className="mt-3"
+          onClick={() => setLimpezaDialogOpen(true)}
+        >
+          Limpar dados de teste
+        </Button>
+      </div>
+
+      <ConfirmDeleteDialog
+        open={limpezaDialogOpen}
+        onOpenChange={setLimpezaDialogOpen}
+        onConfirm={handleLimparDadosTeste}
+        isLoading={limpandoDados}
+        title="Limpar dados de teste do Financeiro"
+        description="Isso vai apagar permanentemente todas as solicitacoes de pagamento, parcelas, historico, anexos (tabelas e arquivos no storage), fornecedores e categorias. As permissoes por modulo nao sao afetadas. Essa acao nao pode ser desfeita."
+        confirmLabel="Limpar dados"
+      />
     </div>
   );
 }

@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banknote, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Banknote, Loader2, Plus, Trash2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Table,
   TableBody,
@@ -12,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
   useToast,
 } from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
@@ -59,6 +65,10 @@ export default function Pagamentos() {
   const [savingParcelas, setSavingParcelas] = useState(false);
   const [payingParcelaId, setPayingParcelaId] = useState(null);
 
+  const [reprovarTarget, setReprovarTarget] = useState(null);
+  const [motivoReprovacao, setMotivoReprovacao] = useState('');
+  const [reprovando, setReprovando] = useState(false);
+
   async function load() {
     setLoading(true);
     try {
@@ -93,6 +103,26 @@ export default function Pagamentos() {
       toast({ title: 'Nao foi possivel marcar como paga', description: error.message });
     } finally {
       setProcessingId(null);
+    }
+  }
+
+  function closeReprovar() {
+    setReprovarTarget(null);
+    setMotivoReprovacao('');
+  }
+
+  async function handleReprovar() {
+    if (!reprovarTarget || !motivoReprovacao.trim()) return;
+    setReprovando(true);
+    try {
+      await financeiroApi.solicitacoes.setStatus(reprovarTarget.id, 'reprovado', motivoReprovacao.trim());
+      toast({ title: 'Solicitacao reprovada', description: 'O solicitante foi notificado para corrigir e reenviar.' });
+      setRows((current) => current.filter((row) => row.id !== reprovarTarget.id));
+      closeReprovar();
+    } catch (error) {
+      toast({ title: 'Nao foi possivel reprovar a solicitacao', description: error.message });
+    } finally {
+      setReprovando(false);
     }
   }
 
@@ -223,6 +253,14 @@ export default function Pagamentos() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
+                      >
+                        <X className="mr-1 h-4 w-4" />
+                        Reprovar
+                      </Button>
+                      <Button
                         size="sm"
                         disabled={processingId === row.id}
                         onClick={(event) => { event.stopPropagation(); handlePagarAVista(row); }}
@@ -315,6 +353,35 @@ export default function Pagamentos() {
           )
         }
       />
+
+      <Dialog open={Boolean(reprovarTarget)} onOpenChange={(open) => !open && closeReprovar()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reprovar solicitacao ja aprovada</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Informe o motivo. O solicitante podera corrigir e reenviar a solicitacao.
+          </p>
+          <Textarea
+            value={motivoReprovacao}
+            onChange={(event) => setMotivoReprovacao(event.target.value)}
+            placeholder="Motivo da reprovacao"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={closeReprovar} disabled={reprovando}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleReprovar}
+              disabled={reprovando || !motivoReprovacao.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {reprovando ? 'Reprovando...' : 'Reprovar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

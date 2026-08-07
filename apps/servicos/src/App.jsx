@@ -2,11 +2,14 @@ import { Toaster } from '@macom/ui';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import Layout from '@/components/Layout';
+import AppLayout from '@/components/layout/AppLayout';
+import DevRoleSwitcher from '@/components/DevRoleSwitcher';
 import Login from '@/pages/Login';
 import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
 import Aprovacoes from '@/pages/Aprovacoes';
 import Pagamentos from '@/pages/Pagamentos';
+import Fornecedores from '@/pages/Fornecedores';
+import Categorias from '@/pages/Categorias';
 import Permissoes from '@/pages/Permissoes';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 
@@ -58,11 +61,13 @@ const ServicosRoutes = () => {
 
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route element={<AppLayout />}>
         <Route path="/" element={<Navigate replace to="/solicitacoes" />} />
         <Route path="/solicitacoes" element={<MinhasSolicitacoes />} />
         {user?.isAprovador && <Route path="/aprovacoes" element={<Aprovacoes />} />}
         {user?.isFinanceiro && <Route path="/pagamentos" element={<Pagamentos />} />}
+        {user?.isFinanceiro && <Route path="/fornecedores" element={<Fornecedores />} />}
+        {user?.isFinanceiro && <Route path="/categorias" element={<Categorias />} />}
         {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Permissoes />} />}
         <Route
           path="/atendimento"
@@ -101,6 +106,7 @@ function App() {
         </Routes>
       </Router>
       <Toaster />
+      <DevRoleSwitcher />
     </AuthProvider>
   );
 }

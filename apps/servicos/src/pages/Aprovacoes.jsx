@@ -71,6 +71,7 @@ export default function Aprovacoes() {
           <TableHeader>
             <TableRow>
               <TableHead>Solicitante</TableHead>
+              <TableHead>Aprovador</TableHead>
               <TableHead>Fornecedor</TableHead>
               <TableHead>Descricao</TableHead>
               <TableHead>Valor</TableHead>
@@ -82,6 +83,7 @@ export default function Aprovacoes() {
             {rows.map((row) => (
               <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row)}>
                 <TableCell>{row.solicitante_nome}</TableCell>
+                <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
                 <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
                 <TableCell>{formatValor(row.valor)}</TableCell>

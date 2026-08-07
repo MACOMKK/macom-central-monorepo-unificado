@@ -21,14 +21,6 @@ import {
   useToast,
 } from '@macom/ui';
 
-const CATEGORIAS = [
-  { value: 'fornecedor', label: 'Fornecedor' },
-  { value: 'servico', label: 'Servico' },
-  { value: 'viagem', label: 'Viagem' },
-  { value: 'reembolso', label: 'Reembolso' },
-  { value: 'outros', label: 'Outros' },
-];
-
 const FORMAS_PAGAMENTO = [
   { value: 'pix', label: 'Pix' },
   { value: 'boleto', label: 'Boleto' },
@@ -48,30 +40,31 @@ const TIPOS_DOCUMENTO = [
 
 const MAX_COMPROVANTE_SIZE = 5 * 1024 * 1024;
 
-const NOVO_FORNECEDOR_VALUE = '__novo__';
-
 const EMPTY_FORM = {
   titulo: '',
   fornecedorId: '',
   descricao: '',
   valor: '',
-  categoria: 'outros',
+  categoriaId: '',
   dataVencimento: '',
   formaPagamento: '',
   observacao: '',
   empresaId: '',
   departamentoId: '',
+  aprovadorDestinoId: '',
 };
 
-export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated }) {
+export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, solicitacao = null }) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isReenvio = Boolean(solicitacao);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [empresas, setEmpresas] = useState([]);
   const [departamentos, setDepartamentos] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
-  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
+  const [categorias, setCategorias] = useState([]);
+  const [aprovadores, setAprovadores] = useState([]);
   const [anexos, setAnexos] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -89,14 +82,39 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
       .list()
       .then(setFornecedores)
       .catch(() => setFornecedores([]));
+    financeiroApi.categorias
+      .list()
+      .then(setCategorias)
+      .catch(() => setCategorias([]));
+    financeiroApi.aprovadores
+      .list()
+      .then(setAprovadores)
+      .catch(() => setAprovadores([]));
   }, [open]);
 
   useEffect(() => {
-    if (open) {
-      setForm((current) => ({ ...current, departamentoId: user?.collaborator?.departamento_id || '' }));
+    if (open && isReenvio) {
+      setForm({
+        titulo: solicitacao.titulo || '',
+        fornecedorId: solicitacao.fornecedor_id || '',
+        descricao: solicitacao.descricao || '',
+        valor: solicitacao.valor != null ? String(solicitacao.valor) : '',
+        categoriaId: solicitacao.categoria_id || '',
+        dataVencimento: solicitacao.data_vencimento ? solicitacao.data_vencimento.slice(0, 10) : '',
+        formaPagamento: solicitacao.forma_pagamento || '',
+        observacao: solicitacao.observacao || '',
+        empresaId: solicitacao.empresa_id || '',
+        departamentoId: solicitacao.departamento_id || '',
+        aprovadorDestinoId: solicitacao.aprovador_destino_id || '',
+      });
+    } else if (open) {
+      setForm((current) => ({
+        ...current,
+        empresaId: user?.collaborator?.empresa_id || '',
+        departamentoId: user?.collaborator?.departamento_id || '',
+      }));
     } else {
       setForm(EMPTY_FORM);
-      setNovoFornecedorNome('');
       setAnexos([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,24 +148,23 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
 
     setSubmitting(true);
     try {
-      let fornecedorId = form.fornecedorId;
-      if (fornecedorId === NOVO_FORNECEDOR_VALUE) {
-        const novo = await financeiroApi.fornecedores.criar(novoFornecedorNome.trim());
-        fornecedorId = novo.id;
-      }
-
-      const row = await financeiroApi.solicitacoes.create({
+      const payload = {
         titulo: form.titulo,
-        fornecedor_id: fornecedorId,
+        fornecedor_id: form.fornecedorId,
         descricao: form.descricao,
         valor: Number(form.valor),
-        categoria: form.categoria,
+        categoria_id: form.categoriaId,
         data_vencimento: form.dataVencimento || null,
         forma_pagamento: form.formaPagamento || null,
         observacao: form.observacao || null,
         empresa_id: form.empresaId || null,
         departamento_id: form.departamentoId || null,
-      });
+        aprovador_destino_id: form.aprovadorDestinoId,
+      };
+
+      const row = isReenvio
+        ? await financeiroApi.solicitacoes.reenviar(solicitacao.id, payload)
+        : await financeiroApi.solicitacoes.create(payload);
 
       for (const { file, tipoDocumento } of anexos) {
         const extension = file.name.split('.').pop();
@@ -168,11 +185,15 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
         });
       }
 
-      toast({ title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' });
+      toast(
+        isReenvio
+          ? { title: 'Solicitacao reenviada', description: 'Sua solicitacao voltou para a fila de aprovacao.' }
+          : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
+      );
       onOpenChange(false);
       onCreated?.(row);
     } catch (error) {
-      toast({ title: 'Nao foi possivel enviar', description: error.message });
+      toast({ title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar', description: error.message });
     } finally {
       setSubmitting(false);
     }
@@ -180,14 +201,22 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-xl overflow-y-auto">
+      <SheetContent
+        side="right"
+        className="sm:max-w-xl overflow-y-auto"
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+      >
         <SheetHeader>
-          <SheetTitle>Nova solicitacao de pagamento</SheetTitle>
+          <SheetTitle>{isReenvio ? 'Corrigir e reenviar solicitacao' : 'Nova solicitacao de pagamento'}</SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="titulo">Titulo</Label>
+            <Label htmlFor="titulo">
+              Titulo <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="titulo"
               value={form.titulo}
@@ -198,7 +227,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fornecedor">Fornecedor</Label>
+            <Label htmlFor="fornecedor">
+              Fornecedor <span className="text-destructive">*</span>
+            </Label>
             <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')}>
               <SelectTrigger id="fornecedor">
                 <SelectValue placeholder="Selecione o fornecedor" />
@@ -209,21 +240,32 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
                     {item.nome}
                   </SelectItem>
                 ))}
-                <SelectItem value={NOVO_FORNECEDOR_VALUE}>+ Cadastrar novo fornecedor</SelectItem>
               </SelectContent>
             </Select>
-            {form.fornecedorId === NOVO_FORNECEDOR_VALUE && (
-              <Input
-                value={novoFornecedorNome}
-                onChange={(event) => setNovoFornecedorNome(event.target.value)}
-                placeholder="Nome do novo fornecedor"
-                required
-              />
-            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="descricao">Descricao</Label>
+            <Label htmlFor="aprovadorDestino">
+              Aprovador responsavel <span className="text-destructive">*</span>
+            </Label>
+            <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')}>
+              <SelectTrigger id="aprovadorDestino">
+                <SelectValue placeholder="Selecione quem vai aprovar" />
+              </SelectTrigger>
+              <SelectContent>
+                {aprovadores.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="descricao">
+              Descricao <span className="text-destructive">*</span>
+            </Label>
             <Textarea
               id="descricao"
               value={form.descricao}
@@ -235,7 +277,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="valor">Valor (R$)</Label>
+              <Label htmlFor="valor">
+                Valor (R$) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="valor"
                 type="number"
@@ -248,15 +292,17 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="categoria">Categoria</Label>
-              <Select value={form.categoria} onValueChange={setField('categoria')}>
+              <Label htmlFor="categoria">
+                Categoria <span className="text-destructive">*</span>
+              </Label>
+              <Select value={form.categoriaId} onValueChange={setField('categoriaId')}>
                 <SelectTrigger id="categoria">
-                  <SelectValue />
+                  <SelectValue placeholder="Selecione a categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIAS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
+                  {categorias.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -378,8 +424,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated })
             {submitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Enviando...
+                {isReenvio ? 'Reenviando...' : 'Enviando...'}
               </>
+            ) : isReenvio ? (
+              'Reenviar solicitacao'
             ) : (
               'Enviar solicitacao'
             )}

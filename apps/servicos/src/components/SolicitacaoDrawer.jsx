@@ -16,10 +16,11 @@ import {
 } from '@macom/ui';
 
 const STATUS_VARIANT = {
-  pendente: 'secondary',
-  aprovado: 'default',
+  pendente: 'warning',
+  aprovado: 'success',
   reprovado: 'destructive',
-  pago: 'default',
+  pago: 'info',
+  cancelado: 'secondary',
 };
 
 const STATUS_LABEL = {
@@ -27,14 +28,7 @@ const STATUS_LABEL = {
   aprovado: 'Aprovado',
   reprovado: 'Reprovado',
   pago: 'Pago',
-};
-
-const CATEGORIA_LABEL = {
-  fornecedor: 'Fornecedor',
-  servico: 'Servico',
-  viagem: 'Viagem',
-  reembolso: 'Reembolso',
-  outros: 'Outros',
+  cancelado: 'Cancelado',
 };
 
 const FORMA_PAGAMENTO_LABEL = {
@@ -57,6 +51,9 @@ const EVENTO_LABEL = {
   criada: 'Solicitacao criada',
   aprovada: 'Aprovada',
   reprovada: 'Reprovada',
+  reprovada_pos_aprovacao: 'Reprovada apos aprovacao',
+  cancelada: 'Cancelada pelo solicitante',
+  reenviada: 'Corrigida e reenviada',
   parcela_criada: 'Plano de pagamento definido',
   parcela_paga: 'Parcela paga',
   pago: 'Marcada como paga',
@@ -201,12 +198,16 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                     <p className="font-medium">{solicitacao.fornecedor || '-'}</p>
                   </div>
                   <div>
+                    <p className="text-xs text-muted-foreground">Aprovador responsavel</p>
+                    <p className="font-medium">{solicitacao.aprovador_destino_nome || '-'}</p>
+                  </div>
+                  <div>
                     <p className="text-xs text-muted-foreground">Valor</p>
                     <p className="font-medium">{formatValor(solicitacao.valor)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Categoria</p>
-                    <p className="font-medium">{CATEGORIA_LABEL[solicitacao.categoria] || solicitacao.categoria || '-'}</p>
+                    <p className="font-medium">{solicitacao.categoria || '-'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Vencimento</p>

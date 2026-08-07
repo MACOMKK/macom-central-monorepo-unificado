@@ -5,19 +5,29 @@ import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom
 
 const AuthContext = createContext(null);
 
-// usuario = solicitante, gestor = aprovador, admin = financeiro/pagador (admin tambem aprova)
-// Vem do papel efetivo no modulo Financeiro (Camada 2, gestao_servicos.permissoes_usuario),
-// nao do nivel de acesso ao sistema inteiro (Camada 1) - ver `role` no retorno de financeiroApi.auth.me.
-function mapModuleRole(role) {
-  if (role === 'admin') return 'financeiro';
-  if (role === 'gestor') return 'aprovador';
-  return 'solicitante';
+// Chave de teste local (so ativa em dev): permite simular os 3 niveis de acesso
+// da Camada 1 (usuario | gestor | admin) sem depender do cadastro real no banco.
+// Remover quando o sistema sair de teste.
+const ROLE_OVERRIDE_STORAGE_KEY = 'servicos:role-override-dev';
+
+const ROLE_OVERRIDE_MAP = {
+  usuario: { system_access_level: 'usuario', role: 'usuario', isAprovador: false, isFinanceiro: false },
+  gestor: { system_access_level: 'gestor', role: 'aprovador', isAprovador: true, isFinanceiro: false },
+  admin: { system_access_level: 'admin', role: 'financeiro', isAprovador: true, isFinanceiro: true },
+};
+
+export function applyRoleOverride(user, overrideLevel) {
+  if (!user || !overrideLevel || !ROLE_OVERRIDE_MAP[overrideLevel]) return user;
+  return { ...user, ...ROLE_OVERRIDE_MAP[overrideLevel] };
 }
 
 function normalizeServicosUser(authUser, authPayload = {}) {
   const collaborator = authPayload.row || null;
   const access = authPayload.access || null;
-  const role = mapModuleRole(authPayload.role);
+  // Papel efetivo no modulo Financeiro (Camada 2, gestao_servicos.permissoes_modulo):
+  // usuario = solicitante, aprovador = aprova/reprova, financeiro = tambem marca como pago.
+  // Nao confundir com o nivel de acesso ao sistema inteiro (Camada 1).
+  const role = authPayload.role || 'usuario';
 
   return {
     id: collaborator?.id || authUser?.id || null,
@@ -77,6 +87,19 @@ export function AuthProvider({ children }) {
   const validatedTokenRef = useRef(null);
   const userRef = useRef(null);
   const inFlightValidationRef = useRef(null);
+  const [roleOverride, setRoleOverrideState] = useState(() =>
+    import.meta.env.DEV ? window.localStorage.getItem(ROLE_OVERRIDE_STORAGE_KEY) : null,
+  );
+
+  function setRoleOverride(level) {
+    if (!import.meta.env.DEV) return;
+    if (level) {
+      window.localStorage.setItem(ROLE_OVERRIDE_STORAGE_KEY, level);
+    } else {
+      window.localStorage.removeItem(ROLE_OVERRIDE_STORAGE_KEY);
+    }
+    setRoleOverrideState(level || null);
+  }
 
   function clearAuthState() {
     validatedTokenRef.current = null;
@@ -228,18 +251,23 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  const effectiveUser = useMemo(() => applyRoleOverride(user, roleOverride), [user, roleOverride]);
+
   const value = useMemo(
     () => ({
       session,
-      user,
+      user: effectiveUser,
+      realUser: user,
       isAuthenticated,
       isLoadingAuth,
       authError,
       login,
       logout,
       checkUserAuth,
+      roleOverride,
+      setRoleOverride,
     }),
-    [authError, isAuthenticated, isLoadingAuth, session, user],
+    [authError, effectiveUser, isAuthenticated, isLoadingAuth, roleOverride, session, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

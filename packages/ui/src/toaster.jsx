@@ -8,7 +8,7 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(({ id, title, description, action, ...props }) => {
+      {toasts.map(({ id, title, description, action, onOpenChange, ...props }) => {
         if (props.open === false) return null;
 
         return (

@@ -8,10 +8,15 @@ const corsHeaders = {
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
 const SERVICOS_SYSTEM_SLUG = 'servicos';
-// Registro central dos modulos com Camada 2 de permissao. Novo modulo real =
-// so adicionar aqui (nenhuma migration nova precisa, a tabela e normalizada).
-const SERVICOS_MODULOS = ['financeiro'] as const;
-const PAPEIS_MODULO = ['nenhum', 'usuario', 'gestor', 'admin'] as const;
+// Registro central dos modulos com Camada 2 de permissao, cada um com seu proprio
+// conjunto de papeis validos (nem todo modulo futuro precisa da mesma hierarquia
+// de aprovacao do Financeiro). Novo modulo = so adicionar aqui (a tabela e
+// normalizada, nao exige migration) — so precisa de migration se o modulo usar um
+// papel que ainda nao esta no CHECK de gestao_servicos.permissoes_modulo.papel.
+const SERVICOS_MODULOS_CONFIG = {
+  financeiro: { papeis: ['nenhum', 'usuario', 'aprovador', 'financeiro'] },
+} as const;
+const SERVICOS_MODULOS = Object.keys(SERVICOS_MODULOS_CONFIG) as (keyof typeof SERVICOS_MODULOS_CONFIG)[];
 const COMPROVANTES_STORAGE_BUCKET = 'comprovantes-pagamento';
 const COMPROVANTE_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_COMPROVANTE_FILE_SIZE = 5 * 1024 * 1024;
@@ -21,7 +26,7 @@ const CREATE_FIELDS = [
   'fornecedor_id',
   'descricao',
   'valor',
-  'categoria',
+  'categoria_id',
   'comprovante_path',
   'data_vencimento',
   'forma_pagamento',
@@ -31,7 +36,6 @@ const CREATE_FIELDS = [
   'aprovador_destino_id',
 ] as const;
 const UPDATE_FIELDS = CREATE_FIELDS;
-const CATEGORIAS = ['fornecedor', 'servico', 'viagem', 'reembolso', 'outros'];
 const FORMAS_PAGAMENTO = ['pix', 'boleto', 'transferencia', 'cartao', 'outros'];
 const ANEXO_CATEGORIAS = [
   'comprovante_solicitacao',
@@ -96,14 +100,21 @@ function getAccessLevel(access: Record<string, unknown> | null) {
   return String(access?.nivel_acesso || '');
 }
 
-// Papel efetivo no modulo Financeiro: admin de Camada 1 (acesso ao sistema) bypassa tudo;
-// senao, vem da Camada 2 (gestao_servicos.permissoes_usuario), default 'usuario'.
-function isAprovador(moduleRole: string | null) {
-  return ['admin', 'gestor'].includes(moduleRole || '');
+function isFinanceiro(moduleRole: string | null) {
+  return moduleRole === 'financeiro';
 }
 
-function isFinanceiro(moduleRole: string | null) {
-  return moduleRole === 'admin';
+// Acesso a uma solicitacao especifica: financeiro ve/mexe em tudo; o proprio
+// solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
+// a ele (aprovador_destino_id), nao qualquer solicitacao pendente.
+function canAccessSolicitacao(
+  moduleRole: string | null,
+  collaboradorId: string | null | undefined,
+  row: { solicitante_id: unknown; aprovador_destino_id?: unknown },
+) {
+  if (isFinanceiro(moduleRole)) return true;
+  if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
+  return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
 }
 
 async function getAuthenticatedUser(request: Request) {
@@ -174,7 +185,7 @@ async function getServicosModuleRole(
   modulo: string = 'financeiro',
 ) {
   const accessLevel = getAccessLevel(access);
-  if (accessLevel === 'admin') return 'admin';
+  if (accessLevel === 'admin') return 'financeiro';
   if (!accessLevel) return null;
 
   const rows = await sql!.unsafe(
@@ -196,7 +207,7 @@ function validateCreatePayload(payload: Record<string, unknown>) {
   const fornecedorId = String(payload.fornecedor_id || '').trim();
   const descricao = String(payload.descricao || '').trim();
   const valor = Number(payload.valor);
-  const categoria = String(payload.categoria || 'outros');
+  const categoriaId = String(payload.categoria_id || '').trim();
 
   if (!titulo) throw Object.assign(new Error('Informe o titulo.'), { status: 400 });
   if (!fornecedorId) throw Object.assign(new Error('Informe o fornecedor.'), { status: 400 });
@@ -204,9 +215,7 @@ function validateCreatePayload(payload: Record<string, unknown>) {
   if (!Number.isFinite(valor) || valor <= 0) {
     throw Object.assign(new Error('Informe um valor valido.'), { status: 400 });
   }
-  if (!CATEGORIAS.includes(categoria)) {
-    throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
-  }
+  if (!categoriaId) throw Object.assign(new Error('Informe a categoria.'), { status: 400 });
 
   if (payload.forma_pagamento && !FORMAS_PAGAMENTO.includes(String(payload.forma_pagamento))) {
     throw Object.assign(new Error('Forma de pagamento invalida.'), { status: 400 });
@@ -217,12 +226,29 @@ function validateCreatePayload(payload: Record<string, unknown>) {
   }
 }
 
+async function validateAprovadorDestino(aprovadorDestinoId: string) {
+  const rows = await sql!.unsafe(
+    `
+      select 1
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = aus.colaborador_id and pm.modulo = 'financeiro'
+      where aus.colaborador_id = $1 and aus.ativo = true and s.slug = $2 and s.ativo = true
+        and (aus.nivel_acesso = 'admin' or pm.papel in ('aprovador', 'financeiro'))
+      limit 1;
+    `,
+    [aprovadorDestinoId, SERVICOS_SYSTEM_SLUG],
+  );
+  if (!rows[0]) throw Object.assign(new Error('Aprovador invalido.'), { status: 400 });
+}
+
 async function ensureRowAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select sp.*, c.nome as solicitante_nome
+      select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome
       from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
       join public.colaboradores c on c.id = sp.solicitante_id
+      left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
       where sp.id = $1
       limit 1;
     `,
@@ -231,8 +257,7 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   const row = rows[0];
   if (!row) throw Object.assign(new Error('Solicitacao nao encontrada.'), { status: 404 });
 
-  if (isAprovador(moduleRole)) return row;
-  if (String(row.solicitante_id) === String(collaborator?.id || '')) return row;
+  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta solicitacao.'), { status: 403 });
 }
@@ -332,7 +357,7 @@ async function createSignedUrlForPath(path: string | null) {
 async function ensureParcelaAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select pp.*, sp.solicitante_id, sp.status as solicitacao_status
+      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.status as solicitacao_status
       from ${SERVICOS_SCHEMA}.parcelas_pagamento pp
       join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = pp.solicitacao_id
       where pp.id = $1
@@ -343,8 +368,7 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
   const row = rows[0];
   if (!row) throw Object.assign(new Error('Parcela nao encontrada.'), { status: 404 });
 
-  if (isAprovador(moduleRole)) return row;
-  if (String(row.solicitante_id) === String(collaborator?.id || '')) return row;
+  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta parcela.'), { status: 403 });
 }
@@ -390,26 +414,220 @@ Deno.serve(async (request) => {
 
     if (action === 'list_fornecedores') {
       const rows = await sql.unsafe(
-        `select id, nome from ${SERVICOS_SCHEMA}.fornecedores order by nome;`,
+        `select id, nome from ${SERVICOS_SCHEMA}.fornecedores where ativo = true order by nome;`,
       );
       return json({ rows });
     }
 
+    if (action === 'list_fornecedores_admin') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select f.id, f.nome, f.ativo, f.criado_em, f.atualizado_em,
+            count(sp.id) as total_solicitacoes
+          from ${SERVICOS_SCHEMA}.fornecedores f
+          left join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.fornecedor_id = f.id
+          group by f.id
+          order by f.nome;
+        `,
+      );
+      return json({ rows: rows.map((row) => ({ ...row, total_solicitacoes: Number(row.total_solicitacoes) })) });
+    }
+
     if (action === 'criar_fornecedor') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode cadastrar fornecedores.'), { status: 403 });
+      }
+
       const nome = String(body.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
 
       const existing = await sql.unsafe(
-        `select id, nome from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) limit 1;`,
+        `select id, nome, ativo, criado_em, atualizado_em from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) limit 1;`,
         [nome],
       );
       if (existing[0]) return json({ row: existing[0] });
 
       const rows = await sql.unsafe(
-        `insert into ${SERVICOS_SCHEMA}.fornecedores (nome, criado_por) values ($1, $2) returning id, nome;`,
+        `insert into ${SERVICOS_SCHEMA}.fornecedores (nome, criado_por) values ($1, $2) returning id, nome, ativo, criado_em, atualizado_em;`,
         [nome, collaborator!.id],
       );
       return json({ row: rows[0] || null });
+    }
+
+    if (action === 'atualizar_fornecedor') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
+      }
+
+      const id = String(body.id || '');
+      if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
+
+      const nome = String(body.nome || '').trim();
+      if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
+      const ativo = Boolean(body.ativo);
+
+      const duplicated = await sql.unsafe(
+        `select id from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) and id <> $2 limit 1;`,
+        [nome, id],
+      );
+      if (duplicated[0]) throw Object.assign(new Error('Ja existe um fornecedor com esse nome.'), { status: 400 });
+
+      const rows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.fornecedores
+          set nome = $1, ativo = $2, atualizado_em = now()
+          where id = $3
+          returning id, nome, ativo, criado_em, atualizado_em;
+        `,
+        [nome, ativo, id],
+      );
+      if (!rows[0]) throw Object.assign(new Error('Fornecedor nao encontrado.'), { status: 404 });
+      return json({ row: rows[0] });
+    }
+
+    if (action === 'deletar_fornecedor') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
+      }
+
+      const id = String(body.id || '');
+      if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
+
+      const emUso = await sql.unsafe(
+        `select 1 from ${SERVICOS_SCHEMA}.solicitacoes_pagamento where fornecedor_id = $1 limit 1;`,
+        [id],
+      );
+      if (emUso[0]) {
+        throw Object.assign(
+          new Error('Este fornecedor ja foi usado em solicitacoes e nao pode ser excluido. Inative-o.'),
+          { status: 400 },
+        );
+      }
+
+      await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.fornecedores where id = $1;`, [id]);
+      return json({ ok: true });
+    }
+
+    if (action === 'list_categorias') {
+      const rows = await sql.unsafe(
+        `select id, nome from ${SERVICOS_SCHEMA}.categorias where ativo = true order by nome;`,
+      );
+      return json({ rows });
+    }
+
+    if (action === 'list_categorias_admin') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar categorias.'), { status: 403 });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select c.id, c.nome, c.ativo, c.criado_em, c.atualizado_em,
+            count(sp.id) as total_solicitacoes
+          from ${SERVICOS_SCHEMA}.categorias c
+          left join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.categoria_id = c.id
+          group by c.id
+          order by c.nome;
+        `,
+      );
+      return json({ rows: rows.map((row) => ({ ...row, total_solicitacoes: Number(row.total_solicitacoes) })) });
+    }
+
+    if (action === 'criar_categoria') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode cadastrar categorias.'), { status: 403 });
+      }
+
+      const nome = String(body.nome || '').trim();
+      if (!nome) throw Object.assign(new Error('Informe o nome da categoria.'), { status: 400 });
+
+      const existing = await sql.unsafe(
+        `select id, nome, ativo, criado_em, atualizado_em from ${SERVICOS_SCHEMA}.categorias where lower(nome) = lower($1) limit 1;`,
+        [nome],
+      );
+      if (existing[0]) return json({ row: existing[0] });
+
+      const rows = await sql.unsafe(
+        `insert into ${SERVICOS_SCHEMA}.categorias (nome, criado_por) values ($1, $2) returning id, nome, ativo, criado_em, atualizado_em;`,
+        [nome, collaborator!.id],
+      );
+      return json({ row: rows[0] || null });
+    }
+
+    if (action === 'atualizar_categoria') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar categorias.'), { status: 403 });
+      }
+
+      const id = String(body.id || '');
+      if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
+
+      const nome = String(body.nome || '').trim();
+      if (!nome) throw Object.assign(new Error('Informe o nome da categoria.'), { status: 400 });
+      const ativo = Boolean(body.ativo);
+
+      const duplicated = await sql.unsafe(
+        `select id from ${SERVICOS_SCHEMA}.categorias where lower(nome) = lower($1) and id <> $2 limit 1;`,
+        [nome, id],
+      );
+      if (duplicated[0]) throw Object.assign(new Error('Ja existe uma categoria com esse nome.'), { status: 400 });
+
+      const rows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.categorias
+          set nome = $1, ativo = $2, atualizado_em = now()
+          where id = $3
+          returning id, nome, ativo, criado_em, atualizado_em;
+        `,
+        [nome, ativo, id],
+      );
+      if (!rows[0]) throw Object.assign(new Error('Categoria nao encontrada.'), { status: 404 });
+      return json({ row: rows[0] });
+    }
+
+    if (action === 'deletar_categoria') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode gerenciar categorias.'), { status: 403 });
+      }
+
+      const id = String(body.id || '');
+      if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
+
+      const emUso = await sql.unsafe(
+        `select 1 from ${SERVICOS_SCHEMA}.solicitacoes_pagamento where categoria_id = $1 limit 1;`,
+        [id],
+      );
+      if (emUso[0]) {
+        throw Object.assign(
+          new Error('Esta categoria ja foi usada em solicitacoes e nao pode ser excluida. Inative-a.'),
+          { status: 400 },
+        );
+      }
+
+      await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.categorias where id = $1;`, [id]);
+      return json({ ok: true });
+    }
+
+    if (action === 'list_aprovadores') {
+      const rows = await sql.unsafe(
+        `
+          select distinct c.id, c.nome
+          from public.colaboradores c
+          join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id
+          join public.sistemas s on s.id = aus.sistema_id
+          left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = c.id and pm.modulo = 'financeiro'
+          where s.slug = $1 and s.ativo = true and aus.ativo = true
+            and (aus.nivel_acesso = 'admin' or pm.papel in ('aprovador', 'financeiro'))
+          order by c.nome;
+        `,
+        [SERVICOS_SYSTEM_SLUG],
+      );
+
+      return json({ rows });
     }
 
     if (action === 'list_permissoes') {
@@ -453,10 +671,11 @@ Deno.serve(async (request) => {
       const papel = String(body.papel || '');
 
       if (!colaboradorId) return json({ error: 'colaborador_id obrigatorio.' }, 400);
-      if (!SERVICOS_MODULOS.includes(modulo as (typeof SERVICOS_MODULOS)[number])) {
+      const moduloConfig = SERVICOS_MODULOS_CONFIG[modulo as keyof typeof SERVICOS_MODULOS_CONFIG];
+      if (!moduloConfig) {
         return json({ error: 'Modulo invalido.' }, 400);
       }
-      if (!PAPEIS_MODULO.includes(papel as (typeof PAPEIS_MODULO)[number])) {
+      if (!moduloConfig.papeis.includes(papel as (typeof moduloConfig.papeis)[number])) {
         return json({ error: 'Papel invalido.' }, 400);
       }
 
@@ -473,6 +692,37 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
+    if (action === 'limpar_dados_teste_financeiro') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem limpar os dados de teste.'), { status: 403 });
+      }
+
+      const anexos = await sql.unsafe(
+        `select storage_path from ${SERVICOS_SCHEMA}.anexos_solicitacao where storage_path is not null;`,
+      );
+
+      const [{ count: solicitacoesRemovidas }] = await sql.begin(async (tx) => {
+        const solicitacoes = await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.solicitacoes_pagamento returning id;`);
+        await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.fornecedores;`);
+        await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.categorias;`);
+        return [{ count: solicitacoes.length }];
+      });
+
+      const storageClient = createStorageAdminClient();
+      let anexosRemovidosStorage = 0;
+      if (storageClient && anexos.length > 0) {
+        const paths = anexos.map((a) => String(a.storage_path));
+        for (let i = 0; i < paths.length; i += 100) {
+          const chunk = paths.slice(i, i + 100);
+          const { error } = await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove(chunk);
+          if (!error) anexosRemovidosStorage += chunk.length;
+          else console.error('Falha ao remover anexos do storage:', { chunk, message: error.message });
+        }
+      }
+
+      return json({ solicitacoes_removidas: solicitacoesRemovidas, anexos_removidos_storage: anexosRemovidosStorage });
+    }
+
     if (action === 'list') {
       const filters = typeof body.filters === 'object' && body.filters ? body.filters : {};
       const status = typeof filters.status === 'string' ? filters.status : '';
@@ -480,9 +730,14 @@ Deno.serve(async (request) => {
       const clauses: string[] = [];
       const values: unknown[] = [];
 
-      if (!isAprovador(moduleRole)) {
+      // financeiro ve tudo; aprovador ve as proprias + as endereçadas a ele; usuario so as proprias.
+      if (!isFinanceiro(moduleRole)) {
         values.push(collaborator!.id);
-        clauses.push(`sp.solicitante_id = $${values.length}`);
+        if (moduleRole === 'aprovador') {
+          clauses.push(`(sp.solicitante_id = $${values.length} or sp.aprovador_destino_id = $${values.length})`);
+        } else {
+          clauses.push(`sp.solicitante_id = $${values.length}`);
+        }
       }
 
       if (status) {
@@ -494,9 +749,10 @@ Deno.serve(async (request) => {
       const orderBy = ORDER_BY_COLUMNS[String(filters.order_by || '')] || ORDER_BY_COLUMNS.criado_em;
       const rows = await sql.unsafe(
         `
-          select sp.*, c.nome as solicitante_nome
+          select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
+          left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
           ${whereClause}
           order by ${orderBy}
           limit 200;
@@ -536,6 +792,23 @@ Deno.serve(async (request) => {
       );
       if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
       payload.fornecedor = fornecedorRows[0].nome;
+
+      // categoria e snapshot do nome no momento da solicitacao, mesmo padrao do fornecedor acima.
+      const categoriaRows = await sql.unsafe(
+        `select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`,
+        [payload.categoria_id],
+      );
+      if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
+      payload.categoria = categoriaRows[0].nome;
+
+      // Todo solicitacao precisa de um aprovador especifico: so ele (ou o financeiro,
+      // que sobrepoe qualquer aprovador) pode decidir sobre ela — ver canAccessSolicitacao.
+      const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
+      if (!aprovadorDestinoId) {
+        throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
+      }
+      await validateAprovadorDestino(aprovadorDestinoId);
+      payload.aprovador_destino_id = aprovadorDestinoId;
 
       // empresa_id/departamento_id sao snapshot do colaborador no momento da criacao
       // (nao join ao vivo) - preserva o setor/empresa corretos historicamente mesmo
@@ -583,6 +856,24 @@ Deno.serve(async (request) => {
         payload.fornecedor = fornecedorRows[0].nome;
       }
 
+      if (payload.categoria_id) {
+        const categoriaRows = await sql.unsafe(
+          `select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`,
+          [payload.categoria_id],
+        );
+        if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
+        payload.categoria = categoriaRows[0].nome;
+      }
+
+      if ('aprovador_destino_id' in payload) {
+        const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
+        if (!aprovadorDestinoId) {
+          throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
+        }
+        await validateAprovadorDestino(aprovadorDestinoId);
+        payload.aprovador_destino_id = aprovadorDestinoId;
+      }
+
       const fields = Object.keys(payload);
       const assignments = fields.map((field, index) => `${quoteIdentifier(field)} = $${index + 2}`).join(', ');
       const rows = await sql.unsafe(
@@ -591,6 +882,88 @@ Deno.serve(async (request) => {
       );
 
       return json({ row: rows[0] || null });
+    }
+
+    if (action === 'cancelar_solicitacao') {
+      const id = String(body.id || '');
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const existing = await ensureRowAccess(id, moduleRole, collaborator);
+      if (String(existing.solicitante_id) !== String(collaborator!.id)) {
+        throw Object.assign(new Error('Apenas o solicitante pode cancelar esta solicitacao.'), { status: 403 });
+      }
+      if (existing.status !== 'pendente') {
+        throw Object.assign(new Error('Somente solicitacoes pendentes podem ser canceladas.'), { status: 400 });
+      }
+
+      const motivo = body.motivo ? String(body.motivo) : null;
+      const rows = await sql.unsafe(
+        `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set status = 'cancelado' where id = $1 returning *;`,
+        [id],
+      );
+      await insertHistorico(id, 'cancelada', collaborator!.id as string, motivo);
+      return json({ row: rows[0] || null });
+    }
+
+    if (action === 'reenviar_solicitacao') {
+      const id = String(body.id || '');
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const existing = await ensureRowAccess(id, moduleRole, collaborator);
+      if (String(existing.solicitante_id) !== String(collaborator!.id)) {
+        throw Object.assign(new Error('Apenas o solicitante pode reenviar esta solicitacao.'), { status: 403 });
+      }
+      if (existing.status !== 'reprovado') {
+        throw Object.assign(new Error('Somente solicitacoes reprovadas podem ser reenviadas.'), { status: 400 });
+      }
+
+      const payload = sanitizePayload(UPDATE_FIELDS, body.payload || {});
+      if ('comprovante_path' in body.payload) {
+        validateComprovanteSize(body.payload?.comprovante_file_size);
+      }
+
+      if (payload.fornecedor_id) {
+        const fornecedorRows = await sql.unsafe(
+          `select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`,
+          [payload.fornecedor_id],
+        );
+        if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
+        payload.fornecedor = fornecedorRows[0].nome;
+      }
+
+      if (payload.categoria_id) {
+        const categoriaRows = await sql.unsafe(
+          `select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`,
+          [payload.categoria_id],
+        );
+        if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
+        payload.categoria = categoriaRows[0].nome;
+      }
+
+      if ('aprovador_destino_id' in payload) {
+        const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
+        if (!aprovadorDestinoId) {
+          throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
+        }
+        await validateAprovadorDestino(aprovadorDestinoId);
+        payload.aprovador_destino_id = aprovadorDestinoId;
+      }
+
+      payload.status = 'pendente';
+      payload.observacao_analise = null;
+      payload.analisado_por = null;
+      payload.analisado_em = null;
+
+      const fields = Object.keys(payload);
+      const assignments = fields.map((field, index) => `${quoteIdentifier(field)} = $${index + 2}`).join(', ');
+      const rows = await sql.unsafe(
+        `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
+        [id, ...fields.map((field) => payload[field])],
+      );
+
+      const row = rows[0] || null;
+      await insertHistorico(id, 'reenviada', collaborator!.id as string);
+      return json({ row });
     }
 
     if (action === 'set_status') {
@@ -606,11 +979,30 @@ Deno.serve(async (request) => {
       const existing = await ensureRowAccess(id, moduleRole, collaborator);
 
       if (status === 'aprovado' || status === 'reprovado') {
-        if (!isAprovador(moduleRole)) {
-          throw Object.assign(new Error('Apenas aprovadores podem aprovar ou reprovar solicitacoes.'), { status: 403 });
-        }
-        if (existing.status !== 'pendente') {
-          throw Object.assign(new Error('Somente solicitacoes pendentes podem ser aprovadas ou reprovadas.'), { status: 400 });
+        const reprovandoAprovada = status === 'reprovado' && existing.status === 'aprovado';
+
+        if (reprovandoAprovada) {
+          if (!isFinanceiro(moduleRole)) {
+            throw Object.assign(
+              new Error('Apenas o financeiro pode reprovar uma solicitacao ja aprovada.'),
+              { status: 403 },
+            );
+          }
+          if (!observacao) {
+            throw Object.assign(new Error('Informe o motivo da reprovacao.'), { status: 400 });
+          }
+        } else {
+          const isAprovadorDestino =
+            moduleRole === 'aprovador' && String(existing.aprovador_destino_id || '') === String(collaborator!.id);
+          if (!isFinanceiro(moduleRole) && !isAprovadorDestino) {
+            throw Object.assign(
+              new Error('Apenas o aprovador designado ou o financeiro podem aprovar ou reprovar esta solicitacao.'),
+              { status: 403 },
+            );
+          }
+          if (existing.status !== 'pendente') {
+            throw Object.assign(new Error('Somente solicitacoes pendentes podem ser aprovadas ou reprovadas.'), { status: 400 });
+          }
         }
 
         const rows = await sql.unsafe(
@@ -623,7 +1015,8 @@ Deno.serve(async (request) => {
           [id, status, observacao, collaborator!.id],
         );
         const row = rows[0];
-        await insertHistorico(id, status === 'aprovado' ? 'aprovada' : 'reprovada', collaborator!.id as string, observacao);
+        const evento = status === 'aprovado' ? 'aprovada' : reprovandoAprovada ? 'reprovada_pos_aprovacao' : 'reprovada';
+        await insertHistorico(id, evento, collaborator!.id as string, observacao);
         await enqueueStatusEmail(row, status);
         return json({ row });
       }
@@ -853,7 +1246,7 @@ Deno.serve(async (request) => {
           from ${SERVICOS_SCHEMA}.historico_solicitacao h
           left join public.colaboradores c on c.id = h.autor_id
           where h.solicitacao_id = $1
-          order by h.criado_em asc;
+          order by h.criado_em desc;
         `,
         [solicitacaoId],
       );

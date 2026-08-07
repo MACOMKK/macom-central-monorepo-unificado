@@ -83,9 +83,47 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'list_fornecedores' });
       return result.rows || [];
     },
+    async listAdmin() {
+      const result = await invokeServicos({ action: 'list_fornecedores_admin' });
+      return result.rows || [];
+    },
     async criar(nome) {
       const result = await invokeServicos({ action: 'criar_fornecedor', nome });
       return result.row || null;
+    },
+    async atualizar(id, { nome, ativo }) {
+      const result = await invokeServicos({ action: 'atualizar_fornecedor', id, nome, ativo });
+      return result.row || null;
+    },
+    async deletar(id) {
+      await invokeServicos({ action: 'deletar_fornecedor', id });
+    },
+  },
+  categorias: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_categorias' });
+      return result.rows || [];
+    },
+    async listAdmin() {
+      const result = await invokeServicos({ action: 'list_categorias_admin' });
+      return result.rows || [];
+    },
+    async criar(nome) {
+      const result = await invokeServicos({ action: 'criar_categoria', nome });
+      return result.row || null;
+    },
+    async atualizar(id, { nome, ativo }) {
+      const result = await invokeServicos({ action: 'atualizar_categoria', id, nome, ativo });
+      return result.row || null;
+    },
+    async deletar(id) {
+      await invokeServicos({ action: 'deletar_categoria', id });
+    },
+  },
+  aprovadores: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_aprovadores' });
+      return result.rows || [];
     },
   },
   permissoes: {
@@ -126,6 +164,14 @@ export const financeiroApi = {
     },
     async setStatus(id, status, observacao_analise) {
       const result = await invokeServicos({ action: 'set_status', id, status, observacao_analise });
+      return result.row || null;
+    },
+    async cancelar(id, motivo) {
+      const result = await invokeServicos({ action: 'cancelar_solicitacao', id, motivo: motivo || null });
+      return result.row || null;
+    },
+    async reenviar(id, payload) {
+      const result = await invokeServicos({ action: 'reenviar_solicitacao', id, payload });
       return result.row || null;
     },
     async getSignedUrl(id) {
@@ -174,6 +220,11 @@ export const financeiroApi = {
     async list(solicitacaoId) {
       const result = await invokeServicos({ action: 'historico', solicitacao_id: solicitacaoId });
       return result.rows || [];
+    },
+  },
+  admin: {
+    async limparDadosTeste() {
+      return invokeServicos({ action: 'limpar_dados_teste_financeiro' });
     },
   },
 };
