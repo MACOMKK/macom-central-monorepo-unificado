@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Toaster } from '@macom/ui';
+import { Spinner, Toaster } from '@macom/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -22,7 +22,7 @@ const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
 
 const RouteFallback = () => (
   <div className="fixed inset-0 flex items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+    <Spinner size="lg" className="text-primary" />
   </div>
 );
 
@@ -75,7 +75,7 @@ const AuthenticatedApp = () => {
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+        <Spinner size="lg" className="text-primary" />
       </div>
     );
   }

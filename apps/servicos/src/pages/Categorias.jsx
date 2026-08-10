@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -7,6 +8,7 @@ import {
   Button,
   Input,
   Label,
+  Spinner,
   Switch,
   Table,
   TableBody,
@@ -27,56 +29,70 @@ function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+function invalidateCategorias(queryClient) {
+  queryClient.invalidateQueries({ queryKey: ['servicos', 'categorias'] });
+  queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
+}
+
 export default function Categorias() {
   const { toast } = useToast();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [novoNome, setNovoNome] = useState('');
-  const [criando, setCriando] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editNome, setEditNome] = useState('');
-  const [savingId, setSavingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await financeiroApi.categorias.listAdmin();
-      setRows(data);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel carregar as categorias', description: error.message });
-    } finally {
-      setLoading(false);
-    }
-  }
+  const categoriasQuery = useQuery({
+    queryKey: ['servicos', 'categorias', 'admin'],
+    queryFn: () => financeiroApi.categorias.listAdmin(),
+  });
+  const rows = categoriasQuery.data || [];
+  const loading = categoriasQuery.isLoading;
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function handleCriar(event) {
-    event.preventDefault();
-    const nome = novoNome.trim();
-    if (!nome || criando) return;
-
-    setCriando(true);
-    try {
-      const row = await financeiroApi.categorias.criar(nome);
-      setRows((current) => {
-        if (current.some((item) => item.id === row.id)) {
-          return current.map((item) => (item.id === row.id ? row : item));
-        }
-        return [...current, row].sort((a, b) => a.nome.localeCompare(b.nome));
-      });
+  const criarMutation = useMutation({
+    mutationFn: (nome) => financeiroApi.categorias.criar(nome),
+    onSuccess: () => {
+      invalidateCategorias(queryClient);
       setNovoNome('');
       toast({ title: 'Categoria cadastrada' });
-    } catch (error) {
-      toast({ title: 'Nao foi possivel cadastrar a categoria', description: error.message });
-    } finally {
-      setCriando(false);
-    }
+    },
+    onError: (error) => toast({ title: 'Nao foi possivel cadastrar a categoria', description: error.message }),
+  });
+
+  const atualizarMutation = useMutation({
+    mutationFn: ({ id, nome, ativo }) => financeiroApi.categorias.atualizar(id, { nome, ativo }),
+    onSuccess: (updated) => {
+      invalidateCategorias(queryClient);
+      if (editId === updated.id) cancelEdit();
+      toast({ title: 'Categoria atualizada' });
+    },
+    onError: (error) => toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message }),
+  });
+
+  const toggleAtivoMutation = useMutation({
+    mutationFn: ({ id, nome, ativo }) => financeiroApi.categorias.atualizar(id, { nome, ativo }),
+    onSuccess: (updated) => {
+      invalidateCategorias(queryClient);
+      toast({ title: updated.ativo ? 'Categoria reativada' : 'Categoria inativada' });
+    },
+    onError: (error) => toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message }),
+  });
+
+  const deletarMutation = useMutation({
+    mutationFn: (id) => financeiroApi.categorias.deletar(id),
+    onSuccess: () => {
+      invalidateCategorias(queryClient);
+      toast({ title: 'Categoria excluida' });
+      setDeleteTarget(null);
+    },
+    onError: (error) => toast({ title: 'Nao foi possivel excluir a categoria', description: error.message }),
+  });
+
+  function handleCriar(event) {
+    event.preventDefault();
+    const nome = novoNome.trim();
+    if (!nome || criarMutation.isPending) return;
+    criarMutation.mutate(nome);
   }
 
   function startEdit(row) {
@@ -89,50 +105,23 @@ export default function Categorias() {
     setEditNome('');
   }
 
-  async function handleSalvarNome(row) {
+  function handleSalvarNome(row) {
     const nome = editNome.trim();
     if (!nome) return;
-
-    setSavingId(row.id);
-    try {
-      const updated = await financeiroApi.categorias.atualizar(row.id, { nome, ativo: row.ativo });
-      setRows((current) => current.map((item) => (item.id === row.id ? updated : item)));
-      cancelEdit();
-      toast({ title: 'Categoria atualizada' });
-    } catch (error) {
-      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
-    } finally {
-      setSavingId(null);
-    }
+    atualizarMutation.mutate({ id: row.id, nome, ativo: row.ativo });
   }
 
-  async function handleToggleAtivo(row) {
-    setSavingId(row.id);
-    try {
-      const updated = await financeiroApi.categorias.atualizar(row.id, { nome: row.nome, ativo: !row.ativo });
-      setRows((current) => current.map((item) => (item.id === row.id ? updated : item)));
-      toast({ title: updated.ativo ? 'Categoria reativada' : 'Categoria inativada' });
-    } catch (error) {
-      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
-    } finally {
-      setSavingId(null);
-    }
+  function handleToggleAtivo(row) {
+    toggleAtivoMutation.mutate({ id: row.id, nome: row.nome, ativo: !row.ativo });
   }
 
-  async function handleDeletar() {
+  function handleDeletar() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await financeiroApi.categorias.deletar(deleteTarget.id);
-      setRows((current) => current.filter((item) => item.id !== deleteTarget.id));
-      toast({ title: 'Categoria excluida' });
-      setDeleteTarget(null);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel excluir a categoria', description: error.message });
-    } finally {
-      setDeleting(false);
-    }
+    deletarMutation.mutate(deleteTarget.id);
   }
+
+  const isSaving = (id) => atualizarMutation.variables?.id === id && atualizarMutation.isPending
+    || toggleAtivoMutation.variables?.id === id && toggleAtivoMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -155,15 +144,15 @@ export default function Categorias() {
             placeholder="Nome da categoria"
           />
         </div>
-        <Button type="submit" disabled={criando || !novoNome.trim()}>
-          {criando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Plus className="mr-1 h-4 w-4" />}
+        <Button type="submit" disabled={criarMutation.isPending || !novoNome.trim()}>
+          {criarMutation.isPending ? <Spinner size="sm" className="mr-1" /> : <Plus className="mr-1 h-4 w-4" />}
           Cadastrar
         </Button>
       </form>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size="sm" />
           Carregando...
         </div>
       ) : rows.length === 0 ? (
@@ -188,7 +177,7 @@ export default function Categorias() {
                         autoFocus
                         value={editNome}
                         onChange={(event) => setEditNome(event.target.value)}
-                        disabled={savingId === row.id}
+                        disabled={isSaving(row.id)}
                       />
                     ) : (
                       <span className="font-medium">{row.nome}</span>
@@ -199,7 +188,7 @@ export default function Categorias() {
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={row.ativo}
-                        disabled={savingId === row.id}
+                        disabled={isSaving(row.id)}
                         onCheckedChange={() => handleToggleAtivo(row)}
                       />
                       <Badge variant={row.ativo ? 'default' : 'secondary'}>
@@ -210,11 +199,11 @@ export default function Categorias() {
                   <TableCell className="text-right">
                     {editId === row.id ? (
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={cancelEdit} disabled={savingId === row.id}>
+                        <Button variant="outline" size="sm" onClick={cancelEdit} disabled={isSaving(row.id)}>
                           Cancelar
                         </Button>
-                        <Button size="sm" onClick={() => handleSalvarNome(row)} disabled={savingId === row.id}>
-                          {savingId === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+                        <Button size="sm" onClick={() => handleSalvarNome(row)} disabled={isSaving(row.id)}>
+                          {isSaving(row.id) ? <Spinner size="sm" /> : 'Salvar'}
                         </Button>
                       </div>
                     ) : (
@@ -257,7 +246,7 @@ export default function Categorias() {
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         onConfirm={handleDeletar}
-        isLoading={deleting}
+        isLoading={deletarMutation.isPending}
         title="Excluir categoria"
         description={`Tem certeza que deseja excluir "${deleteTarget?.nome}"? Essa acao nao pode ser desfeita. So e possivel excluir categorias que nunca foram usadas em nenhuma solicitacao.`}
       />

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { PageLoader } from '@macom/ui';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
@@ -24,14 +25,7 @@ const TermsPossession = lazy(() => import('@/pages/TermsPossession'));
 const Units = lazy(() => import('@/pages/Units'));
 
 function RouteFallback() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100">
-      <div className="flex items-center gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#881337]/20 border-t-[#881337]" />
-        <span className="text-sm text-slate-600">Carregando pagina...</span>
-      </div>
-    </main>
-  );
+  return <PageLoader label="Carregando pagina..." />;
 }
 
 function LoginRoute() {

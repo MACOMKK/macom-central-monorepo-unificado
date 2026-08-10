@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquarePlus, Send, Loader2, CheckCircle2, Clock, ArchiveX, Search, ChevronDown, ChevronUp } from 'lucide-react';
-import { Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea } from '@macom/ui';
+import { Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Spinner, Switch, Textarea } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -107,7 +107,7 @@ function FeedbackCard({ item, isAdmin, onStatusChange, onRespond }) {
                 className="text-sm h-20"
               />
               <Button size="sm" onClick={handleRespond} disabled={saving} className="gap-2">
-                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                {saving ? <Spinner size="sm" /> : <Send className="w-3 h-3" />}
                 Enviar Resposta
               </Button>
             </div>
@@ -278,7 +278,7 @@ export default function Feedback() {
               <Label htmlFor="anon" className="cursor-pointer">Enviar anonimamente</Label>
             </div>
             <Button type="submit" disabled={submitting} className="gap-2">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {submitting ? <Spinner size="sm" /> : <Send className="w-4 h-4" />}
               Enviar
             </Button>
           </div>

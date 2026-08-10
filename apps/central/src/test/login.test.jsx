@@ -44,6 +44,6 @@ describe('Login page', () => {
 
     expect(screen.getByLabelText('E-mail')).toBeDisabled();
     expect(screen.getByLabelText('Senha')).toBeDisabled();
-    expect(screen.getByRole('button', { name: '' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Carregando' })).toBeDisabled();
   });
 });

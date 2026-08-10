@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { PageLoader } from '@macom/ui';
 import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Layout from '@/components/Layout';
@@ -29,14 +30,7 @@ const getFromPath = (search) => {
   }
 };
 
-const LoadingScreen = () => (
-  <main className="flex min-h-screen items-center justify-center bg-[#f4f4f4]">
-    <div className="flex items-center gap-3 border border-slate-200 bg-white px-5 py-4 shadow-sm">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-primary" />
-      <span className="text-sm font-semibold text-slate-600">Preparando REVVO CRM...</span>
-    </div>
-  </main>
-);
+const LoadingScreen = () => <PageLoader label="Preparando REVVO CRM..." />;
 
 const LoginRoute = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();

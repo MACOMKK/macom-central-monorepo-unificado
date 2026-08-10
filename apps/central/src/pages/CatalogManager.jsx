@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, Copy, Globe, Monitor, Network, Trash2 } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1023,7 +1024,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       {lockedEntityKey === 'departamentos' ? (
         isLoading ? (
           <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+            <Spinner size="lg" className="text-primary" />
           </div>
         ) : rows.length === 0 ? (
           <Card className="p-12">
@@ -1048,7 +1049,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       ) : lockedEntityKey === 'unidades' ? (
         isLoading ? (
           <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+            <Spinner size="lg" className="text-primary" />
           </div>
         ) : rows.length === 0 ? (
           <Card className="p-12">
@@ -1075,7 +1076,7 @@ export default function CatalogManager({ lockedEntityKey }) {
       ) : lockedEntityKey === 'empresas' ? (
         isLoading ? (
           <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+            <Spinner size="lg" className="text-primary" />
           </div>
         ) : rows.length === 0 ? (
           <Card className="p-12">

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Check, Loader2, X } from 'lucide-react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { Button, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
+import { Button, Label, Spinner, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 
 function formatValor(valor) {
@@ -16,43 +17,46 @@ function formatData(data) {
 
 export default function Aprovacoes() {
   const { toast } = useToast();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [observacoes, setObservacoes] = useState({});
-  const [processingId, setProcessingId] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const data = await financeiroApi.solicitacoes.list({ status: 'pendente' });
-      setRows(data);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel carregar as solicitacoes', description: error.message });
-    } finally {
-      setLoading(false);
-    }
-  }
+  const solicitacoesQuery = useQuery({
+    queryKey: ['servicos', 'solicitacoes', 'pendentes'],
+    queryFn: () => financeiroApi.solicitacoes.list({ status: 'pendente' }),
+  });
+  const rows = solicitacoesQuery.data || [];
+  const loading = solicitacoesQuery.isLoading;
+  const selected = rows.find((row) => row.id === selectedId) || null;
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const pendentesKey = ['servicos', 'solicitacoes', 'pendentes'];
 
-  async function handleDecision(id, status) {
-    setProcessingId(id);
-    try {
-      await financeiroApi.solicitacoes.setStatus(id, status, observacoes[id] || null);
+  const decisaoMutation = useMutation({
+    mutationFn: ({ id, status, observacao }) => financeiroApi.solicitacoes.setStatus(id, status, observacao || null),
+    onMutate: ({ id }) => {
+      const previous = queryClient.getQueryData(pendentesKey);
+      // Remove otimisticamente da lista de pendentes (a decisao tira a solicitacao dessa fila) —
+      // o drawer fecha sozinho, ja que `selected` e derivado de `rows.find(...)`.
+      queryClient.setQueryData(pendentesKey, (old) => (old || []).filter((row) => row.id !== id));
+      return { previous };
+    },
+    onSuccess: (_data, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: status === 'aprovado' ? 'Solicitacao aprovada' : 'Solicitacao reprovada' });
+    },
+    onError: (error, _variables, context) => {
+      // Reverte a lista — como `selected` e derivado da lista, o drawer reabre sozinho na mesma
+      // solicitacao, com a observacao digitada intacta (esta em outro state, nao foi tocada).
+      if (context?.previous) queryClient.setQueryData(pendentesKey, context.previous);
       toast({
-        title: status === 'aprovado' ? 'Solicitacao aprovada' : 'Solicitacao reprovada',
+        title: 'Nao foi possivel processar a solicitacao',
+        description: `${error.message} Revise e tente novamente.`,
       });
-      setRows((current) => current.filter((row) => row.id !== id));
-      setSelected((current) => (current?.id === id ? null : current));
-    } catch (error) {
-      toast({ title: 'Nao foi possivel processar a solicitacao', description: error.message });
-    } finally {
-      setProcessingId(null);
-    }
+    },
+  });
+
+  function handleDecision(id, status) {
+    decisaoMutation.mutate({ id, status, observacao: observacoes[id] });
   }
 
   return (
@@ -61,7 +65,7 @@ export default function Aprovacoes() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size="sm" />
           Carregando...
         </div>
       ) : rows.length === 0 ? (
@@ -81,7 +85,7 @@ export default function Aprovacoes() {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row)}>
+              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
                 <TableCell>{row.solicitante_nome}</TableCell>
                 <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
@@ -89,7 +93,7 @@ export default function Aprovacoes() {
                 <TableCell>{formatValor(row.valor)}</TableCell>
                 <TableCell>{formatData(row.criado_em)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelected(row); }}>
+                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
                     Ver
                   </Button>
                 </TableCell>
@@ -101,7 +105,7 @@ export default function Aprovacoes() {
 
       <SolicitacaoDrawer
         solicitacao={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
+        onOpenChange={(open) => !open && setSelectedId(null)}
         footer={
           selected && (
             <div className="space-y-3">
@@ -120,13 +124,13 @@ export default function Aprovacoes() {
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
-                  disabled={processingId === selected.id}
+                  disabled={decisaoMutation.isPending}
                   onClick={() => handleDecision(selected.id, 'reprovado')}
                 >
                   <X className="mr-1 h-4 w-4" />
                   Reprovar
                 </Button>
-                <Button disabled={processingId === selected.id} onClick={() => handleDecision(selected.id, 'aprovado')}>
+                <Button disabled={decisaoMutation.isPending} onClick={() => handleDecision(selected.id, 'aprovado')}>
                   <Check className="mr-1 h-4 w-4" />
                   Aprovar
                 </Button>

@@ -1,4 +1,4 @@
-import { Toaster } from '@macom/ui';
+import { Spinner, Toaster } from '@macom/ui';
 import React, { lazy } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -33,7 +33,7 @@ const FullScreenLoader = () => (
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-sm">
         <img src={MACOM_LOGO_URL} alt="MACOM" className="h-10 w-10 object-contain" />
       </div>
-      <div className="w-8 h-8 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
+      <Spinner size="lg" className="text-primary" />
     </div>
   </div>
 );

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Search, UserCog } from 'lucide-react';
-import { Badge, Button, Input, Skeleton } from '@macom/ui';
+import { Save, Search, UserCog } from 'lucide-react';
+import { Badge, Button, Input, Skeleton, Spinner } from '@macom/ui';
 import { toast } from 'sonner';
 
 import { appClient } from '@/api/client';
@@ -142,7 +142,7 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
           ) : null}
         </div>
         <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 rounded-xl sm:w-auto">
-          {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+          {isSaving ? <Spinner size="sm" /> : <Save className="w-3 h-3" />}
           Salvar
         </Button>
       </div>

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Send, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button, Input } from '@macom/ui';
+import { MessageCircle, Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button, Input, Spinner } from '@macom/ui';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -134,7 +134,7 @@ export default function AnnouncementInteractions({ announcementId, currentUserId
               className="h-9 text-sm"
             />
             <Button size="sm" onClick={handleSendComment} disabled={sending || !commentText.trim()} className="h-9 px-3 sm:h-8">
-              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {sending ? <Spinner size="sm" /> : <Send className="w-3.5 h-3.5" />}
             </Button>
           </div>
         </div>

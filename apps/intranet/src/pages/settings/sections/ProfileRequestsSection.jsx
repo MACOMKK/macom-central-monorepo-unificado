@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, X } from 'lucide-react';
-import { Badge, Button, Skeleton } from '@macom/ui';
+import { Check, X } from 'lucide-react';
+import { Badge, Button, Skeleton, Spinner } from '@macom/ui';
 import { toast } from 'sonner';
 
 import { appClient } from '@/api/client';
@@ -77,7 +77,7 @@ export default function ProfileRequestsSection() {
                     onClick={() => handleReviewRequest(request.id, 'rejected')}
                     disabled={reviewingRequest === request.id}
                   >
-                    {reviewingRequest === request.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                    {reviewingRequest === request.id ? <Spinner size="sm" /> : <X className="h-3 w-3" />}
                     Reprovar
                   </Button>
                   <Button
@@ -86,7 +86,7 @@ export default function ProfileRequestsSection() {
                     onClick={() => handleReviewRequest(request.id, 'approved')}
                     disabled={reviewingRequest === request.id}
                   >
-                    {reviewingRequest === request.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    {reviewingRequest === request.id ? <Spinner size="sm" /> : <Check className="h-3 w-3" />}
                     Aprovar
                   </Button>
                 </div>

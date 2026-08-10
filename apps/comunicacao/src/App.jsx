@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { NotFoundPage, Toaster } from '@macom/ui';
+import { NotFoundPage, Spinner, Toaster } from '@macom/ui';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { queryClient } from '@/lib/query-client';
 import { useComunicacaoRealtime } from '@/hooks/useComunicacaoRealtime';
@@ -11,7 +11,7 @@ import DirectMessage from '@/pages/DirectMessage';
 
 const FullScreenLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    <Spinner size="lg" className="text-primary" />
   </div>
 );
 

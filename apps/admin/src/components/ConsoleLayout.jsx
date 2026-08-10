@@ -12,12 +12,12 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
-import { Button } from '@macom/ui';
+import { Button, Spinner } from '@macom/ui';
 import { useAuth } from '@macom/auth';
 
 const ContentLoader = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#881337]/20 border-t-[#881337]" />
+    <Spinner size="lg" className="text-primary" />
   </div>
 );
 

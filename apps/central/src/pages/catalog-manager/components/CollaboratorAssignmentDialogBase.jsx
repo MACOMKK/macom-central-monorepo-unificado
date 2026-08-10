@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -148,7 +149,7 @@ export default function CollaboratorAssignmentDialogBase({
               Cancelar
             </Button>
             <Button type="submit" disabled={loading} className="h-8 rounded-lg px-4 text-[13px]">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+              {loading ? <Spinner size="sm" /> : 'Salvar'}
             </Button>
           </DialogFooter>
         </form>

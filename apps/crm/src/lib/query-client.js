@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, keepPreviousData } from '@tanstack/react-query';
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -41,7 +41,8 @@ export const queryClientInstance = new QueryClient({
 			refetchOnReconnect: true,
 			staleTime: 30 * SECOND,
 			gcTime: 10 * MINUTE,
-			retry: 1,
+			placeholderData: keepPreviousData,
+			retry: false,
 		},
 	},
 });

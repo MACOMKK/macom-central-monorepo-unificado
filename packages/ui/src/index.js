@@ -1,5 +1,6 @@
 export * from './alert';
 export * from './alert-dialog';
+export * from './auth-login-card';
 export * from './avatar';
 export * from './badge';
 export * from './button';
@@ -15,6 +16,7 @@ export * from './scroll-area';
 export * from './select';
 export * from './skeleton';
 export * from './separator';
+export * from './spinner';
 export * from './sheet';
 export * from './switch';
 export * from './table';

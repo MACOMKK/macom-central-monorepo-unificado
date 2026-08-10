@@ -1,10 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -97,11 +93,11 @@ function generateTemporaryPassword(length = 12) {
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
 }
 
-function json(payload: unknown, status = 200) {
+function jsonResponse(payload: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
-      ...corsHeaders,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -847,6 +843,9 @@ async function listAccessLogs({
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = buildCorsHeaders(request);
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
+
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import Sidebar from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ function PageContentFallback() {
   return (
     <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-border/70 bg-card/80 shadow-sm">
       <div className="flex items-center gap-3 rounded-2xl bg-background/70 px-5 py-4">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#881337]/20 border-t-[#881337]" />
+        <Spinner className="text-primary" />
         <span className="text-sm text-muted-foreground">Carregando conteudo...</span>
       </div>
     </div>

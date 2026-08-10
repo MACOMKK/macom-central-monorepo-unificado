@@ -1,10 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
 const SERVICOS_SYSTEM_SLUG = 'servicos';
@@ -45,6 +41,14 @@ const ANEXO_CATEGORIAS = [
   'comprovante_pagamento',
 ] as const;
 const ANEXO_TIPOS_DOCUMENTO = ['orcamento', 'nota_fiscal', 'boleto', 'recibo', 'comprovante_pix', 'outros'] as const;
+// Mantem consistencia com apps/servicos/src/lib/financeiroFormat.js (TIPOS_DOCUMENTO_POR_CATEGORIA).
+const ANEXO_TIPOS_DOCUMENTO_POR_CATEGORIA: Record<(typeof ANEXO_CATEGORIAS)[number], readonly string[]> = {
+  comprovante_solicitacao: ['orcamento', 'recibo', 'comprovante_pix', 'outros'],
+  nf_boleto: ['nota_fiscal', 'boleto'],
+  pdf_unificado: ['outros'],
+  rh: ['recibo', 'outros'],
+  comprovante_pagamento: ['comprovante_pix', 'boleto', 'recibo', 'outros'],
+};
 const ORDER_BY_COLUMNS: Record<string, string> = {
   criado_em: 'sp.criado_em desc',
   data_vencimento: 'sp.data_vencimento asc nulls last',
@@ -64,11 +68,11 @@ const sql = databaseUrl
     })
   : null;
 
-function json(data: unknown, status = 200) {
+function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...corsHeaders,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -117,16 +121,18 @@ function canAccessSolicitacao(
   return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
 }
 
-async function getAuthenticatedUser(request: Request) {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw Object.assign(new Error('Supabase nao configurado.'), { status: 500 });
-  }
-
+function getBearerToken(request: Request) {
   const authHeader = request.headers.get('Authorization') || '';
-  const token = authHeader.replace('Bearer ', '').trim();
+  return authHeader.replace('Bearer ', '').trim();
+}
 
+async function getAuthenticatedUser(token: string) {
   if (!token) {
     throw Object.assign(new Error('Sessao expirada. Faca login novamente.'), { status: 401 });
+  }
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw Object.assign(new Error('Supabase nao configurado.'), { status: 500 });
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -139,6 +145,41 @@ async function getAuthenticatedUser(request: Request) {
   }
 
   return data.user;
+}
+
+// Auth/autorizacao (usuario + colaborador + acesso + papel) e recalculada do zero
+// em toda invocacao da function; como o mesmo usuario costuma disparar varias
+// chamadas em sequencia rapida (ex. abrir um drawer que busca varios catalogos),
+// cacheamos o resultado por token em memoria do isolate por um TTL curto para
+// evitar repetir o round-trip ao Auth + 3 queries SQL a cada chamada.
+const AUTH_CONTEXT_TTL_MS = 30 * 1000;
+type AuthContext = {
+  user: { id: string; email?: string };
+  collaborator: Record<string, unknown> | null;
+  access: Record<string, unknown> | null;
+  moduleRole: string | null;
+};
+const authContextCache = new Map<string, { expiresAt: number; context: AuthContext }>();
+
+async function getAuthContext(request: Request): Promise<AuthContext> {
+  const token = getBearerToken(request);
+  if (!token) {
+    throw Object.assign(new Error('Sessao expirada. Faca login novamente.'), { status: 401 });
+  }
+
+  const cached = authContextCache.get(token);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.context;
+  }
+
+  const user = await getAuthenticatedUser(token);
+  const collaborator = await getCurrentCollaborator(user);
+  const access = collaborator?.id ? await getServicosAccess(String(collaborator.id)) : null;
+  const moduleRole = collaborator?.id ? await getServicosModuleRole(String(collaborator.id), access) : null;
+
+  const context: AuthContext = { user, collaborator, access, moduleRole };
+  authContextCache.set(token, { expiresAt: Date.now() + AUTH_CONTEXT_TTL_MS, context });
+  return context;
 }
 
 async function getCurrentCollaborator(user: { id: string; email?: string }) {
@@ -374,6 +415,9 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = buildCorsHeaders(request);
+  const json = (data: unknown, status = 200) => jsonResponse(data, status, corsHeaders);
+
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -383,10 +427,7 @@ Deno.serve(async (request) => {
       return json({ error: 'DATABASE_URL nao configurada.' }, 500);
     }
 
-    const user = await getAuthenticatedUser(request);
-    const collaborator = await getCurrentCollaborator(user);
-    const access = collaborator?.id ? await getServicosAccess(String(collaborator.id)) : null;
-    const moduleRole = collaborator?.id ? await getServicosModuleRole(String(collaborator.id), access) : null;
+    const { collaborator, access, moduleRole } = await getAuthContext(request);
 
     const body = await request.json().catch(() => ({}));
     const action = String(body.action || 'list');
@@ -630,6 +671,37 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
+    // Combina os catalogos usados pelo formulario de nova solicitacao (empresas,
+    // departamentos, fornecedores, categorias, aprovadores) em uma unica invocacao,
+    // no lugar de 5 chamadas separadas pagando o overhead de auth cada uma. As queries
+    // rodam sequencialmente (nao Promise.all) porque o pool de conexoes tem max: 3 —
+    // 5 queries concorrentes esgotavam o pool e travavam a invocacao indefinidamente.
+    if (action === 'list_catalogos_solicitacao') {
+      const empresas = await sql.unsafe(`select id, nome from public.empresas order by nome;`);
+      const departamentos = await sql.unsafe(`select id, nome from public.departamentos order by nome;`);
+      const fornecedores = await sql.unsafe(
+        `select id, nome from ${SERVICOS_SCHEMA}.fornecedores where ativo = true order by nome;`,
+      );
+      const categorias = await sql.unsafe(
+        `select id, nome from ${SERVICOS_SCHEMA}.categorias where ativo = true order by nome;`,
+      );
+      const aprovadores = await sql.unsafe(
+        `
+          select distinct c.id, c.nome
+          from public.colaboradores c
+          join public.acessos_usuario_sistema aus on aus.colaborador_id = c.id
+          join public.sistemas s on s.id = aus.sistema_id
+          left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = c.id and pm.modulo = 'financeiro'
+          where s.slug = $1 and s.ativo = true and aus.ativo = true
+            and (aus.nivel_acesso = 'admin' or pm.papel in ('aprovador', 'financeiro'))
+          order by c.nome;
+        `,
+        [SERVICOS_SYSTEM_SLUG],
+      );
+
+      return json({ empresas, departamentos, fornecedores, categorias, aprovadores });
+    }
+
     if (action === 'list_permissoes') {
       if (getAccessLevel(access) !== 'admin') {
         throw Object.assign(new Error('Apenas administradores podem gerenciar permissoes.'), { status: 403 });
@@ -703,8 +775,6 @@ Deno.serve(async (request) => {
 
       const [{ count: solicitacoesRemovidas }] = await sql.begin(async (tx) => {
         const solicitacoes = await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.solicitacoes_pagamento returning id;`);
-        await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.fornecedores;`);
-        await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.categorias;`);
         return [{ count: solicitacoes.length }];
       });
 
@@ -802,30 +872,25 @@ Deno.serve(async (request) => {
       validateCreatePayload(payload);
       validateComprovanteSize(body.payload?.comprovante_file_size);
 
-      // fornecedor e snapshot do nome no momento da solicitacao (mesmo padrao de
-      // empresa_id/departamento_id abaixo), resolvido a partir de fornecedor_id.
-      const fornecedorRows = await sql.unsafe(
-        `select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`,
-        [payload.fornecedor_id],
-      );
-      if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
-      payload.fornecedor = fornecedorRows[0].nome;
-
-      // categoria e snapshot do nome no momento da solicitacao, mesmo padrao do fornecedor acima.
-      const categoriaRows = await sql.unsafe(
-        `select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`,
-        [payload.categoria_id],
-      );
-      if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
-      payload.categoria = categoriaRows[0].nome;
-
       // Todo solicitacao precisa de um aprovador especifico: so ele (ou o financeiro,
       // que sobrepoe qualquer aprovador) pode decidir sobre ela — ver canAccessSolicitacao.
       const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
       if (!aprovadorDestinoId) {
         throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
       }
-      await validateAprovadorDestino(aprovadorDestinoId);
+
+      // fornecedor/categoria sao snapshot do nome no momento da solicitacao (mesmo padrao
+      // de empresa_id/departamento_id abaixo); essas 3 validacoes sao independentes entre si,
+      // entao rodam em paralelo em vez de sequencial pra reduzir a latencia do create.
+      const [fornecedorRows, categoriaRows] = await Promise.all([
+        sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]),
+        sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`, [payload.categoria_id]),
+        validateAprovadorDestino(aprovadorDestinoId),
+      ]);
+      if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
+      payload.fornecedor = fornecedorRows[0].nome;
+      if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
+      payload.categoria = categoriaRows[0].nome;
       payload.aprovador_destino_id = aprovadorDestinoId;
 
       // empresa_id/departamento_id sao snapshot do colaborador no momento da criacao
@@ -1098,6 +1163,9 @@ Deno.serve(async (request) => {
       if (!ANEXO_TIPOS_DOCUMENTO.includes(tipoDocumento as (typeof ANEXO_TIPOS_DOCUMENTO)[number])) {
         return json({ error: 'Tipo de documento invalido.' }, 400);
       }
+      if (!ANEXO_TIPOS_DOCUMENTO_POR_CATEGORIA[categoria as (typeof ANEXO_CATEGORIAS)[number]].includes(tipoDocumento)) {
+        return json({ error: 'Tipo de documento nao permitido para esta categoria.' }, 400);
+      }
       if (!nomeArquivo || !tipoMime || !storagePath) {
         return json({ error: 'Dados do anexo incompletos.' }, 400);
       }
@@ -1139,13 +1207,9 @@ Deno.serve(async (request) => {
       );
       const anexo = rows[0];
       if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
-      const podeComoDono = String(anexo.criado_por) === String(collaborator!.id) && anexo.solicitacao_status === 'pendente';
       const podeComoFinanceiro = isFinanceiro(moduleRole);
-      if (!podeComoDono && !podeComoFinanceiro) {
-        throw Object.assign(
-          new Error('Somente quem enviou pode remover o anexo enquanto pendente, ou o financeiro a qualquer momento.'),
-          { status: 403 },
-        );
+      if (!podeComoFinanceiro) {
+        throw Object.assign(new Error('Somente o financeiro pode remover anexos.'), { status: 403 });
       }
 
       await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.anexos_solicitacao where id = $1;`, [id]);

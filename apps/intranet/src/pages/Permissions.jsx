@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, Search, Shield, Save, UserCog, X } from 'lucide-react';
-import { Badge, Button, Input, Skeleton } from '@macom/ui';
+import { Check, Search, Shield, Save, UserCog, X } from 'lucide-react';
+import { Badge, Button, Input, Skeleton, Spinner } from '@macom/ui';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
 import Pagination, { usePaginatedItems } from '../components/Pagination';
@@ -82,7 +82,7 @@ function PermissionRow({ user, existingPerm, onSave, isSaving }) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <Button size="sm" onClick={handleSave} disabled={isSaving} className="w-full gap-2 rounded-xl sm:w-auto">
-          {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+          {isSaving ? <Spinner size="sm" /> : <Save className="w-3 h-3" />}
           Salvar
         </Button>
       </div>
@@ -160,7 +160,7 @@ function ProfileChangeRequestsPanel({ requests, isLoading, onReview, reviewingId
                     onClick={() => onReview(request.id, 'rejected')}
                     disabled={reviewingId === request.id}
                   >
-                    {reviewingId === request.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                    {reviewingId === request.id ? <Spinner size="sm" /> : <X className="h-3 w-3" />}
                     Reprovar
                   </Button>
                   <Button
@@ -169,7 +169,7 @@ function ProfileChangeRequestsPanel({ requests, isLoading, onReview, reviewingId
                     onClick={() => onReview(request.id, 'approved')}
                     disabled={reviewingId === request.id}
                   >
-                    {reviewingId === request.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    {reviewingId === request.id ? <Spinner size="sm" /> : <Check className="h-3 w-3" />}
                     Aprovar
                   </Button>
                 </div>

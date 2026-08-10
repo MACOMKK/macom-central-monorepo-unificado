@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, MessageCircle, Mail, PanelLeftClose, PanelLeftOpen, Download } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@macom/ui';
+import { Spinner, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { MACOM_LOGO_URL } from '@/config/branding';
 import { useInstallPrompt } from '@/lib/useInstallPrompt';
@@ -66,7 +66,7 @@ export default function Sidebar({ user, collapsed, onToggle }) {
       {isLoggingOut ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#141414]/95 px-5 py-4 shadow-2xl">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            <Spinner className="text-white" />
             <span className="text-sm font-semibold tracking-wide text-white">Saindo...</span>
           </div>
         </div>

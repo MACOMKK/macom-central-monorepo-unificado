@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Pencil, Plus, X } from 'lucide-react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Pencil, Plus, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast } from '@macom/ui';
+import { Badge, Button, Spinner, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { formatData, formatValor, STATUS_LABEL, STATUS_VARIANT } from '@/lib/financeiroFormat';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
@@ -12,51 +13,49 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 export default function MinhasSolicitacoes() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
+  const queryClient = useQueryClient();
+
+  const [selectedId, setSelectedId] = useState(null);
   const [novaOpen, setNovaOpen] = useState(false);
   const [reenvioTarget, setReenvioTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelando, setCancelando] = useState(false);
 
-  async function load() {
-    try {
-      const data = await financeiroApi.solicitacoes.list();
-      setRows(data);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel carregar as solicitacoes', description: error.message });
-    } finally {
-      setLoading(false);
-    }
-  }
+  const solicitacoesQuery = useQuery({
+    queryKey: ['servicos', 'solicitacoes', 'minhas'],
+    queryFn: () => financeiroApi.solicitacoes.list(),
+  });
+  const rows = solicitacoesQuery.data || [];
+  const loading = solicitacoesQuery.isLoading;
+  const selected = rows.find((row) => row.id === selectedId) || null;
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
+
+  const cancelarMutation = useMutation({
+    mutationFn: (id) => financeiroApi.solicitacoes.cancelar(id),
+    onMutate: (id) => {
+      const previous = queryClient.getQueryData(minhasSolicitacoesKey);
+      queryClient.setQueryData(minhasSolicitacoesKey, (old) =>
+        (old || []).map((row) => (row.id === id ? { ...row, status: 'cancelado' } : row)),
+      );
+      setCancelTarget(null);
+      setSelectedId(null);
+      return { previous };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Solicitacao cancelada' });
+    },
+    onError: (error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
+      toast({ title: 'Nao foi possivel cancelar a solicitacao', description: `${error.message} Tente novamente.` });
+    },
+  });
 
   const title = user?.isAprovador ? 'Todas as solicitacoes' : 'Minhas solicitacoes';
 
-  async function handleCancelar() {
+  function handleCancelar() {
     if (!cancelTarget) return;
-    setCancelando(true);
-    try {
-      const row = await financeiroApi.solicitacoes.cancelar(cancelTarget.id);
-      setRows((current) => current.map((item) => (item.id === cancelTarget.id ? row || { ...item, status: 'cancelado' } : item)));
-      toast({ title: 'Solicitacao cancelada' });
-      setCancelTarget(null);
-      setSelected(null);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel cancelar a solicitacao', description: error.message });
-    } finally {
-      setCancelando(false);
-    }
-  }
-
-  function handleReenviada(row) {
-    setRows((current) => current.map((item) => (item.id === row.id ? row : item)));
-    setReenvioTarget(null);
+    cancelarMutation.mutate(cancelTarget.id);
   }
 
   const isDono = (row) => String(row.solicitante_id) === String(user?.collaborator?.id);
@@ -94,7 +93,7 @@ export default function MinhasSolicitacoes() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size="sm" />
           Carregando...
         </div>
       ) : rows.length === 0 ? (
@@ -114,7 +113,7 @@ export default function MinhasSolicitacoes() {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelected(row)}>
+              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
                 <TableCell className="max-w-xs truncate">{row.titulo || '-'}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
                 <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
@@ -124,7 +123,7 @@ export default function MinhasSolicitacoes() {
                 </TableCell>
                 <TableCell>{formatData(row.criado_em)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelected(row); }}>
+                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
                     Ver
                   </Button>
                 </TableCell>
@@ -136,22 +135,21 @@ export default function MinhasSolicitacoes() {
 
       <SolicitacaoDrawer
         solicitacao={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
+        onOpenChange={(open) => !open && setSelectedId(null)}
         footer={renderFooter()}
       />
-      <NovaSolicitacaoDrawer open={novaOpen} onOpenChange={setNovaOpen} onCreated={load} />
+      <NovaSolicitacaoDrawer open={novaOpen} onOpenChange={setNovaOpen} />
       <NovaSolicitacaoDrawer
         open={Boolean(reenvioTarget)}
         onOpenChange={(open) => !open && setReenvioTarget(null)}
         solicitacao={reenvioTarget}
-        onCreated={handleReenviada}
       />
 
       <ConfirmDeleteDialog
         open={Boolean(cancelTarget)}
         onOpenChange={(open) => !open && setCancelTarget(null)}
         onConfirm={handleCancelar}
-        isLoading={cancelando}
+        isLoading={cancelarMutation.isPending}
         title="Cancelar solicitacao"
         description="Tem certeza que deseja cancelar esta solicitacao? Essa acao nao pode ser desfeita."
         confirmLabel="Cancelar solicitacao"

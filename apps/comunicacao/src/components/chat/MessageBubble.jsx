@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, FileText, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback, Button, Textarea } from '@macom/ui';
+import { AlertCircle, FileText } from 'lucide-react';
+import { Avatar, AvatarFallback, Button, Spinner, Textarea } from '@macom/ui';
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import MessageActionsMenu from './MessageActionsMenu';
 import ReactionPicker from './ReactionPicker';
@@ -129,7 +129,7 @@ export default function MessageBubble({ mensagem, isOwn, isAdmin, onUpdate, onDe
           {mensagem.editada_em && !isDeleted ? (
             <span className="text-xs text-muted-foreground">(editada)</span>
           ) : null}
-          {mensagem._pending ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : null}
+          {mensagem._pending ? <Spinner size="sm" className="text-muted-foreground" /> : null}
         </div>
 
         {isDeleted ? (

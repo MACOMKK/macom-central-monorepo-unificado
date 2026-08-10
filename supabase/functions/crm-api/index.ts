@@ -9,11 +9,7 @@ import {
   ensureCanConfigure,
 } from './access-scope.ts';
 import type { EntityName } from './access-scope.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const CRM_SYSTEM_SLUG = 'crm';
 
@@ -143,11 +139,11 @@ const sql = databaseUrl
     })
   : null;
 
-function json(data: unknown, status = 200) {
+function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...corsHeaders,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -671,6 +667,9 @@ async function getCrmAccess(collaboratorId: string) {
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = buildCorsHeaders(request);
+  const json = (data: unknown, status = 200) => jsonResponse(data, status, corsHeaders);
+
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

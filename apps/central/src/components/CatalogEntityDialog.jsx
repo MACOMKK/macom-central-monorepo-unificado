@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -228,7 +228,7 @@ export default function CatalogEntityDialog({
               {cancelLabel || 'Cancelar'}
             </Button>
             <Button type="submit" disabled={loading} className={submitButtonClassName}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : submitLabel || (record ? 'Salvar' : 'Criar')}
+              {loading ? <Spinner size="sm" /> : submitLabel || (record ? 'Salvar' : 'Criar')}
             </Button>
           </DialogFooter>
         </form>

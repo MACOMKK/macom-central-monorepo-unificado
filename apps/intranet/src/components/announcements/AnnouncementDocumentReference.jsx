@@ -1,9 +1,9 @@
 import React from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { FileText, Loader2 } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
 import { appClient } from '@/api/client';
-import { Button } from '@macom/ui';
+import { Button, Spinner } from '@macom/ui';
 
 function getErrorMessage(error, fallback) {
   if (!error) return fallback;
@@ -46,7 +46,7 @@ function DocumentChip({ document, onError }) {
         disabled={openMutation.isPending}
         onClick={() => openMutation.mutate()}
       >
-        {openMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {openMutation.isPending ? <Spinner size="sm" /> : null}
         Abrir documento
       </Button>
     </div>

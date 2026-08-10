@@ -1,4 +1,4 @@
-import { QueryCache, QueryClient, MutationCache } from '@tanstack/react-query';
+import { QueryCache, QueryClient, MutationCache, keepPreviousData } from '@tanstack/react-query';
 
 import { supabase } from '@macom/api-client/supabaseClient';
 
@@ -41,10 +41,11 @@ export const queryClientInstance = new QueryClient({
 	}),
 	defaultOptions: {
 		queries: {
-			staleTime: 60 * 1000,
+			staleTime: 90 * 1000,
 			gcTime: 10 * 60 * 1000,
+			placeholderData: keepPreviousData,
 			refetchOnWindowFocus: false,
-			retry: 1,
+			retry: false,
 		},
 	},
 });

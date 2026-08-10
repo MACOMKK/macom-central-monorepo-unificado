@@ -3,11 +3,7 @@
 // Nao adicionar novas entidades ou regras aqui sem revalidar a estrategia de desativacao.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const ENTITY_CONFIG = {
   departamentos: {
@@ -268,11 +264,11 @@ const sql = databaseUrl
     })
   : null;
 
-function json(data: unknown, status = 200) {
+function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...corsHeaders,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -1479,6 +1475,9 @@ function buildUpdateQuery(schema: string, table: string, id: string, payload: Re
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = buildCorsHeaders(request);
+  const json = (data: unknown, status = 200) => jsonResponse(data, status, corsHeaders);
+
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

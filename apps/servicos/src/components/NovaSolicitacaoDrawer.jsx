@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Paperclip, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Paperclip, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { useAuth } from '@/lib/AuthContext';
+import { useCatalogosSolicitacao } from '@/hooks/useCatalogos';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
-import { FORMA_PAGAMENTO_LABEL, TIPOS_DOCUMENTO } from '@/lib/financeiroFormat';
+import {
+  ANEXO_CATEGORIA_OPCOES,
+  FORMA_PAGAMENTO_LABEL,
+  getTiposDocumentoPorCategoria,
+} from '@/lib/financeiroFormat';
 import {
   Button,
   Input,
@@ -19,6 +25,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  Spinner,
   Textarea,
   useToast,
 } from '@macom/ui';
@@ -39,35 +46,121 @@ const EMPTY_FORM = {
   aprovadorDestinoId: '',
 };
 
-export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, solicitacao = null }) {
+export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao = null }) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isReenvio = Boolean(solicitacao);
 
   const [form, setForm] = useState(EMPTY_FORM);
-  const [empresas, setEmpresas] = useState([]);
-  const [departamentos, setDepartamentos] = useState([]);
-  const [fornecedores, setFornecedores] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [aprovadores, setAprovadores] = useState([]);
   const [anexos, setAnexos] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [catalogosLoading, setCatalogosLoading] = useState(false);
+  const [visible, setVisible] = useState(open);
+  const skipNextResetRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    setCatalogosLoading(true);
-    Promise.allSettled([
-      financeiroApi.empresas.list().then(setEmpresas).catch(() => setEmpresas([])),
-      financeiroApi.departamentos.list().then(setDepartamentos).catch(() => setDepartamentos([])),
-      financeiroApi.fornecedores.list().then(setFornecedores).catch(() => setFornecedores([])),
-      financeiroApi.categorias.list().then(setCategorias).catch(() => setCategorias([])),
-      financeiroApi.aprovadores.list().then(setAprovadores).catch(() => setAprovadores([])),
-    ]).finally(() => setCatalogosLoading(false));
+    setVisible(open);
   }, [open]);
 
+  function uploadAnexosEmBackground(solicitacaoId, anexosParaEnviar) {
+    if (anexosParaEnviar.length === 0) return;
+
+    Promise.allSettled(
+      anexosParaEnviar.map(({ file, categoria, tipoDocumento }) =>
+        uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento }),
+      ),
+    ).then((results) => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
+      const falhas = results.filter((result) => result.status === 'rejected');
+      if (falhas.length > 0) {
+        toast({
+          title: falhas.length === 1 ? 'Um anexo nao foi enviado' : `${falhas.length} anexos nao foram enviados`,
+          description: `A solicitacao foi registrada normalmente, mas houve falha no envio: ${getFriendlyErrorMessage(falhas[0].reason)}. Voce pode adiciona-los depois pela tela de detalhes.`,
+        });
+      }
+    });
+  }
+
+  const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
+
+  const submitMutation = useMutation({
+    mutationFn: ({ payload }) =>
+      isReenvio
+        ? financeiroApi.solicitacoes.reenviar(solicitacao.id, payload)
+        : financeiroApi.solicitacoes.create(payload),
+    onMutate: ({ payload, tempId }) => {
+      const previous = queryClient.getQueryData(minhasSolicitacoesKey);
+      const anexosSnapshot = anexos;
+      const formSnapshot = form;
+      const fornecedorNome = fornecedores.find((item) => item.id === payload.fornecedor_id)?.nome || '';
+      const optimisticId = isReenvio ? solicitacao.id : tempId;
+      const optimisticRow = {
+        id: optimisticId,
+        titulo: payload.titulo,
+        fornecedor: fornecedorNome,
+        descricao: payload.descricao,
+        valor: payload.valor,
+        status: 'pendente',
+        criado_em: isReenvio ? solicitacao.criado_em : new Date().toISOString(),
+        solicitante_id: user?.collaborator?.id,
+      };
+
+      queryClient.setQueryData(minhasSolicitacoesKey, (old) => {
+        const rows = old || [];
+        if (isReenvio) {
+          return rows.map((row) => (row.id === solicitacao.id ? { ...row, ...optimisticRow } : row));
+        }
+        return [optimisticRow, ...rows];
+      });
+
+      // Fecha so localmente (sem tocar em novaOpen/reenvioTarget do pai) pra poder reabrir
+      // sozinho com o rascunho se o envio falhar — ver onError.
+      setVisible(false);
+
+      return { previous, tempId: optimisticId, anexosSnapshot, formSnapshot };
+    },
+    onSuccess: (row, _variables, context) => {
+      queryClient.setQueryData(minhasSolicitacoesKey, (old) =>
+        (old || []).map((existing) => (existing.id === context.tempId ? row : existing)),
+      );
+      toast(
+        isReenvio
+          ? { title: 'Solicitacao reenviada', description: 'Sua solicitacao voltou para a fila de aprovacao.' }
+          : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
+      );
+      uploadAnexosEmBackground(row.id, context.anexosSnapshot);
+      onOpenChange(false);
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
+      toast({
+        title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar',
+        description: `${getFriendlyErrorMessage(error)} Revise os dados e tente novamente.`,
+      });
+      skipNextResetRef.current = true;
+      setForm(context.formSnapshot);
+      setAnexos(context.anexosSnapshot);
+      setVisible(true);
+    },
+  });
+
+  const {
+    data: catalogos,
+    isLoading: catalogosLoading,
+  } = useCatalogosSolicitacao({ enabled: visible });
+  const {
+    empresas = [],
+    departamentos = [],
+    fornecedores = [],
+    categorias = [],
+    aprovadores = [],
+  } = catalogos || {};
+
   useEffect(() => {
-    if (open && isReenvio) {
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false;
+      return;
+    }
+    if (visible && isReenvio) {
       setForm({
         titulo: solicitacao.titulo || '',
         fornecedorId: solicitacao.fornecedor_id || '',
@@ -81,7 +174,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
         departamentoId: solicitacao.departamento_id || '',
         aprovadorDestinoId: solicitacao.aprovador_destino_id || '',
       });
-    } else if (open) {
+    } else if (visible) {
       setForm((current) => ({
         ...current,
         empresaId: user?.collaborator?.empresa_id || '',
@@ -91,7 +184,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       setForm(EMPTY_FORM);
       setAnexos([]);
     }
-  }, [open]);
+  }, [visible]);
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -103,6 +196,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       const confirmed = window.confirm('Existem dados preenchidos que serao perdidos. Deseja mesmo fechar?');
       if (!confirmed) return;
     }
+    setVisible(nextOpen);
     onOpenChange(nextOpen);
   };
 
@@ -120,7 +214,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       event.target.value = '';
       return;
     }
-    setAnexos((current) => [...current, ...files.map((file) => ({ file, tipoDocumento: 'outros' }))]);
+    setAnexos((current) => [
+      ...current,
+      ...files.map((file) => ({ file, categoria: 'comprovante_solicitacao', tipoDocumento: 'outros' })),
+    ]);
     event.target.value = '';
   };
 
@@ -128,13 +225,26 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
     setAnexos((current) => current.filter((_, i) => i !== index));
   };
 
+  const setAnexoCategoria = (index) => (value) => {
+    setAnexos((current) =>
+      current.map((item, i) => {
+        if (i !== index) return item;
+        const tiposValidos = getTiposDocumentoPorCategoria(value);
+        const tipoDocumento = tiposValidos.some((tipo) => tipo.value === item.tipoDocumento)
+          ? item.tipoDocumento
+          : tiposValidos[0]?.value || 'outros';
+        return { ...item, categoria: value, tipoDocumento };
+      }),
+    );
+  };
+
   const setAnexoTipoDocumento = (index) => (value) => {
     setAnexos((current) => current.map((item, i) => (i === index ? { ...item, tipoDocumento: value } : item)));
   };
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submitMutation.isPending) return;
 
     if (!form.fornecedorId || !form.aprovadorDestinoId || !form.categoriaId) {
       toast({
@@ -144,10 +254,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
       return;
     }
 
-    setSubmitting(true);
-    let row = null;
-    try {
-      const payload = {
+    submitMutation.mutate({
+      tempId: `optimistic-${crypto.randomUUID()}`,
+      payload: {
         titulo: form.titulo,
         fornecedor_id: form.fornecedorId,
         descricao: form.descricao,
@@ -159,42 +268,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
         empresa_id: form.empresaId || null,
         departamento_id: form.departamentoId || null,
         aprovador_destino_id: form.aprovadorDestinoId,
-      };
-
-      row = isReenvio
-        ? await financeiroApi.solicitacoes.reenviar(solicitacao.id, payload)
-        : await financeiroApi.solicitacoes.create(payload);
-
-      try {
-        for (const { file, tipoDocumento } of anexos) {
-          await uploadAnexo({ file, solicitacaoId: row.id, categoria: 'comprovante_solicitacao', tipoDocumento });
-        }
-      } catch (anexoError) {
-        toast({
-          title: isReenvio ? 'Solicitacao reenviada, mas houve falha no anexo' : 'Solicitacao enviada, mas houve falha no anexo',
-          description: `A solicitacao foi registrada normalmente, porem um anexo nao foi enviado: ${getFriendlyErrorMessage(anexoError)}. Voce pode adiciona-lo depois pela tela de detalhes.`,
-        });
-        onOpenChange(false);
-        onCreated?.(row);
-        return;
-      }
-
-      toast(
-        isReenvio
-          ? { title: 'Solicitacao reenviada', description: 'Sua solicitacao voltou para a fila de aprovacao.' }
-          : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
-      );
-      onOpenChange(false);
-      onCreated?.(row);
-    } catch (error) {
-      toast({ title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setSubmitting(false);
-    }
+      },
+    });
   };
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Sheet open={visible} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         className="sm:max-w-xl overflow-y-auto"
@@ -390,34 +469,50 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, onCreated, s
             <input id="anexos" type="file" multiple className="hidden" onChange={handleFileChange} />
             {anexos.length > 0 && (
               <ul className="space-y-2">
-                {anexos.map(({ file, tipoDocumento }, index) => (
-                  <li key={`${file.name}-${index}`} className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
-                    <span className="flex-1 truncate">{file.name}</span>
-                    <Select value={tipoDocumento} onValueChange={setAnexoTipoDocumento(index)}>
-                      <SelectTrigger className="h-8 w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIPOS_DOCUMENTO.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <button type="button" onClick={() => removeAnexo(index)} className="text-muted-foreground hover:text-foreground">
-                      <X className="h-4 w-4" />
-                    </button>
+                {anexos.map(({ file, categoria, tipoDocumento }, index) => (
+                  <li key={`${file.name}-${index}`} className="space-y-2 rounded-md bg-muted px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1 truncate">{file.name}</span>
+                      <button type="button" onClick={() => removeAnexo(index)} className="text-muted-foreground hover:text-foreground">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={categoria} onValueChange={setAnexoCategoria(index)}>
+                        <SelectTrigger className="h-8 w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ANEXO_CATEGORIA_OPCOES.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={tipoDocumento} onValueChange={setAnexoTipoDocumento(index)}>
+                        <SelectTrigger className="h-8 w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getTiposDocumentoPorCategoria(categoria).map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? (
+          <Button type="submit" className="w-full" disabled={submitMutation.isPending}>
+            {submitMutation.isPending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Spinner size="sm" className="mr-2" />
                 {isReenvio ? 'Reenviando...' : 'Enviando...'}
               </>
             ) : isReenvio ? (

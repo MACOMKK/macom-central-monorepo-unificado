@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, HardDrive, MonitorCog, UsersRound, Wrench } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import StatsCard from '@/components/dashboard/StatsCard';
 import { Badge } from '@/components/ui/badge';
@@ -167,7 +168,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        <Spinner size="lg" className="text-primary" />
       </div>
     );
   }

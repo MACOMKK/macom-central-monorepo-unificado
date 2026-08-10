@@ -126,6 +126,18 @@ export const financeiroApi = {
       return result.rows || [];
     },
   },
+  catalogosSolicitacao: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_catalogos_solicitacao' });
+      return {
+        empresas: result.empresas || [],
+        departamentos: result.departamentos || [],
+        fornecedores: result.fornecedores || [],
+        categorias: result.categorias || [],
+        aprovadores: result.aprovadores || [],
+      };
+    },
+  },
   permissoes: {
     async list() {
       const result = await invokeServicos({ action: 'list_permissoes' });

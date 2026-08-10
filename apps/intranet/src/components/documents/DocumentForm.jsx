@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { appClient } from '@/api/client';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@macom/ui';
-import { Upload, Loader2 } from 'lucide-react';
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Textarea } from '@macom/ui';
+import { Upload } from 'lucide-react';
 
 const EMPTY_FORM = {
   title: '',
@@ -218,7 +218,7 @@ export default function DocumentForm({ initialData = null, onSubmit, isLoading, 
         <Label>Arquivo</Label>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm transition-colors hover:bg-muted sm:w-auto sm:justify-start sm:py-2">
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? <Spinner size="sm" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Enviando...' : form.file_name ? 'Arquivo enviado' : 'Selecionar arquivo'}
             <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
           </label>

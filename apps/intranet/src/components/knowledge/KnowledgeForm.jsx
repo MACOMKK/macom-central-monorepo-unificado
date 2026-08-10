@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea } from '@macom/ui';
-import { Loader2, Save } from 'lucide-react';
+import { Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Switch, Textarea } from '@macom/ui';
+import { Save } from 'lucide-react';
 
 const categoryLabels = {
   geral: 'Geral', rh: 'RH', ti: 'TI', financeiro: 'Financeiro',
@@ -88,7 +88,7 @@ export default function KnowledgeForm({ initial, onSubmit, isLoading }) {
           <Label htmlFor="pinned" className="cursor-pointer">Fixar no topo</Label>
         </div>
         <Button type="submit" disabled={isLoading} className="gap-2">
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {isLoading ? <Spinner size="sm" /> : <Save className="w-4 h-4" />}
           Salvar
         </Button>
       </div>

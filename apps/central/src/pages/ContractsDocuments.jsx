@@ -172,22 +172,22 @@ export default function ContractsDocuments() {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
 
   const documentsQuery = useQuery({
-    queryKey: ['central', 'contratos_documentos'],
+    queryKey: ['contratos_documentos'],
     queryFn: catalogApi.contratos_documentos.list,
   });
 
   const systemsQuery = useQuery({
-    queryKey: ['central', 'systems'],
+    queryKey: ['systems'],
     queryFn: systemAccessApi.systems.list,
   });
 
   const unitsQuery = useQuery({
-    queryKey: ['central', 'unidades'],
+    queryKey: ['unidades'],
     queryFn: catalogApi.unidades.list,
   });
 
   const collaboratorsQuery = useQuery({
-    queryKey: ['central', 'colaboradores'],
+    queryKey: ['colaboradores'],
     queryFn: catalogApi.colaboradores.list,
   });
 
@@ -238,7 +238,7 @@ export default function ContractsDocuments() {
       return created;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos_documentos'] });
       setDialogOpen(false);
       setEditing(null);
       setForm(emptyForm);
@@ -246,7 +246,7 @@ export default function ContractsDocuments() {
       setFeedback({ type: 'success', message: editing ? 'Documento atualizado.' : 'Documento cadastrado.' });
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos_documentos'] });
       if (error.createdDocument) {
         setEditing(error.createdDocument);
         setFeedback({ type: 'error', message: `${error.message || 'Nao foi possivel anexar o arquivo.'} O documento ja foi cadastrado; tente enviar o arquivo novamente.` });
@@ -294,7 +294,7 @@ export default function ContractsDocuments() {
       return results;
     },
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos_documentos'] });
       setImportDialogOpen(false);
       setImportFiles([]);
       setImportSkipped([]);
@@ -308,7 +308,7 @@ export default function ContractsDocuments() {
       });
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos_documentos'] });
       setFeedback({ type: 'error', message: error.message || 'Nao foi possivel concluir a importacao.' });
     },
   });
@@ -324,7 +324,7 @@ export default function ContractsDocuments() {
       await catalogApi.contratos_documentos.remove(document.id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['central', 'contratos_documentos'] });
+      queryClient.invalidateQueries({ queryKey: ['contratos_documentos'] });
       setConfirmDelete(null);
       setFeedback({ type: 'success', message: 'Documento excluido.' });
     },

@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { Spinner } from '@macom/ui';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import BottomNav from './BottomNav';
@@ -10,7 +11,7 @@ import { useIntranetRealtime } from '@/lib/useIntranetRealtime';
 
 const ContentLoader = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary"></div>
+    <Spinner size="lg" className="text-primary" />
   </div>
 );
 

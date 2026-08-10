@@ -13,6 +13,7 @@ import {
   Search,
   UserRound,
 } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -833,7 +834,7 @@ export default function TermsPossession() {
 
       {isLoading ? (
         <div className="flex min-h-[45vh] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+          <Spinner size="lg" className="text-primary" />
         </div>
       ) : collaboratorCards.length === 0 ? (
         <Card className="rounded-2xl p-10 text-center text-sm text-muted-foreground">

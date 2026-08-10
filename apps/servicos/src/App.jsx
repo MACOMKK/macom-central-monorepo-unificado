@@ -1,6 +1,8 @@
-import { Toaster } from '@macom/ui';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { PageLoader, Toaster } from '@macom/ui';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import { queryClientInstance } from '@/lib/query-client';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import DevRoleSwitcher from '@/components/DevRoleSwitcher';
@@ -26,14 +28,7 @@ const getFromPath = (search) => {
   }
 };
 
-const LoadingScreen = () => (
-  <main className="flex min-h-screen items-center justify-center bg-background">
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-5 py-4 shadow-sm">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-primary" />
-      <span className="text-sm font-semibold text-muted-foreground">Preparando MACOM Servicos...</span>
-    </div>
-  </main>
-);
+const LoadingScreen = () => <PageLoader label="Preparando MACOM Servicos..." />;
 
 const LoginRoute = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
@@ -97,17 +92,19 @@ const ServicosRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Routes>
-          <Route path="/entrar" element={<LoginRoute />} />
-          <Route path="/login" element={<Navigate replace to="/entrar" />} />
-          <Route path="*" element={<ServicosRoutes />} />
-        </Routes>
-      </Router>
-      <Toaster />
-      <DevRoleSwitcher />
-    </AuthProvider>
+    <QueryClientProvider client={queryClientInstance}>
+      <AuthProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+            <Route path="/entrar" element={<LoginRoute />} />
+            <Route path="/login" element={<Navigate replace to="/entrar" />} />
+            <Route path="*" element={<ServicosRoutes />} />
+          </Routes>
+        </Router>
+        <Toaster />
+        <DevRoleSwitcher />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 

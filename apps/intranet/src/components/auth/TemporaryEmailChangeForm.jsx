@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Loader2, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
+import { Spinner } from '@macom/ui';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/lib/AuthContext';
@@ -138,7 +139,7 @@ export default function TemporaryEmailChangeForm({ onSuccess }) {
         className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#E30613] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#c80510] disabled:opacity-70"
         disabled={submitting}
       >
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {submitting ? <Spinner size="sm" /> : null}
         Salvar e-mail
       </button>
     </form>

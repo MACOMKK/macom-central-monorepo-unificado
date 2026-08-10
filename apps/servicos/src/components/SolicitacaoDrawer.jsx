@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { Loader2, Paperclip, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Download, Paperclip, Trash2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
+  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -13,6 +15,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  Spinner,
   Tabs,
   TabsContent,
   TabsList,
@@ -26,20 +29,14 @@ import {
   formatData,
   formatDataHora,
   formatValor,
+  ANEXO_CATEGORIA_LABEL,
+  ANEXO_CATEGORIA_OPCOES,
   FORMA_PAGAMENTO_LABEL,
   STATUS_LABEL,
   STATUS_VARIANT,
-  TIPOS_DOCUMENTO,
+  getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
-
-const ANEXO_CATEGORIA_LABEL = {
-  comprovante_solicitacao: 'Comprovante da solicitacao',
-  nf_boleto: 'NF / Boleto',
-  pdf_unificado: 'PDF unificado',
-  rh: 'RH',
-  comprovante_pagamento: 'Comprovante de pagamento',
-};
 
 const EVENTO_LABEL = {
   criada: 'Solicitacao criada',
@@ -60,60 +57,98 @@ const PARCELA_STATUS_LABEL = {
   pago: 'Paga',
 };
 
-const ANEXO_CATEGORIA_OPCOES = Object.entries(ANEXO_CATEGORIA_LABEL).map(([value, label]) => ({ value, label }));
-
 export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = null, parcelasSlot = null }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [anexos, setAnexos] = useState([]);
-  const [anexosLoading, setAnexosLoading] = useState(true);
-  const [parcelas, setParcelas] = useState([]);
-  const [parcelasLoading, setParcelasLoading] = useState(true);
-  const [historico, setHistorico] = useState([]);
-  const [historicoLoading, setHistoricoLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const [novaCategoria, setNovaCategoria] = useState(ANEXO_CATEGORIA_OPCOES[0]?.value || '');
   const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
-  const [uploadingAnexo, setUploadingAnexo] = useState(false);
   const [removerTarget, setRemoverTarget] = useState(null);
-  const [removendoAnexo, setRemovendoAnexo] = useState(false);
+  const [anexosPendentes, setAnexosPendentes] = useState([]);
+  const [baixandoTodos, setBaixandoTodos] = useState(false);
 
-  const podeGerenciarAnexos = Boolean(user?.isFinanceiro) && solicitacao?.status !== 'pendente';
+  const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
 
-  const mountedRef = useRef(true);
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+    if (!tiposDocumentoOpcoes.some((item) => item.value === novoTipoDocumento)) {
+      setNovoTipoDocumento(tiposDocumentoOpcoes[0]?.value || 'outros');
+    }
+  }, [novaCategoria]);
+
+  const isDonoSolicitacao = Boolean(user?.id) && String(solicitacao?.criado_por) === String(user?.id);
+  const isAprovadorDestino = Boolean(user?.id) && String(solicitacao?.aprovador_destino_id) === String(user?.id);
+  const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
+  const podeRemoverAnexo = Boolean(user?.isFinanceiro);
+  const podeBaixarTodosAnexos = Boolean(user?.isFinanceiro) || isAprovadorDestino;
+
+  const solicitacaoId = solicitacao?.id;
+
+  const anexosQuery = useQuery({
+    queryKey: ['servicos', 'anexos', solicitacaoId],
+    queryFn: () => financeiroApi.anexos.list(solicitacaoId),
+    enabled: Boolean(solicitacaoId),
+  });
+  const anexos = anexosQuery.data || [];
+  const anexosLoading = anexosQuery.isLoading;
+
+  const parcelasQuery = useQuery({
+    queryKey: ['servicos', 'parcelas', solicitacaoId],
+    queryFn: () => financeiroApi.parcelas.list(solicitacaoId),
+    enabled: Boolean(solicitacaoId) && !parcelasSlot,
+  });
+  const parcelas = parcelasQuery.data || [];
+  const parcelasLoading = parcelasQuery.isLoading;
+
+  const historicoQuery = useQuery({
+    queryKey: ['servicos', 'historico', solicitacaoId],
+    queryFn: () => financeiroApi.historico.list(solicitacaoId),
+    enabled: Boolean(solicitacaoId),
+  });
+  const historico = historicoQuery.data || [];
+  const historicoLoading = historicoQuery.isLoading;
+
+  useEffect(() => {
+    if (anexosQuery.error) {
+      toast({ title: 'Nao foi possivel carregar os anexos', description: getFriendlyErrorMessage(anexosQuery.error) });
+    }
+  }, [anexosQuery.error]);
+
+  useEffect(() => {
+    if (parcelasQuery.error) {
+      toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(parcelasQuery.error) });
+    }
+  }, [parcelasQuery.error]);
+
+  useEffect(() => {
+    if (historicoQuery.error) {
+      toast({ title: 'Nao foi possivel carregar o historico', description: getFriendlyErrorMessage(historicoQuery.error) });
+    }
+  }, [historicoQuery.error]);
 
   function loadAnexos() {
-    if (!solicitacao?.id) return;
-    setAnexosLoading(true);
-    financeiroApi.anexos
-      .list(solicitacao.id)
-      .then((data) => {
-        if (mountedRef.current) setAnexos(data);
-      })
-      .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar os anexos', description: getFriendlyErrorMessage(error) });
-      })
-      .finally(() => {
-        if (mountedRef.current) setAnexosLoading(false);
-      });
+    queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
   }
 
-  useEffect(() => {
-    if (!solicitacao?.id) return undefined;
-    loadAnexos();
-    return undefined;
-  }, [solicitacao?.id]);
+  const uploadAnexoMutation = useMutation({
+    mutationFn: ({ file, categoria, tipoDocumento }) => uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento }),
+    onSuccess: (row, variables) => {
+      setAnexosPendentes((current) => current.filter((item) => item.tempId !== variables.tempId));
+      queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), row]);
+      toast({ title: 'Anexo incluido' });
+    },
+    onError: (error, variables) => {
+      setAnexosPendentes((current) =>
+        current.map((item) => (item.tempId === variables.tempId ? { ...item, erro: true } : item)),
+      );
+      toast({ title: 'Nao foi possivel incluir o anexo', description: getFriendlyErrorMessage(error) });
+    },
+  });
 
-  async function handleUploadAnexo(event) {
+  function handleUploadAnexo(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !solicitacao?.id) return;
+    if (!file || !solicitacaoId) return;
     if (file.size > MAX_ANEXO_SIZE) {
       toast({ title: 'Arquivo muito grande', description: `"${file.name}" deve ter no maximo 5 MB.` });
       return;
@@ -123,81 +158,60 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       return;
     }
 
-    setUploadingAnexo(true);
-    try {
-      await uploadAnexo({
-        file,
-        solicitacaoId: solicitacao.id,
-        categoria: novaCategoria,
-        tipoDocumento: novoTipoDocumento,
-      });
-      toast({ title: 'Anexo incluido' });
-      loadAnexos();
-    } catch (error) {
-      toast({ title: 'Nao foi possivel incluir o anexo', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setUploadingAnexo(false);
-    }
+    const tempId = crypto.randomUUID();
+    setAnexosPendentes((current) => [
+      ...current,
+      { tempId, nomeArquivo: file.name, categoria: novaCategoria, erro: false },
+    ]);
+    uploadAnexoMutation.mutate({ file, categoria: novaCategoria, tipoDocumento: novoTipoDocumento, tempId });
   }
 
-  async function handleRemoverAnexo() {
-    if (!removerTarget) return;
-    setRemovendoAnexo(true);
-    try {
-      await financeiroApi.anexos.remover(removerTarget.id);
+  function removerAnexoPendente(tempId) {
+    setAnexosPendentes((current) => current.filter((item) => item.tempId !== tempId));
+  }
+
+  const removerAnexoMutation = useMutation({
+    mutationFn: (id) => financeiroApi.anexos.remover(id),
+    onSuccess: () => {
       toast({ title: 'Anexo removido' });
       setRemoverTarget(null);
       loadAnexos();
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({ title: 'Nao foi possivel remover o anexo', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setRemovendoAnexo(false);
-    }
+    },
+  });
+
+  function handleRemoverAnexo() {
+    if (!removerTarget) return;
+    removerAnexoMutation.mutate(removerTarget.id);
   }
 
-  useEffect(() => {
-    if (!solicitacao?.id || parcelasSlot) return undefined;
-    let mounted = true;
+  async function handleBaixarTodosAnexos() {
+    const anexosComUrl = anexos.filter((anexo) => anexo.url);
+    if (anexosComUrl.length === 0) return;
 
-    setParcelasLoading(true);
-    financeiroApi.parcelas
-      .list(solicitacao.id)
-      .then((data) => {
-        if (mounted) setParcelas(data);
-      })
-      .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(error) });
-      })
-      .finally(() => {
-        if (mounted) setParcelasLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [solicitacao?.id, Boolean(parcelasSlot)]);
-
-  useEffect(() => {
-    if (!solicitacao?.id) return undefined;
-    let mounted = true;
-
-    setHistoricoLoading(true);
-    financeiroApi.historico
-      .list(solicitacao.id)
-      .then((data) => {
-        if (mounted) setHistorico(data);
-      })
-      .catch((error) => {
-        toast({ title: 'Nao foi possivel carregar o historico', description: getFriendlyErrorMessage(error) });
-      })
-      .finally(() => {
-        if (mounted) setHistoricoLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [solicitacao?.id]);
+    setBaixandoTodos(true);
+    try {
+      for (const anexo of anexosComUrl) {
+        const response = await fetch(anexo.url);
+        if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = anexo.nome_arquivo || 'anexo';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(blobUrl);
+      }
+    } catch (error) {
+      toast({ title: 'Nao foi possivel baixar todos os anexos', description: getFriendlyErrorMessage(error) });
+    } finally {
+      setBaixandoTodos(false);
+    }
+  }
 
   const anexosPorCategoria = anexos.reduce((acc, anexo) => {
     const key = anexo.categoria || 'outros';
@@ -289,7 +303,23 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               </TabsContent>
 
               <TabsContent value="anexos" className="space-y-4">
-                {podeGerenciarAnexos && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">Anexos</p>
+                  {podeBaixarTodosAnexos && anexos.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={baixandoTodos}
+                      onClick={handleBaixarTodosAnexos}
+                    >
+                      {baixandoTodos ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                      Baixar todos
+                    </Button>
+                  )}
+                </div>
+
+                {podeAdicionarAnexo && (
                   <div className="space-y-2 rounded-md border border-dashed border-input p-3">
                     <p className="text-xs font-semibold text-muted-foreground">Incluir anexo (correcao pos-analise)</p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -310,7 +340,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {TIPOS_DOCUMENTO.map((item) => (
+                          {tiposDocumentoOpcoes.map((item) => (
                             <SelectItem key={item.value} value={item.value}>
                               {item.label}
                             </SelectItem>
@@ -321,71 +351,92 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                         htmlFor="anexo-drawer-upload"
                         className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-input px-3 text-xs text-muted-foreground hover:bg-accent"
                       >
-                        {uploadingAnexo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                        <Paperclip className="h-3 w-3" />
                         Selecionar arquivo
                       </label>
-                      <input
-                        id="anexo-drawer-upload"
-                        type="file"
-                        className="hidden"
-                        disabled={uploadingAnexo}
-                        onChange={handleUploadAnexo}
-                      />
+                      <input id="anexo-drawer-upload" type="file" className="hidden" onChange={handleUploadAnexo} />
                     </div>
-                  </div>
-                )}
-
-                {anexosLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Carregando...
-                  </div>
-                ) : anexos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum anexo enviado.</p>
-                ) : (
-                  Object.entries(anexosPorCategoria).map(([categoria, items]) => (
-                    <div key={categoria} className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {ANEXO_CATEGORIA_LABEL[categoria] || categoria}
-                      </p>
+                    {anexosPendentes.length > 0 && (
                       <ul className="space-y-1">
-                        {items.map((anexo) => (
+                        {anexosPendentes.map((item) => (
                           <li
-                            key={anexo.id}
-                            className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                            key={item.tempId}
+                            className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground"
                           >
                             <span className="flex min-w-0 items-center gap-2">
-                              <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              <span className="truncate">{anexo.nome_arquivo}</span>
+                              {item.erro ? <Paperclip className="h-4 w-4 shrink-0" /> : <Spinner size="sm" />}
+                              <span className="truncate">{item.nomeArquivo}</span>
+                              {item.erro && <span className="text-destructive">Falha no envio</span>}
                             </span>
-                            <span className="flex shrink-0 items-center gap-2">
-                              {anexo.url ? (
-                                <a href={anexo.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                                  Abrir
-                                </a>
-                              ) : null}
-                              {podeGerenciarAnexos && (
-                                <button
-                                  type="button"
-                                  onClick={() => setRemoverTarget(anexo)}
-                                  className="text-muted-foreground hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              )}
-                            </span>
+                            {item.erro && (
+                              <button
+                                type="button"
+                                onClick={() => removerAnexoPendente(item.tempId)}
+                                className="text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  ))
+                    )}
+                  </div>
                 )}
+
+                <div className="space-y-3 border-t border-border pt-3">
+                  {anexosLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner size="sm" />
+                      Carregando...
+                    </div>
+                  ) : anexos.length === 0 && anexosPendentes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum anexo enviado.</p>
+                  ) : (
+                    Object.entries(anexosPorCategoria).map(([categoria, items]) => (
+                      <div key={categoria} className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {ANEXO_CATEGORIA_LABEL[categoria] || categoria}
+                        </p>
+                        <ul className="space-y-1">
+                          {items.map((anexo) => (
+                            <li
+                              key={anexo.id}
+                              className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
+                            >
+                              <span className="flex min-w-0 items-center gap-2">
+                                <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="truncate">{anexo.nome_arquivo}</span>
+                              </span>
+                              <span className="flex shrink-0 items-center gap-2">
+                                {anexo.url ? (
+                                  <a href={anexo.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                    Abrir
+                                  </a>
+                                ) : null}
+                                {podeRemoverAnexo && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setRemoverTarget(anexo)}
+                                    className="text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  )}
+                </div>
 
                 <ConfirmDeleteDialog
                   open={Boolean(removerTarget)}
                   onOpenChange={(open) => !open && setRemoverTarget(null)}
                   onConfirm={handleRemoverAnexo}
-                  isLoading={removendoAnexo}
+                  isLoading={removerAnexoMutation.isPending}
                   title="Remover anexo"
                   description={`Tem certeza que deseja remover "${removerTarget?.nome_arquivo || ''}"? Essa acao nao pode ser desfeita.`}
                   confirmLabel="Remover"
@@ -398,7 +449,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   parcelasSlot
                 ) : parcelasLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="sm" />
                     Carregando...
                   </div>
                 ) : parcelas.length === 0 ? (
@@ -428,7 +479,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               <TabsContent value="historico">
                 {historicoLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Spinner size="sm" />
                     Carregando...
                   </div>
                 ) : historico.length === 0 ? (

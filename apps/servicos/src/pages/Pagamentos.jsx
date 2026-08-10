@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banknote, Loader2, Paperclip, Plus, Trash2, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Banknote, Paperclip, Plus, Trash2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -16,6 +17,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -26,6 +28,7 @@ import {
   useToast,
 } from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import { useCategorias } from '@/hooks/useCatalogos';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import { formatData, formatValor, FORMA_PAGAMENTO_LABEL } from '@/lib/financeiroFormat';
@@ -55,52 +58,48 @@ function isParcialmentePago(row) {
 
 export default function Pagamentos() {
   const { toast } = useToast();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const [categorias, setCategorias] = useState([]);
+  const { data: categorias = [] } = useCategorias();
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [classificacaoFiltro, setClassificacaoFiltro] = useState(CLASSIFICACAO_TODAS);
 
-  const [dialogRow, setDialogRow] = useState(null);
-  const [parcelas, setParcelas] = useState([]);
+  const [dialogRowId, setDialogRowId] = useState(null);
   const [draftParcelas, setDraftParcelas] = useState([]);
-  const [parcelasLoading, setParcelasLoading] = useState(false);
-  const [parcelasError, setParcelasError] = useState(false);
-  const [savingParcelas, setSavingParcelas] = useState(false);
 
   const [reprovarTarget, setReprovarTarget] = useState(null);
   const [motivoReprovacao, setMotivoReprovacao] = useState('');
-  const [reprovando, setReprovando] = useState(false);
 
   const [pagamentoTarget, setPagamentoTarget] = useState(null);
   const [comprovantes, setComprovantes] = useState([]);
-  const [confirmandoPagamento, setConfirmandoPagamento] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
+  const solicitacoesQuery = useQuery({
+    queryKey: ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro],
+    queryFn: () => {
       const filters = { status: 'aprovado', order_by: 'data_vencimento' };
       if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS) filters.categoria_id = categoriaFiltro;
-      const data = await financeiroApi.solicitacoes.list(filters);
-      setRows(data);
-    } catch (error) {
-      toast({ title: 'Nao foi possivel carregar as solicitacoes', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setLoading(false);
+      return financeiroApi.solicitacoes.list(filters);
+    },
+  });
+  const rows = solicitacoesQuery.data || [];
+  const loading = solicitacoesQuery.isLoading;
+  const dialogRow = rows.find((row) => row.id === dialogRowId) || null;
+
+  const parcelasQuery = useQuery({
+    queryKey: ['servicos', 'parcelas', dialogRowId],
+    queryFn: () => financeiroApi.parcelas.list(dialogRowId),
+    enabled: Boolean(dialogRowId),
+  });
+  const parcelas = parcelasQuery.data || [];
+
+  useEffect(() => {
+    if (!dialogRowId || !parcelasQuery.data) {
+      setDraftParcelas([]);
+      return;
     }
-  }
-
-  useEffect(() => {
-    financeiroApi.categorias
-      .list()
-      .then(setCategorias)
-      .catch(() => setCategorias([]));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [categoriaFiltro]);
+    setDraftParcelas(parcelasQuery.data.length ? [] : [{ valor: dialogRow?.valor, data_vencimento: '' }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogRowId, parcelasQuery.data]);
 
   const visibleRows = useMemo(() => {
     if (classificacaoFiltro !== CLASSIFICACAO_PARCIAL) return rows;
@@ -150,11 +149,27 @@ export default function Pagamentos() {
     setComprovantes((current) => current.filter((_, i) => i !== index));
   }
 
-  async function handleConfirmarPagamento() {
-    if (!pagamentoTarget) return;
-    const { type, row, parcelaId } = pagamentoTarget;
-    setConfirmandoPagamento(true);
-    try {
+  function uploadComprovantesEmBackground(solicitacaoId, parcelaId, files) {
+    if (!files || files.length === 0) return;
+
+    Promise.allSettled(
+      files.map((file) =>
+        uploadAnexo({ file, solicitacaoId, categoria: 'comprovante_pagamento', parcelaId }),
+      ),
+    ).then((results) => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
+      const falhas = results.filter((result) => result.status === 'rejected');
+      if (falhas.length > 0) {
+        toast({
+          title: falhas.length === 1 ? 'Um comprovante nao foi enviado' : `${falhas.length} comprovantes nao foram enviados`,
+          description: `O pagamento foi registrado normalmente, mas houve falha no envio: ${getFriendlyErrorMessage(falhas[0].reason)}.`,
+        });
+      }
+    });
+  }
+
+  const confirmarPagamentoMutation = useMutation({
+    mutationFn: async ({ type, row, parcelaId }) => {
       let parcelaAlvoId = parcelaId;
 
       if (type === 'avista') {
@@ -170,42 +185,52 @@ export default function Pagamentos() {
         }
       }
 
-      for (const file of comprovantes) {
-        await uploadAnexo({
-          file,
-          solicitacaoId: row.id,
-          categoria: 'comprovante_pagamento',
-          parcelaId: parcelaAlvoId,
-        });
-      }
-
-      const result = await financeiroApi.parcelas.registrarPagamento(parcelaAlvoId);
+      await financeiroApi.parcelas.registrarPagamento(parcelaAlvoId);
+      return { type, row, parcelaAlvoId };
+    },
+    onMutate: ({ type, row, parcelaId }) => {
+      const aprovadasKey = ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro];
+      const parcelasKey = ['servicos', 'parcelas', row.id];
+      const previousAprovadas = queryClient.getQueryData(aprovadasKey);
+      const previousParcelas = queryClient.getQueryData(parcelasKey);
 
       if (type === 'avista') {
-        toast({ title: 'Solicitacao marcada como paga' });
-        await load();
-      } else {
-        const parcelasAtualizadas = parcelas.map((item) => (item.id === parcelaAlvoId ? result : item));
-        setParcelas(parcelasAtualizadas);
-        const todasPagas = parcelasAtualizadas.every((item) => item.status === 'pago');
-        if (todasPagas) {
-          toast({ title: 'Solicitacao marcada como paga' });
-          setRows((current) => current.filter((r) => r.id !== dialogRow?.id));
-          closeDialog();
-        } else {
-          toast({ title: 'Parcela paga' });
-          setRows((current) =>
-            current.map((r) => (r.id === row.id ? { ...r, parcelas_pagas: Number(r.parcelas_pagas || 0) + 1 } : r)),
-          );
-        }
+        // Pagamento a vista quita a solicitacao inteira — some da fila de "Contas a pagar".
+        queryClient.setQueryData(aprovadasKey, (old) => (old || []).filter((item) => item.id !== row.id));
+      } else if (parcelaId) {
+        // Pagamento de uma parcela especifica — so marca ela como paga; a solicitacao so sai da
+        // fila quando TODAS as parcelas estiverem pagas (regra calculada no servidor), entao a
+        // lista de "aprovadas" nao e tocada aqui.
+        queryClient.setQueryData(parcelasKey, (old) =>
+          (old || []).map((item) => (item.id === parcelaId ? { ...item, status: 'pago' } : item)),
+        );
       }
 
       closePagamentoDialog();
-    } catch (error) {
-      toast({ title: 'Nao foi possivel registrar o pagamento', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setConfirmandoPagamento(false);
-    }
+
+      return { aprovadasKey, parcelasKey, previousAprovadas, previousParcelas };
+    },
+    onSuccess: ({ type, row, parcelaAlvoId }, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      queryClient.invalidateQueries({ queryKey: context.parcelasKey });
+      toast({ title: type === 'avista' ? 'Solicitacao marcada como paga' : 'Parcela paga' });
+      uploadComprovantesEmBackground(row.id, parcelaAlvoId, variables.files);
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousAprovadas !== undefined) queryClient.setQueryData(context.aprovadasKey, context.previousAprovadas);
+      if (context?.previousParcelas !== undefined) queryClient.setQueryData(context.parcelasKey, context.previousParcelas);
+      setPagamentoTarget({ type: variables.type, row: variables.row, parcelaId: variables.parcelaId });
+      setComprovantes(variables.files);
+      toast({
+        title: 'Nao foi possivel registrar o pagamento',
+        description: `${getFriendlyErrorMessage(error)} Revise e tente novamente.`,
+      });
+    },
+  });
+
+  function handleConfirmarPagamento() {
+    if (!pagamentoTarget) return;
+    confirmarPagamentoMutation.mutate({ ...pagamentoTarget, files: comprovantes });
   }
 
   function closeReprovar() {
@@ -213,46 +238,44 @@ export default function Pagamentos() {
     setMotivoReprovacao('');
   }
 
-  async function handleReprovar() {
-    if (!reprovarTarget || !motivoReprovacao.trim()) return;
-    setReprovando(true);
-    try {
-      await financeiroApi.solicitacoes.setStatus(reprovarTarget.id, 'reprovado', motivoReprovacao.trim());
-      toast({ title: 'Solicitacao reprovada', description: 'O solicitante foi notificado para corrigir e reenviar.' });
-      setRows((current) => current.filter((row) => row.id !== reprovarTarget.id));
+  const reprovarMutation = useMutation({
+    mutationFn: ({ id, motivo }) => financeiroApi.solicitacoes.setStatus(id, 'reprovado', motivo),
+    onMutate: ({ id }) => {
+      const queryKey = ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro];
+      const previous = queryClient.getQueryData(queryKey);
+      const targetSnapshot = reprovarTarget;
+      const motivoSnapshot = motivoReprovacao;
+      queryClient.setQueryData(queryKey, (old) => (old || []).filter((row) => row.id !== id));
       closeReprovar();
-    } catch (error) {
-      toast({ title: 'Nao foi possivel reprovar a solicitacao', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setReprovando(false);
-    }
+      return { queryKey, previous, targetSnapshot, motivoSnapshot };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Solicitacao reprovada', description: 'O solicitante foi notificado para corrigir e reenviar.' });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
+      setReprovarTarget(context?.targetSnapshot ?? null);
+      setMotivoReprovacao(context?.motivoSnapshot ?? '');
+      toast({
+        title: 'Nao foi possivel reprovar a solicitacao',
+        description: `${getFriendlyErrorMessage(error)} Revise e tente novamente.`,
+      });
+    },
+  });
+
+  function handleReprovar() {
+    if (!reprovarTarget || !motivoReprovacao.trim()) return;
+    reprovarMutation.mutate({ id: reprovarTarget.id, motivo: motivoReprovacao.trim() });
   }
 
-  async function openParcelas(row) {
-    setDialogRow(row);
-    setParcelasLoading(true);
-    setParcelasError(false);
-    try {
-      const data = await financeiroApi.parcelas.list(row.id);
-      setParcelas(data);
-      setDraftParcelas(
-        data.length
-          ? []
-          : [{ valor: row.valor, data_vencimento: '' }],
-      );
-    } catch (error) {
-      setParcelasError(true);
-      toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setParcelasLoading(false);
-    }
+  function openParcelas(row) {
+    setDialogRowId(row.id);
   }
 
   function closeDialog() {
-    setDialogRow(null);
-    setParcelas([]);
+    setDialogRowId(null);
     setDraftParcelas([]);
-    setParcelasError(false);
   }
 
   function addDraftParcela() {
@@ -267,22 +290,23 @@ export default function Pagamentos() {
     setDraftParcelas((current) => current.filter((_, i) => i !== index));
   }
 
-  async function handleSalvarPlano() {
-    if (!dialogRow) return;
-    setSavingParcelas(true);
-    try {
-      const data = await financeiroApi.parcelas.criar(
-        dialogRow.id,
-        draftParcelas.map((item) => ({ valor: Number(item.valor), data_vencimento: item.data_vencimento || null })),
-      );
-      setParcelas(data);
+  const criarParcelasMutation = useMutation({
+    mutationFn: (parcelasPayload) => financeiroApi.parcelas.criar(dialogRowId, parcelasPayload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'parcelas', dialogRowId] });
       setDraftParcelas([]);
       toast({ title: 'Plano de pagamento definido' });
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({ title: 'Nao foi possivel salvar o plano de pagamento', description: getFriendlyErrorMessage(error) });
-    } finally {
-      setSavingParcelas(false);
-    }
+    },
+  });
+
+  function handleSalvarPlano() {
+    if (!dialogRowId) return;
+    criarParcelasMutation.mutate(
+      draftParcelas.map((item) => ({ valor: Number(item.valor), data_vencimento: item.data_vencimento || null })),
+    );
   }
 
   return (
@@ -333,7 +357,7 @@ export default function Pagamentos() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Spinner size="sm" />
           Carregando...
         </div>
       ) : visibleRows.length === 0 ? (
@@ -404,15 +428,15 @@ export default function Pagamentos() {
         solicitacao={dialogRow}
         onOpenChange={(open) => !open && closeDialog()}
         parcelasSlot={
-          parcelasLoading ? (
+          parcelasQuery.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" />
               Carregando...
             </div>
-          ) : parcelasError ? (
+          ) : parcelasQuery.isError ? (
             <div className="space-y-2">
               <p className="text-sm text-destructive">Nao foi possivel carregar as parcelas desta solicitacao.</p>
-              <Button variant="outline" size="sm" onClick={() => dialogRow && openParcelas(dialogRow)}>
+              <Button variant="outline" size="sm" onClick={() => parcelasQuery.refetch()}>
                 Tentar novamente
               </Button>
             </div>
@@ -470,9 +494,9 @@ export default function Pagamentos() {
               <Button
                 className="w-full"
                 onClick={handleSalvarPlano}
-                disabled={savingParcelas || draftParcelas.length === 0}
+                disabled={criarParcelasMutation.isPending || draftParcelas.length === 0}
               >
-                {savingParcelas ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {criarParcelasMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
                 Salvar plano de pagamento
               </Button>
             </div>
@@ -495,15 +519,15 @@ export default function Pagamentos() {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={closeReprovar} disabled={reprovando}>
+            <Button variant="outline" onClick={closeReprovar} disabled={reprovarMutation.isPending}>
               Cancelar
             </Button>
             <Button
               onClick={handleReprovar}
-              disabled={reprovando || !motivoReprovacao.trim()}
+              disabled={reprovarMutation.isPending || !motivoReprovacao.trim()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {reprovando ? 'Reprovando...' : 'Reprovar'}
+              {reprovarMutation.isPending ? 'Reprovando...' : 'Reprovar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -538,11 +562,11 @@ export default function Pagamentos() {
             </ul>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={closePagamentoDialog} disabled={confirmandoPagamento}>
+            <Button variant="outline" onClick={closePagamentoDialog} disabled={confirmarPagamentoMutation.isPending}>
               Cancelar
             </Button>
-            <Button onClick={handleConfirmarPagamento} disabled={confirmandoPagamento}>
-              {confirmandoPagamento ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button onClick={handleConfirmarPagamento} disabled={confirmarPagamentoMutation.isPending}>
+              {confirmarPagamentoMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
               Confirmar pagamento
             </Button>
           </DialogFooter>

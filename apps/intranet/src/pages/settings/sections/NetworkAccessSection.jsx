@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { Badge, Button, Input, Skeleton } from '@macom/ui';
+import { Plus, Trash2 } from 'lucide-react';
+import { Badge, Button, Input, Skeleton, Spinner } from '@macom/ui';
 import { toast } from 'sonner';
 
 import { appClient } from '@/api/client';
@@ -75,7 +75,7 @@ export default function NetworkAccessSection() {
           />
         </div>
         <Button type="submit" disabled={createMutation.isPending} className="gap-2 sm:w-auto">
-          {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {createMutation.isPending ? <Spinner size="sm" /> : <Plus className="h-4 w-4" />}
           Cadastrar IP
         </Button>
       </form>
@@ -110,7 +110,7 @@ export default function NetworkAccessSection() {
                 onClick={() => deleteMutation.mutate(access.id)}
                 className="shrink-0 border-red-200 text-red-700 hover:bg-red-50"
               >
-                {deletingId === access.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {deletingId === access.id ? <Spinner size="sm" /> : <Trash2 className="h-4 w-4" />}
               </Button>
             </div>
           ))}
