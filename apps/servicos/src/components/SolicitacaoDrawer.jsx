@@ -6,6 +6,7 @@ import {
   Clock,
   CreditCard,
   Download,
+  Eye,
   Paperclip,
   Tag,
   Trash2,
@@ -18,6 +19,10 @@ import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Select,
   SelectContent,
   SelectItem,
@@ -66,6 +71,15 @@ function CampoDetalhe({ icon: Icon, label, value }) {
   );
 }
 
+function getPreviewType(anexo) {
+  const tipoMime = String(anexo?.tipo_mime || '').toLowerCase();
+  const nomeArquivo = String(anexo?.nome_arquivo || '').toLowerCase();
+
+  if (tipoMime.includes('pdf') || nomeArquivo.endsWith('.pdf')) return 'pdf';
+  if (tipoMime.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|bmp)$/.test(nomeArquivo)) return 'image';
+  return 'unsupported';
+}
+
 const EVENTO_LABEL = {
   criada: 'Solicitacao criada',
   aprovada: 'Aprovada',
@@ -95,6 +109,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [removerTarget, setRemoverTarget] = useState(null);
   const [anexosPendentes, setAnexosPendentes] = useState([]);
   const [baixandoTodos, setBaixandoTodos] = useState(false);
+  const [baixandoAnexoId, setBaixandoAnexoId] = useState(null);
+  const [previewAnexo, setPreviewAnexo] = useState(null);
 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
 
@@ -107,7 +123,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const isDonoSolicitacao = Boolean(user?.id) && String(solicitacao?.criado_por) === String(user?.id);
   const isAprovadorDestino = Boolean(user?.id) && String(solicitacao?.aprovador_destino_id) === String(user?.id);
   const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
-  const podeRemoverAnexo = Boolean(user?.isFinanceiro);
+  const podeRemoverAnexo =
+    Boolean(user?.isFinanceiro) || (isDonoSolicitacao && solicitacao?.status === 'pendente');
   const podeBaixarTodosAnexos = Boolean(user?.isFinanceiro) || isAprovadorDestino;
 
   const solicitacaoId = solicitacao?.id;
@@ -158,11 +175,16 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
   }
 
+  function loadHistorico() {
+    queryClient.invalidateQueries({ queryKey: ['servicos', 'historico', solicitacaoId] });
+  }
+
   const uploadAnexoMutation = useMutation({
     mutationFn: ({ file, categoria, tipoDocumento }) => uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento }),
     onSuccess: (row, variables) => {
       setAnexosPendentes((current) => current.filter((item) => item.tempId !== variables.tempId));
       queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), row]);
+      loadHistorico();
       toast({ title: 'Anexo incluido' });
     },
     onError: (error, variables) => {
@@ -204,6 +226,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       toast({ title: 'Anexo removido' });
       setRemoverTarget(null);
       loadAnexos();
+      loadHistorico();
     },
     onError: (error) => {
       toast({ title: 'Nao foi possivel remover o anexo', description: getFriendlyErrorMessage(error) });
@@ -215,6 +238,32 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     removerAnexoMutation.mutate(removerTarget.id);
   }
 
+  async function baixarAnexo(anexo) {
+    const response = await fetch(anexo.url);
+    if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = anexo.nome_arquivo || 'anexo';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  async function handleBaixarAnexo(anexo) {
+    if (!anexo.url) return;
+    setBaixandoAnexoId(anexo.id);
+    try {
+      await baixarAnexo(anexo);
+    } catch (error) {
+      toast({ title: 'Nao foi possivel baixar o anexo', description: getFriendlyErrorMessage(error) });
+    } finally {
+      setBaixandoAnexoId(null);
+    }
+  }
+
   async function handleBaixarTodosAnexos() {
     const anexosComUrl = anexos.filter((anexo) => anexo.url);
     if (anexosComUrl.length === 0) return;
@@ -222,17 +271,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     setBaixandoTodos(true);
     try {
       for (const anexo of anexosComUrl) {
-        const response = await fetch(anexo.url);
-        if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = anexo.nome_arquivo || 'anexo';
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(blobUrl);
+        await baixarAnexo(anexo);
       }
     } catch (error) {
       toast({ title: 'Nao foi possivel baixar todos os anexos', description: getFriendlyErrorMessage(error) });
@@ -419,17 +458,34 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                                 <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <span className="truncate">{anexo.nome_arquivo}</span>
                               </span>
-                              <span className="flex shrink-0 items-center gap-2">
-                                {anexo.url ? (
-                                  <a href={anexo.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                                    Abrir
-                                  </a>
-                                ) : null}
+                              <span className="flex shrink-0 items-center gap-1">
+                                {anexo.url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewAnexo(anexo)}
+                                    title="Visualizar"
+                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {anexo.url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBaixarAnexo(anexo)}
+                                    disabled={baixandoAnexoId === anexo.id}
+                                    title="Baixar"
+                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                  >
+                                    {baixandoAnexoId === anexo.id ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                                  </button>
+                                )}
                                 {podeRemoverAnexo && (
                                   <button
                                     type="button"
                                     onClick={() => setRemoverTarget(anexo)}
-                                    className="text-muted-foreground hover:text-destructive"
+                                    title="Remover"
+                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
@@ -453,6 +509,48 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   confirmLabel="Remover"
                   loadingLabel="Removendo..."
                 />
+
+                <Dialog open={Boolean(previewAnexo)} onOpenChange={(open) => !open && setPreviewAnexo(null)}>
+                  <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto p-4 sm:p-6">
+                    {previewAnexo && (
+                      <>
+                        <DialogHeader className="border-b border-border pb-4">
+                          <DialogTitle className="line-clamp-1 text-base text-foreground">
+                            {previewAnexo.nome_arquivo}
+                          </DialogTitle>
+                        </DialogHeader>
+
+                        <div className="overflow-hidden rounded-md border border-border bg-muted/20">
+                          {getPreviewType(previewAnexo) === 'pdf' && previewAnexo.url ? (
+                            <iframe title={previewAnexo.nome_arquivo} src={previewAnexo.url} className="h-[60vh] w-full" />
+                          ) : null}
+
+                          {getPreviewType(previewAnexo) === 'image' && previewAnexo.url ? (
+                            <div className="flex justify-center p-4">
+                              <img
+                                src={previewAnexo.url}
+                                alt={previewAnexo.nome_arquivo}
+                                className="max-h-[60vh] w-auto max-w-full rounded object-contain"
+                              />
+                            </div>
+                          ) : null}
+
+                          {getPreviewType(previewAnexo) === 'unsupported' && (
+                            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 p-6 text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Este tipo de arquivo nao possui visualizacao interna no momento.
+                              </p>
+                              <Button className="gap-2" onClick={() => handleBaixarAnexo(previewAnexo)}>
+                                <Download className="h-4 w-4" />
+                                Baixar arquivo
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
               </TabsContent>
 
               <TabsContent value="parcelas" className="space-y-4">

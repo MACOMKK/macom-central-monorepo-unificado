@@ -1171,7 +1171,7 @@ Deno.serve(async (request) => {
       }
       validateComprovanteSize(body.tamanho_bytes);
 
-      const existingSolicitacao = await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
+      await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
       if (parcelaId) await ensureParcelaAccess(parcelaId, moduleRole, collaborator);
 
       const rows = await sql.unsafe(
@@ -1184,9 +1184,7 @@ Deno.serve(async (request) => {
         [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(body.tamanho_bytes) || 0, storagePath, collaborator!.id],
       );
 
-      if (existingSolicitacao.status !== 'pendente' && isFinanceiro(moduleRole)) {
-        await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
-      }
+      await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
 
       return json({ row: rows[0] || null });
     }
@@ -1197,7 +1195,7 @@ Deno.serve(async (request) => {
 
       const rows = await sql.unsafe(
         `
-          select an.*, sp.status as solicitacao_status
+          select an.*, sp.solicitante_id, sp.status as solicitacao_status
           from ${SERVICOS_SCHEMA}.anexos_solicitacao an
           join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = an.solicitacao_id
           where an.id = $1
@@ -1208,8 +1206,13 @@ Deno.serve(async (request) => {
       const anexo = rows[0];
       if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
       const podeComoFinanceiro = isFinanceiro(moduleRole);
-      if (!podeComoFinanceiro) {
-        throw Object.assign(new Error('Somente o financeiro pode remover anexos.'), { status: 403 });
+      const podeComoDono =
+        String(anexo.solicitante_id) === String(collaborator!.id) && anexo.solicitacao_status === 'pendente';
+      if (!podeComoFinanceiro && !podeComoDono) {
+        throw Object.assign(
+          new Error('Somente o solicitante (enquanto pendente) ou o financeiro podem remover anexos.'),
+          { status: 403 },
+        );
       }
 
       await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.anexos_solicitacao where id = $1;`, [id]);
@@ -1219,14 +1222,12 @@ Deno.serve(async (request) => {
         await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove([String(anexo.storage_path)]);
       }
 
-      if (anexo.solicitacao_status !== 'pendente') {
-        await insertHistorico(
-          String(anexo.solicitacao_id),
-          'anexo_removido',
-          collaborator!.id as string,
-          String(anexo.nome_arquivo),
-        );
-      }
+      await insertHistorico(
+        String(anexo.solicitacao_id),
+        'anexo_removido',
+        collaborator!.id as string,
+        String(anexo.nome_arquivo),
+      );
 
       return json({ ok: true });
     }
