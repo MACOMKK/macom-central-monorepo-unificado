@@ -17,7 +17,7 @@ export default function MinhasSolicitacoes() {
 
   const [selectedId, setSelectedId] = useState(null);
   const [novaOpen, setNovaOpen] = useState(false);
-  const [reenvioTarget, setReenvioTarget] = useState(null);
+  const [formTarget, setFormTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
 
   const solicitacoesQuery = useQuery({
@@ -64,15 +64,21 @@ export default function MinhasSolicitacoes() {
     if (!selected) return null;
     if (selected.status === 'pendente' && isDono(selected)) {
       return (
-        <Button variant="outline" className="w-full" onClick={() => setCancelTarget(selected)}>
-          <X className="mr-2 h-4 w-4" />
-          Cancelar solicitacao
-        </Button>
+        <div className="flex w-full gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setFormTarget(selected)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={() => setCancelTarget(selected)}>
+            <X className="mr-2 h-4 w-4" />
+            Cancelar
+          </Button>
+        </div>
       );
     }
     if (selected.status === 'reprovado' && isDono(selected)) {
       return (
-        <Button className="w-full" onClick={() => setReenvioTarget(selected)}>
+        <Button className="w-full" onClick={() => setFormTarget(selected)}>
           <Pencil className="mr-2 h-4 w-4" />
           Corrigir e reenviar
         </Button>
@@ -140,9 +146,9 @@ export default function MinhasSolicitacoes() {
       />
       <NovaSolicitacaoDrawer open={novaOpen} onOpenChange={setNovaOpen} />
       <NovaSolicitacaoDrawer
-        open={Boolean(reenvioTarget)}
-        onOpenChange={(open) => !open && setReenvioTarget(null)}
-        solicitacao={reenvioTarget}
+        open={Boolean(formTarget)}
+        onOpenChange={(open) => !open && setFormTarget(null)}
+        solicitacao={formTarget}
       />
 
       <ConfirmDeleteDialog

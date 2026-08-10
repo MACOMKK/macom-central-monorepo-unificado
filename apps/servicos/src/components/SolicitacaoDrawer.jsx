@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Paperclip, Trash2 } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  Clock,
+  CreditCard,
+  Download,
+  Paperclip,
+  Tag,
+  Trash2,
+  User,
+  UserCheck,
+  Wallet,
+} from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -37,6 +49,22 @@ import {
   getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+
+function SectionLabel({ children }) {
+  return <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</p>;
+}
+
+function CampoDetalhe({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="font-medium">{value || '-'}</p>
+      </div>
+    </div>
+  );
+}
 
 const EVENTO_LABEL = {
   criada: 'Solicitacao criada',
@@ -244,62 +272,46 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 <TabsTrigger value="historico">Historico</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="detalhes" className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Solicitante</p>
-                    <p className="font-medium">{solicitacao.solicitante_nome || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Fornecedor</p>
-                    <p className="font-medium">{solicitacao.fornecedor || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Aprovador responsavel</p>
-                    <p className="font-medium">{solicitacao.aprovador_destino_nome || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Valor</p>
-                    <p className="font-medium">{formatValor(solicitacao.valor)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Categoria</p>
-                    <p className="font-medium">{solicitacao.categoria || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Vencimento</p>
-                    <p className="font-medium">{formatData(solicitacao.data_vencimento)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Forma de pagamento</p>
-                    <p className="font-medium">
-                      {FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Criado em</p>
-                    <p className="font-medium">{formatData(solicitacao.criado_em)}</p>
+              <TabsContent value="detalhes" className="space-y-4 text-sm">
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <SectionLabel>Informacoes gerais</SectionLabel>
+                  <div className="grid grid-cols-2 gap-4">
+                    <CampoDetalhe icon={User} label="Solicitante" value={solicitacao.solicitante_nome} />
+                    <CampoDetalhe icon={Building2} label="Fornecedor" value={solicitacao.fornecedor} />
+                    <CampoDetalhe icon={UserCheck} label="Aprovador responsavel" value={solicitacao.aprovador_destino_nome} />
+                    <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
+                    <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />
+                    <CampoDetalhe icon={Calendar} label="Vencimento" value={formatData(solicitacao.data_vencimento)} />
+                    <CampoDetalhe
+                      icon={CreditCard}
+                      label="Forma de pagamento"
+                      value={FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}
+                    />
+                    <CampoDetalhe icon={Clock} label="Criado em" value={formatData(solicitacao.criado_em)} />
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs text-muted-foreground">Descricao</p>
-                  <p className="whitespace-pre-wrap">{solicitacao.descricao || '-'}</p>
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <SectionLabel>Descricao e observacoes</SectionLabel>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Descricao</p>
+                    <p className="whitespace-pre-wrap">{solicitacao.descricao || '-'}</p>
+                  </div>
+
+                  {solicitacao.observacao && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Observacao do solicitante</p>
+                      <p className="whitespace-pre-wrap">{solicitacao.observacao}</p>
+                    </div>
+                  )}
+
+                  {solicitacao.observacao_analise && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Observacao da analise</p>
+                      <p className="whitespace-pre-wrap">{solicitacao.observacao_analise}</p>
+                    </div>
+                  )}
                 </div>
-
-                {solicitacao.observacao && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Observacao do solicitante</p>
-                    <p className="whitespace-pre-wrap">{solicitacao.observacao}</p>
-                  </div>
-                )}
-
-                {solicitacao.observacao_analise && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Observacao da analise</p>
-                    <p className="whitespace-pre-wrap">{solicitacao.observacao_analise}</p>
-                  </div>
-                )}
               </TabsContent>
 
               <TabsContent value="anexos" className="space-y-4">
@@ -321,7 +333,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
                 {podeAdicionarAnexo && (
                   <div className="space-y-2 rounded-md border border-dashed border-input p-3">
-                    <p className="text-xs font-semibold text-muted-foreground">Incluir anexo (correcao pos-analise)</p>
+                    <SectionLabel>Incluir anexo (correcao pos-analise)</SectionLabel>
                     <div className="flex flex-wrap items-center gap-2">
                       <Select value={novaCategoria} onValueChange={setNovaCategoria}>
                         <SelectTrigger className="h-8 w-48">
@@ -384,7 +396,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   </div>
                 )}
 
-                <div className="space-y-3 border-t border-border pt-3">
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <SectionLabel>Anexos enviados</SectionLabel>
                   {anexosLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Spinner size="sm" />
@@ -395,9 +408,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   ) : (
                     Object.entries(anexosPorCategoria).map(([categoria, items]) => (
                       <div key={categoria} className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {ANEXO_CATEGORIA_LABEL[categoria] || categoria}
-                        </p>
+                        <SectionLabel>{ANEXO_CATEGORIA_LABEL[categoria] || categoria}</SectionLabel>
                         <ul className="space-y-1">
                           {items.map((anexo) => (
                             <li
@@ -444,7 +455,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 />
               </TabsContent>
 
-              <TabsContent value="parcelas" className="space-y-3">
+              <TabsContent value="parcelas" className="space-y-4">
                 {parcelasSlot ? (
                   parcelasSlot
                 ) : parcelasLoading ? (
@@ -455,28 +466,33 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 ) : parcelas.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum plano de pagamento definido ainda.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {parcelas.map((parcela) => (
-                      <div
-                        key={parcela.id}
-                        className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            Parcela {parcela.numero} — {formatValor(parcela.valor)}
-                          </p>
-                          <p className="text-muted-foreground">Vencimento: {formatData(parcela.data_vencimento)}</p>
+                  <div className="space-y-3 rounded-md border border-border p-3">
+                    <SectionLabel>Plano de pagamento</SectionLabel>
+                    <div className="space-y-2">
+                      {parcelas.map((parcela) => (
+                        <div
+                          key={parcela.id}
+                          className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
+                            parcela.status === 'pago' ? 'border-emerald-500/30' : 'border-border'
+                          }`}
+                        >
+                          <div>
+                            <p className="font-medium">
+                              Parcela {parcela.numero} — {formatValor(parcela.valor)}
+                            </p>
+                            <p className="text-muted-foreground">Vencimento: {formatData(parcela.data_vencimento)}</p>
+                          </div>
+                          <Badge variant={parcela.status === 'pago' ? 'default' : 'secondary'}>
+                            {PARCELA_STATUS_LABEL[parcela.status] || parcela.status}
+                          </Badge>
                         </div>
-                        <Badge variant={parcela.status === 'pago' ? 'default' : 'secondary'}>
-                          {PARCELA_STATUS_LABEL[parcela.status] || parcela.status}
-                        </Badge>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </TabsContent>
 
-              <TabsContent value="historico">
+              <TabsContent value="historico" className="space-y-4">
                 {historicoLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Spinner size="sm" />
@@ -487,7 +503,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 ) : (
                   <ul className="space-y-3">
                     {historico.map((item) => (
-                      <li key={item.id} className="border-l-2 border-border pl-3 text-sm">
+                      <li key={item.id} className="relative border-l-2 border-border pl-4 text-sm">
+                        <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
                         <p className="font-medium">{EVENTO_LABEL[item.evento] || item.evento}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDataHora(item.criado_em)}

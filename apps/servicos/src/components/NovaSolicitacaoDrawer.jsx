@@ -50,7 +50,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const isReenvio = Boolean(solicitacao);
+  const isReenvio = Boolean(solicitacao) && solicitacao.status === 'reprovado';
+  const isEdicao = Boolean(solicitacao) && solicitacao.status === 'pendente';
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [anexos, setAnexos] = useState([]);
@@ -83,16 +84,18 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
 
   const submitMutation = useMutation({
-    mutationFn: ({ payload }) =>
-      isReenvio
-        ? financeiroApi.solicitacoes.reenviar(solicitacao.id, payload)
-        : financeiroApi.solicitacoes.create(payload),
+    mutationFn: ({ payload }) => {
+      if (isReenvio) return financeiroApi.solicitacoes.reenviar(solicitacao.id, payload);
+      if (isEdicao) return financeiroApi.solicitacoes.update(solicitacao.id, payload);
+      return financeiroApi.solicitacoes.create(payload);
+    },
     onMutate: ({ payload, tempId }) => {
       const previous = queryClient.getQueryData(minhasSolicitacoesKey);
       const anexosSnapshot = anexos;
       const formSnapshot = form;
       const fornecedorNome = fornecedores.find((item) => item.id === payload.fornecedor_id)?.nome || '';
-      const optimisticId = isReenvio ? solicitacao.id : tempId;
+      const isExistente = isReenvio || isEdicao;
+      const optimisticId = isExistente ? solicitacao.id : tempId;
       const optimisticRow = {
         id: optimisticId,
         titulo: payload.titulo,
@@ -100,19 +103,19 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         descricao: payload.descricao,
         valor: payload.valor,
         status: 'pendente',
-        criado_em: isReenvio ? solicitacao.criado_em : new Date().toISOString(),
+        criado_em: isExistente ? solicitacao.criado_em : new Date().toISOString(),
         solicitante_id: user?.collaborator?.id,
       };
 
       queryClient.setQueryData(minhasSolicitacoesKey, (old) => {
         const rows = old || [];
-        if (isReenvio) {
+        if (isExistente) {
           return rows.map((row) => (row.id === solicitacao.id ? { ...row, ...optimisticRow } : row));
         }
         return [optimisticRow, ...rows];
       });
 
-      // Fecha so localmente (sem tocar em novaOpen/reenvioTarget do pai) pra poder reabrir
+      // Fecha so localmente (sem tocar no estado do pai) pra poder reabrir
       // sozinho com o rascunho se o envio falhar — ver onError.
       setVisible(false);
 
@@ -125,7 +128,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       toast(
         isReenvio
           ? { title: 'Solicitacao reenviada', description: 'Sua solicitacao voltou para a fila de aprovacao.' }
-          : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
+          : isEdicao
+            ? { title: 'Solicitacao atualizada' }
+            : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
       );
       uploadAnexosEmBackground(row.id, context.anexosSnapshot);
       onOpenChange(false);
@@ -133,7 +138,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
       toast({
-        title: isReenvio ? 'Nao foi possivel reenviar' : 'Nao foi possivel enviar',
+        title: isReenvio ? 'Nao foi possivel reenviar' : isEdicao ? 'Nao foi possivel salvar' : 'Nao foi possivel enviar',
         description: `${getFriendlyErrorMessage(error)} Revise os dados e tente novamente.`,
       });
       skipNextResetRef.current = true;
@@ -160,7 +165,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       skipNextResetRef.current = false;
       return;
     }
-    if (visible && isReenvio) {
+    if (visible && (isReenvio || isEdicao)) {
       setForm({
         titulo: solicitacao.titulo || '',
         fornecedorId: solicitacao.fornecedor_id || '',
@@ -282,7 +287,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <SheetHeader>
-          <SheetTitle>{isReenvio ? 'Corrigir e reenviar solicitacao' : 'Nova solicitacao de pagamento'}</SheetTitle>
+          <SheetTitle>
+            {isReenvio ? 'Corrigir e reenviar solicitacao' : isEdicao ? 'Editar solicitacao' : 'Nova solicitacao de pagamento'}
+          </SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -513,10 +520,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             {submitMutation.isPending ? (
               <>
                 <Spinner size="sm" className="mr-2" />
-                {isReenvio ? 'Reenviando...' : 'Enviando...'}
+                {isReenvio ? 'Reenviando...' : isEdicao ? 'Salvando...' : 'Enviando...'}
               </>
             ) : isReenvio ? (
               'Reenviar solicitacao'
+            ) : isEdicao ? (
+              'Salvar alteracoes'
             ) : (
               'Enviar solicitacao'
             )}
