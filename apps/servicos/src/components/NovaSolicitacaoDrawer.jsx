@@ -57,6 +57,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const [anexos, setAnexos] = useState([]);
   const [visible, setVisible] = useState(open);
   const skipNextResetRef = useRef(false);
+  const initialFormRef = useRef(EMPTY_FORM);
 
   useEffect(() => {
     setVisible(open);
@@ -165,8 +166,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       skipNextResetRef.current = false;
       return;
     }
+    // Selects de fornecedor/aprovador/categoria ficam montados (vazios, so disabled) antes do
+    // catalogo carregar; preencher o valor antes disso faz o Radix Select ressincronizar com o
+    // <select> nativo interno (sem <option> correspondente ainda) e zerar o campo sozinho.
+    if (visible && (isReenvio || isEdicao) && catalogosLoading) return;
     if (visible && (isReenvio || isEdicao)) {
-      setForm({
+      const loadedForm = {
         titulo: solicitacao.titulo || '',
         fornecedorId: solicitacao.fornecedor_id || '',
         descricao: solicitacao.descricao || '',
@@ -178,23 +183,30 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         empresaId: solicitacao.empresa_id || '',
         departamentoId: solicitacao.departamento_id || '',
         aprovadorDestinoId: solicitacao.aprovador_destino_id || '',
-      });
+      };
+      setForm(loadedForm);
+      initialFormRef.current = loadedForm;
     } else if (visible) {
-      setForm((current) => ({
-        ...current,
-        empresaId: user?.collaborator?.empresa_id || '',
-        departamentoId: user?.collaborator?.departamento_id || '',
-      }));
+      setForm((current) => {
+        const loadedForm = {
+          ...current,
+          empresaId: user?.collaborator?.empresa_id || '',
+          departamentoId: user?.collaborator?.departamento_id || '',
+        };
+        initialFormRef.current = loadedForm;
+        return loadedForm;
+      });
     } else {
       setForm(EMPTY_FORM);
       setAnexos([]);
+      initialFormRef.current = EMPTY_FORM;
     }
-  }, [visible]);
+  }, [visible, catalogosLoading]);
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
 
   const hasUnsavedChanges = () =>
-    Boolean(form.titulo.trim() || form.descricao.trim() || form.valor || anexos.length > 0);
+    anexos.length > 0 || JSON.stringify(form) !== JSON.stringify(initialFormRef.current);
 
   const handleOpenChange = (nextOpen) => {
     if (!nextOpen && hasUnsavedChanges()) {
@@ -251,10 +263,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     event.preventDefault();
     if (submitMutation.isPending) return;
 
-    if (!form.fornecedorId || !form.aprovadorDestinoId || !form.categoriaId) {
+    if (!form.fornecedorId || !form.aprovadorDestinoId || !form.categoriaId || !form.formaPagamento) {
       toast({
         title: 'Campos obrigatorios faltando',
-        description: 'Selecione fornecedor, aprovador e categoria antes de enviar.',
+        description: 'Selecione fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
       });
       return;
     }
@@ -268,7 +280,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         valor: Number(form.valor),
         categoria_id: form.categoriaId,
         data_vencimento: form.dataVencimento || null,
-        forma_pagamento: form.formaPagamento || null,
+        forma_pagamento: form.formaPagamento,
         observacao: form.observacao || null,
         empresa_id: form.empresaId || null,
         departamento_id: form.departamentoId || null,
@@ -402,7 +414,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="formaPagamento">Forma de pagamento (opcional)</Label>
+              <Label htmlFor="formaPagamento">Forma de pagamento</Label>
               <Select value={form.formaPagamento} onValueChange={setField('formaPagamento')}>
                 <SelectTrigger id="formaPagamento">
                   <SelectValue placeholder="Selecione" />

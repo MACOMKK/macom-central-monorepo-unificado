@@ -38,3 +38,35 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes check-circle-draw {
+  from { stroke-dashoffset: 166; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes check-mark-draw {
+  from { stroke-dashoffset: 48; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes check-pop-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.payment-check-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  animation: check-circle-draw 0.5s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.payment-check-mark {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: check-mark-draw 0.35s cubic-bezier(0.65, 0, 0.45, 1) 0.45s forwards;
+}
+
+.payment-check-wrapper {
+  animation: check-pop-in 0.4s ease-out forwards;
+}

@@ -29,8 +29,10 @@ function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
-function invalidateCategorias(queryClient) {
-  queryClient.invalidateQueries({ queryKey: ['servicos', 'categorias'] });
+const categoriasKey = ['servicos', 'categorias', 'admin'];
+
+function invalidateCategoriasCatalogo(queryClient) {
+  queryClient.invalidateQueries({ queryKey: ['servicos', 'categorias'], exact: true });
   queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
 }
 
@@ -43,56 +45,102 @@ export default function Categorias() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const categoriasQuery = useQuery({
-    queryKey: ['servicos', 'categorias', 'admin'],
+    queryKey: categoriasKey,
     queryFn: () => financeiroApi.categorias.listAdmin(),
   });
   const rows = categoriasQuery.data || [];
   const loading = categoriasQuery.isLoading;
 
   const criarMutation = useMutation({
-    mutationFn: (nome) => financeiroApi.categorias.criar(nome),
-    onSuccess: () => {
-      invalidateCategorias(queryClient);
+    mutationFn: ({ nome }) => financeiroApi.categorias.criar(nome),
+    onMutate: ({ nome, tempId }) => {
+      const previous = queryClient.getQueryData(categoriasKey);
+      const optimisticRow = { id: tempId, nome, ativo: true, criado_em: new Date().toISOString(), total_solicitacoes: 0 };
+      queryClient.setQueryData(categoriasKey, (old) => [...(old || []), optimisticRow]);
       setNovoNome('');
+      return { previous, tempId };
+    },
+    onSuccess: (row, _variables, context) => {
+      queryClient.setQueryData(categoriasKey, (old) =>
+        (old || []).map((item) => (item.id === context.tempId ? { ...item, ...row } : item)),
+      );
+      invalidateCategoriasCatalogo(queryClient);
       toast({ title: 'Categoria cadastrada' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel cadastrar a categoria', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
+      toast({ title: 'Nao foi possivel cadastrar a categoria', description: error.message });
+    },
   });
 
   const atualizarMutation = useMutation({
     mutationFn: ({ id, nome, ativo }) => financeiroApi.categorias.atualizar(id, { nome, ativo }),
+    onMutate: ({ id, nome, ativo }) => {
+      const previous = queryClient.getQueryData(categoriasKey);
+      queryClient.setQueryData(categoriasKey, (old) =>
+        (old || []).map((item) => (item.id === id ? { ...item, nome, ativo } : item)),
+      );
+      cancelEdit();
+      return { previous };
+    },
     onSuccess: (updated) => {
-      invalidateCategorias(queryClient);
-      if (editId === updated.id) cancelEdit();
+      queryClient.setQueryData(categoriasKey, (old) =>
+        (old || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      );
+      invalidateCategoriasCatalogo(queryClient);
       toast({ title: 'Categoria atualizada' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
+      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
+    },
   });
 
   const toggleAtivoMutation = useMutation({
     mutationFn: ({ id, nome, ativo }) => financeiroApi.categorias.atualizar(id, { nome, ativo }),
+    onMutate: ({ id, ativo }) => {
+      const previous = queryClient.getQueryData(categoriasKey);
+      queryClient.setQueryData(categoriasKey, (old) =>
+        (old || []).map((item) => (item.id === id ? { ...item, ativo } : item)),
+      );
+      return { previous };
+    },
     onSuccess: (updated) => {
-      invalidateCategorias(queryClient);
+      queryClient.setQueryData(categoriasKey, (old) =>
+        (old || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      );
+      invalidateCategoriasCatalogo(queryClient);
       toast({ title: updated.ativo ? 'Categoria reativada' : 'Categoria inativada' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
+      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
+    },
   });
 
   const deletarMutation = useMutation({
     mutationFn: (id) => financeiroApi.categorias.deletar(id),
-    onSuccess: () => {
-      invalidateCategorias(queryClient);
-      toast({ title: 'Categoria excluida' });
+    onMutate: (id) => {
+      const previous = queryClient.getQueryData(categoriasKey);
+      queryClient.setQueryData(categoriasKey, (old) => (old || []).filter((item) => item.id !== id));
       setDeleteTarget(null);
+      return { previous };
     },
-    onError: (error) => toast({ title: 'Nao foi possivel excluir a categoria', description: error.message }),
+    onSuccess: () => {
+      invalidateCategoriasCatalogo(queryClient);
+      toast({ title: 'Categoria excluida' });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
+      toast({ title: 'Nao foi possivel excluir a categoria', description: error.message });
+    },
   });
 
   function handleCriar(event) {
     event.preventDefault();
     const nome = novoNome.trim();
     if (!nome || criarMutation.isPending) return;
-    criarMutation.mutate(nome);
+    criarMutation.mutate({ nome, tempId: `optimistic-${crypto.randomUUID()}` });
   }
 
   function startEdit(row) {

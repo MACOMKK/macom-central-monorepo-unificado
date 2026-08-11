@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PDFDocument } from 'pdf-lib';
 import {
   Building2,
   Calendar,
@@ -7,6 +8,7 @@ import {
   CreditCard,
   Download,
   Eye,
+  FileStack,
   Paperclip,
   Tag,
   Trash2,
@@ -82,6 +84,7 @@ function getPreviewType(anexo) {
 
 const EVENTO_LABEL = {
   criada: 'Solicitacao criada',
+  editada: 'Solicitacao editada',
   aprovada: 'Aprovada',
   reprovada: 'Reprovada',
   reprovada_pos_aprovacao: 'Reprovada apos aprovacao',
@@ -111,6 +114,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [baixandoTodos, setBaixandoTodos] = useState(false);
   const [baixandoAnexoId, setBaixandoAnexoId] = useState(null);
   const [previewAnexo, setPreviewAnexo] = useState(null);
+  const [gerandoPdfUnico, setGerandoPdfUnico] = useState(false);
 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
 
@@ -280,6 +284,38 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     }
   }
 
+  async function handleGerarPdfUnico() {
+    const pdfs = anexos.filter((anexo) => anexo.url && getPreviewType(anexo) === 'pdf');
+    if (pdfs.length === 0) return;
+
+    setGerandoPdfUnico(true);
+    try {
+      const pdfFinal = await PDFDocument.create();
+      for (const anexo of pdfs) {
+        const response = await fetch(anexo.url);
+        if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
+        const bytes = await response.arrayBuffer();
+        const pdfOrigem = await PDFDocument.load(bytes, { ignoreEncryption: true });
+        const paginas = await pdfFinal.copyPages(pdfOrigem, pdfOrigem.getPageIndices());
+        paginas.forEach((pagina) => pdfFinal.addPage(pagina));
+      }
+
+      const pdfBytes = await pdfFinal.save();
+      const blobUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `anexos-${solicitacao?.numero || solicitacaoId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast({ title: 'Nao foi possivel gerar o PDF unico', description: getFriendlyErrorMessage(error) });
+    } finally {
+      setGerandoPdfUnico(false);
+    }
+  }
+
   const anexosPorCategoria = anexos.reduce((acc, anexo) => {
     const key = anexo.categoria || 'outros';
     if (!acc[key]) acc[key] = [];
@@ -357,16 +393,30 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">Anexos</p>
                   {podeBaixarTodosAnexos && anexos.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={baixandoTodos}
-                      onClick={handleBaixarTodosAnexos}
-                    >
-                      {baixandoTodos ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
-                      Baixar todos
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {anexos.some((anexo) => anexo.url && getPreviewType(anexo) === 'pdf') && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={gerandoPdfUnico}
+                          onClick={handleGerarPdfUnico}
+                        >
+                          {gerandoPdfUnico ? <Spinner size="sm" /> : <FileStack className="h-4 w-4" />}
+                          Juntar PDFs
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={baixandoTodos}
+                        onClick={handleBaixarTodosAnexos}
+                      >
+                        {baixandoTodos ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                        Baixar todos
+                      </Button>
+                    </div>
                   )}
                 </div>
 

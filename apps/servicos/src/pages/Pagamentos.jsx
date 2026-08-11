@@ -27,6 +27,7 @@ import {
   Textarea,
   useToast,
 } from '@macom/ui';
+import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import { useCategorias } from '@/hooks/useCatalogos';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
@@ -72,6 +73,7 @@ export default function Pagamentos() {
 
   const [pagamentoTarget, setPagamentoTarget] = useState(null);
   const [comprovantes, setComprovantes] = useState([]);
+  const [successOverlay, setSuccessOverlay] = useState(null);
 
   const solicitacoesQuery = useQuery({
     queryKey: ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro],
@@ -207,18 +209,19 @@ export default function Pagamentos() {
       }
 
       closePagamentoDialog();
+      setSuccessOverlay(type === 'avista' ? 'Solicitacao marcada como paga' : 'Parcela paga');
 
       return { aprovadasKey, parcelasKey, previousAprovadas, previousParcelas };
     },
-    onSuccess: ({ type, row, parcelaAlvoId }, variables, context) => {
+    onSuccess: ({ row, parcelaAlvoId }, variables, context) => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
       queryClient.invalidateQueries({ queryKey: context.parcelasKey });
-      toast({ title: type === 'avista' ? 'Solicitacao marcada como paga' : 'Parcela paga' });
       uploadComprovantesEmBackground(row.id, parcelaAlvoId, variables.files);
     },
     onError: (error, variables, context) => {
       if (context?.previousAprovadas !== undefined) queryClient.setQueryData(context.aprovadasKey, context.previousAprovadas);
       if (context?.previousParcelas !== undefined) queryClient.setQueryData(context.parcelasKey, context.previousParcelas);
+      setSuccessOverlay(null);
       setPagamentoTarget({ type: variables.type, row: variables.row, parcelaId: variables.parcelaId });
       setComprovantes(variables.files);
       toast({
@@ -572,6 +575,12 @@ export default function Pagamentos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PaymentSuccessOverlay
+        open={Boolean(successOverlay)}
+        message={successOverlay}
+        onOpenChange={(open) => !open && setSuccessOverlay(null)}
+      />
     </div>
   );
 }

@@ -32,6 +32,20 @@ const CREATE_FIELDS = [
   'aprovador_destino_id',
 ] as const;
 const UPDATE_FIELDS = CREATE_FIELDS;
+const UPDATE_FIELD_LABELS: Record<(typeof CREATE_FIELDS)[number], string> = {
+  titulo: 'Titulo',
+  fornecedor_id: 'Fornecedor',
+  descricao: 'Descricao',
+  valor: 'Valor',
+  categoria_id: 'Categoria',
+  comprovante_path: 'Comprovante',
+  data_vencimento: 'Vencimento',
+  forma_pagamento: 'Forma de pagamento',
+  empresa_id: 'Empresa',
+  departamento_id: 'Departamento',
+  observacao: 'Observacao',
+  aprovador_destino_id: 'Aprovador responsavel',
+};
 const FORMAS_PAGAMENTO = ['pix', 'boleto', 'transferencia', 'cartao', 'outros'];
 const ANEXO_CATEGORIAS = [
   'comprovante_solicitacao',
@@ -258,8 +272,8 @@ function validateCreatePayload(payload: Record<string, unknown>) {
   }
   if (!categoriaId) throw Object.assign(new Error('Informe a categoria.'), { status: 400 });
 
-  if (payload.forma_pagamento && !FORMAS_PAGAMENTO.includes(String(payload.forma_pagamento))) {
-    throw Object.assign(new Error('Forma de pagamento invalida.'), { status: 400 });
+  if (!payload.forma_pagamento || !FORMAS_PAGAMENTO.includes(String(payload.forma_pagamento))) {
+    throw Object.assign(new Error('Informe a forma de pagamento.'), { status: 400 });
   }
 
   if (payload.data_vencimento && Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
@@ -963,6 +977,11 @@ Deno.serve(async (request) => {
         `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
         [id, ...fields.map((field) => payload[field])],
       );
+
+      const camposAlterados = fields
+        .map((field) => UPDATE_FIELD_LABELS[field as (typeof CREATE_FIELDS)[number]] || field)
+        .join(', ');
+      await insertHistorico(id, 'editada', collaborator!.id as string, `Campos alterados: ${camposAlterados}`);
 
       return json({ row: rows[0] || null });
     }

@@ -119,7 +119,7 @@ export default function MinhasSolicitacoes() {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
+              <TableRow key={row.id} className="cursor-pointer hover:bg-primary/10" onClick={() => setSelectedId(row.id)}>
                 <TableCell className="max-w-xs truncate">{row.titulo || '-'}</TableCell>
                 <TableCell className="font-medium">{row.fornecedor}</TableCell>
                 <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>

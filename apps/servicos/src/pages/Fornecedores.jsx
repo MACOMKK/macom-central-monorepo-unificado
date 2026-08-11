@@ -29,8 +29,10 @@ function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
-function invalidateFornecedores(queryClient) {
-  queryClient.invalidateQueries({ queryKey: ['servicos', 'fornecedores'] });
+const fornecedoresKey = ['servicos', 'fornecedores', 'admin'];
+
+function invalidateFornecedoresCatalogo(queryClient) {
+  queryClient.invalidateQueries({ queryKey: ['servicos', 'fornecedores'], exact: true });
   queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
 }
 
@@ -43,56 +45,102 @@ export default function Fornecedores() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const fornecedoresQuery = useQuery({
-    queryKey: ['servicos', 'fornecedores', 'admin'],
+    queryKey: fornecedoresKey,
     queryFn: () => financeiroApi.fornecedores.listAdmin(),
   });
   const rows = fornecedoresQuery.data || [];
   const loading = fornecedoresQuery.isLoading;
 
   const criarMutation = useMutation({
-    mutationFn: (nome) => financeiroApi.fornecedores.criar(nome),
-    onSuccess: () => {
-      invalidateFornecedores(queryClient);
+    mutationFn: ({ nome }) => financeiroApi.fornecedores.criar(nome),
+    onMutate: ({ nome, tempId }) => {
+      const previous = queryClient.getQueryData(fornecedoresKey);
+      const optimisticRow = { id: tempId, nome, ativo: true, criado_em: new Date().toISOString(), total_solicitacoes: 0 };
+      queryClient.setQueryData(fornecedoresKey, (old) => [...(old || []), optimisticRow]);
       setNovoNome('');
+      return { previous, tempId };
+    },
+    onSuccess: (row, _variables, context) => {
+      queryClient.setQueryData(fornecedoresKey, (old) =>
+        (old || []).map((item) => (item.id === context.tempId ? { ...item, ...row } : item)),
+      );
+      invalidateFornecedoresCatalogo(queryClient);
       toast({ title: 'Fornecedor cadastrado' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel cadastrar o fornecedor', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+      toast({ title: 'Nao foi possivel cadastrar o fornecedor', description: error.message });
+    },
   });
 
   const atualizarMutation = useMutation({
     mutationFn: ({ id, nome, ativo }) => financeiroApi.fornecedores.atualizar(id, { nome, ativo }),
+    onMutate: ({ id, nome, ativo }) => {
+      const previous = queryClient.getQueryData(fornecedoresKey);
+      queryClient.setQueryData(fornecedoresKey, (old) =>
+        (old || []).map((item) => (item.id === id ? { ...item, nome, ativo } : item)),
+      );
+      cancelEdit();
+      return { previous };
+    },
     onSuccess: (updated) => {
-      invalidateFornecedores(queryClient);
-      if (editId === updated.id) cancelEdit();
+      queryClient.setQueryData(fornecedoresKey, (old) =>
+        (old || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      );
+      invalidateFornecedoresCatalogo(queryClient);
       toast({ title: 'Fornecedor atualizado' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+      toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message });
+    },
   });
 
   const toggleAtivoMutation = useMutation({
     mutationFn: ({ id, nome, ativo }) => financeiroApi.fornecedores.atualizar(id, { nome, ativo }),
+    onMutate: ({ id, ativo }) => {
+      const previous = queryClient.getQueryData(fornecedoresKey);
+      queryClient.setQueryData(fornecedoresKey, (old) =>
+        (old || []).map((item) => (item.id === id ? { ...item, ativo } : item)),
+      );
+      return { previous };
+    },
     onSuccess: (updated) => {
-      invalidateFornecedores(queryClient);
+      queryClient.setQueryData(fornecedoresKey, (old) =>
+        (old || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      );
+      invalidateFornecedoresCatalogo(queryClient);
       toast({ title: updated.ativo ? 'Fornecedor reativado' : 'Fornecedor inativado' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message }),
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+      toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message });
+    },
   });
 
   const deletarMutation = useMutation({
     mutationFn: (id) => financeiroApi.fornecedores.deletar(id),
-    onSuccess: () => {
-      invalidateFornecedores(queryClient);
-      toast({ title: 'Fornecedor excluido' });
+    onMutate: (id) => {
+      const previous = queryClient.getQueryData(fornecedoresKey);
+      queryClient.setQueryData(fornecedoresKey, (old) => (old || []).filter((item) => item.id !== id));
       setDeleteTarget(null);
+      return { previous };
     },
-    onError: (error) => toast({ title: 'Nao foi possivel excluir o fornecedor', description: error.message }),
+    onSuccess: () => {
+      invalidateFornecedoresCatalogo(queryClient);
+      toast({ title: 'Fornecedor excluido' });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+      toast({ title: 'Nao foi possivel excluir o fornecedor', description: error.message });
+    },
   });
 
   function handleCriar(event) {
     event.preventDefault();
     const nome = novoNome.trim();
     if (!nome || criarMutation.isPending) return;
-    criarMutation.mutate(nome);
+    criarMutation.mutate({ nome, tempId: `optimistic-${crypto.randomUUID()}` });
   }
 
   function startEdit(row) {

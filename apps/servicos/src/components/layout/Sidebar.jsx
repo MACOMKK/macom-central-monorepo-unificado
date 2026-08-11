@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from 'lucide-react';
+import { ChevronDown, Lock, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from 'lucide-react';
 
 import { Button } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
@@ -50,7 +50,11 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
         aria-label={collapsed ? mod.label : undefined}
         className={({ isActive }) =>
           `flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            mod.comingSoon
+              ? 'opacity-40 text-muted-foreground hover:bg-accent hover:opacity-60'
+              : isActive
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
           } ${collapsed ? 'justify-center' : ''}`
         }
       >
@@ -58,11 +62,7 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
           <Icon className="h-4 w-4 shrink-0" />
           {!collapsed ? mod.label : null}
         </span>
-        {!collapsed && mod.comingSoon && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Em breve
-          </span>
-        )}
+        {!collapsed && mod.comingSoon && <Lock className="h-3.5 w-3.5 shrink-0" />}
       </NavLink>
     );
   }
