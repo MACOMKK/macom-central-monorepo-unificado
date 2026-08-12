@@ -1,18 +1,11 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, Lock, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from 'lucide-react';
+import { ChevronDown, Lock, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from 'lucide-react';
 
 import { Button } from '@macom/ui';
-import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
 import { appVersion } from '@/lib/buildInfo';
 import { servicosModules } from '@/lib/navigation';
-
-const ROLE_LABEL = {
-  solicitante: 'Solicitante',
-  aprovador: 'Aprovador',
-  financeiro: 'Financeiro',
-};
 
 const logoUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
 
@@ -114,7 +107,7 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
 }
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const closeMobile = () => setMobileOpen(false);
 
   return (
@@ -148,7 +141,6 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
 
           {!collapsed ? (
             <div className="hidden items-center gap-1 lg:flex">
-              <NotificationsBell buttonClassName="h-7 w-7" />
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} title="Recolher sidebar">
                 <PanelLeftClose className="h-4 w-4" />
               </Button>
@@ -186,24 +178,6 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
             </div>
           )}
         </nav>
-
-        <div className={`flex items-center gap-3 border-t border-border px-4 py-4 ${collapsed ? 'justify-center' : ''}`}>
-          {!collapsed ? (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{user?.name}</p>
-              <p className="text-xs text-muted-foreground">{ROLE_LABEL[user?.role] || user?.role}</p>
-            </div>
-          ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => logout()}
-            title="Sair"
-            aria-label="Sair"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
       </aside>
     </>
   );
