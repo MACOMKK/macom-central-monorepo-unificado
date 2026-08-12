@@ -6,6 +6,7 @@ import { queryClientInstance } from '@/lib/query-client';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import DevRoleSwitcher from '@/components/DevRoleSwitcher';
+import NativeBackButtonHandler from '@/components/NativeBackButtonHandler';
 import Login from '@/pages/Login';
 import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
 import Aprovacoes from '@/pages/Aprovacoes';
@@ -95,6 +96,7 @@ function App() {
     <QueryClientProvider client={queryClientInstance}>
       <AuthProvider>
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <NativeBackButtonHandler />
           <Routes>
             <Route path="/entrar" element={<LoginRoute />} />
             <Route path="/login" element={<Navigate replace to="/entrar" />} />

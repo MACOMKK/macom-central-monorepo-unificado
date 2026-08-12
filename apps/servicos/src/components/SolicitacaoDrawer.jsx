@@ -56,6 +56,7 @@ import {
   getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import WhatsAppShareButton from '@/components/WhatsAppShareButton';
 
 function SectionLabel({ children }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</p>;
@@ -329,11 +330,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         <SheetHeader>
           <SheetTitle className="flex items-center justify-between gap-2 pr-6">
             <span className="truncate">{solicitacao?.titulo || solicitacao?.fornecedor}</span>
-            {solicitacao && (
-              <Badge variant={STATUS_VARIANT[solicitacao.status]}>
-                {STATUS_LABEL[solicitacao.status] || solicitacao.status}
-              </Badge>
-            )}
+            <span className="flex shrink-0 items-center gap-2">
+              <WhatsAppShareButton solicitacao={solicitacao} />
+              {solicitacao && (
+                <Badge variant={STATUS_VARIANT[solicitacao.status]}>
+                  {STATUS_LABEL[solicitacao.status] || solicitacao.status}
+                </Badge>
+              )}
+            </span>
           </SheetTitle>
         </SheetHeader>
 

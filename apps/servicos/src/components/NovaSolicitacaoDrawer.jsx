@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Paperclip, X } from 'lucide-react';
+import { Paperclip, Plus, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { useAuth } from '@/lib/AuthContext';
@@ -14,6 +14,11 @@ import {
 } from '@/lib/financeiroFormat';
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Select,
@@ -58,6 +63,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const [visible, setVisible] = useState(open);
   const skipNextResetRef = useRef(false);
   const initialFormRef = useRef(EMPTY_FORM);
+  const [novoFornecedorOpen, setNovoFornecedorOpen] = useState(false);
+  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
 
   useEffect(() => {
     setVisible(open);
@@ -203,6 +210,28 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     }
   }, [visible, catalogosLoading]);
 
+  const criarFornecedorMutation = useMutation({
+    mutationFn: (nome) => financeiroApi.fornecedores.criar(nome),
+    onSuccess: (row) => {
+      if (!row) return;
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
+      setForm((current) => ({ ...current, fornecedorId: row.id }));
+      setNovoFornecedorOpen(false);
+      setNovoFornecedorNome('');
+      toast({ title: 'Fornecedor cadastrado' });
+    },
+    onError: (error) => {
+      toast({ title: 'Nao foi possivel cadastrar o fornecedor', description: getFriendlyErrorMessage(error) });
+    },
+  });
+
+  function handleCriarFornecedor(event) {
+    event.preventDefault();
+    const nome = novoFornecedorNome.trim();
+    if (!nome) return;
+    criarFornecedorMutation.mutate(nome);
+  }
+
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
 
   const hasUnsavedChanges = () =>
@@ -322,18 +351,30 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             <Label htmlFor="fornecedor">
               Fornecedor <span className="text-destructive">*</span>
             </Label>
-            <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
-              <SelectTrigger id="fornecedor">
-                <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
-              </SelectTrigger>
-              <SelectContent>
-                {fornecedores.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
+                <SelectTrigger id="fornecedor" className="flex-1">
+                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {fornecedores.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                title="Cadastrar novo fornecedor"
+                onClick={() => setNovoFornecedorOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Nao encontrou o fornecedor? Cadastre um novo.</p>
           </div>
 
           <div className="space-y-2">
@@ -544,6 +585,40 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
           </Button>
         </form>
       </SheetContent>
+
+      <Dialog open={novoFornecedorOpen} onOpenChange={setNovoFornecedorOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cadastrar novo fornecedor</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCriarFornecedor} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="novoFornecedorNome">Nome do fornecedor</Label>
+              <Input
+                id="novoFornecedorNome"
+                value={novoFornecedorNome}
+                onChange={(event) => setNovoFornecedorNome(event.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { setNovoFornecedorOpen(false); setNovoFornecedorNome(''); }}
+                disabled={criarFornecedorMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={criarFornecedorMutation.isPending || !novoFornecedorNome.trim()}>
+                {criarFornecedorMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
+                Cadastrar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }

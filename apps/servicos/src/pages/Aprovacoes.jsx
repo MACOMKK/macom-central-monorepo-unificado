@@ -1,10 +1,38 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { Button, Label, Spinner, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useToast } from '@macom/ui';
+import {
+  Button,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+  useToast,
+} from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import FiltersDrawer from '@/components/FiltersDrawer';
+import Pagination from '@/components/Pagination';
+import SearchInput from '@/components/SearchInput';
+import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
+import { useCategorias } from '@/hooks/useCatalogos';
+import { usePagination } from '@/hooks/usePagination';
+import { normalize } from '@/lib/normalize';
+import { buildSolicitacaoSearchText, FORMA_PAGAMENTO_LABEL, toDateOnly } from '@/lib/financeiroFormat';
+
+const CATEGORIA_FILTRO_TODAS = 'todas';
+const SOLICITANTE_FILTRO_TODOS = 'todos';
 
 function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -18,8 +46,14 @@ function formatData(data) {
 export default function Aprovacoes() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: categorias = [] } = useCategorias();
   const [observacoes, setObservacoes] = useState({});
   const [selectedId, setSelectedId] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
+  const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
+  const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
+  const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
 
   const solicitacoesQuery = useQuery({
     queryKey: ['servicos', 'solicitacoes', 'pendentes'],
@@ -28,6 +62,29 @@ export default function Aprovacoes() {
   const rows = solicitacoesQuery.data || [];
   const loading = solicitacoesQuery.isLoading;
   const selected = rows.find((row) => row.id === selectedId) || null;
+
+  const solicitantes = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.solicitante_id && !porId.has(row.solicitante_id)) {
+        porId.set(row.solicitante_id, row.solicitante_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
+  const filteredRows = rows.filter((row) => {
+    if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS && row.categoria_id !== categoriaFiltro) return false;
+    if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
+    if (vencimentoFiltro) {
+      const dia = toDateOnly(row.data_vencimento);
+      if (!dia || dia < vencimentoFiltro.from || dia > vencimentoFiltro.to) return false;
+    }
+    const termo = normalize(busca);
+    if (!termo) return true;
+    return normalize(buildSolicitacaoSearchText(row)).includes(termo);
+  });
+  const { page, setPage, pageItems, total } = usePagination(filteredRows, 10);
 
   const pendentesKey = ['servicos', 'solicitacoes', 'pendentes'];
 
@@ -59,48 +116,107 @@ export default function Aprovacoes() {
     decisaoMutation.mutate({ id, status, observacao: observacoes[id] });
   }
 
+  const activeFilterCount = [
+    categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
+    solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
+    Boolean(vencimentoFiltro),
+  ].filter(Boolean).length;
+
+  function handleClearFiltros() {
+    setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
+    setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
+    setVencimentoFiltro(null);
+    setVencimentoResetToken((current) => current + 1);
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Solicitacoes pendentes de aprovacao</h2>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-64 space-y-1">
+          <span className="text-xs text-muted-foreground">Pesquisar</span>
+          <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
+        </div>
+
+        <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
+          <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CATEGORIA_FILTRO_TODAS}>Todas as categorias</SelectItem>
+              {categorias.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={solicitanteFiltro} onValueChange={setSolicitanteFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionarios</SelectItem>
+              {solicitantes.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <VencimentoRangeFilter onChange={setVencimentoFiltro} resetToken={vencimentoResetToken} />
+        </FiltersDrawer>
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner size="sm" />
           Carregando...
         </div>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma solicitacao pendente.</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {rows.length === 0 ? 'Nenhuma solicitacao pendente.' : 'Nenhuma solicitacao corresponde a pesquisa.'}
+        </p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Solicitante</TableHead>
-              <TableHead>Aprovador</TableHead>
-              <TableHead>Fornecedor</TableHead>
-              <TableHead>Descricao</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Criado em</TableHead>
-              <TableHead className="text-right">Detalhes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
-                <TableCell>{row.solicitante_nome}</TableCell>
-                <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
-                <TableCell className="font-medium">{row.fornecedor}</TableCell>
-                <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
-                <TableCell>{formatValor(row.valor)}</TableCell>
-                <TableCell>{formatData(row.criado_em)}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
-                    Ver
-                  </Button>
-                </TableCell>
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Solicitante</TableHead>
+                <TableHead>Vencimento</TableHead>
+                <TableHead>Forma de pagamento</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Fornecedor</TableHead>
+                <TableHead>Aprovador</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead className="text-right">Detalhes</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {pageItems.map((row) => (
+                <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
+                  <TableCell>{row.solicitante_nome}</TableCell>
+                  <TableCell>{formatData(row.data_vencimento)}</TableCell>
+                  <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
+                  <TableCell>{row.categoria || '-'}</TableCell>
+                  <TableCell className="font-medium">{row.fornecedor}</TableCell>
+                  <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
+                  <TableCell>{formatValor(row.valor)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
+                      Ver
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitacao(oes)" />
+        </>
       )}
 
       <SolicitacaoDrawer

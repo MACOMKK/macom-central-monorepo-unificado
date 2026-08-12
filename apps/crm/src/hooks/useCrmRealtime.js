@@ -11,6 +11,8 @@ const REALTIME_TABLES = [
   'categorias_veiculo',
   'configuracoes_distribuicao',
   'vendedores_distribuicao',
+  'conversas_atendimento',
+  'mensagens_atendimento',
 ];
 
 const TABLE_CACHE_CONFIG = {
@@ -41,6 +43,14 @@ const TABLE_CACHE_CONFIG = {
   },
   vendedores_distribuicao: {
     queryKeys: [['crm-distribuicao'], ['crm-responsaveis']],
+  },
+  conversas_atendimento: {
+    queryKeys: [['conversas-atendimento'], ['dashboard-metrics']],
+  },
+  mensagens_atendimento: {
+    // sem `exact: true` no invalidateQueries: casa qualquer chave iniciada por
+    // 'mensagens-atendimento', incluindo ['mensagens-atendimento', conversaId].
+    queryKeys: [['mensagens-atendimento'], ['conversas-atendimento']],
   },
 };
 

@@ -161,7 +161,7 @@ export default function Navbar({ realtime }) {
             { label: 'Leads', icon: DollarSign, path: '/leads' },
             { label: 'Contatos e Clientes', icon: Users, path: '/clientes' },
             { label: 'Estoque', icon: Columns3, comingSoon: true },
-            { label: 'Recepção', icon: Headphones, comingSoon: true },
+            { label: 'Atendimento', icon: Headphones, path: '/atendimento' },
           ]} />
           <NavMenu label="Pós-Vendas" items={[
             { label: 'Agenda Online', icon: Calendar, comingSoon: true },

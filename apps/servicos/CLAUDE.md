@@ -201,3 +201,37 @@ reais (só adicionar coluna `mod_<novo>` na tabela, seguindo o mesmo padrão).
 - Sobreposição com `apps/rh`: o módulo "RH" aqui é só operacional (reembolsos/férias da equipe
   da oficina); RH corporativo completo continua sendo escopo do app `rh` (hoje placeholder) —
   não duplicar funcionalidade quando `rh` sair do placeholder.
+
+## Shell mobile (Capacitor/Android)
+
+Este é o único app do monorepo empacotado como app nativo hoje — os demais continuam só web.
+Capacitor embrulha o mesmo build web (`vite build` → `dist/`) num shell Android; não é um
+front-end separado, então qualquer mudança em `src/` já vale pra web e pro app automaticamente
+(só precisa rodar `cap sync` de novo antes de gerar um APK novo).
+
+- **Config**: `capacitor.config.ts` (`appId: br.com.macom.servicos` — placeholder até
+  confirmar o domínio oficial da MACOM; é definitivo assim que publicado na Play Store, ajustar
+  **antes** do primeiro build assinado). `webDir: dist`.
+- **Projeto nativo**: `android/` (gerado por `npx cap add android`, é um projeto Gradle
+  completo — fica versionado; só build output/config de máquina é ignorado, ver `.gitignore`
+  raiz).
+- **Ícone/splash**: `resources/icon.png` (1024×1024) e `resources/splash.png` (2732×2732) são o
+  source, compostos a partir do logo atual sobre fundo na cor da marca — placeholder funcional
+  pra testar, mas antes de publicar de verdade vale substituir por uma arte quadrada desenhada
+  pra isso (o logo é retangular, o resultado gerado fica ok mas não é ideal). Pra regerar todas
+  as resoluções depois de trocar o source: `npx @capacitor/assets generate --android`.
+- **Botão voltar do Android**: `src/components/NativeBackButtonHandler.jsx`, montado dentro do
+  `<Router>` em `App.jsx`. Sem isso o botão físico/gesto fecha o app inteiro em vez de navegar
+  pra trás — só ativa via `Capacitor.isNativePlatform()`, não afeta a versão web.
+- **Auth**: é email/senha (`supabase.auth.signInWithPassword`), sem fluxo OAuth/magic-link por
+  redirect de URL — por isso não precisou de tratamento especial pro `detectSessionInUrl` do
+  supabase-js dentro da WebView. Sessão persiste em `localStorage` normalmente. Se um dia entrar
+  login social/magic-link, aí sim vai precisar de `@capacitor/browser` + listener de deep link
+  (`App.addListener('appUrlOpen', ...)`).
+- **Fluxo de build/teste** (exige Android Studio + SDK instalados localmente — não roda numa
+  sessão de agente): `npm run android:servicos` na raiz builda o web, roda `cap sync` e abre o
+  Android Studio; ou direto por linha de comando, `cd apps/servicos/android && gradlew
+  assembleDebug` gera o APK debug em `android/app/build/outputs/apk/debug/app-debug.apk`.
+- **iOS**: ainda não configurado (decisão consciente — só Android por enquanto). Pra adicionar
+  depois: `npx cap add ios` dentro de `apps/servicos` (exige Mac + Xcode pra buildar), reaproveita
+  o mesmo `capacitor.config.ts`/`resources/`.

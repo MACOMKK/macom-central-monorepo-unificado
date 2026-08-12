@@ -23,6 +23,10 @@ import {
   useToast,
 } from '@macom/ui';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import Pagination from '@/components/Pagination';
+import SearchInput from '@/components/SearchInput';
+import { usePagination } from '@/hooks/usePagination';
+import { normalize } from '@/lib/normalize';
 
 function formatData(data) {
   if (!data) return '-';
@@ -43,6 +47,7 @@ export default function Fornecedores() {
   const [editId, setEditId] = useState(null);
   const [editNome, setEditNome] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [busca, setBusca] = useState('');
 
   const fornecedoresQuery = useQuery({
     queryKey: fornecedoresKey,
@@ -50,6 +55,8 @@ export default function Fornecedores() {
   });
   const rows = fornecedoresQuery.data || [];
   const loading = fornecedoresQuery.isLoading;
+  const filteredRows = rows.filter((row) => !busca.trim() || normalize(row.nome).includes(normalize(busca)));
+  const { page, setPage, pageItems, total } = usePagination(filteredRows, 10);
 
   const criarMutation = useMutation({
     mutationFn: ({ nome }) => financeiroApi.fornecedores.criar(nome),
@@ -198,13 +205,17 @@ export default function Fornecedores() {
         </Button>
       </form>
 
+      <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar fornecedor..." className="max-w-sm" />
+
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner size="sm" />
           Carregando...
         </div>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum fornecedor cadastrado.</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {rows.length === 0 ? 'Nenhum fornecedor cadastrado.' : 'Nenhum fornecedor corresponde a pesquisa.'}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
@@ -217,7 +228,7 @@ export default function Fornecedores() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {pageItems.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="max-w-xs">
                     {editId === row.id ? (
@@ -288,6 +299,10 @@ export default function Fornecedores() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {filteredRows.length > 0 && (
+        <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="fornecedor(es)" />
       )}
 
       <ConfirmDeleteDialog

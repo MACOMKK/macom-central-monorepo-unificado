@@ -493,8 +493,8 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'criar_fornecedor') {
-      if (!isFinanceiro(moduleRole)) {
-        throw Object.assign(new Error('Apenas o financeiro pode cadastrar fornecedores.'), { status: 403 });
+      if (!moduleRole || moduleRole === 'nenhum') {
+        throw Object.assign(new Error('Voce nao tem acesso a este modulo.'), { status: 403 });
       }
 
       const nome = String(body.nome || '').trim();

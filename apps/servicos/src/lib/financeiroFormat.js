@@ -66,7 +66,34 @@ export function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+// Normaliza qualquer formato de data (Date, "YYYY-MM-DD" ou timestamp ISO) pra "YYYY-MM-DD",
+// pra poder comparar/ordenar como string sem depender de timezone.
+export function toDateOnly(data) {
+  if (!data) return null;
+  return String(data).slice(0, 10);
+}
+
 export function formatDataHora(data) {
   if (!data) return '-';
   return new Date(data).toLocaleString('pt-BR');
+}
+
+// Junta os campos exibidos nas colunas das telas de solicitacoes (titulo, fornecedor,
+// categoria, forma de pagamento, vencimento, aprovador, solicitante, status, valor) num
+// unico texto, pra pesquisa cobrir qualquer coluna sem precisar de um input por campo.
+// Descricao fica de fora de proposito: ela nao aparece mais nas colunas, so no drawer.
+export function buildSolicitacaoSearchText(row) {
+  return [
+    row.titulo,
+    row.fornecedor,
+    row.categoria,
+    FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || row.forma_pagamento,
+    formatData(row.data_vencimento),
+    row.solicitante_nome,
+    row.aprovador_destino_nome,
+    STATUS_LABEL[row.status] || row.status,
+    formatValor(row.valor),
+  ]
+    .filter(Boolean)
+    .join(' ');
 }

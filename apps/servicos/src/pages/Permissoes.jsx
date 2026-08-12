@@ -20,6 +20,10 @@ import {
 } from '@macom/ui';
 
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import Pagination from '@/components/Pagination';
+import SearchInput from '@/components/SearchInput';
+import { usePagination } from '@/hooks/usePagination';
+import { normalize } from '@/lib/normalize';
 import { MODULOS_PERMISSAO } from '@/lib/modulosPermissao';
 
 const MODULOS_ATIVOS = MODULOS_PERMISSAO.filter((modulo) => modulo.ativo);
@@ -38,6 +42,7 @@ export default function Permissoes() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [limpezaDialogOpen, setLimpezaDialogOpen] = useState(false);
+  const [busca, setBusca] = useState('');
 
   const permissoesQuery = useQuery({
     queryKey: ['servicos', 'permissoes'],
@@ -49,6 +54,12 @@ export default function Permissoes() {
     [permissoesQuery.data],
   );
   const loading = permissoesQuery.isLoading;
+  const filteredColaboradores = colaboradores.filter((colaborador) => {
+    const termo = normalize(busca);
+    if (!termo) return true;
+    return [colaborador.nome, colaborador.email].some((value) => normalize(value).includes(termo));
+  });
+  const { page, setPage, pageItems, total } = usePagination(filteredColaboradores, 10);
 
   const alterarMutation = useMutation({
     mutationFn: ({ colaboradorId, modulo, papel }) => financeiroApi.permissoes.set(colaboradorId, modulo, papel),
@@ -103,13 +114,19 @@ export default function Permissoes() {
         </p>
       </div>
 
+      <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar colaborador..." className="max-w-sm" />
+
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Spinner size="sm" />
           Carregando...
         </div>
-      ) : colaboradores.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum colaborador com acesso ao Servicos.</p>
+      ) : filteredColaboradores.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {colaboradores.length === 0
+            ? 'Nenhum colaborador com acesso ao Servicos.'
+            : 'Nenhum colaborador corresponde a pesquisa.'}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <Table>
@@ -128,7 +145,7 @@ export default function Permissoes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {colaboradores.map((colaborador) => {
+              {pageItems.map((colaborador) => {
                 const isSystemAdmin = colaborador.system_access_level === 'admin';
                 return (
                   <TableRow key={colaborador.colaborador_id}>
@@ -172,6 +189,10 @@ export default function Permissoes() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {filteredColaboradores.length > 0 && (
+        <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="colaborador(es)" />
       )}
 
       <div className="mt-8 rounded-lg border border-destructive/30 bg-destructive/5 p-4">

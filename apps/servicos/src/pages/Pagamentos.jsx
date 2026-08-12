@@ -29,14 +29,27 @@ import {
 } from '@macom/ui';
 import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import FiltersDrawer from '@/components/FiltersDrawer';
+import Pagination from '@/components/Pagination';
+import SearchInput from '@/components/SearchInput';
+import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
 import { useCategorias } from '@/hooks/useCatalogos';
+import { usePagination } from '@/hooks/usePagination';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
-import { formatData, formatValor, FORMA_PAGAMENTO_LABEL } from '@/lib/financeiroFormat';
+import {
+  buildSolicitacaoSearchText,
+  formatData,
+  formatValor,
+  FORMA_PAGAMENTO_LABEL,
+  toDateOnly,
+} from '@/lib/financeiroFormat';
+import { normalize } from '@/lib/normalize';
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const CLASSIFICACAO_TODAS = 'todas';
 const CLASSIFICACAO_PARCIAL = 'parcial';
+const SOLICITANTE_FILTRO_TODOS = 'todos';
 
 function getVencimentoInfo(dataVencimento) {
   if (!dataVencimento) return { label: 'Sem vencimento', variant: 'outline' };
@@ -64,6 +77,10 @@ export default function Pagamentos() {
   const { data: categorias = [] } = useCategorias();
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [classificacaoFiltro, setClassificacaoFiltro] = useState(CLASSIFICACAO_TODAS);
+  const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
+  const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
+  const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
+  const [busca, setBusca] = useState('');
 
   const [dialogRowId, setDialogRowId] = useState(null);
   const [draftParcelas, setDraftParcelas] = useState([]);
@@ -103,10 +120,32 @@ export default function Pagamentos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogRowId, parcelasQuery.data]);
 
+  const solicitantes = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.solicitante_id && !porId.has(row.solicitante_id)) {
+        porId.set(row.solicitante_id, row.solicitante_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const visibleRows = useMemo(() => {
-    if (classificacaoFiltro !== CLASSIFICACAO_PARCIAL) return rows;
-    return rows.filter(isParcialmentePago);
-  }, [rows, classificacaoFiltro]);
+    let classificadas = classificacaoFiltro !== CLASSIFICACAO_PARCIAL ? rows : rows.filter(isParcialmentePago);
+    if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS) {
+      classificadas = classificadas.filter((row) => String(row.solicitante_id) === solicitanteFiltro);
+    }
+    if (vencimentoFiltro) {
+      classificadas = classificadas.filter((row) => {
+        const dia = toDateOnly(row.data_vencimento);
+        return dia && dia >= vencimentoFiltro.from && dia <= vencimentoFiltro.to;
+      });
+    }
+    const termo = normalize(busca);
+    if (!termo) return classificadas;
+    return classificadas.filter((row) => normalize(buildSolicitacaoSearchText(row)).includes(termo));
+  }, [rows, classificacaoFiltro, solicitanteFiltro, vencimentoFiltro, busca]);
+  const { page, setPage, pageItems, total } = usePagination(visibleRows, 10);
 
   const resumo = useMemo(() => {
     const total = visibleRows.reduce((sum, row) => sum + Number(row.valor || 0), 0);
@@ -312,6 +351,21 @@ export default function Pagamentos() {
     );
   }
 
+  const activeFilterCount = [
+    categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
+    classificacaoFiltro !== CLASSIFICACAO_TODAS,
+    solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
+    Boolean(vencimentoFiltro),
+  ].filter(Boolean).length;
+
+  function handleClearFiltros() {
+    setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
+    setClassificacaoFiltro(CLASSIFICACAO_TODAS);
+    setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
+    setVencimentoFiltro(null);
+    setVencimentoResetToken((current) => current + 1);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -326,9 +380,17 @@ export default function Pagamentos() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-56 space-y-1">
-          <span className="text-xs text-muted-foreground">Classificacao</span>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-64 space-y-1">
+          <span className="text-xs text-muted-foreground">Pesquisar</span>
+          <SearchInput
+            value={busca}
+            onChange={setBusca}
+            placeholder="Pesquisar em qualquer coluna..."
+          />
+        </div>
+
+        <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
           <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
             <SelectTrigger>
               <SelectValue />
@@ -342,20 +404,36 @@ export default function Pagamentos() {
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="w-56 space-y-1">
-          <span className="text-xs text-muted-foreground">Status de pagamento</span>
-          <Select value={classificacaoFiltro} onValueChange={setClassificacaoFiltro}>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Status de pagamento</span>
+            <Select value={classificacaoFiltro} onValueChange={setClassificacaoFiltro}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CLASSIFICACAO_TODAS}>Todas</SelectItem>
+                <SelectItem value={CLASSIFICACAO_PARCIAL}>Parcialmente pagas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Select value={solicitanteFiltro} onValueChange={setSolicitanteFiltro}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLASSIFICACAO_TODAS}>Todas</SelectItem>
-              <SelectItem value={CLASSIFICACAO_PARCIAL}>Parcialmente pagas</SelectItem>
+              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionarios</SelectItem>
+              {solicitantes.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-        </div>
+
+          <VencimentoRangeFilter onChange={setVencimentoFiltro} resetToken={vencimentoResetToken} />
+        </FiltersDrawer>
       </div>
 
       {loading ? (
@@ -366,20 +444,22 @@ export default function Pagamentos() {
       ) : visibleRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma solicitacao aguardando pagamento.</p>
       ) : (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Solicitante</TableHead>
-              <TableHead>Fornecedor</TableHead>
-              <TableHead>Descricao</TableHead>
-              <TableHead>Valor</TableHead>
               <TableHead>Vencimento</TableHead>
               <TableHead>Forma de pagamento</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead>Fornecedor</TableHead>
+              <TableHead>Aprovador</TableHead>
+              <TableHead>Valor</TableHead>
               <TableHead className="text-right">Acoes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleRows.map((row) => {
+            {pageItems.map((row) => {
               const vencimentoInfo = getVencimentoInfo(row.data_vencimento);
               const parcial = isParcialmentePago(row);
               return (
@@ -390,9 +470,6 @@ export default function Pagamentos() {
                   title="Ver parcelas e detalhes"
                 >
                   <TableCell>{row.solicitante_nome}</TableCell>
-                  <TableCell className="font-medium">{row.fornecedor}</TableCell>
-                  <TableCell className="max-w-xs truncate">{row.descricao}</TableCell>
-                  <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{formatData(row.data_vencimento)}</span>
@@ -401,6 +478,10 @@ export default function Pagamentos() {
                     </div>
                   </TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
+                  <TableCell>{row.categoria || '-'}</TableCell>
+                  <TableCell className="font-medium">{row.fornecedor}</TableCell>
+                  <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
+                  <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
@@ -425,6 +506,8 @@ export default function Pagamentos() {
             })}
           </TableBody>
         </Table>
+        <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitacao(oes)" />
+        </>
       )}
 
       <SolicitacaoDrawer
