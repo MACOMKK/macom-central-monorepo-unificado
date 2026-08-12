@@ -13,6 +13,15 @@ export function useCategorias({ enabled = true } = {}) {
   });
 }
 
+export function useEmpresas({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['servicos', 'empresas'],
+    queryFn: () => financeiroApi.empresas.list(),
+    staleTime: CATALOGO_STALE_TIME,
+    enabled,
+  });
+}
+
 // Combina os 5 catalogos usados pelo formulario de nova solicitacao numa unica
 // chamada de rede (action list_catalogos_solicitacao), em vez de 5 requests
 // paralelos independentes — cada um pagava o overhead de autenticacao da Edge

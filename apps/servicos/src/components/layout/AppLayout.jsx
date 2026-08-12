@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 
 import { Button } from '@macom/ui';
+import NotificationsBell from '@/components/NotificationsBell';
 import Sidebar from '@/components/layout/Sidebar';
 
 export default function AppLayout() {
@@ -41,6 +42,9 @@ export default function AppLayout() {
               <span className="text-xs font-black text-primary-foreground">M</span>
             </div>
             <span className="text-sm font-bold">MACOM Serviços</span>
+          </div>
+          <div className="ml-auto">
+            <NotificationsBell />
           </div>
         </header>
 

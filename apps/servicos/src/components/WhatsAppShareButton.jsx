@@ -9,25 +9,16 @@ function WhatsAppIcon(props) {
   );
 }
 
-// Emoji do bloco Dingbats/Miscellaneous Symbols (Unicode antigo, plano basico, 2-3 bytes UTF-8) --
-// ao contrario dos emoji "novos" (objetos/comida, plano astral, 4 bytes), esses nao corrompem em
-// caminhos de clipboard/SO no Windows.
-const STATUS_EMOJI = {
-  pendente: '⏳',
-  aprovado: '✅',
-  reprovado: '❌',
-  pago: '✅',
-  cancelado: '❌',
-};
-
 // Monta o link de deep-link pra solicitacao (rota universal /solicitacoes, que resolve pra
 // qualquer papel -- financeiro ve tudo, aprovador ve as suas + as endereçadas a ele, usuario so
 // as proprias) e abre o wa.me ja com a mensagem preenchida. Usa a formatacao de texto que o
 // proprio WhatsApp entende (*negrito*) pra ficar organizado em vez de um bloco de texto corrido.
+// Sem emoji/simbolos de proposito: quebraram (viraram "?") no cliente do usuario mesmo os do
+// plano basico do Unicode -- provavelmente falta de fonte de emoji no ambiente dele, nao da pra
+// garantir que rendericem em qualquer SO/cliente WhatsApp.
 function buildWhatsAppUrl(solicitacao) {
   const link = `${window.location.origin}/solicitacoes?sol=${solicitacao.id}`;
   const titulo = solicitacao.titulo?.trim();
-  const statusEmoji = STATUS_EMOJI[solicitacao.status] || '';
 
   const linhas = [
     `*Solicitação de Pagamento${titulo ? ` — ${titulo}` : ''}*`,
@@ -38,9 +29,9 @@ function buildWhatsAppUrl(solicitacao) {
     solicitacao.data_vencimento && `*Vencimento:* ${formatData(solicitacao.data_vencimento)}`,
     solicitacao.forma_pagamento &&
       `*Forma de pagamento:* ${FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}`,
-    solicitacao.status && `*Status:* ${statusEmoji} ${STATUS_LABEL[solicitacao.status] || solicitacao.status}`,
+    solicitacao.status && `*Status:* ${STATUS_LABEL[solicitacao.status] || solicitacao.status}`,
     '',
-    `→ Ver solicitação: ${link}`,
+    `Ver solicitação: ${link}`,
   ].filter((linha) => linha !== null && linha !== undefined && linha !== false);
 
   return `https://wa.me/?text=${encodeURIComponent(linhas.join('\n'))}`;

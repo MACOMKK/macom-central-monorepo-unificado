@@ -33,7 +33,7 @@ import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
 import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
-import { useCategorias } from '@/hooks/useCatalogos';
+import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
@@ -50,6 +50,7 @@ const CATEGORIA_FILTRO_TODAS = 'todas';
 const CLASSIFICACAO_TODAS = 'todas';
 const CLASSIFICACAO_PARCIAL = 'parcial';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
+const EMPRESA_FILTRO_TODAS = 'todas';
 
 function getVencimentoInfo(dataVencimento) {
   if (!dataVencimento) return { label: 'Sem vencimento', variant: 'outline' };
@@ -75,9 +76,11 @@ export default function Pagamentos() {
   const queryClient = useQueryClient();
 
   const { data: categorias = [] } = useCategorias();
+  const { data: empresas = [] } = useEmpresas();
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [classificacaoFiltro, setClassificacaoFiltro] = useState(CLASSIFICACAO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
+  const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
   const [busca, setBusca] = useState('');
@@ -135,6 +138,9 @@ export default function Pagamentos() {
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS) {
       classificadas = classificadas.filter((row) => String(row.solicitante_id) === solicitanteFiltro);
     }
+    if (empresaFiltro !== EMPRESA_FILTRO_TODAS) {
+      classificadas = classificadas.filter((row) => String(row.empresa_id) === empresaFiltro);
+    }
     if (vencimentoFiltro) {
       classificadas = classificadas.filter((row) => {
         const dia = toDateOnly(row.data_vencimento);
@@ -144,7 +150,7 @@ export default function Pagamentos() {
     const termo = normalize(busca);
     if (!termo) return classificadas;
     return classificadas.filter((row) => normalize(buildSolicitacaoSearchText(row)).includes(termo));
-  }, [rows, classificacaoFiltro, solicitanteFiltro, vencimentoFiltro, busca]);
+  }, [rows, classificacaoFiltro, solicitanteFiltro, empresaFiltro, vencimentoFiltro, busca]);
   const { page, setPage, pageItems, total } = usePagination(visibleRows, 10);
 
   const resumo = useMemo(() => {
@@ -355,6 +361,7 @@ export default function Pagamentos() {
     categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
     classificacaoFiltro !== CLASSIFICACAO_TODAS,
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
+    empresaFiltro !== EMPRESA_FILTRO_TODAS,
     Boolean(vencimentoFiltro),
   ].filter(Boolean).length;
 
@@ -362,6 +369,7 @@ export default function Pagamentos() {
     setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
     setClassificacaoFiltro(CLASSIFICACAO_TODAS);
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
+    setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
   }
@@ -391,6 +399,20 @@ export default function Pagamentos() {
         </div>
 
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
+          <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas as empresas</SelectItem>
+              {empresas.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
             <SelectTrigger>
               <SelectValue />

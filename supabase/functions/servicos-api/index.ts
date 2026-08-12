@@ -392,6 +392,64 @@ async function insertHistorico(solicitacaoId: string, evento: string, autorId: s
   );
 }
 
+async function insertNotificacao(
+  colaboradorId: string,
+  tipo: string,
+  titulo: string,
+  mensagem: string | null,
+  link: string | null,
+  referenciaTipo: string | null,
+  referenciaId: string | null,
+  criadoPor: string | null,
+) {
+  await sql!.unsafe(
+    `
+      insert into ${SERVICOS_SCHEMA}.notificacoes
+        (colaborador_id, tipo, titulo, mensagem, link, referencia_tipo, referencia_id, criado_por)
+      values ($1, $2, $3, $4, $5, $6, $7, $8);
+    `,
+    [colaboradorId, tipo, titulo, mensagem, link, referenciaTipo, referenciaId, criadoPor],
+  );
+}
+
+// Mesmo padrao de enqueueStatusEmail, mas pro sino in-app -- chamado nos mesmos pontos, pro
+// solicitante ver a atualizacao sem precisar checar o e-mail.
+async function notifySolicitanteStatusChange(row: Record<string, unknown>, status: string, autorId: string) {
+  const tituloPorStatus: Record<string, string> = {
+    aprovado: 'Solicitação aprovada',
+    reprovado: 'Solicitação reprovada',
+    pago: 'Pagamento efetuado',
+  };
+  const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  await insertNotificacao(
+    String(row.solicitante_id),
+    'status_solicitacao',
+    tituloPorStatus[status] || 'Atualização na solicitação',
+    `${row.fornecedor} — ${valorFormatado}`,
+    `/solicitacoes?sol=${row.id}`,
+    'solicitacao_pagamento',
+    String(row.id),
+    autorId,
+  );
+}
+
+// Notifica o aprovador designado que uma solicitacao esta esperando decisao dele (criacao nova
+// ou reenvio apos correcao) -- hoje isso so gerava historico, sem avisar o aprovador de nada.
+async function notifyAprovadorNovaSolicitacao(row: Record<string, unknown>, titulo: string, autorId: string) {
+  if (!row.aprovador_destino_id) return;
+  const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  await insertNotificacao(
+    String(row.aprovador_destino_id),
+    'solicitacao_pendente',
+    titulo,
+    `${row.fornecedor} — ${valorFormatado}`,
+    `/solicitacoes?sol=${row.id}`,
+    'solicitacao_pagamento',
+    String(row.id),
+    autorId,
+  );
+}
+
 async function createSignedUrlForPath(path: string | null) {
   if (!path) return null;
   const storageClient = createStorageAdminClient();
@@ -925,7 +983,10 @@ Deno.serve(async (request) => {
       );
 
       const row = rows[0] || null;
-      if (row) await insertHistorico(String(row.id), 'criada', collaborator!.id as string);
+      if (row) {
+        await insertHistorico(String(row.id), 'criada', collaborator!.id as string);
+        await notifyAprovadorNovaSolicitacao(row, 'Nova solicitação para aprovar', collaborator!.id as string);
+      }
       return json({ row });
     }
 
@@ -1065,6 +1126,7 @@ Deno.serve(async (request) => {
 
       const row = rows[0] || null;
       await insertHistorico(id, 'reenviada', collaborator!.id as string);
+      if (row) await notifyAprovadorNovaSolicitacao(row, 'Solicitação corrigida e reenviada', collaborator!.id as string);
       return json({ row });
     }
 
@@ -1120,6 +1182,7 @@ Deno.serve(async (request) => {
         const evento = status === 'aprovado' ? 'aprovada' : reprovandoAprovada ? 'reprovada_pos_aprovacao' : 'reprovada';
         await insertHistorico(id, evento, collaborator!.id as string, observacao);
         await enqueueStatusEmail(row, status);
+        await notifySolicitanteStatusChange(row, status, collaborator!.id as string);
         return json({ row });
       }
 
@@ -1143,6 +1206,7 @@ Deno.serve(async (request) => {
         const row = rows[0];
         await insertHistorico(id, 'pago', collaborator!.id as string);
         await enqueueStatusEmail(row, status);
+        await notifySolicitanteStatusChange(row, status, collaborator!.id as string);
         return json({ row });
       }
     }
@@ -1372,6 +1436,48 @@ Deno.serve(async (request) => {
       );
 
       return json({ rows });
+    }
+
+    if (action === 'list_notificacoes') {
+      const rows = await sql.unsafe(
+        `
+          select id, tipo, titulo, mensagem, link, referencia_tipo, referencia_id, lida_em, criado_em
+          from ${SERVICOS_SCHEMA}.notificacoes
+          where colaborador_id = $1
+          order by criado_em desc
+          limit 50;
+        `,
+        [collaborator!.id],
+      );
+      return json({ rows });
+    }
+
+    if (action === 'marcar_notificacao_lida') {
+      const id = String(body.id || '');
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const rows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.notificacoes
+          set lida_em = now()
+          where id = $1 and colaborador_id = $2 and lida_em is null
+          returning id;
+        `,
+        [id, collaborator!.id],
+      );
+      return json({ ok: true, atualizada: Boolean(rows[0]) });
+    }
+
+    if (action === 'marcar_todas_notificacoes_lidas') {
+      await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.notificacoes
+          set lida_em = now()
+          where colaborador_id = $1 and lida_em is null;
+        `,
+        [collaborator!.id],
+      );
+      return json({ ok: true });
     }
 
     return json({ error: 'Acao invalida.' }, 400);

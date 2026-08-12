@@ -38,13 +38,14 @@ import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
 import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
-import { useCategorias } from '@/hooks/useCatalogos';
+import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
 import { normalize } from '@/lib/normalize';
 
 const STATUS_FILTRO_TODOS = 'todos';
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
+const EMPRESA_FILTRO_TODAS = 'todas';
 
 export default function MinhasSolicitacoes() {
   const { user } = useAuth();
@@ -52,6 +53,7 @@ export default function MinhasSolicitacoes() {
   const queryClient = useQueryClient();
 
   const { data: categorias = [] } = useCategorias();
+  const { data: empresas = [] } = useEmpresas();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(null);
   const [novaOpen, setNovaOpen] = useState(false);
@@ -61,6 +63,7 @@ export default function MinhasSolicitacoes() {
   const [statusFiltro, setStatusFiltro] = useState(STATUS_FILTRO_TODOS);
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
+  const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
 
@@ -112,6 +115,7 @@ export default function MinhasSolicitacoes() {
     if (statusFiltro !== STATUS_FILTRO_TODOS && row.status !== statusFiltro) return false;
     if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS && row.categoria_id !== categoriaFiltro) return false;
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
+    if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
     if (vencimentoFiltro) {
       const dia = toDateOnly(row.data_vencimento);
       if (!dia || dia < vencimentoFiltro.from || dia > vencimentoFiltro.to) return false;
@@ -158,6 +162,7 @@ export default function MinhasSolicitacoes() {
     statusFiltro !== STATUS_FILTRO_TODOS,
     categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
+    empresaFiltro !== EMPRESA_FILTRO_TODAS,
     Boolean(vencimentoFiltro),
   ].filter(Boolean).length;
 
@@ -165,6 +170,7 @@ export default function MinhasSolicitacoes() {
     setStatusFiltro(STATUS_FILTRO_TODOS);
     setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
+    setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
   }
@@ -213,6 +219,20 @@ export default function MinhasSolicitacoes() {
         </div>
 
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
+          <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas as empresas</SelectItem>
+              {empresas.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={categoriaFiltro} onValueChange={setCategoriaFiltro}>
             <SelectTrigger>
               <SelectValue />

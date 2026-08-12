@@ -24,6 +24,7 @@ export function createAppConfig(importMetaUrl, options = {}) {
     logLevel = 'error',
     server,
     includeTestConfig = true,
+    define,
   } = options;
 
   const appRoot = fileURLToPath(new URL('.', importMetaUrl));
@@ -45,6 +46,10 @@ export function createAppConfig(importMetaUrl, options = {}) {
 
   if (server) {
     config.server = server;
+  }
+
+  if (define) {
+    config.define = define;
   }
 
   if (includeTestConfig) {

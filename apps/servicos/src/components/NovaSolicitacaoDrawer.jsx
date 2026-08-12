@@ -292,10 +292,16 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     event.preventDefault();
     if (submitMutation.isPending) return;
 
-    if (!form.fornecedorId || !form.aprovadorDestinoId || !form.categoriaId || !form.formaPagamento) {
+    if (
+      !form.fornecedorId ||
+      !form.aprovadorDestinoId ||
+      !form.categoriaId ||
+      !form.formaPagamento ||
+      (empresas.length > 0 && !form.empresaId)
+    ) {
       toast({
         title: 'Campos obrigatorios faltando',
-        description: 'Selecione fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
+        description: 'Selecione empresa, fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
       });
       return;
     }
@@ -374,7 +380,6 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">Nao encontrou o fornecedor? Cadastre um novo.</p>
           </div>
 
           <div className="space-y-2">
@@ -473,10 +478,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
           {empresas.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="empresa">Empresa</Label>
+              <Label htmlFor="empresa">
+                Empresa <span className="text-destructive">*</span>
+              </Label>
               <Select value={form.empresaId} onValueChange={setField('empresaId')}>
                 <SelectTrigger id="empresa">
-                  <SelectValue placeholder="Selecione (opcional)" />
+                  <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
                   {empresas.map((item) => (

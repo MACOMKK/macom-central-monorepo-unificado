@@ -3,7 +3,9 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Lock, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from 'lucide-react';
 
 import { Button } from '@macom/ui';
+import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
+import { appVersion } from '@/lib/buildInfo';
 import { servicosModules } from '@/lib/navigation';
 
 const ROLE_LABEL = {
@@ -135,7 +137,9 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />
               <div className="flex flex-col leading-none">
                 <h1 className="text-base font-extrabold leading-none tracking-tight text-foreground">MACOM</h1>
-                <p className="mt-1 text-[10px] font-medium tracking-wider text-muted-foreground">SERVIÇOS</p>
+                <p className="mt-1 text-[10px] font-medium tracking-wider text-muted-foreground">
+                  SERVIÇOS <span className="text-muted-foreground/60">· v{appVersion}</span>
+                </p>
               </div>
             </div>
           ) : (
@@ -143,9 +147,12 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
           )}
 
           {!collapsed ? (
-            <Button variant="ghost" size="icon" className="hidden h-7 w-7 lg:flex" onClick={onToggle} title="Recolher sidebar">
-              <PanelLeftClose className="h-4 w-4" />
-            </Button>
+            <div className="hidden items-center gap-1 lg:flex">
+              <NotificationsBell buttonClassName="h-7 w-7" />
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} title="Recolher sidebar">
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            </div>
           ) : null}
           <Button variant="ghost" size="icon" className="h-7 w-7 lg:hidden" onClick={closeMobile}>
             <X className="h-4 w-4" />
