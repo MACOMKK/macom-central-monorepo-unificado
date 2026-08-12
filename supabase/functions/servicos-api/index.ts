@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { sendPushToColaborador } from '../_shared/push.ts';
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
 const SERVICOS_SYSTEM_SLUG = 'servicos';
@@ -410,6 +411,14 @@ async function insertNotificacao(
     `,
     [colaboradorId, tipo, titulo, mensagem, link, referenciaTipo, referenciaId, criadoPor],
   );
+
+  // Empurra Web Push (app fechado/em background) pros dispositivos inscritos desse
+  // colaborador -- nao bloqueia o fluxo principal se falhar (fica so no log).
+  await sendPushToColaborador(sql, SERVICOS_SYSTEM_SLUG, colaboradorId, {
+    title: titulo,
+    body: mensagem,
+    url: link,
+  }).catch((error) => console.error('sendPushToColaborador failed:', error));
 }
 
 // Mesmo padrao de enqueueStatusEmail, mas pro sino in-app -- chamado nos mesmos pontos, pro

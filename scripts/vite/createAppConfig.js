@@ -10,6 +10,8 @@ function createAliases(repoRoot, appRoot) {
     { find: /^@macom\/api-client\/(.*)$/, replacement: `${path.resolve(repoRoot, './packages/api-client/src')}/$1` },
     { find: /^@macom\/auth$/, replacement: path.resolve(repoRoot, './packages/auth/src/index.js') },
     { find: /^@macom\/auth\/(.*)$/, replacement: `${path.resolve(repoRoot, './packages/auth/src')}/$1` },
+    { find: /^@macom\/push$/, replacement: path.resolve(repoRoot, './packages/push/src/index.js') },
+    { find: /^@macom\/push\/(.*)$/, replacement: `${path.resolve(repoRoot, './packages/push/src')}/$1` },
     { find: /^@macom\/test-utils$/, replacement: path.resolve(repoRoot, './packages/test-utils/src/index.js') },
     { find: /^@macom\/test-utils\/(.*)$/, replacement: `${path.resolve(repoRoot, './packages/test-utils/src')}/$1` },
     { find: /^@macom\/ui$/, replacement: path.resolve(repoRoot, './packages/ui/src/index.js') },

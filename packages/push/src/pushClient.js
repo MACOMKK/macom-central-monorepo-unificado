@@ -1,0 +1,87 @@
+import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+import { PUSH_SW_URL, VAPID_PUBLIC_KEY } from './constants';
+
+// Pacote generico de Web Push, pensado pra ser reaproveitado por qualquer app do monorepo (hoje
+// so `servicos` usa) -- so exige registrar `public/push-sw.js` (copia de packages/push/push-sw.js)
+// no app e chamar `subscribeToPush({ sistema })`/`unsubscribeFromPush({ sistema })` com o slug do
+// app (mesmo `sistema` de public.sistemas). Backend generico correspondente: Edge Function
+// `push-api` + supabase/functions/_shared/push.ts.
+
+export function isPushSupported() {
+  return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+}
+
+export function getPushPermission() {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  return Notification.permission;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function toError(message) {
+  return new Error(typeof message === 'string' ? message : message?.message || 'Falha na inscricao de push.');
+}
+
+async function invokePushApi(body) {
+  assertSupabaseConfigured();
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  if (!token) throw toError('Sessao expirada. Faca login novamente.');
+
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-api`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw toError(result?.error);
+  return result;
+}
+
+export async function subscribeToPush({ sistema }) {
+  if (!isPushSupported()) throw new Error('Este navegador nao suporta notificacoes.');
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') throw new Error('Permissao de notificacao negada.');
+
+  const registration = await navigator.serviceWorker.register(PUSH_SW_URL);
+  await navigator.serviceWorker.ready;
+
+  const existing = await registration.pushManager.getSubscription();
+  const subscription =
+    existing ||
+    (await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    }));
+
+  await invokePushApi({ action: 'subscribe', sistema, subscription: subscription.toJSON() });
+  return subscription;
+}
+
+export async function unsubscribeFromPush({ sistema }) {
+  if (!isPushSupported()) return;
+
+  const registration = await navigator.serviceWorker.getRegistration(PUSH_SW_URL);
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+
+  await invokePushApi({ action: 'unsubscribe', sistema, endpoint: subscription.endpoint });
+  await subscription.unsubscribe();
+}
+
+export async function getActivePushSubscription() {
+  if (!isPushSupported()) return null;
+  const registration = await navigator.serviceWorker.getRegistration(PUSH_SW_URL);
+  return (await registration?.pushManager.getSubscription()) || null;
+}

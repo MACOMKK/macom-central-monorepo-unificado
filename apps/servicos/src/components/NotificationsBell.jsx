@@ -1,12 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, BellOff, BellRing, CheckCheck } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { supabase } from '@macom/api-client/supabaseClient';
+import { usePushNotifications } from '@macom/push';
 import { Button, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
+
+const PUSH_SISTEMA = 'servicos';
 
 function formatNotificacaoData(value) {
   const date = new Date(value);
@@ -28,6 +31,7 @@ export default function NotificationsBell({ buttonClassName = '' }) {
   // um fica visivel por CSS, mas os dois ficam no DOM) -- sem esse id por instancia, os dois
   // abririam um canal Realtime com o mesmo nome e o supabase-js quebra a aba inteira.
   const instanceId = useId();
+  const push = usePushNotifications({ sistema: PUSH_SISTEMA });
 
   const notificacoesQuery = useQuery({
     queryKey: notificacoesKey,
@@ -117,16 +121,33 @@ export default function NotificationsBell({ buttonClassName = '' }) {
         <div className="absolute right-0 top-11 z-50 flex h-[420px] w-[340px] flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <h2 className="text-sm font-bold">Notificações</h2>
-            {naoLidas.length > 0 && (
-              <button
-                type="button"
-                onClick={() => marcarTodasLidasMutation.mutate()}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                <CheckCheck className="h-3.5 w-3.5" />
-                Marcar todas
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {push.supported && push.permission !== 'denied' && (
+                <button
+                  type="button"
+                  disabled={push.loading}
+                  onClick={() => (push.subscribed ? push.unsubscribe() : push.subscribe())}
+                  title={
+                    push.subscribed
+                      ? 'Desativar notificacoes com o app fechado'
+                      : 'Ativar notificacoes com o app fechado'
+                  }
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {push.subscribed ? <BellRing className="h-3.5 w-3.5 text-primary" /> : <BellOff className="h-3.5 w-3.5" />}
+                </button>
+              )}
+              {naoLidas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => marcarTodasLidasMutation.mutate()}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  Marcar todas
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
