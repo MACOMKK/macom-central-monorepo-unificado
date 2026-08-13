@@ -14,6 +14,7 @@ import {
 } from '@/lib/financeiroFormat';
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -74,8 +75,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     if (anexosParaEnviar.length === 0) return;
 
     Promise.allSettled(
-      anexosParaEnviar.map(({ file, categoria, tipoDocumento }) =>
-        uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento }),
+      anexosParaEnviar.map(({ file, categoria, tipoDocumento, sigiloso }) =>
+        uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso }),
       ),
     ).then((results) => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
@@ -262,7 +263,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     }
     setAnexos((current) => [
       ...current,
-      ...files.map((file) => ({ file, categoria: 'comprovante_solicitacao', tipoDocumento: 'outros' })),
+      ...files.map((file) => ({ file, categoria: 'comprovante_solicitacao', tipoDocumento: 'outros', sigiloso: false })),
     ]);
     event.target.value = '';
   };
@@ -286,6 +287,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
   const setAnexoTipoDocumento = (index) => (value) => {
     setAnexos((current) => current.map((item, i) => (i === index ? { ...item, tipoDocumento: value } : item)));
+  };
+
+  const setAnexoSigiloso = (index) => (checked) => {
+    setAnexos((current) => current.map((item, i) => (i === index ? { ...item, sigiloso: checked === true } : item)));
   };
 
   const handleSubmit = (event) => {
@@ -536,7 +541,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             <input id="anexos" type="file" multiple className="hidden" onChange={handleFileChange} />
             {anexos.length > 0 && (
               <ul className="space-y-2">
-                {anexos.map(({ file, categoria, tipoDocumento }, index) => (
+                {anexos.map(({ file, categoria, tipoDocumento, sigiloso }, index) => (
                   <li key={`${file.name}-${index}`} className="space-y-2 rounded-md bg-muted px-3 py-2 text-sm">
                     <div className="flex items-center gap-2">
                       <span className="flex-1 truncate">{file.name}</span>
@@ -570,6 +575,14 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                         </SelectContent>
                       </Select>
                     </div>
+                    <label htmlFor={`anexo-sigiloso-${index}`} className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        id={`anexo-sigiloso-${index}`}
+                        checked={sigiloso}
+                        onCheckedChange={setAnexoSigiloso(index)}
+                      />
+                      Documento sigiloso
+                    </label>
                   </li>
                 ))}
               </ul>

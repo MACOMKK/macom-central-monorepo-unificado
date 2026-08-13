@@ -1223,14 +1223,22 @@ Deno.serve(async (request) => {
     if (action === 'list_anexos') {
       const solicitacaoId = String(body.solicitacao_id || '');
       if (!solicitacaoId) return json({ error: 'solicitacao_id obrigatorio.' }, 400);
-      await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
+      const solicitacaoRow = await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
 
       const rows = await sql.unsafe(
         `select * from ${SERVICOS_SCHEMA}.anexos_solicitacao where solicitacao_id = $1 order by criado_em asc;`,
         [solicitacaoId],
       );
+      // Anexo sigiloso so e visivel pra quem tem acesso pleno a solicitacao (mesma regra de
+      // canAccessSolicitacao: solicitante, aprovador designado ou financeiro) -- reforca o flag
+      // como controle de acesso de verdade, nao so decorativo, e blinda o comportamento caso o
+      // acesso a solicitacao seja alargado no futuro (ex. um papel de leitura/auditoria).
+      const visiveis = rows.filter(
+        (anexo: Record<string, unknown>) =>
+          !anexo.sigiloso || canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, solicitacaoRow),
+      );
       const withUrls = await Promise.all(
-        rows.map(async (anexo: Record<string, unknown>) => ({
+        visiveis.map(async (anexo: Record<string, unknown>) => ({
           ...anexo,
           url: await createSignedUrlForPath(String(anexo.storage_path)),
         })),
@@ -1247,6 +1255,7 @@ Deno.serve(async (request) => {
       const tipoMime = String(body.tipo_mime || '');
       const storagePath = String(body.storage_path || '');
       const parcelaId = body.parcela_id ? String(body.parcela_id) : null;
+      const sigiloso = body.sigiloso === true;
 
       if (!solicitacaoId) return json({ error: 'solicitacao_id obrigatorio.' }, 400);
       if (!ANEXO_CATEGORIAS.includes(categoria as (typeof ANEXO_CATEGORIAS)[number])) {
@@ -1269,11 +1278,11 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           insert into ${SERVICOS_SCHEMA}.anexos_solicitacao
-            (solicitacao_id, parcela_id, categoria, tipo_documento, nome_arquivo, tipo_mime, tamanho_bytes, storage_path, criado_por)
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (solicitacao_id, parcela_id, categoria, tipo_documento, nome_arquivo, tipo_mime, tamanho_bytes, storage_path, criado_por, sigiloso)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           returning *;
         `,
-        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(body.tamanho_bytes) || 0, storagePath, collaborator!.id],
+        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(body.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso],
       );
 
       await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);

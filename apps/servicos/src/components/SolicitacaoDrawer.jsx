@@ -9,6 +9,7 @@ import {
   Download,
   Eye,
   FileStack,
+  Lock,
   Paperclip,
   Tag,
   Trash2,
@@ -21,6 +22,7 @@ import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -110,6 +112,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
   const [novaCategoria, setNovaCategoria] = useState(ANEXO_CATEGORIA_OPCOES[0]?.value || '');
   const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
+  const [novoSigiloso, setNovoSigiloso] = useState(false);
   const [removerTarget, setRemoverTarget] = useState(null);
   const [anexosPendentes, setAnexosPendentes] = useState([]);
   const [baixandoTodos, setBaixandoTodos] = useState(false);
@@ -185,7 +188,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   }
 
   const uploadAnexoMutation = useMutation({
-    mutationFn: ({ file, categoria, tipoDocumento }) => uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento }),
+    mutationFn: ({ file, categoria, tipoDocumento, sigiloso }) =>
+      uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso }),
     onSuccess: (row, variables) => {
       setAnexosPendentes((current) => current.filter((item) => item.tempId !== variables.tempId));
       queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), row]);
@@ -218,7 +222,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       ...current,
       { tempId, nomeArquivo: file.name, categoria: novaCategoria, erro: false },
     ]);
-    uploadAnexoMutation.mutate({ file, categoria: novaCategoria, tipoDocumento: novoTipoDocumento, tempId });
+    uploadAnexoMutation.mutate({ file, categoria: novaCategoria, tipoDocumento: novoTipoDocumento, sigiloso: novoSigiloso, tempId });
   }
 
   function removerAnexoPendente(tempId) {
@@ -460,6 +464,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                         Selecionar arquivo
                       </label>
                       <input id="anexo-drawer-upload" type="file" className="hidden" onChange={handleUploadAnexo} />
+                      <label htmlFor="anexo-drawer-sigiloso" className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          id="anexo-drawer-sigiloso"
+                          checked={novoSigiloso}
+                          onCheckedChange={(checked) => setNovoSigiloso(checked === true)}
+                        />
+                        Sigiloso
+                      </label>
                     </div>
                     {anexosPendentes.length > 0 && (
                       <ul className="space-y-1">
@@ -511,6 +523,12 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                               <span className="flex min-w-0 items-center gap-2">
                                 <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <span className="truncate">{anexo.nome_arquivo}</span>
+                                {anexo.sigiloso && (
+                                  <Badge variant="outline" className="shrink-0 gap-1">
+                                    <Lock className="h-3 w-3" />
+                                    Sigiloso
+                                  </Badge>
+                                )}
                               </span>
                               <span className="flex shrink-0 items-center gap-1">
                                 {anexo.url && (
