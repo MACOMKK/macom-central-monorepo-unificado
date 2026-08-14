@@ -6,9 +6,9 @@ import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
 
 const ROLE_LABEL = {
-  solicitante: 'Solicitante',
+  usuario: 'Usuário',
   aprovador: 'Aprovador',
-  financeiro: 'Financeiro',
+  financeiro: 'Gerente',
 };
 
 function getInitials(name) {

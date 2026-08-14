@@ -11,7 +11,7 @@ const SERVICOS_SYSTEM_SLUG = 'servicos';
 // normalizada, nao exige migration) — so precisa de migration se o modulo usar um
 // papel que ainda nao esta no CHECK de gestao_servicos.permissoes_modulo.papel.
 const SERVICOS_MODULOS_CONFIG = {
-  financeiro: { papeis: ['nenhum', 'usuario', 'aprovador', 'financeiro'] },
+  financeiro: { papeis: ['nenhum', 'usuario', 'aprovador', 'financeiro', 'contas_a_pagar'] },
 } as const;
 const SERVICOS_MODULOS = Object.keys(SERVICOS_MODULOS_CONFIG) as (keyof typeof SERVICOS_MODULOS_CONFIG)[];
 const COMPROVANTES_STORAGE_BUCKET = 'comprovantes-pagamento';
@@ -123,10 +123,30 @@ function isFinanceiro(moduleRole: string | null) {
   return moduleRole === 'financeiro';
 }
 
-// Acesso a uma solicitacao especifica: financeiro ve/mexe em tudo; o proprio
-// solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
+// financeiro ou contas_a_pagar: acesso amplo de leitura/pagamento a qualquer solicitacao, mas
+// sem poder aprovar/reprovar nem gerenciar fornecedores/categorias (isso continua isFinanceiro
+// estrito) e sem ver anexo sigiloso (ver canViewAnexoSigiloso).
+function isPagador(moduleRole: string | null) {
+  return moduleRole === 'financeiro' || moduleRole === 'contas_a_pagar';
+}
+
+// Acesso a uma solicitacao especifica: financeiro/contas_a_pagar ve/mexe em qualquer uma; o
+// proprio solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
 // a ele (aprovador_destino_id), nao qualquer solicitacao pendente.
 function canAccessSolicitacao(
+  moduleRole: string | null,
+  collaboradorId: string | null | undefined,
+  row: { solicitante_id: unknown; aprovador_destino_id?: unknown },
+) {
+  if (isPagador(moduleRole)) return true;
+  if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
+  return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
+}
+
+// Anexo sigiloso e mais restrito que acesso normal a solicitacao: contas_a_pagar tem acesso a
+// linha (pode ver/pagar a solicitacao) mas nunca ve anexo marcado sigiloso -- so financeiro,
+// o proprio solicitante ou o aprovador designado.
+function canViewAnexoSigiloso(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
   row: { solicitante_id: unknown; aprovador_destino_id?: unknown },
@@ -882,8 +902,8 @@ Deno.serve(async (request) => {
       const clauses: string[] = [];
       const values: unknown[] = [];
 
-      // financeiro ve tudo; aprovador ve as proprias + as endereçadas a ele; usuario so as proprias.
-      if (!isFinanceiro(moduleRole)) {
+      // financeiro/contas_a_pagar veem tudo; aprovador ve as proprias + as endereçadas a ele; usuario so as proprias.
+      if (!isPagador(moduleRole)) {
         values.push(collaborator!.id);
         if (moduleRole === 'aprovador') {
           clauses.push(`(sp.solicitante_id = $${values.length} or sp.aprovador_destino_id = $${values.length})`);
@@ -1229,13 +1249,12 @@ Deno.serve(async (request) => {
         `select * from ${SERVICOS_SCHEMA}.anexos_solicitacao where solicitacao_id = $1 order by criado_em asc;`,
         [solicitacaoId],
       );
-      // Anexo sigiloso so e visivel pra quem tem acesso pleno a solicitacao (mesma regra de
-      // canAccessSolicitacao: solicitante, aprovador designado ou financeiro) -- reforca o flag
-      // como controle de acesso de verdade, nao so decorativo, e blinda o comportamento caso o
-      // acesso a solicitacao seja alargado no futuro (ex. um papel de leitura/auditoria).
+      // Anexo sigiloso e mais restrito que o acesso normal a solicitacao (canAccessSolicitacao):
+      // contas_a_pagar tem acesso a linha (ve/paga a solicitacao) mas nunca ve anexo sigiloso --
+      // por isso usa canViewAnexoSigiloso aqui, nao canAccessSolicitacao.
       const visiveis = rows.filter(
         (anexo: Record<string, unknown>) =>
-          !anexo.sigiloso || canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, solicitacaoRow),
+          !anexo.sigiloso || canViewAnexoSigiloso(moduleRole, collaborator?.id as string | undefined, solicitacaoRow),
       );
       const withUrls = await Promise.all(
         visiveis.map(async (anexo: Record<string, unknown>) => ({
@@ -1334,8 +1353,8 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'criar_parcelas') {
-      if (!isFinanceiro(moduleRole)) {
-        throw Object.assign(new Error('Apenas o financeiro pode definir o plano de pagamento.'), { status: 403 });
+      if (!isPagador(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro ou contas a pagar pode definir o plano de pagamento.'), { status: 403 });
       }
 
       const solicitacaoId = String(body.solicitacao_id || '');
@@ -1382,8 +1401,8 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'registrar_pagamento_parcela') {
-      if (!isFinanceiro(moduleRole)) {
-        throw Object.assign(new Error('Apenas o financeiro pode registrar pagamento de parcela.'), { status: 403 });
+      if (!isPagador(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro ou contas a pagar pode registrar pagamento de parcela.'), { status: 403 });
       }
 
       const id = String(body.id || '');

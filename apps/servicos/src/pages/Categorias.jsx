@@ -76,7 +76,7 @@ export default function Categorias() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
-      toast({ title: 'Nao foi possivel cadastrar a categoria', description: error.message });
+      toast({ title: 'Não foi possível cadastrar a categoria', description: error.message });
     },
   });
 
@@ -99,7 +99,7 @@ export default function Categorias() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
-      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
+      toast({ title: 'Não foi possível atualizar a categoria', description: error.message });
     },
   });
 
@@ -121,7 +121,7 @@ export default function Categorias() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
-      toast({ title: 'Nao foi possivel atualizar a categoria', description: error.message });
+      toast({ title: 'Não foi possível atualizar a categoria', description: error.message });
     },
   });
 
@@ -135,11 +135,11 @@ export default function Categorias() {
     },
     onSuccess: () => {
       invalidateCategoriasCatalogo(queryClient);
-      toast({ title: 'Categoria excluida' });
+      toast({ title: 'Categoria excluída' });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(categoriasKey, context.previous);
-      toast({ title: 'Nao foi possivel excluir a categoria', description: error.message });
+      toast({ title: 'Não foi possível excluir a categoria', description: error.message });
     },
   });
 
@@ -183,9 +183,9 @@ export default function Categorias() {
       <div>
         <h2 className="text-xl font-bold">Categorias</h2>
         <p className="text-sm text-muted-foreground">
-          Cadastro de categorias de despesa usado nas solicitacoes de pagamento. Categorias
-          inativas deixam de aparecer no select de nova solicitacao, mas continuam vinculadas as
-          solicitacoes ja criadas.
+          Cadastro de categorias de despesa usado nas solicitações de pagamento. Categorias
+          inativas deixam de aparecer no select de nova solicitação, mas continuam vinculadas às
+          solicitações já criadas.
         </p>
       </div>
 
@@ -214,7 +214,7 @@ export default function Categorias() {
         </div>
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {rows.length === 0 ? 'Nenhuma categoria cadastrada.' : 'Nenhuma categoria corresponde a pesquisa.'}
+          {rows.length === 0 ? 'Nenhuma categoria cadastrada.' : 'Nenhuma categoria corresponde à pesquisa.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -224,7 +224,7 @@ export default function Categorias() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Cadastrado em</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -286,7 +286,7 @@ export default function Categorias() {
                             </TooltipTrigger>
                             <TooltipContent>
                               {row.total_solicitacoes > 0
-                                ? `Usada em ${row.total_solicitacoes} solicitacao(oes) — nao pode ser excluida, apenas inativada.`
+                                ? `Usada em ${row.total_solicitacoes} solicitação(ões) — não pode ser excluída, apenas inativada.`
                                 : 'Excluir categoria'}
                             </TooltipContent>
                           </Tooltip>
@@ -311,7 +311,7 @@ export default function Categorias() {
         onConfirm={handleDeletar}
         isLoading={deletarMutation.isPending}
         title="Excluir categoria"
-        description={`Tem certeza que deseja excluir "${deleteTarget?.nome}"? Essa acao nao pode ser desfeita. So e possivel excluir categorias que nunca foram usadas em nenhuma solicitacao.`}
+        description={`Tem certeza que deseja excluir "${deleteTarget?.nome}"? Essa ação não pode ser desfeita. Só é possível excluir categorias que nunca foram usadas em nenhuma solicitação.`}
       />
     </div>
   );

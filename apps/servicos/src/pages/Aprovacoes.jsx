@@ -98,14 +98,14 @@ export default function Aprovacoes() {
     },
     onSuccess: (_data, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
-      toast({ title: status === 'aprovado' ? 'Solicitacao aprovada' : 'Solicitacao reprovada' });
+      toast({ title: status === 'aprovado' ? 'Solicitação aprovada' : 'Solicitação reprovada' });
     },
     onError: (error, _variables, context) => {
       // Reverte a lista — como `selected` e derivado da lista, o drawer reabre sozinho na mesma
       // solicitacao, com a observacao digitada intacta (esta em outro state, nao foi tocada).
       if (context?.previous) queryClient.setQueryData(pendentesKey, context.previous);
       toast({
-        title: 'Nao foi possivel processar a solicitacao',
+        title: 'Não foi possível processar a solicitação',
         description: `${error.message} Revise e tente novamente.`,
       });
     },
@@ -132,7 +132,7 @@ export default function Aprovacoes() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">Solicitacoes pendentes de aprovacao</h2>
+      <h2 className="text-xl font-bold">Solicitações pendentes de aprovação</h2>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-64 space-y-1">
@@ -174,7 +174,7 @@ export default function Aprovacoes() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionarios</SelectItem>
+              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionários</SelectItem>
               {solicitantes.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
@@ -194,13 +194,14 @@ export default function Aprovacoes() {
         </div>
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {rows.length === 0 ? 'Nenhuma solicitacao pendente.' : 'Nenhuma solicitacao corresponde a pesquisa.'}
+          {rows.length === 0 ? 'Nenhuma solicitação pendente.' : 'Nenhuma solicitação corresponde à pesquisa.'}
         </p>
       ) : (
         <>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Título</TableHead>
                 <TableHead>Solicitante</TableHead>
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Forma de pagamento</TableHead>
@@ -214,6 +215,7 @@ export default function Aprovacoes() {
             <TableBody>
               {pageItems.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
+                  <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>{formatDataVencimento(row.data_vencimento)}</TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
@@ -230,7 +232,7 @@ export default function Aprovacoes() {
               ))}
             </TableBody>
           </Table>
-          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitacao(oes)" />
+          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}
 
@@ -241,11 +243,11 @@ export default function Aprovacoes() {
           selected && (
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="observacao-analise">Observacao (opcional)</Label>
+                <Label htmlFor="observacao-analise">Observação (opcional)</Label>
                 <Textarea
                   id="observacao-analise"
                   rows={2}
-                  placeholder="Observacao (opcional)"
+                  placeholder="Observação (opcional)"
                   value={observacoes[selected.id] || ''}
                   onChange={(event) =>
                     setObservacoes((current) => ({ ...current, [selected.id]: event.target.value }))

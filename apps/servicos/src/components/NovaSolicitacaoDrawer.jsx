@@ -83,8 +83,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       const falhas = results.filter((result) => result.status === 'rejected');
       if (falhas.length > 0) {
         toast({
-          title: falhas.length === 1 ? 'Um anexo nao foi enviado' : `${falhas.length} anexos nao foram enviados`,
-          description: `A solicitacao foi registrada normalmente, mas houve falha no envio: ${getFriendlyErrorMessage(falhas[0].reason)}. Voce pode adiciona-los depois pela tela de detalhes.`,
+          title: falhas.length === 1 ? 'Um anexo não foi enviado' : `${falhas.length} anexos não foram enviados`,
+          description: `A solicitação foi registrada normalmente, mas houve falha no envio: ${getFriendlyErrorMessage(falhas[0].reason)}. Você pode adicioná-los depois pela tela de detalhes.`,
         });
       }
     });
@@ -136,10 +136,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       );
       toast(
         isReenvio
-          ? { title: 'Solicitacao reenviada', description: 'Sua solicitacao voltou para a fila de aprovacao.' }
+          ? { title: 'Solicitação reenviada', description: 'Sua solicitação voltou para a fila de aprovação.' }
           : isEdicao
-            ? { title: 'Solicitacao atualizada' }
-            : { title: 'Solicitacao enviada', description: 'Sua solicitacao de pagamento foi registrada.' },
+            ? { title: 'Solicitação atualizada' }
+            : { title: 'Solicitação enviada', description: 'Sua solicitação de pagamento foi registrada.' },
       );
       uploadAnexosEmBackground(row.id, context.anexosSnapshot);
       onOpenChange(false);
@@ -147,7 +147,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
       toast({
-        title: isReenvio ? 'Nao foi possivel reenviar' : isEdicao ? 'Nao foi possivel salvar' : 'Nao foi possivel enviar',
+        title: isReenvio ? 'Não foi possível reenviar' : isEdicao ? 'Não foi possível salvar' : 'Não foi possível enviar',
         description: `${getFriendlyErrorMessage(error)} Revise os dados e tente novamente.`,
       });
       skipNextResetRef.current = true;
@@ -222,7 +222,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       toast({ title: 'Fornecedor cadastrado' });
     },
     onError: (error) => {
-      toast({ title: 'Nao foi possivel cadastrar o fornecedor', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível cadastrar o fornecedor', description: getFriendlyErrorMessage(error) });
     },
   });
 
@@ -240,7 +240,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
   const handleOpenChange = (nextOpen) => {
     if (!nextOpen && hasUnsavedChanges()) {
-      const confirmed = window.confirm('Existem dados preenchidos que serao perdidos. Deseja mesmo fechar?');
+      const confirmed = window.confirm('Existem dados preenchidos que serão perdidos. Deseja mesmo fechar?');
       if (!confirmed) return;
     }
     setVisible(nextOpen);
@@ -251,13 +251,13 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     const files = Array.from(event.target.files || []);
     const tooBig = files.find((file) => file.size > MAX_ANEXO_SIZE);
     if (tooBig) {
-      toast({ title: 'Arquivo muito grande', description: `"${tooBig.name}" deve ter no maximo 5 MB.` });
+      toast({ title: 'Arquivo muito grande', description: `"${tooBig.name}" deve ter no máximo 5 MB.` });
       event.target.value = '';
       return;
     }
     const tipoInvalido = files.find((file) => !isAllowedAnexoMimeType(file));
     if (tipoInvalido) {
-      toast({ title: 'Tipo de arquivo nao suportado', description: `"${tipoInvalido.name}" deve ser PDF, JPEG, PNG ou WebP.` });
+      toast({ title: 'Tipo de arquivo não suportado', description: `"${tipoInvalido.name}" deve ser PDF, JPEG, PNG ou WebP.` });
       event.target.value = '';
       return;
     }
@@ -305,7 +305,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       (empresas.length > 0 && !form.empresaId)
     ) {
       toast({
-        title: 'Campos obrigatorios faltando',
+        title: 'Campos obrigatórios faltando',
         description: 'Selecione empresa, fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
       });
       return;
@@ -340,20 +340,20 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       >
         <SheetHeader>
           <SheetTitle>
-            {isReenvio ? 'Corrigir e reenviar solicitacao' : isEdicao ? 'Editar solicitacao' : 'Nova solicitacao de pagamento'}
+            {isReenvio ? 'Corrigir e reenviar solicitação' : isEdicao ? 'Editar solicitação' : 'Nova solicitação de pagamento'}
           </SheetTitle>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="titulo">
-              Titulo <span className="text-destructive">*</span>
+              Título <span className="text-destructive">*</span>
             </Label>
             <Input
               id="titulo"
               value={form.titulo}
               onChange={(event) => setField('titulo')(event.target.value)}
-              placeholder="Titulo curto da solicitacao"
+              placeholder="Título curto da solicitação"
               required
             />
           </div>
@@ -389,7 +389,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
           <div className="space-y-2">
             <Label htmlFor="aprovadorDestino">
-              Aprovador responsavel <span className="text-destructive">*</span>
+              Aprovador responsável <span className="text-destructive">*</span>
             </Label>
             <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')} disabled={catalogosLoading}>
               <SelectTrigger id="aprovadorDestino">
@@ -407,13 +407,13 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
           <div className="space-y-2">
             <Label htmlFor="descricao">
-              Descricao <span className="text-destructive">*</span>
+              Descrição <span className="text-destructive">*</span>
             </Label>
             <Textarea
               id="descricao"
               value={form.descricao}
               onChange={(event) => setField('descricao')(event.target.value)}
-              placeholder="O que esta sendo pago"
+              placeholder="O que está sendo pago"
               required
             />
           </div>
@@ -520,7 +520,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="observacao">Observacao (opcional)</Label>
+            <Label htmlFor="observacao">Observação (opcional)</Label>
             <Textarea
               id="observacao"
               value={form.observacao}
@@ -530,7 +530,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="anexos">Anexos (opcional, max 5 MB cada)</Label>
+            <Label htmlFor="anexos">Anexos (opcional, máx 5 MB cada)</Label>
             <label
               htmlFor="anexos"
               className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-md border border-dashed border-input px-3 text-sm text-muted-foreground hover:bg-accent"
@@ -596,11 +596,11 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                 {isReenvio ? 'Reenviando...' : isEdicao ? 'Salvando...' : 'Enviando...'}
               </>
             ) : isReenvio ? (
-              'Reenviar solicitacao'
+              'Reenviar solicitação'
             ) : isEdicao ? (
-              'Salvar alteracoes'
+              'Salvar alterações'
             ) : (
-              'Enviar solicitacao'
+              'Enviar solicitação'
             )}
           </Button>
         </form>

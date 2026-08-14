@@ -65,9 +65,9 @@ export default function Permissoes() {
     mutationFn: ({ colaboradorId, modulo, papel }) => financeiroApi.permissoes.set(colaboradorId, modulo, papel),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'permissoes'] });
-      toast({ title: 'Permissao atualizada' });
+      toast({ title: 'Permissão atualizada' });
     },
-    onError: (error) => toast({ title: 'Nao foi possivel atualizar a permissao', description: error.message }),
+    onError: (error) => toast({ title: 'Não foi possível atualizar a permissão', description: error.message }),
   });
 
   const limparDadosMutation = useMutation({
@@ -79,11 +79,11 @@ export default function Permissoes() {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
       toast({
         title: 'Dados de teste removidos',
-        description: `${result.solicitacoes_removidas || 0} solicitacao(oes) e ${result.anexos_removidos_storage || 0} anexo(s) do storage foram apagados.`,
+        description: `${result.solicitacoes_removidas || 0} solicitação(ões) e ${result.anexos_removidos_storage || 0} anexo(s) do storage foram apagados.`,
       });
       setLimpezaDialogOpen(false);
     },
-    onError: (error) => toast({ title: 'Nao foi possivel limpar os dados de teste', description: error.message }),
+    onError: (error) => toast({ title: 'Não foi possível limpar os dados de teste', description: error.message }),
   });
 
   function papelDe(colaboradorId, modulo) {
@@ -104,12 +104,12 @@ export default function Permissoes() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Permissoes por modulo</h2>
+        <h2 className="text-xl font-bold">Permissões por módulo</h2>
         <p className="text-sm text-muted-foreground">
-          Define o papel de cada colaborador em cada modulo do Servicos. Quem tem acesso
-          &quot;Admin&quot; ao sistema (console) sempre tem papel maximo em todos os modulos.
+          Define o papel de cada colaborador em cada módulo do Serviços. Quem tem acesso
+          &quot;Admin&quot; ao sistema (console) sempre tem papel máximo em todos os módulos.
           {modulosEmBreve.length > 0 && (
-            <> Colunas em cinza sao modulos ainda sem tela real — aparecem aqui so pra dar visao do que vem a seguir.</>
+            <> Colunas em cinza são módulos ainda sem tela real — aparecem aqui só pra dar visão do que vem a seguir.</>
           )}
         </p>
       </div>
@@ -124,8 +124,8 @@ export default function Permissoes() {
       ) : filteredColaboradores.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {colaboradores.length === 0
-            ? 'Nenhum colaborador com acesso ao Servicos.'
-            : 'Nenhum colaborador corresponde a pesquisa.'}
+            ? 'Nenhum colaborador com acesso ao Serviços.'
+            : 'Nenhum colaborador corresponde à pesquisa.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -198,9 +198,9 @@ export default function Permissoes() {
       <div className="mt-8 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
         <h3 className="text-sm font-bold text-destructive">Zona de risco</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Apaga todas as solicitacoes de pagamento, parcelas, historico e anexos (incluindo os
-          arquivos no storage) do modulo Financeiro. Fornecedores, categorias e as permissoes por
-          modulo nao sao afetados. Use apenas para limpar dados de teste.
+          Apaga todas as solicitações de pagamento, parcelas, histórico e anexos (incluindo os
+          arquivos no storage) do módulo Financeiro. Fornecedores, categorias e as permissões por
+          módulo não são afetados. Use apenas para limpar dados de teste.
         </p>
         <Button
           type="button"
@@ -218,7 +218,7 @@ export default function Permissoes() {
         onConfirm={() => limparDadosMutation.mutate()}
         isLoading={limparDadosMutation.isPending}
         title="Limpar dados de teste do Financeiro"
-        description="Isso vai apagar permanentemente todas as solicitacoes de pagamento, parcelas, historico e anexos (tabelas e arquivos no storage). Fornecedores, categorias e as permissoes por modulo nao sao afetados. Essa acao nao pode ser desfeita."
+        description="Isso vai apagar permanentemente todas as solicitações de pagamento, parcelas, histórico e anexos (tabelas e arquivos no storage). Fornecedores, categorias e as permissões por módulo não são afetados. Essa ação não pode ser desfeita."
         confirmLabel="Limpar dados"
       />
     </div>

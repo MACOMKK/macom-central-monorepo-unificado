@@ -76,7 +76,7 @@ export default function Fornecedores() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
-      toast({ title: 'Nao foi possivel cadastrar o fornecedor', description: error.message });
+      toast({ title: 'Não foi possível cadastrar o fornecedor', description: error.message });
     },
   });
 
@@ -99,7 +99,7 @@ export default function Fornecedores() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
-      toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message });
+      toast({ title: 'Não foi possível atualizar o fornecedor', description: error.message });
     },
   });
 
@@ -121,7 +121,7 @@ export default function Fornecedores() {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
-      toast({ title: 'Nao foi possivel atualizar o fornecedor', description: error.message });
+      toast({ title: 'Não foi possível atualizar o fornecedor', description: error.message });
     },
   });
 
@@ -135,11 +135,11 @@ export default function Fornecedores() {
     },
     onSuccess: () => {
       invalidateFornecedoresCatalogo(queryClient);
-      toast({ title: 'Fornecedor excluido' });
+      toast({ title: 'Fornecedor excluído' });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
-      toast({ title: 'Nao foi possivel excluir o fornecedor', description: error.message });
+      toast({ title: 'Não foi possível excluir o fornecedor', description: error.message });
     },
   });
 
@@ -183,8 +183,8 @@ export default function Fornecedores() {
       <div>
         <h2 className="text-xl font-bold">Fornecedores</h2>
         <p className="text-sm text-muted-foreground">
-          Cadastro de fornecedores usado nas solicitacoes de pagamento. Fornecedores inativos deixam
-          de aparecer no select de nova solicitacao, mas continuam vinculados as solicitacoes ja
+          Cadastro de fornecedores usado nas solicitações de pagamento. Fornecedores inativos deixam
+          de aparecer no select de nova solicitação, mas continuam vinculados às solicitações já
           criadas.
         </p>
       </div>
@@ -214,7 +214,7 @@ export default function Fornecedores() {
         </div>
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {rows.length === 0 ? 'Nenhum fornecedor cadastrado.' : 'Nenhum fornecedor corresponde a pesquisa.'}
+          {rows.length === 0 ? 'Nenhum fornecedor cadastrado.' : 'Nenhum fornecedor corresponde à pesquisa.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
@@ -224,7 +224,7 @@ export default function Fornecedores() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Cadastrado em</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -286,7 +286,7 @@ export default function Fornecedores() {
                             </TooltipTrigger>
                             <TooltipContent>
                               {row.total_solicitacoes > 0
-                                ? `Usado em ${row.total_solicitacoes} solicitacao(oes) — nao pode ser excluido, apenas inativado.`
+                                ? `Usado em ${row.total_solicitacoes} solicitação(ões) — não pode ser excluído, apenas inativado.`
                                 : 'Excluir fornecedor'}
                             </TooltipContent>
                           </Tooltip>
@@ -311,7 +311,7 @@ export default function Fornecedores() {
         onConfirm={handleDeletar}
         isLoading={deletarMutation.isPending}
         title="Excluir fornecedor"
-        description={`Tem certeza que deseja excluir "${deleteTarget?.nome}"? Essa acao nao pode ser desfeita. So e possivel excluir fornecedores que nunca foram usados em nenhuma solicitacao.`}
+        description={`Tem certeza que deseja excluir "${deleteTarget?.nome}"? Essa ação não pode ser desfeita. Só é possível excluir fornecedores que nunca foram usados em nenhuma solicitação.`}
       />
     </div>
   );

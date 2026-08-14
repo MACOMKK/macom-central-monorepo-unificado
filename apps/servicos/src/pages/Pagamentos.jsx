@@ -36,6 +36,7 @@ import ValorRangeFilter from '@/components/ValorRangeFilter';
 import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
 import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
+import { useAuth } from '@/lib/AuthContext';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
@@ -88,6 +89,7 @@ function isParcialmentePago(row) {
 export default function Pagamentos() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: categorias = [] } = useCategorias();
   const { data: empresas = [] } = useEmpresas();
@@ -250,13 +252,13 @@ export default function Pagamentos() {
     const files = Array.from(event.target.files || []);
     const tooBig = files.find((file) => file.size > MAX_ANEXO_SIZE);
     if (tooBig) {
-      toast({ title: 'Arquivo muito grande', description: `"${tooBig.name}" deve ter no maximo 5 MB.` });
+      toast({ title: 'Arquivo muito grande', description: `"${tooBig.name}" deve ter no máximo 5 MB.` });
       event.target.value = '';
       return;
     }
     const tipoInvalido = files.find((file) => !isAllowedAnexoMimeType(file));
     if (tipoInvalido) {
-      toast({ title: 'Tipo de arquivo nao suportado', description: `"${tipoInvalido.name}" deve ser PDF, JPEG, PNG ou WebP.` });
+      toast({ title: 'Tipo de arquivo não suportado', description: `"${tipoInvalido.name}" deve ser PDF, JPEG, PNG ou WebP.` });
       event.target.value = '';
       return;
     }
@@ -342,7 +344,7 @@ export default function Pagamentos() {
       setPagamentoTarget({ type: variables.type, row: variables.row, parcelaId: variables.parcelaId });
       setComprovantes(variables.files);
       toast({
-        title: 'Nao foi possivel registrar o pagamento',
+        title: 'Não foi possível registrar o pagamento',
         description: `${getFriendlyErrorMessage(error)} Revise e tente novamente.`,
       });
     },
@@ -371,14 +373,14 @@ export default function Pagamentos() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
-      toast({ title: 'Solicitacao reprovada', description: 'O solicitante foi notificado para corrigir e reenviar.' });
+      toast({ title: 'Solicitação reprovada', description: 'O solicitante foi notificado para corrigir e reenviar.' });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
       setReprovarTarget(context?.targetSnapshot ?? null);
       setMotivoReprovacao(context?.motivoSnapshot ?? '');
       toast({
-        title: 'Nao foi possivel reprovar a solicitacao',
+        title: 'Não foi possível reprovar a solicitação',
         description: `${getFriendlyErrorMessage(error)} Revise e tente novamente.`,
       });
     },
@@ -418,7 +420,7 @@ export default function Pagamentos() {
       toast({ title: 'Plano de pagamento definido' });
     },
     onError: (error) => {
-      toast({ title: 'Nao foi possivel salvar o plano de pagamento', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível salvar o plano de pagamento', description: getFriendlyErrorMessage(error) });
     },
   });
 
@@ -543,7 +545,7 @@ export default function Pagamentos() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionarios</SelectItem>
+              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionários</SelectItem>
               {solicitantes.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
@@ -606,12 +608,13 @@ export default function Pagamentos() {
           Carregando...
         </div>
       ) : visibleRows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma solicitacao aguardando pagamento.</p>
+        <p className="text-sm text-muted-foreground">Nenhuma solicitação aguardando pagamento.</p>
       ) : (
         <>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Título</TableHead>
               <TableHead>Solicitante</TableHead>
               <TableHead>Vencimento</TableHead>
               <TableHead>Forma de pagamento</TableHead>
@@ -633,6 +636,7 @@ export default function Pagamentos() {
                   onClick={() => openParcelas(row)}
                   title="Ver parcelas e detalhes"
                 >
+                  <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
@@ -648,15 +652,17 @@ export default function Pagamentos() {
                   <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        title="Reprovar"
-                        aria-label="Reprovar"
-                        onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {user?.isFinanceiro && (
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          title="Reprovar"
+                          aria-label="Reprovar"
+                          onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
@@ -672,7 +678,7 @@ export default function Pagamentos() {
             })}
           </TableBody>
         </Table>
-        <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitacao(oes)" />
+        <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}
 
@@ -687,7 +693,7 @@ export default function Pagamentos() {
             </div>
           ) : parcelasQuery.isError ? (
             <div className="space-y-2">
-              <p className="text-sm text-destructive">Nao foi possivel carregar as parcelas desta solicitacao.</p>
+              <p className="text-sm text-destructive">Não foi possível carregar as parcelas desta solicitação.</p>
               <Button variant="outline" size="sm" onClick={() => parcelasQuery.refetch()}>
                 Tentar novamente
               </Button>
@@ -759,15 +765,15 @@ export default function Pagamentos() {
       <Dialog open={Boolean(reprovarTarget)} onOpenChange={(open) => !open && closeReprovar()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reprovar solicitacao ja aprovada</DialogTitle>
+            <DialogTitle>Reprovar solicitação já aprovada</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Informe o motivo. O solicitante podera corrigir e reenviar a solicitacao.
+            Informe o motivo. O solicitante poderá corrigir e reenviar a solicitação.
           </p>
           <Textarea
             value={motivoReprovacao}
             onChange={(event) => setMotivoReprovacao(event.target.value)}
-            placeholder="Motivo da reprovacao"
+            placeholder="Motivo da reprovação"
             autoFocus
           />
           <DialogFooter>
@@ -791,7 +797,7 @@ export default function Pagamentos() {
             <DialogTitle>Confirmar pagamento</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Anexe o comprovante de pagamento (opcional, um ou mais arquivos, max 5 MB cada).
+            Anexe o comprovante de pagamento (opcional, um ou mais arquivos, máx 5 MB cada).
           </p>
           <label
             htmlFor="comprovantes-pagamento"

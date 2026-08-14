@@ -14,9 +14,9 @@ export const servicosModules = [
     path: '/solicitacoes',
     comingSoon: false,
     children: [
-      { key: 'minhas-solicitacoes', label: 'Minhas solicitacoes', icon: Receipt, path: '/solicitacoes' },
-      { key: 'aprovacoes', label: 'Aprovacoes', icon: CheckCircle2, path: '/aprovacoes', requires: 'isAprovador' },
-      { key: 'pagamentos', label: 'Contas a pagar', icon: Receipt, path: '/pagamentos', requires: 'isFinanceiro' },
+      { key: 'minhas-solicitacoes', label: 'Solicitações', icon: Receipt, path: '/solicitacoes' },
+      { key: 'aprovacoes', label: 'Aprovações', icon: CheckCircle2, path: '/aprovacoes', requires: 'isAprovador' },
+      { key: 'pagamentos', label: 'Contas a pagar', icon: Receipt, path: '/pagamentos', requires: 'isPagador' },
       { key: 'fornecedores', label: 'Fornecedores', icon: Building2, path: '/fornecedores', requires: 'isFinanceiro' },
       { key: 'categorias', label: 'Categorias', icon: Tag, path: '/categorias', requires: 'isFinanceiro' },
     ],

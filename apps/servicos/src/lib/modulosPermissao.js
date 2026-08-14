@@ -12,9 +12,10 @@
 // gestao_servicos.permissoes_modulo.papel via migration e manter esse array em
 // sincronia com `papeis` do backend (SERVICOS_MODULOS_CONFIG).
 export const PAPEIS_MODULO_FINANCEIRO = [
-  { value: 'usuario', label: 'Usuario' },
+  { value: 'usuario', label: 'Usuário' },
   { value: 'aprovador', label: 'Aprovador' },
-  { value: 'financeiro', label: 'Financeiro' },
+  { value: 'contas_a_pagar', label: 'Contas a pagar' },
+  { value: 'financeiro', label: 'Gerente' },
   { value: 'nenhum', label: 'Sem acesso' },
 ];
 

@@ -87,17 +87,17 @@ function getPreviewType(anexo) {
 }
 
 const EVENTO_LABEL = {
-  criada: 'Solicitacao criada',
-  editada: 'Solicitacao editada',
+  criada: 'Solicitação criada',
+  editada: 'Solicitação editada',
   aprovada: 'Aprovada',
   reprovada: 'Reprovada',
-  reprovada_pos_aprovacao: 'Reprovada apos aprovacao',
+  reprovada_pos_aprovacao: 'Reprovada após aprovação',
   cancelada: 'Cancelada pelo solicitante',
   reenviada: 'Corrigida e reenviada',
   parcela_criada: 'Plano de pagamento definido',
   parcela_paga: 'Parcela paga',
   pago: 'Marcada como paga',
-  anexo_adicionado: 'Anexo incluido',
+  anexo_adicionado: 'Anexo incluído',
   anexo_removido: 'Anexo removido',
 };
 
@@ -134,7 +134,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
   const podeRemoverAnexo =
     Boolean(user?.isFinanceiro) || (isDonoSolicitacao && solicitacao?.status === 'pendente');
-  const podeBaixarTodosAnexos = Boolean(user?.isFinanceiro) || isAprovadorDestino;
+  const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino;
 
   const solicitacaoId = solicitacao?.id;
 
@@ -164,19 +164,19 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
   useEffect(() => {
     if (anexosQuery.error) {
-      toast({ title: 'Nao foi possivel carregar os anexos', description: getFriendlyErrorMessage(anexosQuery.error) });
+      toast({ title: 'Não foi possível carregar os anexos', description: getFriendlyErrorMessage(anexosQuery.error) });
     }
   }, [anexosQuery.error]);
 
   useEffect(() => {
     if (parcelasQuery.error) {
-      toast({ title: 'Nao foi possivel carregar as parcelas', description: getFriendlyErrorMessage(parcelasQuery.error) });
+      toast({ title: 'Não foi possível carregar as parcelas', description: getFriendlyErrorMessage(parcelasQuery.error) });
     }
   }, [parcelasQuery.error]);
 
   useEffect(() => {
     if (historicoQuery.error) {
-      toast({ title: 'Nao foi possivel carregar o historico', description: getFriendlyErrorMessage(historicoQuery.error) });
+      toast({ title: 'Não foi possível carregar o histórico', description: getFriendlyErrorMessage(historicoQuery.error) });
     }
   }, [historicoQuery.error]);
 
@@ -195,13 +195,13 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       setAnexosPendentes((current) => current.filter((item) => item.tempId !== variables.tempId));
       queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), row]);
       loadHistorico();
-      toast({ title: 'Anexo incluido' });
+      toast({ title: 'Anexo incluído' });
     },
     onError: (error, variables) => {
       setAnexosPendentes((current) =>
         current.map((item) => (item.tempId === variables.tempId ? { ...item, erro: true } : item)),
       );
-      toast({ title: 'Nao foi possivel incluir o anexo', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível incluir o anexo', description: getFriendlyErrorMessage(error) });
     },
   });
 
@@ -210,11 +210,11 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     event.target.value = '';
     if (!file || !solicitacaoId) return;
     if (file.size > MAX_ANEXO_SIZE) {
-      toast({ title: 'Arquivo muito grande', description: `"${file.name}" deve ter no maximo 5 MB.` });
+      toast({ title: 'Arquivo muito grande', description: `"${file.name}" deve ter no máximo 5 MB.` });
       return;
     }
     if (!isAllowedAnexoMimeType(file)) {
-      toast({ title: 'Tipo de arquivo nao suportado', description: `"${file.name}" deve ser PDF, JPEG, PNG ou WebP.` });
+      toast({ title: 'Tipo de arquivo não suportado', description: `"${file.name}" deve ser PDF, JPEG, PNG ou WebP.` });
       return;
     }
 
@@ -239,7 +239,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       loadHistorico();
     },
     onError: (error) => {
-      toast({ title: 'Nao foi possivel remover o anexo', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível remover o anexo', description: getFriendlyErrorMessage(error) });
     },
   });
 
@@ -268,7 +268,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     try {
       await baixarAnexo(anexo);
     } catch (error) {
-      toast({ title: 'Nao foi possivel baixar o anexo', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível baixar o anexo', description: getFriendlyErrorMessage(error) });
     } finally {
       setBaixandoAnexoId(null);
     }
@@ -284,7 +284,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         await baixarAnexo(anexo);
       }
     } catch (error) {
-      toast({ title: 'Nao foi possivel baixar todos os anexos', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível baixar todos os anexos', description: getFriendlyErrorMessage(error) });
     } finally {
       setBaixandoTodos(false);
     }
@@ -316,7 +316,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       link.remove();
       URL.revokeObjectURL(blobUrl);
     } catch (error) {
-      toast({ title: 'Nao foi possivel gerar o PDF unico', description: getFriendlyErrorMessage(error) });
+      toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
     } finally {
       setGerandoPdfUnico(false);
     }
@@ -353,16 +353,16 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
                 <TabsTrigger value="anexos">Anexos</TabsTrigger>
                 <TabsTrigger value="parcelas">Parcelas</TabsTrigger>
-                <TabsTrigger value="historico">Historico</TabsTrigger>
+                <TabsTrigger value="historico">Histórico</TabsTrigger>
               </TabsList>
 
               <TabsContent value="detalhes" className="space-y-4 text-sm">
                 <div className="space-y-3 rounded-md border border-border p-3">
-                  <SectionLabel>Informacoes gerais</SectionLabel>
+                  <SectionLabel>Informações gerais</SectionLabel>
                   <div className="grid grid-cols-2 gap-4">
                     <CampoDetalhe icon={User} label="Solicitante" value={solicitacao.solicitante_nome} />
                     <CampoDetalhe icon={Building2} label="Fornecedor" value={solicitacao.fornecedor} />
-                    <CampoDetalhe icon={UserCheck} label="Aprovador responsavel" value={solicitacao.aprovador_destino_nome} />
+                    <CampoDetalhe icon={UserCheck} label="Aprovador responsável" value={solicitacao.aprovador_destino_nome} />
                     <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
                     <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />
                     <CampoDetalhe icon={Calendar} label="Vencimento" value={formatDataVencimento(solicitacao.data_vencimento)} />
@@ -376,22 +376,22 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 </div>
 
                 <div className="space-y-3 rounded-md border border-border p-3">
-                  <SectionLabel>Descricao e observacoes</SectionLabel>
+                  <SectionLabel>Descrição e observações</SectionLabel>
                   <div>
-                    <p className="text-xs text-muted-foreground">Descricao</p>
+                    <p className="text-xs text-muted-foreground">Descrição</p>
                     <p className="whitespace-pre-wrap">{solicitacao.descricao || '-'}</p>
                   </div>
 
                   {solicitacao.observacao && (
                     <div>
-                      <p className="text-xs text-muted-foreground">Observacao do solicitante</p>
+                      <p className="text-xs text-muted-foreground">Observação do solicitante</p>
                       <p className="whitespace-pre-wrap">{solicitacao.observacao}</p>
                     </div>
                   )}
 
                   {solicitacao.observacao_analise && (
                     <div>
-                      <p className="text-xs text-muted-foreground">Observacao da analise</p>
+                      <p className="text-xs text-muted-foreground">Observação da análise</p>
                       <p className="whitespace-pre-wrap">{solicitacao.observacao_analise}</p>
                     </div>
                   )}
@@ -431,7 +431,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
                 {podeAdicionarAnexo && (
                   <div className="space-y-2 rounded-md border border-dashed border-input p-3">
-                    <SectionLabel>Incluir anexo (correcao pos-analise)</SectionLabel>
+                    <SectionLabel>Incluir anexo (correção pós-análise)</SectionLabel>
                     <div className="flex flex-wrap items-center gap-2">
                       <Select value={novaCategoria} onValueChange={setNovaCategoria}>
                         <SelectTrigger className="h-8 w-48">
@@ -578,7 +578,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   onConfirm={handleRemoverAnexo}
                   isLoading={removerAnexoMutation.isPending}
                   title="Remover anexo"
-                  description={`Tem certeza que deseja remover "${removerTarget?.nome_arquivo || ''}"? Essa acao nao pode ser desfeita.`}
+                  description={`Tem certeza que deseja remover "${removerTarget?.nome_arquivo || ''}"? Essa ação não pode ser desfeita.`}
                   confirmLabel="Remover"
                   loadingLabel="Removendo..."
                 />
@@ -611,7 +611,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                           {getPreviewType(previewAnexo) === 'unsupported' && (
                             <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 p-6 text-center">
                               <p className="text-sm text-muted-foreground">
-                                Este tipo de arquivo nao possui visualizacao interna no momento.
+                                Este tipo de arquivo não possui visualização interna no momento.
                               </p>
                               <Button className="gap-2" onClick={() => handleBaixarAnexo(previewAnexo)}>
                                 <Download className="h-4 w-4" />

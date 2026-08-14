@@ -11,9 +11,9 @@ const AuthContext = createContext(null);
 const ROLE_OVERRIDE_STORAGE_KEY = 'servicos:role-override-dev';
 
 const ROLE_OVERRIDE_MAP = {
-  usuario: { system_access_level: 'usuario', role: 'usuario', isAprovador: false, isFinanceiro: false },
-  gestor: { system_access_level: 'gestor', role: 'aprovador', isAprovador: true, isFinanceiro: false },
-  admin: { system_access_level: 'admin', role: 'financeiro', isAprovador: true, isFinanceiro: true },
+  usuario: { system_access_level: 'usuario', role: 'usuario', isAprovador: false, isFinanceiro: false, isPagador: false },
+  gestor: { system_access_level: 'gestor', role: 'aprovador', isAprovador: true, isFinanceiro: false, isPagador: false },
+  admin: { system_access_level: 'admin', role: 'financeiro', isAprovador: true, isFinanceiro: true, isPagador: true },
 };
 
 export function applyRoleOverride(user, overrideLevel) {
@@ -42,6 +42,7 @@ function normalizeServicosUser(authUser, authPayload = {}) {
     role,
     isAprovador: role === 'aprovador' || role === 'financeiro',
     isFinanceiro: role === 'financeiro',
+    isPagador: role === 'contas_a_pagar' || role === 'financeiro',
     active: collaborator?.status !== 'inativo' && access?.ativo === true,
     system_access_id: access?.id || null,
     system_access_level: access?.nivel_acesso || null,

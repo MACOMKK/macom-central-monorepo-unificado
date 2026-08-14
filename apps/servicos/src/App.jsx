@@ -61,7 +61,7 @@ const ServicosRoutes = () => {
         <Route path="/" element={<Navigate replace to="/solicitacoes" />} />
         <Route path="/solicitacoes" element={<MinhasSolicitacoes />} />
         {user?.isAprovador && <Route path="/aprovacoes" element={<Aprovacoes />} />}
-        {user?.isFinanceiro && <Route path="/pagamentos" element={<Pagamentos />} />}
+        {user?.isPagador && <Route path="/pagamentos" element={<Pagamentos />} />}
         {user?.isFinanceiro && <Route path="/fornecedores" element={<Fornecedores />} />}
         {user?.isFinanceiro && <Route path="/categorias" element={<Categorias />} />}
         {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Permissoes />} />}

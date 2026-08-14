@@ -88,8 +88,8 @@ export default function MinhasSolicitacoes() {
       setSelectedId(solId);
     } else {
       toast({
-        title: 'Solicitacao nao encontrada',
-        description: 'Ela pode ter sido removida ou voce nao tem acesso a ela.',
+        title: 'Solicitação não encontrada',
+        description: 'Ela pode ter sido removida ou você não tem acesso a ela.',
       });
     }
     setSearchParams(
@@ -141,15 +141,15 @@ export default function MinhasSolicitacoes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
-      toast({ title: 'Solicitacao cancelada' });
+      toast({ title: 'Solicitação cancelada' });
     },
     onError: (error, _id, context) => {
       if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
-      toast({ title: 'Nao foi possivel cancelar a solicitacao', description: `${error.message} Tente novamente.` });
+      toast({ title: 'Não foi possível cancelar a solicitação', description: `${error.message} Tente novamente.` });
     },
   });
 
-  const title = user?.isAprovador ? 'Todas as solicitacoes' : 'Minhas solicitacoes';
+  const title = user?.isAprovador || user?.isPagador ? 'Todas as solicitações' : 'Minhas solicitações';
 
   function handleCancelar() {
     if (!cancelTarget) return;
@@ -208,7 +208,7 @@ export default function MinhasSolicitacoes() {
         <h2 className="text-xl font-bold">{title}</h2>
         <Button size="sm" onClick={() => setNovaOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Nova solicitacao
+          Nova solicitação
         </Button>
       </div>
 
@@ -261,13 +261,13 @@ export default function MinhasSolicitacoes() {
             </SelectContent>
           </Select>
 
-          {user?.isAprovador && (
+          {(user?.isAprovador || user?.isPagador) && (
             <Select value={solicitanteFiltro} onValueChange={setSolicitanteFiltro}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionarios</SelectItem>
+                <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionários</SelectItem>
                 {solicitantes.map((item) => (
                   <SelectItem key={item.id} value={String(item.id)}>
                     {item.nome}
@@ -288,14 +288,14 @@ export default function MinhasSolicitacoes() {
         </div>
       ) : filteredRows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {rows.length === 0 ? 'Nenhuma solicitacao encontrada.' : 'Nenhuma solicitacao corresponde a pesquisa.'}
+          {rows.length === 0 ? 'Nenhuma solicitação encontrada.' : 'Nenhuma solicitação corresponde à pesquisa.'}
         </p>
       ) : (
         <>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Titulo</TableHead>
+                <TableHead>Título</TableHead>
                 <TableHead>Vencimento</TableHead>
                 <TableHead>Forma de pagamento</TableHead>
                 <TableHead>Categoria</TableHead>
@@ -328,7 +328,7 @@ export default function MinhasSolicitacoes() {
               ))}
             </TableBody>
           </Table>
-          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitacao(oes)" />
+          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}
 
@@ -349,11 +349,11 @@ export default function MinhasSolicitacoes() {
         onOpenChange={(open) => !open && setCancelTarget(null)}
         onConfirm={handleCancelar}
         isLoading={cancelarMutation.isPending}
-        title="Cancelar solicitacao"
-        description="Tem certeza que deseja cancelar esta solicitacao? Essa acao nao pode ser desfeita."
-        confirmLabel="Cancelar solicitacao"
+        title="Cancelar solicitação"
+        description="Tem certeza que deseja cancelar esta solicitação? Essa ação não pode ser desfeita."
+        confirmLabel="Cancelar solicitação"
         loadingLabel="Cancelando..."
-        cancelLabel="Manter solicitacao"
+        cancelLabel="Manter solicitação"
       />
     </div>
   );
