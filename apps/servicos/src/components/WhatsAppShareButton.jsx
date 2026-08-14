@@ -1,4 +1,4 @@
-import { formatData, formatValor, FORMA_PAGAMENTO_LABEL, STATUS_LABEL } from '@/lib/financeiroFormat';
+import { formatDataVencimento, formatValor, FORMA_PAGAMENTO_LABEL, STATUS_LABEL } from '@/lib/financeiroFormat';
 
 function WhatsAppIcon(props) {
   return (
@@ -26,7 +26,7 @@ function buildWhatsAppUrl(solicitacao) {
     solicitacao.fornecedor && `*Fornecedor:* ${solicitacao.fornecedor}`,
     `*Valor:* ${formatValor(solicitacao.valor)}`,
     solicitacao.categoria && `*Categoria:* ${solicitacao.categoria}`,
-    solicitacao.data_vencimento && `*Vencimento:* ${formatData(solicitacao.data_vencimento)}`,
+    solicitacao.data_vencimento && `*Vencimento:* ${formatDataVencimento(solicitacao.data_vencimento)}`,
     solicitacao.forma_pagamento &&
       `*Forma de pagamento:* ${FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}`,
     solicitacao.status && `*Status:* ${STATUS_LABEL[solicitacao.status] || solicitacao.status}`,

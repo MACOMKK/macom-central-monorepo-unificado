@@ -32,6 +32,7 @@ import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
+import ValorRangeFilter from '@/components/ValorRangeFilter';
 import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
 import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
@@ -39,10 +40,10 @@ import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexo
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
   buildSolicitacaoSearchText,
-  formatData,
+  formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
-  toDateOnly,
+  toLocalDateOnly,
 } from '@/lib/financeiroFormat';
 import { normalize } from '@/lib/normalize';
 
@@ -51,19 +52,32 @@ const CLASSIFICACAO_TODAS = 'todas';
 const CLASSIFICACAO_PARCIAL = 'parcial';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
+const FORNECEDOR_FILTRO_TODOS = 'todos';
+const APROVADOR_FILTRO_TODOS = 'todos';
+const FORMA_PAGAMENTO_FILTRO_TODAS = 'todas';
 
 function getVencimentoInfo(dataVencimento) {
-  if (!dataVencimento) return { label: 'Sem vencimento', variant: 'outline' };
+  // toLocalDateOnly (nao toDateOnly): precisa bater com o dia que formatData mostra na tela,
+  // que interpreta a data no fuso local do navegador -- se data_vencimento vier como timestamp
+  // UTC (ex. "2026-08-14T00:00:00.000Z"), fatiar a string crua e comparar com um "hoje" tambem
+  // em fuso local pode divergir em um dia perto da meia-noite.
+  const dia = toLocalDateOnly(dataVencimento);
+  if (!dia) return { key: 'sem_vencimento', label: 'Sem vencimento', variant: 'outline' };
 
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const vencimento = new Date(`${dataVencimento}T00:00:00`);
-  const diffDias = Math.round((vencimento - hoje) / (1000 * 60 * 60 * 24));
+  const hoje = toLocalDateOnly(new Date());
 
-  if (diffDias < 0) return { label: 'Atrasado', variant: 'destructive' };
-  if (diffDias <= 3) return { label: 'Vence em breve', variant: 'secondary' };
-  return { label: 'No prazo', variant: 'outline' };
+  if (dia < hoje) return { key: 'vencido', label: 'Vencido', variant: 'destructive' };
+  if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
+  return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
 }
+
+const VENCIMENTO_STATUS_FILTRO_TODOS = 'todos';
+const VENCIMENTO_STATUS_OPCOES = [
+  { value: 'vencido', label: 'Vencido' },
+  { value: 'vence_hoje', label: 'Vence hoje' },
+  { value: 'no_prazo', label: 'No prazo' },
+  { value: 'sem_vencimento', label: 'Sem vencimento' },
+];
 
 function isParcialmentePago(row) {
   const total = Number(row.parcelas_total || 0);
@@ -83,6 +97,12 @@ export default function Pagamentos() {
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
+  const [vencimentoStatusFiltro, setVencimentoStatusFiltro] = useState(VENCIMENTO_STATUS_FILTRO_TODOS);
+  const [fornecedorFiltro, setFornecedorFiltro] = useState(FORNECEDOR_FILTRO_TODOS);
+  const [aprovadorFiltro, setAprovadorFiltro] = useState(APROVADOR_FILTRO_TODOS);
+  const [formaPagamentoFiltro, setFormaPagamentoFiltro] = useState(FORMA_PAGAMENTO_FILTRO_TODAS);
+  const [valorFiltro, setValorFiltro] = useState(null);
+  const [valorResetToken, setValorResetToken] = useState(0);
   const [busca, setBusca] = useState('');
 
   const [dialogRowId, setDialogRowId] = useState(null);
@@ -133,6 +153,26 @@ export default function Pagamentos() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const fornecedores = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.fornecedor_id && !porId.has(row.fornecedor_id)) {
+        porId.set(row.fornecedor_id, row.fornecedor);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
+  const aprovadores = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.aprovador_destino_id && !porId.has(row.aprovador_destino_id)) {
+        porId.set(row.aprovador_destino_id, row.aprovador_destino_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const visibleRows = useMemo(() => {
     let classificadas = classificacaoFiltro !== CLASSIFICACAO_PARCIAL ? rows : rows.filter(isParcialmentePago);
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS) {
@@ -143,19 +183,51 @@ export default function Pagamentos() {
     }
     if (vencimentoFiltro) {
       classificadas = classificadas.filter((row) => {
-        const dia = toDateOnly(row.data_vencimento);
+        const dia = toLocalDateOnly(row.data_vencimento);
         return dia && dia >= vencimentoFiltro.from && dia <= vencimentoFiltro.to;
+      });
+    }
+    if (vencimentoStatusFiltro !== VENCIMENTO_STATUS_FILTRO_TODOS) {
+      classificadas = classificadas.filter(
+        (row) => getVencimentoInfo(row.data_vencimento).key === vencimentoStatusFiltro,
+      );
+    }
+    if (fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS) {
+      classificadas = classificadas.filter((row) => String(row.fornecedor_id) === fornecedorFiltro);
+    }
+    if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS) {
+      classificadas = classificadas.filter((row) => String(row.aprovador_destino_id) === aprovadorFiltro);
+    }
+    if (formaPagamentoFiltro !== FORMA_PAGAMENTO_FILTRO_TODAS) {
+      classificadas = classificadas.filter((row) => row.forma_pagamento === formaPagamentoFiltro);
+    }
+    if (valorFiltro) {
+      classificadas = classificadas.filter((row) => {
+        const valor = Number(row.valor || 0);
+        return valor >= valorFiltro.min && valor <= valorFiltro.max;
       });
     }
     const termo = normalize(busca);
     if (!termo) return classificadas;
     return classificadas.filter((row) => normalize(buildSolicitacaoSearchText(row)).includes(termo));
-  }, [rows, classificacaoFiltro, solicitanteFiltro, empresaFiltro, vencimentoFiltro, busca]);
+  }, [
+    rows,
+    classificacaoFiltro,
+    solicitanteFiltro,
+    empresaFiltro,
+    vencimentoFiltro,
+    vencimentoStatusFiltro,
+    fornecedorFiltro,
+    aprovadorFiltro,
+    formaPagamentoFiltro,
+    valorFiltro,
+    busca,
+  ]);
   const { page, setPage, pageItems, total } = usePagination(visibleRows, 10);
 
   const resumo = useMemo(() => {
     const total = visibleRows.reduce((sum, row) => sum + Number(row.valor || 0), 0);
-    const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.data_vencimento).label === 'Atrasado').length;
+    const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.data_vencimento).label === 'Vencido').length;
     return { total, atrasadas };
   }, [visibleRows]);
 
@@ -363,6 +435,10 @@ export default function Pagamentos() {
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
     empresaFiltro !== EMPRESA_FILTRO_TODAS,
     Boolean(vencimentoFiltro),
+    fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS,
+    aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
+    formaPagamentoFiltro !== FORMA_PAGAMENTO_FILTRO_TODAS,
+    Boolean(valorFiltro),
   ].filter(Boolean).length;
 
   function handleClearFiltros() {
@@ -372,6 +448,11 @@ export default function Pagamentos() {
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
+    setFornecedorFiltro(FORNECEDOR_FILTRO_TODOS);
+    setAprovadorFiltro(APROVADOR_FILTRO_TODOS);
+    setFormaPagamentoFiltro(FORMA_PAGAMENTO_FILTRO_TODAS);
+    setValorFiltro(null);
+    setValorResetToken((current) => current + 1);
   }
 
   return (
@@ -396,6 +477,23 @@ export default function Pagamentos() {
             onChange={setBusca}
             placeholder="Pesquisar em qualquer coluna..."
           />
+        </div>
+
+        <div className="w-48 space-y-1">
+          <span className="text-xs text-muted-foreground">Status de vencimento</span>
+          <Select value={vencimentoStatusFiltro} onValueChange={setVencimentoStatusFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={VENCIMENTO_STATUS_FILTRO_TODOS}>Todos</SelectItem>
+              {VENCIMENTO_STATUS_OPCOES.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
@@ -454,7 +552,51 @@ export default function Pagamentos() {
             </SelectContent>
           </Select>
 
+          <Select value={fornecedorFiltro} onValueChange={setFornecedorFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FORNECEDOR_FILTRO_TODOS}>Todos os fornecedores</SelectItem>
+              {fornecedores.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={aprovadorFiltro} onValueChange={setAprovadorFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={APROVADOR_FILTRO_TODOS}>Todos os aprovadores</SelectItem>
+              {aprovadores.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={formaPagamentoFiltro} onValueChange={setFormaPagamentoFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FORMA_PAGAMENTO_FILTRO_TODAS}>Todas as formas de pagamento</SelectItem>
+              {Object.entries(FORMA_PAGAMENTO_LABEL).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <VencimentoRangeFilter onChange={setVencimentoFiltro} resetToken={vencimentoResetToken} />
+
+          <ValorRangeFilter onChange={setValorFiltro} resetToken={valorResetToken} />
         </FiltersDrawer>
       </div>
 
@@ -494,7 +636,7 @@ export default function Pagamentos() {
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span>{formatData(row.data_vencimento)}</span>
+                      <span>{formatDataVencimento(row.data_vencimento)}</span>
                       <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
                       {parcial && <Badge variant="secondary">Parcialmente pago</Badge>}
                     </div>
@@ -507,19 +649,21 @@ export default function Pagamentos() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant="destructive"
+                        size="icon"
+                        title="Reprovar"
+                        aria-label="Reprovar"
                         onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
                       >
-                        <X className="mr-1 h-4 w-4" />
-                        Reprovar
+                        <X className="h-4 w-4" />
                       </Button>
                       <Button
                         size="sm"
+                        className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
                         onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
                       >
                         <Banknote className="mr-1 h-4 w-4" />
-                        Marcar como pago
+                        Pagar
                       </Button>
                     </div>
                   </TableCell>
@@ -554,7 +698,7 @@ export default function Pagamentos() {
                 <div key={parcela.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
                   <div>
                     <p className="font-medium">Parcela {parcela.numero} — {formatValor(parcela.valor)}</p>
-                    <p className="text-muted-foreground">Vencimento: {formatData(parcela.data_vencimento)}</p>
+                    <p className="text-muted-foreground">Vencimento: {formatDataVencimento(parcela.data_vencimento)}</p>
                   </div>
                   {parcela.status === 'pago' ? (
                     <Badge>Paga</Badge>

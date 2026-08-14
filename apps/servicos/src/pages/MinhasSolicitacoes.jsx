@@ -24,7 +24,7 @@ import {
 import { useAuth } from '@/lib/AuthContext';
 import {
   buildSolicitacaoSearchText,
-  formatData,
+  formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
   STATUS_LABEL,
@@ -310,7 +310,7 @@ export default function MinhasSolicitacoes() {
               {pageItems.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer hover:bg-primary/10" onClick={() => setSelectedId(row.id)}>
                   <TableCell className="max-w-xs truncate">{row.titulo || '-'}</TableCell>
-                  <TableCell>{formatData(row.data_vencimento)}</TableCell>
+                  <TableCell>{formatDataVencimento(row.data_vencimento)}</TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                   <TableCell>{row.categoria || '-'}</TableCell>
                   <TableCell className="font-medium">{row.fornecedor}</TableCell>

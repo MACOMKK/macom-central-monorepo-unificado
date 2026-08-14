@@ -61,6 +61,8 @@ export function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Usa pra timestamps de verdade (criado_em, analisado_em etc.) onde a hora importa -- o
+// New Date(...) + toLocaleDateString ja converte corretamente pro fuso do navegador nesse caso.
 export function formatData(data) {
   if (!data) return '-';
   return new Date(data).toLocaleDateString('pt-BR');
@@ -71,6 +73,37 @@ export function formatData(data) {
 export function toDateOnly(data) {
   if (!data) return null;
   return String(data).slice(0, 10);
+}
+
+// Igual toDateOnly, mas devolve so o prefixo "YYYY-MM-DD" (via regex, sem passar por
+// `new Date(...)`) quando `data` for string, e usa os getters locais quando for um objeto Date
+// de verdade (ex. `new Date()` representando "agora"). Precisa ser assim porque colunas `date`
+// puras (sem hora, ex. data_vencimento) chegam do backend como string -- e podem vir tanto
+// "YYYY-MM-DD" quanto serializadas como timestamp UTC ("2026-08-14T00:00:00.000Z", se o driver
+// SQL devolver um objeto Date que o JSON.stringify converte via toISOString). Passar essa string
+// por `new Date(...)` reintroduz o bug: ECMA-262 trata string ISO so-de-data como meia-noite
+// UTC, e em fuso negativo (Brasil, UTC-3) isso vira o dia anterior ao converter pro fuso local.
+// Como a data literal (dia certo) ja esta nos 10 primeiros caracteres da string em qualquer um
+// dos formatos, extrair direto por regex e a unica forma de nao introduzir esse offset.
+export function toLocalDateOnly(data) {
+  if (!data) return null;
+  if (data instanceof Date) {
+    if (Number.isNaN(data.getTime())) return null;
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+  }
+  const match = String(data).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? match[0] : null;
+}
+
+// Formata um campo que e conceitualmente so uma data de calendario (ex. data_vencimento,
+// coluna `date` sem hora) sem passar pelo mesmo bug de formatData: nao usa `new Date(...)`,
+// so reformata o prefixo "YYYY-MM-DD" (independente de vir puro ou como timestamp UTC) pra
+// "DD/MM/YYYY" via string, sem nenhuma conversao de fuso -- ver comentario de toLocalDateOnly.
+export function formatDataVencimento(data) {
+  const iso = toLocalDateOnly(data);
+  if (!iso) return '-';
+  const [ano, mes, dia] = iso.split('-');
+  return `${dia}/${mes}/${ano}`;
 }
 
 export function formatDataHora(data) {
@@ -88,7 +121,7 @@ export function buildSolicitacaoSearchText(row) {
     row.fornecedor,
     row.categoria,
     FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || row.forma_pagamento,
-    formatData(row.data_vencimento),
+    formatDataVencimento(row.data_vencimento),
     row.solicitante_nome,
     row.aprovador_destino_nome,
     STATUS_LABEL[row.status] || row.status,

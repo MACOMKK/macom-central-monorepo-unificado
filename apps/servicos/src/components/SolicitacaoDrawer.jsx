@@ -49,6 +49,7 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
   formatData,
   formatDataHora,
+  formatDataVencimento,
   formatValor,
   ANEXO_CATEGORIA_LABEL,
   ANEXO_CATEGORIA_OPCOES,
@@ -364,7 +365,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                     <CampoDetalhe icon={UserCheck} label="Aprovador responsavel" value={solicitacao.aprovador_destino_nome} />
                     <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
                     <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />
-                    <CampoDetalhe icon={Calendar} label="Vencimento" value={formatData(solicitacao.data_vencimento)} />
+                    <CampoDetalhe icon={Calendar} label="Vencimento" value={formatDataVencimento(solicitacao.data_vencimento)} />
                     <CampoDetalhe
                       icon={CreditCard}
                       label="Forma de pagamento"
@@ -650,7 +651,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                             <p className="font-medium">
                               Parcela {parcela.numero} — {formatValor(parcela.valor)}
                             </p>
-                            <p className="text-muted-foreground">Vencimento: {formatData(parcela.data_vencimento)}</p>
+                            <p className="text-muted-foreground">Vencimento: {formatDataVencimento(parcela.data_vencimento)}</p>
                           </div>
                           <Badge variant={parcela.status === 'pago' ? 'default' : 'secondary'}>
                             {PARCELA_STATUS_LABEL[parcela.status] || parcela.status}

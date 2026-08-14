@@ -29,7 +29,7 @@ import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
 import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
 import { normalize } from '@/lib/normalize';
-import { buildSolicitacaoSearchText, FORMA_PAGAMENTO_LABEL, toDateOnly } from '@/lib/financeiroFormat';
+import { buildSolicitacaoSearchText, formatDataVencimento, FORMA_PAGAMENTO_LABEL, toLocalDateOnly } from '@/lib/financeiroFormat';
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
@@ -37,11 +37,6 @@ const EMPRESA_FILTRO_TODAS = 'todas';
 
 function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function formatData(data) {
-  if (!data) return '-';
-  return new Date(data).toLocaleDateString('pt-BR');
 }
 
 export default function Aprovacoes() {
@@ -81,7 +76,7 @@ export default function Aprovacoes() {
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
     if (vencimentoFiltro) {
-      const dia = toDateOnly(row.data_vencimento);
+      const dia = toLocalDateOnly(row.data_vencimento);
       if (!dia || dia < vencimentoFiltro.from || dia > vencimentoFiltro.to) return false;
     }
     const termo = normalize(busca);
@@ -220,7 +215,7 @@ export default function Aprovacoes() {
               {pageItems.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
                   <TableCell>{row.solicitante_nome}</TableCell>
-                  <TableCell>{formatData(row.data_vencimento)}</TableCell>
+                  <TableCell>{formatDataVencimento(row.data_vencimento)}</TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                   <TableCell>{row.categoria || '-'}</TableCell>
                   <TableCell className="font-medium">{row.fornecedor}</TableCell>
