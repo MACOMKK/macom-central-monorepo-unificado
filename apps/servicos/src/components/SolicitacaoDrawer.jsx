@@ -9,6 +9,8 @@ import {
   Download,
   Eye,
   FileStack,
+  Hash,
+  Landmark,
   Lock,
   Paperclip,
   Tag,
@@ -92,7 +94,7 @@ const EVENTO_LABEL = {
   aprovada: 'Aprovada',
   reprovada: 'Reprovada',
   reprovada_pos_aprovacao: 'Reprovada após aprovação',
-  cancelada: 'Cancelada pelo solicitante',
+  cancelada: 'Cancelada',
   reenviada: 'Corrigida e reenviada',
   parcela_criada: 'Plano de pagamento definido',
   parcela_paga: 'Parcela paga',
@@ -360,6 +362,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 <div className="space-y-3 rounded-md border border-border p-3">
                   <SectionLabel>Informações gerais</SectionLabel>
                   <div className="grid grid-cols-2 gap-4">
+                    <CampoDetalhe icon={Hash} label="Nº" value={solicitacao.numero} />
                     <CampoDetalhe icon={User} label="Solicitante" value={solicitacao.solicitante_nome} />
                     <CampoDetalhe icon={Building2} label="Fornecedor" value={solicitacao.fornecedor} />
                     <CampoDetalhe icon={UserCheck} label="Aprovador responsável" value={solicitacao.aprovador_destino_nome} />
@@ -371,8 +374,20 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                       label="Forma de pagamento"
                       value={FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}
                     />
+                    <CampoDetalhe icon={Landmark} label="Empresa" value={solicitacao.empresa_nome} />
+                    <CampoDetalhe icon={Building2} label="Departamento" value={solicitacao.departamento_nome} />
                     <CampoDetalhe icon={Clock} label="Criado em" value={formatData(solicitacao.criado_em)} />
                   </div>
+                  {Number(solicitacao.parcelas_total || 0) > 0 && Number(solicitacao.valor_pago || 0) > 0 && (
+                    <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
+                      <CampoDetalhe icon={Wallet} label="Valor pago" value={formatValor(solicitacao.valor_pago)} />
+                      <CampoDetalhe
+                        icon={Wallet}
+                        label="Saldo em aberto"
+                        value={formatValor(Number(solicitacao.valor || 0) - Number(solicitacao.valor_pago || 0))}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 rounded-md border border-border p-3">

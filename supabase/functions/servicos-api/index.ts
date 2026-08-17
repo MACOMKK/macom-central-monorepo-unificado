@@ -987,12 +987,16 @@ Deno.serve(async (request) => {
             sp.*,
             c.nome as solicitante_nome,
             ac.nome as aprovador_destino_nome,
+            e.nome as empresa_nome,
+            d.nome as departamento_nome,
             coalesce(pp.parcelas_total, 0) as parcelas_total,
             coalesce(pp.parcelas_pagas, 0) as parcelas_pagas,
             coalesce(pp.valor_pago, 0) as valor_pago
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
+          left join public.empresas e on e.id = sp.empresa_id
+          left join public.departamentos d on d.id = sp.departamento_id
           left join lateral (
             select
               count(*) as parcelas_total,
@@ -1509,6 +1513,12 @@ Deno.serve(async (request) => {
       );
       const solicitacao = solicitacaoRows[0];
       if (solicitacao?.status === 'pago') {
+        // Ultima parcela fechou o ciclo -- o trigger de rollup ja marcou a solicitacao como
+        // 'pago' direto no banco, sem passar pela action set_status. Replica aqui o que
+        // set_status faz no pagamento a vista (historico + notificacao in-app), senao esses dois
+        // ficam mudos quando o pagamento e concluido via parcelamento.
+        await insertHistorico(String(solicitacao.id), 'pago', collaborator!.id as string);
+        await notifySolicitanteStatusChange(solicitacao, 'pago', collaborator!.id as string);
         await enqueueStatusEmail(solicitacao, 'pago');
       }
 
