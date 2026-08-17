@@ -1,4 +1,4 @@
-import { Banknote, Building2, CheckCircle2, Package, Phone, Receipt, ShoppingCart, Tag, UsersRound, Wrench } from 'lucide-react';
+import { Banknote, BarChart3, Building2, CheckCircle2, Package, Phone, Receipt, ShoppingCart, Tag, UsersRound, Wrench } from 'lucide-react';
 
 // Módulos do sistema SERVIÇOS. Só "financeiro" está implementado hoje (era o app pagamentos);
 // os demais aparecem no menu como "em breve" até ganharem backend/telas próprias.
@@ -19,6 +19,7 @@ export const servicosModules = [
       { key: 'pagamentos', label: 'Contas a pagar', icon: Receipt, path: '/pagamentos', requires: 'isPagador' },
       { key: 'fornecedores', label: 'Fornecedores', icon: Building2, path: '/fornecedores', requires: 'isFinanceiro' },
       { key: 'categorias', label: 'Categorias', icon: Tag, path: '/categorias', requires: 'isFinanceiro' },
+      { key: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/relatorios', requires: 'isFinanceiro' },
     ],
   },
   { key: 'estoque', label: 'Estoque', icon: Package, path: '/estoque', comingSoon: true },

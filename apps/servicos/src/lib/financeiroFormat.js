@@ -125,6 +125,7 @@ export function formatDataHora(data) {
 // Descricao fica de fora de proposito: ela nao aparece mais nas colunas, so no drawer.
 export function buildSolicitacaoSearchText(row) {
   return [
+    row.numero,
     row.titulo,
     row.fornecedor,
     row.categoria,

@@ -126,6 +126,29 @@ export const financeiroApi = {
       return result.rows || [];
     },
   },
+  relatorios: {
+    async financeiro(filtros) {
+      const result = await invokeServicos({ action: 'relatorio_financeiro', filtros: filtros || {} });
+      // `valor`/`quantidade` chegam como numeric do Postgres, que o driver serializa como
+      // string (evita perda de precisao) -- precisam virar Number aqui, senao os graficos
+      // (recharts soma os valores com `+`, que concatena string em vez de somar) ficam em
+      // branco silenciosamente.
+      const toNumberRows = (rows, keys) =>
+        (rows || []).map((row) => {
+          const copy = { ...row };
+          keys.forEach((key) => {
+            copy[key] = Number(copy[key] || 0);
+          });
+          return copy;
+        });
+      return {
+        resumo: result.resumo || null,
+        porCategoria: toNumberRows(result.porCategoria, ['valor', 'quantidade']),
+        porStatus: toNumberRows(result.porStatus, ['valor', 'quantidade']),
+        porMes: toNumberRows(result.porMes, ['valor_solicitado', 'valor_pago']),
+      };
+    },
+  },
   catalogosSolicitacao: {
     async list() {
       const result = await invokeServicos({ action: 'list_catalogos_solicitacao' });

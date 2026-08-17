@@ -13,6 +13,7 @@ import Aprovacoes from '@/pages/Aprovacoes';
 import Pagamentos from '@/pages/Pagamentos';
 import Fornecedores from '@/pages/Fornecedores';
 import Categorias from '@/pages/Categorias';
+import Relatorios from '@/pages/Relatorios';
 import Permissoes from '@/pages/Permissoes';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 
@@ -64,6 +65,7 @@ const ServicosRoutes = () => {
         {user?.isPagador && <Route path="/pagamentos" element={<Pagamentos />} />}
         {user?.isFinanceiro && <Route path="/fornecedores" element={<Fornecedores />} />}
         {user?.isFinanceiro && <Route path="/categorias" element={<Categorias />} />}
+        {user?.isFinanceiro && <Route path="/relatorios" element={<Relatorios />} />}
         {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Permissoes />} />}
         <Route
           path="/atendimento"

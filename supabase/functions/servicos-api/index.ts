@@ -1015,6 +1015,114 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
+    if (action === 'relatorio_financeiro') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode ver relatorios.'), { status: 403 });
+      }
+
+      const filtros = typeof body.filtros === 'object' && body.filtros ? body.filtros : {};
+      const de = typeof filtros.de === 'string' && filtros.de ? filtros.de : '0001-01-01';
+      const ate = typeof filtros.ate === 'string' && filtros.ate ? filtros.ate : '9999-12-31';
+      const empresaId = typeof filtros.empresa_id === 'string' && filtros.empresa_id ? filtros.empresa_id : null;
+      const numeroRaw = filtros.numero;
+      const numero =
+        numeroRaw !== undefined && numeroRaw !== null && String(numeroRaw).trim() !== ''
+          ? Number(String(numeroRaw).trim())
+          : null;
+      if (numero !== null && !Number.isInteger(numero)) {
+        throw Object.assign(new Error('Numero da solicitacao invalido.'), { status: 400 });
+      }
+
+      // "Pago" cobre a vista e parcelado: a vista nunca cria linhas em parcelas_pagamento, entao
+      // valor_pago (soma das parcelas quitadas) fica 0 mesmo com status = 'pago' -- nesse caso o
+      // valor pago de verdade e o valor cheio da solicitacao.
+      const baseCte = `
+        with base as (
+          select
+            sp.*,
+            coalesce(pp.valor_pago, 0) as valor_pago
+          from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
+          left join lateral (
+            select coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago
+            from ${SERVICOS_SCHEMA}.parcelas_pagamento
+            where solicitacao_id = sp.id
+          ) pp on true
+          where sp.criado_em >= $1 and sp.criado_em <= $2
+            and ($3::uuid is null or sp.empresa_id = $3)
+            and ($4::bigint is null or sp.numero = $4)
+        )
+      `;
+      const values = [de, ate, empresaId, numero];
+
+      const resumoRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select
+            count(*) as total_quantidade,
+            coalesce(sum(valor), 0) as total_valor,
+            coalesce(sum(case when status = 'pago' then valor else valor_pago end), 0) as total_pago,
+            coalesce(sum(valor - (case when status = 'pago' then valor else valor_pago end))
+              filter (where status = 'aprovado'), 0) as total_em_aberto,
+            count(*) filter (where status = 'aprovado' and data_vencimento < current_date) as total_atrasadas,
+            coalesce(sum(valor) filter (where status = 'aprovado' and data_vencimento < current_date), 0) as valor_atrasadas,
+            count(*) filter (where status = 'pendente') as total_pendentes,
+            count(*) filter (where status = 'reprovado') as total_reprovadas,
+            count(*) filter (where status = 'cancelado') as total_canceladas
+          from base;
+        `,
+        values,
+      );
+
+      const porCategoriaRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select categoria, count(*) as quantidade, coalesce(sum(valor), 0) as valor
+          from base
+          where status not in ('reprovado', 'cancelado')
+          group by categoria
+          order by valor desc;
+        `,
+        values,
+      );
+
+      const porStatusRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select status, count(*) as quantidade, coalesce(sum(valor), 0) as valor
+          from base
+          group by status
+          order by valor desc;
+        `,
+        values,
+      );
+
+      // Evolucao mensal: agrupa por mes de criacao (mesmo campo usado no filtro de periodo,
+      // nao data de pagamento) -- limita aos ultimos 12 meses com dado no periodo filtrado pra
+      // nao devolver uma serie enorme quando o filtro de data fica aberto.
+      const porMesRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select
+            to_char(date_trunc('month', criado_em), 'YYYY-MM') as mes,
+            coalesce(sum(valor), 0) as valor_solicitado,
+            coalesce(sum(case when status = 'pago' then valor else valor_pago end), 0) as valor_pago
+          from base
+          group by 1
+          order by 1 desc
+          limit 12;
+        `,
+        values,
+      );
+      porMesRows.reverse();
+
+      return json({
+        resumo: resumoRows[0] || null,
+        porCategoria: porCategoriaRows,
+        porStatus: porStatusRows,
+        porMes: porMesRows,
+      });
+    }
+
     if (action === 'get') {
       const id = String(body.id || '');
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
