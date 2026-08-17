@@ -24,7 +24,7 @@ import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
 import { usePagination } from '@/hooks/usePagination';
 import { normalize } from '@/lib/normalize';
-import { MODULOS_PERMISSAO } from '@/lib/modulosPermissao';
+import { MODULOS_PERMISSAO, PAPEIS_MODULO_FINANCEIRO } from '@/lib/modulosPermissao';
 
 const MODULOS_ATIVOS = MODULOS_PERMISSAO.filter((modulo) => modulo.ativo);
 
@@ -38,11 +38,14 @@ function indexByColaborador(permissoes) {
   return index;
 }
 
+const PAPEL_FILTRO_TODOS = 'todos';
+
 export default function Permissoes() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [limpezaDialogOpen, setLimpezaDialogOpen] = useState(false);
   const [busca, setBusca] = useState('');
+  const [papelFiltro, setPapelFiltro] = useState(PAPEL_FILTRO_TODOS);
 
   const permissoesQuery = useQuery({
     queryKey: ['servicos', 'permissoes'],
@@ -54,10 +57,21 @@ export default function Permissoes() {
     [permissoesQuery.data],
   );
   const loading = permissoesQuery.isLoading;
+
+  function papelDe(colaboradorId, modulo) {
+    return permissoesPorColaborador[colaboradorId]?.[modulo] || 'usuario';
+  }
+
   const filteredColaboradores = colaboradores.filter((colaborador) => {
     const termo = normalize(busca);
-    if (!termo) return true;
-    return [colaborador.nome, colaborador.email].some((value) => normalize(value).includes(termo));
+    if (termo && ![colaborador.nome, colaborador.email].some((value) => normalize(value).includes(termo))) {
+      return false;
+    }
+    if (papelFiltro !== PAPEL_FILTRO_TODOS) {
+      const papelEfetivo = colaborador.system_access_level === 'admin' ? 'financeiro' : papelDe(colaborador.colaborador_id, 'financeiro');
+      if (papelEfetivo !== papelFiltro) return false;
+    }
+    return true;
   });
   const { page, setPage, pageItems, total } = usePagination(filteredColaboradores, 10);
 
@@ -86,10 +100,6 @@ export default function Permissoes() {
     onError: (error) => toast({ title: 'Não foi possível limpar os dados de teste', description: error.message }),
   });
 
-  function papelDe(colaboradorId, modulo) {
-    return permissoesPorColaborador[colaboradorId]?.[modulo] || 'usuario';
-  }
-
   function handleChange(colaboradorId, modulo, papel) {
     alterarMutation.mutate({ colaboradorId, modulo, papel });
   }
@@ -114,7 +124,22 @@ export default function Permissoes() {
         </p>
       </div>
 
-      <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar colaborador..." className="max-w-sm" />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar colaborador..." className="max-w-sm" />
+        <Select value={papelFiltro} onValueChange={setPapelFiltro}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Nível de acesso" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={PAPEL_FILTRO_TODOS}>Todos os níveis</SelectItem>
+            {PAPEIS_MODULO_FINANCEIRO.map((papel) => (
+              <SelectItem key={papel.value} value={papel.value}>
+                {papel.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -125,7 +150,7 @@ export default function Permissoes() {
         <p className="text-sm text-muted-foreground">
           {colaboradores.length === 0
             ? 'Nenhum colaborador com acesso ao Serviços.'
-            : 'Nenhum colaborador corresponde à pesquisa.'}
+            : 'Nenhum colaborador corresponde à pesquisa/filtro.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">

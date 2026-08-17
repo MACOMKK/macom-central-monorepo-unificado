@@ -132,28 +132,39 @@ function isPagador(moduleRole: string | null) {
 
 // Acesso a uma solicitacao especifica: financeiro/contas_a_pagar ve/mexe em qualquer uma; o
 // proprio solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
-// a ele (aprovador_destino_id), nao qualquer solicitacao pendente.
+// a ele (aprovador_destino_id), nao qualquer solicitacao pendente; e qualquer papel ve as
+// solicitacoes de colegas do mesmo setor (departamento_id atual do colaborador logado
+// comparado ao snapshot de departamento_id da solicitacao).
 function canAccessSolicitacao(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
-  row: { solicitante_id: unknown; aprovador_destino_id?: unknown },
+  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown },
+  departamentoId?: string | null,
 ) {
   if (isPagador(moduleRole)) return true;
   if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
-  return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
+  if (moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '')) {
+    return true;
+  }
+  return Boolean(departamentoId) && String(row.departamento_id || '') === String(departamentoId);
 }
 
 // Anexo sigiloso e mais restrito que acesso normal a solicitacao: contas_a_pagar tem acesso a
-// linha (pode ver/pagar a solicitacao) mas nunca ve anexo marcado sigiloso -- so financeiro,
-// o proprio solicitante ou o aprovador designado.
+// linha (pode ver/pagar a solicitacao) mas nunca ve anexo marcado sigiloso. Quem ve: financeiro,
+// o proprio solicitante, o aprovador designado, e colegas do mesmo setor da solicitacao (mesma
+// regra de setor usada em canAccessSolicitacao).
 function canViewAnexoSigiloso(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
-  row: { solicitante_id: unknown; aprovador_destino_id?: unknown },
+  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown },
+  departamentoId?: string | null,
 ) {
   if (isFinanceiro(moduleRole)) return true;
   if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
-  return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
+  if (moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '')) {
+    return true;
+  }
+  return Boolean(departamentoId) && String(row.departamento_id || '') === String(departamentoId);
 }
 
 function getBearerToken(request: Request) {
@@ -333,7 +344,8 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   const row = rows[0];
   if (!row) throw Object.assign(new Error('Solicitacao nao encontrada.'), { status: 404 });
 
-  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row)) return row;
+  const departamentoId = collaborator?.departamento_id as string | null | undefined;
+  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta solicitacao.'), { status: 403 });
 }
@@ -499,7 +511,7 @@ async function createSignedUrlForPath(path: string | null) {
 async function ensureParcelaAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.status as solicitacao_status
+      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.status as solicitacao_status
       from ${SERVICOS_SCHEMA}.parcelas_pagamento pp
       join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = pp.solicitacao_id
       where pp.id = $1
@@ -510,7 +522,8 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
   const row = rows[0];
   if (!row) throw Object.assign(new Error('Parcela nao encontrada.'), { status: 404 });
 
-  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row)) return row;
+  const departamentoId = collaborator?.departamento_id as string | null | undefined;
+  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta parcela.'), { status: 403 });
 }
@@ -902,13 +915,23 @@ Deno.serve(async (request) => {
       const clauses: string[] = [];
       const values: unknown[] = [];
 
-      // financeiro/contas_a_pagar veem tudo; aprovador ve as proprias + as endereçadas a ele; usuario so as proprias.
+      // financeiro/contas_a_pagar veem tudo; aprovador ve as proprias + as endereçadas a ele +
+      // as do mesmo setor; usuario ve as proprias + as do mesmo setor (departamento_id atual do
+      // colaborador logado comparado ao snapshot de departamento_id da solicitacao).
       if (!isPagador(moduleRole)) {
         values.push(collaborator!.id);
-        if (moduleRole === 'aprovador') {
-          clauses.push(`(sp.solicitante_id = $${values.length} or sp.aprovador_destino_id = $${values.length})`);
+        const collaboradorIdParam = values.length;
+        const pessoaisClause =
+          moduleRole === 'aprovador'
+            ? `(sp.solicitante_id = $${collaboradorIdParam} or sp.aprovador_destino_id = $${collaboradorIdParam})`
+            : `sp.solicitante_id = $${collaboradorIdParam}`;
+
+        const departamentoId = collaborator!.departamento_id as string | null | undefined;
+        if (departamentoId) {
+          values.push(departamentoId);
+          clauses.push(`(${pessoaisClause} or sp.departamento_id = $${values.length})`);
         } else {
-          clauses.push(`sp.solicitante_id = $${values.length}`);
+          clauses.push(pessoaisClause);
         }
       }
 
@@ -1252,9 +1275,11 @@ Deno.serve(async (request) => {
       // Anexo sigiloso e mais restrito que o acesso normal a solicitacao (canAccessSolicitacao):
       // contas_a_pagar tem acesso a linha (ve/paga a solicitacao) mas nunca ve anexo sigiloso --
       // por isso usa canViewAnexoSigiloso aqui, nao canAccessSolicitacao.
+      const departamentoIdAnexos = collaborator?.departamento_id as string | null | undefined;
       const visiveis = rows.filter(
         (anexo: Record<string, unknown>) =>
-          !anexo.sigiloso || canViewAnexoSigiloso(moduleRole, collaborator?.id as string | undefined, solicitacaoRow),
+          !anexo.sigiloso ||
+          canViewAnexoSigiloso(moduleRole, collaborator?.id as string | undefined, solicitacaoRow, departamentoIdAnexos),
       );
       const withUrls = await Promise.all(
         visiveis.map(async (anexo: Record<string, unknown>) => ({

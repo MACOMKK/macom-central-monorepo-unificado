@@ -33,6 +33,7 @@ import { buildSolicitacaoSearchText, formatDataVencimento, FORMA_PAGAMENTO_LABEL
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
+const APROVADOR_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
 
 function formatValor(valor) {
@@ -49,6 +50,7 @@ export default function Aprovacoes() {
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
+  const [aprovadorFiltro, setAprovadorFiltro] = useState(APROVADOR_FILTRO_TODOS);
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
@@ -71,9 +73,20 @@ export default function Aprovacoes() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const aprovadores = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.aprovador_destino_id && !porId.has(row.aprovador_destino_id)) {
+        porId.set(row.aprovador_destino_id, row.aprovador_destino_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const filteredRows = rows.filter((row) => {
     if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS && row.categoria_id !== categoriaFiltro) return false;
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
+    if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS && String(row.aprovador_destino_id) !== aprovadorFiltro) return false;
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
     if (vencimentoFiltro) {
       const dia = toLocalDateOnly(row.data_vencimento);
@@ -118,6 +131,7 @@ export default function Aprovacoes() {
   const activeFilterCount = [
     categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
+    aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
     empresaFiltro !== EMPRESA_FILTRO_TODAS,
     Boolean(vencimentoFiltro),
   ].filter(Boolean).length;
@@ -125,6 +139,7 @@ export default function Aprovacoes() {
   function handleClearFiltros() {
     setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
+    setAprovadorFiltro(APROVADOR_FILTRO_TODOS);
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
@@ -174,8 +189,22 @@ export default function Aprovacoes() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os funcionários</SelectItem>
+              <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os solicitantes</SelectItem>
               {solicitantes.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={aprovadorFiltro} onValueChange={setAprovadorFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={APROVADOR_FILTRO_TODOS}>Todos os aprovadores</SelectItem>
+              {aprovadores.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
                 </SelectItem>
