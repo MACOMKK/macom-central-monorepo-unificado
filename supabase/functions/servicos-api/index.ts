@@ -130,6 +130,40 @@ function isPagador(moduleRole: string | null) {
   return moduleRole === 'financeiro' || moduleRole === 'contas_a_pagar';
 }
 
+// Usado tanto na criacao da solicitacao (solicitante propondo parcelamento) quanto em
+// criar_parcelas (financeiro/contas_a_pagar revisando o plano depois de aprovado) — a soma
+// precisa bater com o valor total da solicitacao pra evitar plano de pagamento inconsistente.
+function validateParcelasSum(parcelas: Array<Record<string, unknown>>, valorTotal: number) {
+  const soma = parcelas.reduce((acc, parcela) => acc + Number(parcela.valor), 0);
+  if (Math.abs(soma - valorTotal) >= 0.01) {
+    throw Object.assign(
+      new Error(`A soma das parcelas (${soma.toFixed(2)}) precisa ser igual ao valor total da solicitacao (${valorTotal.toFixed(2)}).`),
+      { status: 400 },
+    );
+  }
+}
+
+async function inserirPlanoParcelas(solicitacaoId: string, parcelas: Array<Record<string, unknown>>) {
+  const inserted = [];
+  for (let index = 0; index < parcelas.length; index += 1) {
+    const parcela = parcelas[index];
+    const valor = Number(parcela.valor);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw Object.assign(new Error(`Valor invalido na parcela ${index + 1}.`), { status: 400 });
+    }
+    const rows = await sql.unsafe(
+      `
+        insert into ${SERVICOS_SCHEMA}.parcelas_pagamento (solicitacao_id, numero, valor, data_vencimento)
+        values ($1, $2, $3, $4)
+        returning *;
+      `,
+      [solicitacaoId, index + 1, valor, parcela.data_vencimento || null],
+    );
+    inserted.push(rows[0]);
+  }
+  return inserted;
+}
+
 // Acesso a uma solicitacao especifica: financeiro/contas_a_pagar ve/mexe em qualquer uma; o
 // proprio solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
 // a ele (aprovador_destino_id), nao qualquer solicitacao pendente; e qualquer papel ve as
@@ -954,14 +988,16 @@ Deno.serve(async (request) => {
             c.nome as solicitante_nome,
             ac.nome as aprovador_destino_nome,
             coalesce(pp.parcelas_total, 0) as parcelas_total,
-            coalesce(pp.parcelas_pagas, 0) as parcelas_pagas
+            coalesce(pp.parcelas_pagas, 0) as parcelas_pagas,
+            coalesce(pp.valor_pago, 0) as valor_pago
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
           left join lateral (
             select
               count(*) as parcelas_total,
-              count(*) filter (where status = 'pago') as parcelas_pagas
+              count(*) filter (where status = 'pago') as parcelas_pagas,
+              coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago
             from ${SERVICOS_SCHEMA}.parcelas_pagamento
             where solicitacao_id = sp.id
           ) pp on true
@@ -995,6 +1031,14 @@ Deno.serve(async (request) => {
       const payload = sanitizePayload(CREATE_FIELDS, body.payload || {});
       validateCreatePayload(payload);
       validateComprovanteSize(body.payload?.comprovante_file_size);
+
+      // Parcelamento e opcional: o solicitante pode propor um plano de pagamento ja na
+      // criacao (fica sujeito a revisao do financeiro/contas a pagar depois de aprovado,
+      // via criar_parcelas). Sem esse campo, a solicitacao nasce a vista, igual antes.
+      const parcelasPropostas = Array.isArray(body.payload?.parcelas) ? body.payload.parcelas : [];
+      if (parcelasPropostas.length) {
+        validateParcelasSum(parcelasPropostas, Number(payload.valor));
+      }
 
       // Todo solicitacao precisa de um aprovador especifico: so ele (ou o financeiro,
       // que sobrepoe qualquer aprovador) pode decidir sobre ela — ver canAccessSolicitacao.
@@ -1037,6 +1081,10 @@ Deno.serve(async (request) => {
       const row = rows[0] || null;
       if (row) {
         await insertHistorico(String(row.id), 'criada', collaborator!.id as string);
+        if (parcelasPropostas.length) {
+          await inserirPlanoParcelas(String(row.id), parcelasPropostas);
+          await insertHistorico(String(row.id), 'parcela_criada', collaborator!.id as string, `${parcelasPropostas.length} parcela(s) proposta(s) pelo solicitante.`);
+        }
         await notifyAprovadorNovaSolicitacao(row, 'Nova solicitação para aprovar', collaborator!.id as string);
       }
       return json({ row });
@@ -1104,14 +1152,27 @@ Deno.serve(async (request) => {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
       const existing = await ensureRowAccess(id, moduleRole, collaborator);
-      if (String(existing.solicitante_id) !== String(collaborator!.id)) {
-        throw Object.assign(new Error('Apenas o solicitante pode cancelar esta solicitacao.'), { status: 403 });
-      }
-      if (existing.status !== 'pendente') {
-        throw Object.assign(new Error('Somente solicitacoes pendentes podem ser canceladas.'), { status: 400 });
-      }
+      const souSolicitante = String(existing.solicitante_id) === String(collaborator!.id);
+      const souGerente = isFinanceiro(moduleRole);
 
-      const motivo = body.motivo ? String(body.motivo) : null;
+      let motivo: string | null = body.motivo ? String(body.motivo).trim() : null;
+      if (existing.status === 'pendente') {
+        if (!souSolicitante) {
+          throw Object.assign(new Error('Apenas o solicitante pode cancelar esta solicitacao.'), { status: 403 });
+        }
+      } else if (existing.status === 'pago') {
+        // Cancelamento excecional de solicitacao ja paga (ex. pagamento em duplicidade) -- so o
+        // gerente (financeiro) pode, e o motivo e obrigatorio pra auditoria. Nao mexe nas
+        // parcelas: elas continuam com status 'pago', o cancelamento e so uma sinalizacao.
+        if (!souGerente) {
+          throw Object.assign(new Error('Apenas o financeiro pode cancelar uma solicitacao ja paga.'), { status: 403 });
+        }
+        if (!motivo) {
+          throw Object.assign(new Error('Informe o motivo do cancelamento.'), { status: 400 });
+        }
+      } else {
+        throw Object.assign(new Error('Somente solicitacoes pendentes ou pagas podem ser canceladas.'), { status: 400 });
+      }
       const rows = await sql.unsafe(
         `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set status = 'cancelado' where id = $1 returning *;`,
         [id],
@@ -1400,25 +1461,11 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Ja existem parcelas pagas para esta solicitacao; nao e possivel redefinir o plano.'), { status: 400 });
       }
 
+      validateParcelasSum(parcelas as Array<Record<string, unknown>>, Number(existing.valor));
+
       await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.parcelas_pagamento where solicitacao_id = $1;`, [solicitacaoId]);
 
-      const inserted = [];
-      for (let index = 0; index < parcelas.length; index += 1) {
-        const parcela = parcelas[index] as Record<string, unknown>;
-        const valor = Number(parcela.valor);
-        if (!Number.isFinite(valor) || valor <= 0) {
-          throw Object.assign(new Error(`Valor invalido na parcela ${index + 1}.`), { status: 400 });
-        }
-        const rows = await sql.unsafe(
-          `
-            insert into ${SERVICOS_SCHEMA}.parcelas_pagamento (solicitacao_id, numero, valor, data_vencimento)
-            values ($1, $2, $3, $4)
-            returning *;
-          `,
-          [solicitacaoId, index + 1, valor, parcela.data_vencimento || null],
-        );
-        inserted.push(rows[0]);
-      }
+      const inserted = await inserirPlanoParcelas(solicitacaoId, parcelas as Array<Record<string, unknown>>);
 
       await insertHistorico(solicitacaoId, 'parcela_criada', collaborator!.id as string, `${parcelas.length} parcela(s) definida(s).`);
 

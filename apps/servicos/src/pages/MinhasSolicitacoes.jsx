@@ -19,6 +19,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
   useToast,
 } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,6 +28,7 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
+  isParcialmentePago,
   STATUS_LABEL,
   STATUS_VARIANT,
   toDateOnly,
@@ -60,6 +62,7 @@ export default function MinhasSolicitacoes() {
   const [novaOpen, setNovaOpen] = useState(false);
   const [formTarget, setFormTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelMotivo, setCancelMotivo] = useState('');
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState(STATUS_FILTRO_TODOS);
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
@@ -142,13 +145,14 @@ export default function MinhasSolicitacoes() {
   const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
 
   const cancelarMutation = useMutation({
-    mutationFn: (id) => financeiroApi.solicitacoes.cancelar(id),
-    onMutate: (id) => {
+    mutationFn: ({ id, motivo }) => financeiroApi.solicitacoes.cancelar(id, motivo),
+    onMutate: ({ id }) => {
       const previous = queryClient.getQueryData(minhasSolicitacoesKey);
       queryClient.setQueryData(minhasSolicitacoesKey, (old) =>
         (old || []).map((row) => (row.id === id ? { ...row, status: 'cancelado' } : row)),
       );
       setCancelTarget(null);
+      setCancelMotivo('');
       setSelectedId(null);
       return { previous };
     },
@@ -166,7 +170,7 @@ export default function MinhasSolicitacoes() {
 
   function handleCancelar() {
     if (!cancelTarget) return;
-    cancelarMutation.mutate(cancelTarget.id);
+    cancelarMutation.mutate({ id: cancelTarget.id, motivo: cancelMotivo.trim() || null });
   }
 
   const isDono = (row) => String(row.solicitante_id) === String(user?.collaborator?.id);
@@ -211,6 +215,14 @@ export default function MinhasSolicitacoes() {
         <Button className="w-full" onClick={() => setFormTarget(selected)}>
           <Pencil className="mr-2 h-4 w-4" />
           Corrigir e reenviar
+        </Button>
+      );
+    }
+    if (selected.status === 'pago' && user?.isFinanceiro) {
+      return (
+        <Button variant="outline" className="w-full" onClick={() => setCancelTarget(selected)}>
+          <X className="mr-2 h-4 w-4" />
+          Cancelar pagamento
         </Button>
       );
     }
@@ -348,7 +360,14 @@ export default function MinhasSolicitacoes() {
                   <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
                   <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                      {row.status === 'aprovado' && isParcialmentePago(row) && (
+                        <Badge variant="outline">
+                          Parcialmente pago ({row.parcelas_pagas}/{row.parcelas_total})
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
@@ -377,15 +396,34 @@ export default function MinhasSolicitacoes() {
 
       <ConfirmDeleteDialog
         open={Boolean(cancelTarget)}
-        onOpenChange={(open) => !open && setCancelTarget(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelTarget(null);
+            setCancelMotivo('');
+          }
+        }}
         onConfirm={handleCancelar}
         isLoading={cancelarMutation.isPending}
-        title="Cancelar solicitação"
-        description="Tem certeza que deseja cancelar esta solicitação? Essa ação não pode ser desfeita."
-        confirmLabel="Cancelar solicitação"
+        confirmDisabled={cancelTarget?.status === 'pago' && !cancelMotivo.trim()}
+        title={cancelTarget?.status === 'pago' ? 'Cancelar pagamento' : 'Cancelar solicitação'}
+        description={
+          cancelTarget?.status === 'pago'
+            ? 'Isso cancela uma solicitação já paga — use apenas em caso de erro ou duplicidade. As parcelas já pagas permanecem registradas no histórico. Informe o motivo abaixo.'
+            : 'Tem certeza que deseja cancelar esta solicitação? Essa ação não pode ser desfeita.'
+        }
+        confirmLabel={cancelTarget?.status === 'pago' ? 'Cancelar pagamento' : 'Cancelar solicitação'}
         loadingLabel="Cancelando..."
         cancelLabel="Manter solicitação"
-      />
+      >
+        {cancelTarget?.status === 'pago' && (
+          <Textarea
+            value={cancelMotivo}
+            onChange={(event) => setCancelMotivo(event.target.value)}
+            placeholder="Motivo do cancelamento (obrigatório)"
+            rows={3}
+          />
+        )}
+      </ConfirmDeleteDialog>
     </div>
   );
 }

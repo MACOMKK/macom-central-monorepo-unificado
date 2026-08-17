@@ -44,6 +44,7 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
+  isParcialmentePago,
   toLocalDateOnly,
 } from '@/lib/financeiroFormat';
 import { normalize } from '@/lib/normalize';
@@ -79,12 +80,6 @@ const VENCIMENTO_STATUS_OPCOES = [
   { value: 'no_prazo', label: 'No prazo' },
   { value: 'sem_vencimento', label: 'Sem vencimento' },
 ];
-
-function isParcialmentePago(row) {
-  const total = Number(row.parcelas_total || 0);
-  const pagas = Number(row.parcelas_pagas || 0);
-  return total > 0 && pagas > 0 && pagas < total;
-}
 
 export default function Pagamentos() {
   const { toast } = useToast();
@@ -228,7 +223,9 @@ export default function Pagamentos() {
   const { page, setPage, pageItems, total } = usePagination(visibleRows, 10);
 
   const resumo = useMemo(() => {
-    const total = visibleRows.reduce((sum, row) => sum + Number(row.valor || 0), 0);
+    // Saldo em aberto: valor total menos o que ja foi pago em parcelas (pagamento parcial
+    // continua na lista, com status 'aprovado', ate quitar a ultima parcela).
+    const total = visibleRows.reduce((sum, row) => sum + (Number(row.valor || 0) - Number(row.valor_pago || 0)), 0);
     const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.data_vencimento).label === 'Vencido').length;
     return { total, atrasadas };
   }, [visibleRows]);

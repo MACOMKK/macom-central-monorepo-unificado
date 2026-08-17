@@ -57,6 +57,14 @@ export function getTiposDocumentoPorCategoria(categoria) {
   return TIPOS_DOCUMENTO.filter((item) => permitidos.includes(item.value));
 }
 
+// Solicitacao com plano de parcelas onde algumas ja foram pagas mas nao todas -- status da
+// solicitacao continua 'aprovado' ate a ultima parcela ser quitada (so ai vira 'pago').
+export function isParcialmentePago(row) {
+  const total = Number(row.parcelas_total || 0);
+  const pagas = Number(row.parcelas_pagas || 0);
+  return total > 0 && pagas > 0 && pagas < total;
+}
+
 export function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }

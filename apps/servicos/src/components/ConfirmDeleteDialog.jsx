@@ -19,6 +19,8 @@ export default function ConfirmDeleteDialog({
   loadingLabel = 'Excluindo...',
   cancelLabel = 'Cancelar',
   isLoading = false,
+  confirmDisabled = false,
+  children,
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -27,11 +29,12 @@ export default function ConfirmDeleteDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {isLoading ? loadingLabel : confirmLabel}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Paperclip, Plus, X } from 'lucide-react';
+import { Paperclip, Plus, Trash2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { useAuth } from '@/lib/AuthContext';
@@ -61,6 +61,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [anexos, setAnexos] = useState([]);
+  const [parcelado, setParcelado] = useState(false);
+  const [draftParcelas, setDraftParcelas] = useState([]);
   const [visible, setVisible] = useState(open);
   const skipNextResetRef = useRef(false);
   const initialFormRef = useRef(EMPTY_FORM);
@@ -207,9 +209,33 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     } else {
       setForm(EMPTY_FORM);
       setAnexos([]);
+      setParcelado(false);
+      setDraftParcelas([]);
       initialFormRef.current = EMPTY_FORM;
     }
   }, [visible, catalogosLoading]);
+
+  function handleToggleParcelado(checked) {
+    const nextChecked = checked === true;
+    setParcelado(nextChecked);
+    if (nextChecked) {
+      setDraftParcelas([{ valor: form.valor, data_vencimento: form.dataVencimento }]);
+    } else {
+      setDraftParcelas([]);
+    }
+  }
+
+  function addDraftParcela() {
+    setDraftParcelas((current) => [...current, { valor: '', data_vencimento: '' }]);
+  }
+
+  function updateDraftParcela(index, field, value) {
+    setDraftParcelas((current) => current.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+  }
+
+  function removeDraftParcela(index) {
+    setDraftParcelas((current) => current.filter((_, i) => i !== index));
+  }
 
   const criarFornecedorMutation = useMutation({
     mutationFn: (nome) => financeiroApi.fornecedores.criar(nome),
@@ -311,6 +337,23 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       return;
     }
 
+    let parcelasPayload;
+    if (parcelado) {
+      const soma = draftParcelas.reduce((acc, item) => acc + Number(item.valor || 0), 0);
+      if (draftParcelas.some((item) => !Number(item.valor) || Number(item.valor) <= 0)) {
+        toast({ title: 'Parcelas inválidas', description: 'Informe um valor maior que zero em cada parcela.' });
+        return;
+      }
+      if (Math.abs(soma - Number(form.valor)) >= 0.01) {
+        toast({
+          title: 'Soma das parcelas incorreta',
+          description: `A soma das parcelas (${soma.toFixed(2)}) precisa ser igual ao valor total (${Number(form.valor || 0).toFixed(2)}).`,
+        });
+        return;
+      }
+      parcelasPayload = draftParcelas.map((item) => ({ valor: Number(item.valor), data_vencimento: item.data_vencimento || null }));
+    }
+
     submitMutation.mutate({
       tempId: `optimistic-${crypto.randomUUID()}`,
       payload: {
@@ -325,6 +368,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         empresa_id: form.empresaId || null,
         departamento_id: form.departamentoId || null,
         aprovador_destino_id: form.aprovadorDestinoId,
+        ...(parcelasPayload ? { parcelas: parcelasPayload } : {}),
       },
     });
   };
@@ -452,6 +496,54 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
               </Select>
             </div>
           </div>
+
+          {!isEdicao && !isReenvio && (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <label htmlFor="parcelado" className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+                <Checkbox id="parcelado" checked={parcelado} onCheckedChange={handleToggleParcelado} />
+                Parcelar pagamento
+              </label>
+              {parcelado && (
+                <div className="space-y-3">
+                  {draftParcelas.map((item, index) => (
+                    <div key={index} className="flex items-end gap-2">
+                      <div className="flex-1 space-y-1">
+                        <span className="text-xs text-muted-foreground">Valor (R$)</span>
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={item.valor}
+                          onChange={(event) => updateDraftParcela(index, 'valor', event.target.value)}
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="text-xs text-muted-foreground">Vencimento</span>
+                        <Input
+                          type="date"
+                          value={item.data_vencimento}
+                          onChange={(event) => updateDraftParcela(index, 'data_vencimento', event.target.value)}
+                        />
+                      </div>
+                      {draftParcelas.length > 1 && (
+                        <Button type="button" variant="outline" size="icon" onClick={() => removeDraftParcela(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={addDraftParcela}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Adicionar parcela
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    A soma das parcelas precisa ser igual ao valor total da solicitação. O plano fica sujeito a
+                    revisão do financeiro/contas a pagar depois de aprovado.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
