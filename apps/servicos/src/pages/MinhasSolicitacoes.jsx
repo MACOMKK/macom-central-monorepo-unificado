@@ -141,7 +141,7 @@ export default function MinhasSolicitacoes() {
     if (!termo) return true;
     return normalize(buildSolicitacaoSearchText(row)).includes(termo);
   });
-  const { page, setPage, pageItems, total } = usePagination(filteredRows, 10);
+  const { page, setPage, pageItems, total } = usePagination(filteredRows, 15);
 
   const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
 
@@ -246,6 +246,23 @@ export default function MinhasSolicitacoes() {
           <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
         </div>
 
+        <div className="w-48 space-y-1">
+          <span className="text-xs text-muted-foreground">Status</span>
+          <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={STATUS_FILTRO_TODOS}>Todos os status</SelectItem>
+              {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
           <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
             <SelectTrigger>
@@ -270,20 +287,6 @@ export default function MinhasSolicitacoes() {
               {categorias.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
                   {item.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={STATUS_FILTRO_TODOS}>Todos os status</SelectItem>
-              {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -400,7 +403,7 @@ export default function MinhasSolicitacoes() {
             ))}
           </div>
 
-          <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
+          <Pagination page={page} pageSize={15} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}
 

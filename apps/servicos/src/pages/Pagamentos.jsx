@@ -46,12 +46,19 @@ import {
   formatValor,
   FORMA_PAGAMENTO_LABEL,
   isParcialmentePago,
+  STATUS_LABEL,
+  STATUS_VARIANT,
   toLocalDateOnly,
 } from '@/lib/financeiroFormat';
 import { normalize } from '@/lib/normalize';
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const CLASSIFICACAO_TODAS = 'todas';
+const STATUS_PAGAMENTO_FILTRO_OPCOES = [
+  { value: 'aprovado', label: 'Pendentes' },
+  { value: 'pago', label: 'Pagas' },
+  { value: 'todas', label: 'Todas' },
+];
 const CLASSIFICACAO_PARCIAL = 'parcial';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
@@ -96,6 +103,7 @@ export default function Pagamentos() {
   const { data: categorias = [] } = useCategorias();
   const { data: empresas = [] } = useEmpresas();
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
+  const [statusPagamentoFiltro, setStatusPagamentoFiltro] = useState('aprovado');
   const [classificacaoFiltro, setClassificacaoFiltro] = useState(CLASSIFICACAO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
@@ -120,11 +128,14 @@ export default function Pagamentos() {
   const [successOverlay, setSuccessOverlay] = useState(null);
 
   const solicitacoesQuery = useQuery({
-    queryKey: ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro],
-    queryFn: () => {
-      const filters = { status: 'aprovado', order_by: 'data_vencimento' };
+    queryKey: ['servicos', 'solicitacoes', 'aprovadas', categoriaFiltro, statusPagamentoFiltro],
+    queryFn: async () => {
+      const filters = { order_by: 'data_vencimento' };
+      if (statusPagamentoFiltro !== 'todas') filters.status = statusPagamentoFiltro;
       if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS) filters.categoria_id = categoriaFiltro;
-      return financeiroApi.solicitacoes.list(filters);
+      const result = await financeiroApi.solicitacoes.list(filters);
+      if (statusPagamentoFiltro !== 'todas') return result;
+      return (result || []).filter((row) => row.status === 'aprovado' || row.status === 'pago');
     },
   });
   const rows = solicitacoesQuery.data || [];
@@ -233,7 +244,9 @@ export default function Pagamentos() {
     // Saldo em aberto: valor total menos o que ja foi pago em parcelas (pagamento parcial
     // continua na lista, com status 'aprovado', ate quitar a ultima parcela).
     const total = visibleRows.reduce((sum, row) => sum + (Number(row.valor || 0) - Number(row.valor_pago || 0)), 0);
-    const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.vencimento_efetivo).label === 'Vencido').length;
+    const atrasadas = visibleRows.filter(
+      (row) => row.status !== 'pago' && getVencimentoInfo(row.vencimento_efetivo).label === 'Vencido',
+    ).length;
     return { total, atrasadas };
   }, [visibleRows]);
 
@@ -502,6 +515,22 @@ export default function Pagamentos() {
           </Select>
         </div>
 
+        <div className="w-48 space-y-1">
+          <span className="text-xs text-muted-foreground">Situação</span>
+          <Select value={statusPagamentoFiltro} onValueChange={setStatusPagamentoFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_PAGAMENTO_FILTRO_OPCOES.map((opcao) => (
+                <SelectItem key={opcao.value} value={opcao.value}>
+                  {opcao.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
           <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
             <SelectTrigger>
@@ -620,6 +649,7 @@ export default function Pagamentos() {
             <TableRow>
               <TableHead>Título</TableHead>
               <TableHead>Solicitante</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Vencimento</TableHead>
               <TableHead>Forma de pagamento</TableHead>
               <TableHead>Categoria</TableHead>
@@ -643,10 +673,16 @@ export default function Pagamentos() {
                   <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>
+                    {parcial ? (
+                      <Badge variant="secondary">Parcialmente pago</Badge>
+                    ) : (
+                      <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{formatDataVencimento(row.vencimento_efetivo)}</span>
                       <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
-                      {parcial && <Badge variant="secondary">Parcialmente pago</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
@@ -656,25 +692,29 @@ export default function Pagamentos() {
                   <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {user?.isFinanceiro && (
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          title="Reprovar"
-                          aria-label="Reprovar"
-                          onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                      {row.status === 'aprovado' && (
+                        <>
+                          {user?.isFinanceiro && (
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              title="Reprovar"
+                              aria-label="Reprovar"
+                              onClick={(event) => { event.stopPropagation(); setReprovarTarget(row); }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                            onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
+                          >
+                            <Banknote className="mr-1 h-4 w-4" />
+                            Pagar
+                          </Button>
+                        </>
                       )}
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
-                        onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
-                      >
-                        <Banknote className="mr-1 h-4 w-4" />
-                        Pagar
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -695,32 +735,40 @@ export default function Pagamentos() {
                 showSolicitante
                 badges={
                   <>
+                    {parcial ? (
+                      <Badge variant="secondary">Parcialmente pago</Badge>
+                    ) : (
+                      row.status !== 'aprovado' && (
+                        <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                      )
+                    )}
                     <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
-                    {parcial && <Badge variant="secondary">Parcialmente pago</Badge>}
                   </>
                 }
                 actions={
-                  <>
-                    {user?.isFinanceiro && (
+                  row.status === 'aprovado' ? (
+                    <>
+                      {user?.isFinanceiro && (
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          title="Reprovar"
+                          aria-label="Reprovar"
+                          onClick={() => setReprovarTarget(row)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
-                        variant="destructive"
-                        size="icon"
-                        title="Reprovar"
-                        aria-label="Reprovar"
-                        onClick={() => setReprovarTarget(row)}
+                        size="sm"
+                        className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                        onClick={() => openPagamentoAVista(row)}
                       >
-                        <X className="h-4 w-4" />
+                        <Banknote className="mr-1 h-4 w-4" />
+                        Pagar
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
-                      onClick={() => openPagamentoAVista(row)}
-                    >
-                      <Banknote className="mr-1 h-4 w-4" />
-                      Pagar
-                    </Button>
-                  </>
+                    </>
+                  ) : null
                 }
               />
             );
