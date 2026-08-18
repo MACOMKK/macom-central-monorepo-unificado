@@ -27,6 +27,14 @@
     --input: 0 0% 85.9%;
     --ring: 355 83% 41%;
     --radius: 0.625rem;
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 355 83% 41%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 355 83% 41%;
   }
 
   * {
@@ -69,4 +77,13 @@
 
 .payment-check-wrapper {
   animation: check-pop-in 0.4s ease-out forwards;
+}
+
+@layer utilities {
+  .pb-safe-bottom-nav {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

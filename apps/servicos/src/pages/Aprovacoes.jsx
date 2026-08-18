@@ -22,6 +22,7 @@ import {
   useToast,
 } from '@macom/ui';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import SolicitacaoCard from '@/components/SolicitacaoCard';
 import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
@@ -150,7 +151,7 @@ export default function Aprovacoes() {
       <h2 className="text-xl font-bold">Solicitações pendentes de aprovação</h2>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64 space-y-1">
+        <div className="w-full space-y-1 sm:w-64">
           <span className="text-xs text-muted-foreground">Pesquisar</span>
           <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
         </div>
@@ -227,7 +228,7 @@ export default function Aprovacoes() {
         </p>
       ) : (
         <>
-          <Table>
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
@@ -261,6 +262,13 @@ export default function Aprovacoes() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="space-y-3 md:hidden">
+            {pageItems.map((row) => (
+              <SolicitacaoCard key={row.id} row={row} onClick={() => setSelectedId(row.id)} showSolicitante />
+            ))}
+          </div>
+
           <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}

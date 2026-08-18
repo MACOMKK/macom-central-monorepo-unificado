@@ -5,7 +5,6 @@ import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'r
 import { queryClientInstance } from '@/lib/query-client';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
-import DevRoleSwitcher from '@/components/DevRoleSwitcher';
 import NativeBackButtonHandler from '@/components/NativeBackButtonHandler';
 import Login from '@/pages/Login';
 import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
@@ -106,7 +105,6 @@ function App() {
           </Routes>
         </Router>
         <Toaster />
-        <DevRoleSwitcher />
       </AuthProvider>
     </QueryClientProvider>
   );

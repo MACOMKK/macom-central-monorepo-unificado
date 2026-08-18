@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
+import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 
@@ -30,10 +31,12 @@ export default function AppLayout() {
         setMobileOpen={setMobileOpen}
       />
 
+      <BottomNav onOpenMore={() => setMobileOpen(true)} />
+
       <div className={`transition-all duration-300 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-64'}`}>
         <Header onOpenMobileMenu={() => setMobileOpen(true)} />
 
-        <main className="min-w-0 flex-1 px-4 py-6 md:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 px-4 py-6 pb-safe-bottom-nav md:px-6 lg:px-8 lg:pb-8">
           <Outlet />
         </main>
       </div>

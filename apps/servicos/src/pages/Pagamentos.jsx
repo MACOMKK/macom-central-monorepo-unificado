@@ -29,6 +29,7 @@ import {
 } from '@macom/ui';
 import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import SolicitacaoCard from '@/components/SolicitacaoCard';
 import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
@@ -469,7 +470,7 @@ export default function Pagamentos() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64 space-y-1">
+        <div className="w-full space-y-1 sm:w-64">
           <span className="text-xs text-muted-foreground">Pesquisar</span>
           <SearchInput
             value={busca}
@@ -608,7 +609,7 @@ export default function Pagamentos() {
         <p className="text-sm text-muted-foreground">Nenhuma solicitação aguardando pagamento.</p>
       ) : (
         <>
-        <Table>
+        <Table className="hidden md:table">
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
@@ -675,6 +676,51 @@ export default function Pagamentos() {
             })}
           </TableBody>
         </Table>
+
+        <div className="space-y-3 md:hidden">
+          {pageItems.map((row) => {
+            const vencimentoInfo = getVencimentoInfo(row.vencimento_efetivo);
+            const parcial = isParcialmentePago(row);
+            return (
+              <SolicitacaoCard
+                key={row.id}
+                row={row}
+                onClick={() => openParcelas(row)}
+                showSolicitante
+                badges={
+                  <>
+                    <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
+                    {parcial && <Badge variant="secondary">Parcialmente pago</Badge>}
+                  </>
+                }
+                actions={
+                  <>
+                    {user?.isFinanceiro && (
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        title="Reprovar"
+                        aria-label="Reprovar"
+                        onClick={() => setReprovarTarget(row)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                      onClick={() => openPagamentoAVista(row)}
+                    >
+                      <Banknote className="mr-1 h-4 w-4" />
+                      Pagar
+                    </Button>
+                  </>
+                }
+              />
+            );
+          })}
+        </div>
+
         <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}

@@ -34,6 +34,7 @@ import {
   toDateOnly,
 } from '@/lib/financeiroFormat';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
+import SolicitacaoCard from '@/components/SolicitacaoCard';
 import NovaSolicitacaoDrawer from '@/components/NovaSolicitacaoDrawer';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import FiltersDrawer from '@/components/FiltersDrawer';
@@ -240,7 +241,7 @@ export default function MinhasSolicitacoes() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="w-64 space-y-1">
+        <div className="w-full space-y-1 sm:w-64">
           <span className="text-xs text-muted-foreground">Pesquisar</span>
           <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
         </div>
@@ -335,7 +336,7 @@ export default function MinhasSolicitacoes() {
         </p>
       ) : (
         <>
-          <Table>
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
@@ -378,6 +379,27 @@ export default function MinhasSolicitacoes() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="space-y-3 md:hidden">
+            {pageItems.map((row) => (
+              <SolicitacaoCard
+                key={row.id}
+                row={row}
+                onClick={() => setSelectedId(row.id)}
+                badges={
+                  <>
+                    <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                    {row.status === 'aprovado' && isParcialmentePago(row) && (
+                      <Badge variant="outline">
+                        Parcialmente pago ({row.parcelas_pagas}/{row.parcelas_total})
+                      </Badge>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </div>
+
           <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="solicitação(ões)" />
         </>
       )}

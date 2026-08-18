@@ -5,22 +5,6 @@ import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom
 
 const AuthContext = createContext(null);
 
-// Chave de teste local (so ativa em dev): permite simular os 3 niveis de acesso
-// da Camada 1 (usuario | gestor | admin) sem depender do cadastro real no banco.
-// Remover quando o sistema sair de teste.
-const ROLE_OVERRIDE_STORAGE_KEY = 'servicos:role-override-dev';
-
-const ROLE_OVERRIDE_MAP = {
-  usuario: { system_access_level: 'usuario', role: 'usuario', isAprovador: false, isFinanceiro: false, isPagador: false },
-  gestor: { system_access_level: 'gestor', role: 'aprovador', isAprovador: true, isFinanceiro: false, isPagador: false },
-  admin: { system_access_level: 'admin', role: 'financeiro', isAprovador: true, isFinanceiro: true, isPagador: true },
-};
-
-export function applyRoleOverride(user, overrideLevel) {
-  if (!user || !overrideLevel || !ROLE_OVERRIDE_MAP[overrideLevel]) return user;
-  return { ...user, ...ROLE_OVERRIDE_MAP[overrideLevel] };
-}
-
 function normalizeServicosUser(authUser, authPayload = {}) {
   const collaborator = authPayload.row || null;
   const access = authPayload.access || null;
@@ -88,19 +72,6 @@ export function AuthProvider({ children }) {
   const validatedTokenRef = useRef(null);
   const userRef = useRef(null);
   const inFlightValidationRef = useRef(null);
-  const [roleOverride, setRoleOverrideState] = useState(() =>
-    import.meta.env.DEV ? window.localStorage.getItem(ROLE_OVERRIDE_STORAGE_KEY) : null,
-  );
-
-  function setRoleOverride(level) {
-    if (!import.meta.env.DEV) return;
-    if (level) {
-      window.localStorage.setItem(ROLE_OVERRIDE_STORAGE_KEY, level);
-    } else {
-      window.localStorage.removeItem(ROLE_OVERRIDE_STORAGE_KEY);
-    }
-    setRoleOverrideState(level || null);
-  }
 
   function clearAuthState() {
     validatedTokenRef.current = null;
@@ -252,23 +223,18 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const effectiveUser = useMemo(() => applyRoleOverride(user, roleOverride), [user, roleOverride]);
-
   const value = useMemo(
     () => ({
       session,
-      user: effectiveUser,
-      realUser: user,
+      user,
       isAuthenticated,
       isLoadingAuth,
       authError,
       login,
       logout,
       checkUserAuth,
-      roleOverride,
-      setRoleOverride,
     }),
-    [authError, effectiveUser, isAuthenticated, isLoadingAuth, roleOverride, session, user],
+    [authError, isAuthenticated, isLoadingAuth, session, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
