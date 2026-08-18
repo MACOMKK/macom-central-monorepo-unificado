@@ -547,7 +547,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dataVencimento">Data de vencimento (opcional)</Label>
+              <Label htmlFor="dataVencimento">Data de vencimento</Label>
               <Input
                 id="dataVencimento"
                 type="date"
@@ -557,7 +557,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="formaPagamento">Forma de pagamento</Label>
+              <Label htmlFor="formaPagamento">
+                Forma de pagamento <span className="text-destructive">*</span>
+              </Label>
               <Select value={form.formaPagamento} onValueChange={setField('formaPagamento')}>
                 <SelectTrigger id="formaPagamento">
                   <SelectValue placeholder="Selecione" />
