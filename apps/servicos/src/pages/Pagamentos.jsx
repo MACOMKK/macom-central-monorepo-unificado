@@ -82,7 +82,7 @@ function getVencimentoInfo(dataVencimento) {
 
   if (dia < hoje) return { key: 'vencido', label: 'Vencido', variant: 'destructive' };
   if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
-  if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'warning' };
+  if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'info' };
   return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
 }
 
