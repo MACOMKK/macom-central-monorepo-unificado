@@ -66,7 +66,7 @@ const ANEXO_TIPOS_DOCUMENTO_POR_CATEGORIA: Record<(typeof ANEXO_CATEGORIAS)[numb
 };
 const ORDER_BY_COLUMNS: Record<string, string> = {
   criado_em: 'sp.criado_em desc',
-  data_vencimento: 'sp.data_vencimento asc nulls last',
+  data_vencimento: 'vencimento_efetivo asc nulls last',
 };
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
@@ -991,7 +991,11 @@ Deno.serve(async (request) => {
             d.nome as departamento_nome,
             coalesce(pp.parcelas_total, 0) as parcelas_total,
             coalesce(pp.parcelas_pagas, 0) as parcelas_pagas,
-            coalesce(pp.valor_pago, 0) as valor_pago
+            coalesce(pp.valor_pago, 0) as valor_pago,
+            coalesce(
+              case when pp.parcelas_total > 0 then pp.vencimento_parcela end,
+              sp.data_vencimento
+            ) as vencimento_efetivo
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
@@ -1001,7 +1005,14 @@ Deno.serve(async (request) => {
             select
               count(*) as parcelas_total,
               count(*) filter (where status = 'pago') as parcelas_pagas,
-              coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago
+              coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago,
+              -- proxima parcela pendente mais proxima; se nao ha nenhuma pendente (tudo pago),
+              -- usa a ultima parcela so como referencia (a solicitacao ja virou 'pago' via
+              -- trigger trg_servicos_parcelas_rollup, entao isso nao deve contar como atraso)
+              coalesce(
+                min(data_vencimento) filter (where status = 'pendente'),
+                max(data_vencimento)
+              ) as vencimento_parcela
             from ${SERVICOS_SCHEMA}.parcelas_pagamento
             where solicitacao_id = sp.id
           ) pp on true
@@ -1040,10 +1051,20 @@ Deno.serve(async (request) => {
         with base as (
           select
             sp.*,
-            coalesce(pp.valor_pago, 0) as valor_pago
+            coalesce(pp.valor_pago, 0) as valor_pago,
+            coalesce(
+              case when pp.parcelas_total > 0 then pp.vencimento_parcela end,
+              sp.data_vencimento
+            ) as vencimento_efetivo
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           left join lateral (
-            select coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago
+            select
+              coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago,
+              count(*) as parcelas_total,
+              coalesce(
+                min(data_vencimento) filter (where status = 'pendente'),
+                max(data_vencimento)
+              ) as vencimento_parcela
             from ${SERVICOS_SCHEMA}.parcelas_pagamento
             where solicitacao_id = sp.id
           ) pp on true
@@ -1063,8 +1084,8 @@ Deno.serve(async (request) => {
             coalesce(sum(case when status = 'pago' then valor else valor_pago end), 0) as total_pago,
             coalesce(sum(valor - (case when status = 'pago' then valor else valor_pago end))
               filter (where status = 'aprovado'), 0) as total_em_aberto,
-            count(*) filter (where status = 'aprovado' and data_vencimento < current_date) as total_atrasadas,
-            coalesce(sum(valor) filter (where status = 'aprovado' and data_vencimento < current_date), 0) as valor_atrasadas,
+            count(*) filter (where status = 'aprovado' and vencimento_efetivo < current_date) as total_atrasadas,
+            coalesce(sum(valor) filter (where status = 'aprovado' and vencimento_efetivo < current_date), 0) as valor_atrasadas,
             count(*) filter (where status = 'pendente') as total_pendentes,
             count(*) filter (where status = 'reprovado') as total_reprovadas,
             count(*) filter (where status = 'cancelado') as total_canceladas

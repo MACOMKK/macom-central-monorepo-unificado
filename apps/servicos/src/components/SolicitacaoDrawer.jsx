@@ -368,7 +368,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                     <CampoDetalhe icon={UserCheck} label="Aprovador responsável" value={solicitacao.aprovador_destino_nome} />
                     <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
                     <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />
-                    <CampoDetalhe icon={Calendar} label="Vencimento" value={formatDataVencimento(solicitacao.data_vencimento)} />
+                    <CampoDetalhe icon={Calendar} label="Vencimento" value={formatDataVencimento(solicitacao.vencimento_efetivo)} />
                     <CampoDetalhe
                       icon={CreditCard}
                       label="Forma de pagamento"

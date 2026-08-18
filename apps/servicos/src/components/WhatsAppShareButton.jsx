@@ -26,7 +26,7 @@ function buildWhatsAppUrl(solicitacao) {
     solicitacao.fornecedor && `*Fornecedor:* ${solicitacao.fornecedor}`,
     `*Valor:* ${formatValor(solicitacao.valor)}`,
     solicitacao.categoria && `*Categoria:* ${solicitacao.categoria}`,
-    solicitacao.data_vencimento && `*Vencimento:* ${formatDataVencimento(solicitacao.data_vencimento)}`,
+    solicitacao.vencimento_efetivo && `*Vencimento:* ${formatDataVencimento(solicitacao.vencimento_efetivo)}`,
     solicitacao.forma_pagamento &&
       `*Forma de pagamento:* ${FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}`,
     solicitacao.status && `*Status:* ${STATUS_LABEL[solicitacao.status] || solicitacao.status}`,

@@ -180,13 +180,13 @@ export default function Pagamentos() {
     }
     if (vencimentoFiltro) {
       classificadas = classificadas.filter((row) => {
-        const dia = toLocalDateOnly(row.data_vencimento);
+        const dia = toLocalDateOnly(row.vencimento_efetivo);
         return dia && dia >= vencimentoFiltro.from && dia <= vencimentoFiltro.to;
       });
     }
     if (vencimentoStatusFiltro !== VENCIMENTO_STATUS_FILTRO_TODOS) {
       classificadas = classificadas.filter(
-        (row) => getVencimentoInfo(row.data_vencimento).key === vencimentoStatusFiltro,
+        (row) => getVencimentoInfo(row.vencimento_efetivo).key === vencimentoStatusFiltro,
       );
     }
     if (fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS) {
@@ -226,7 +226,7 @@ export default function Pagamentos() {
     // Saldo em aberto: valor total menos o que ja foi pago em parcelas (pagamento parcial
     // continua na lista, com status 'aprovado', ate quitar a ultima parcela).
     const total = visibleRows.reduce((sum, row) => sum + (Number(row.valor || 0) - Number(row.valor_pago || 0)), 0);
-    const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.data_vencimento).label === 'Vencido').length;
+    const atrasadas = visibleRows.filter((row) => getVencimentoInfo(row.vencimento_efetivo).label === 'Vencido').length;
     return { total, atrasadas };
   }, [visibleRows]);
 
@@ -624,7 +624,7 @@ export default function Pagamentos() {
           </TableHeader>
           <TableBody>
             {pageItems.map((row) => {
-              const vencimentoInfo = getVencimentoInfo(row.data_vencimento);
+              const vencimentoInfo = getVencimentoInfo(row.vencimento_efetivo);
               const parcial = isParcialmentePago(row);
               return (
                 <TableRow
@@ -637,7 +637,7 @@ export default function Pagamentos() {
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span>{formatDataVencimento(row.data_vencimento)}</span>
+                      <span>{formatDataVencimento(row.vencimento_efetivo)}</span>
                       <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
                       {parcial && <Badge variant="secondary">Parcialmente pago</Badge>}
                     </div>

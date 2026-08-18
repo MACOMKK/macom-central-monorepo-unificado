@@ -133,7 +133,7 @@ export default function MinhasSolicitacoes() {
     if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS && String(row.aprovador_destino_id) !== aprovadorFiltro) return false;
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
     if (vencimentoFiltro) {
-      const dia = toDateOnly(row.data_vencimento);
+      const dia = toDateOnly(row.vencimento_efetivo);
       if (!dia || dia < vencimentoFiltro.from || dia > vencimentoFiltro.to) return false;
     }
     const termo = normalize(busca);
@@ -353,7 +353,7 @@ export default function MinhasSolicitacoes() {
               {pageItems.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer hover:bg-primary/10" onClick={() => setSelectedId(row.id)}>
                   <TableCell className="max-w-xs truncate">{row.titulo || '-'}</TableCell>
-                  <TableCell>{formatDataVencimento(row.data_vencimento)}</TableCell>
+                  <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                   <TableCell>{row.categoria || '-'}</TableCell>
                   <TableCell className="font-medium">{row.fornecedor}</TableCell>

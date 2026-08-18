@@ -130,7 +130,7 @@ export function buildSolicitacaoSearchText(row) {
     row.fornecedor,
     row.categoria,
     FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || row.forma_pagamento,
-    formatDataVencimento(row.data_vencimento),
+    formatDataVencimento(row.vencimento_efetivo),
     row.solicitante_nome,
     row.aprovador_destino_nome,
     STATUS_LABEL[row.status] || row.status,
