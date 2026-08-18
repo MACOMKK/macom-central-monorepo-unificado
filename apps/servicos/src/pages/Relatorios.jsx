@@ -284,26 +284,23 @@ export default function Relatorios() {
   const [dataDe, setDataDe] = useState('');
   const [dataAte, setDataAte] = useState('');
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
-  const [numeroFiltro, setNumeroFiltro] = useState('');
 
-  const temFiltroAtivo = Boolean(dataDe || dataAte || numeroFiltro.trim() || empresaFiltro !== EMPRESA_FILTRO_TODAS);
+  const temFiltroAtivo = Boolean(dataDe || dataAte || empresaFiltro !== EMPRESA_FILTRO_TODAS);
 
   const limparFiltros = () => {
     setDataDe('');
     setDataAte('');
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
-    setNumeroFiltro('');
   };
 
   const filtros = {
     de: dataDe || undefined,
     ate: dataAte || undefined,
     empresa_id: empresaFiltro !== EMPRESA_FILTRO_TODAS ? empresaFiltro : undefined,
-    numero: numeroFiltro.trim() || undefined,
   };
 
   const relatorioQuery = useQuery({
-    queryKey: ['servicos', 'relatorios', 'financeiro', dataDe, dataAte, empresaFiltro, numeroFiltro],
+    queryKey: ['servicos', 'relatorios', 'financeiro', dataDe, dataAte, empresaFiltro],
     queryFn: () => financeiroApi.relatorios.financeiro(filtros),
   });
 
@@ -332,16 +329,6 @@ export default function Relatorios() {
           <div className="space-y-1">
             <span className="text-xs text-muted-foreground">Até</span>
             <Input type="date" value={dataAte} onChange={(event) => setDataAte(event.target.value)} />
-          </div>
-          <div className="w-32 space-y-1">
-            <span className="text-xs text-muted-foreground">Nº da solicitação</span>
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder="Ex.: 1234"
-              value={numeroFiltro}
-              onChange={(event) => setNumeroFiltro(event.target.value)}
-            />
           </div>
           <div className="w-56 space-y-1">
             <span className="text-xs text-muted-foreground">Empresa</span>
