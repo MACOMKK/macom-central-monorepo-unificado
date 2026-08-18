@@ -67,10 +67,15 @@ function getVencimentoInfo(dataVencimento) {
   const dia = toLocalDateOnly(dataVencimento);
   if (!dia) return { key: 'sem_vencimento', label: 'Sem vencimento', variant: 'outline' };
 
-  const hoje = toLocalDateOnly(new Date());
+  const agora = new Date();
+  const hoje = toLocalDateOnly(agora);
+  const amanhaDate = new Date(agora);
+  amanhaDate.setDate(amanhaDate.getDate() + 1);
+  const amanha = toLocalDateOnly(amanhaDate);
 
   if (dia < hoje) return { key: 'vencido', label: 'Vencido', variant: 'destructive' };
   if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
+  if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'warning' };
   return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
 }
 
@@ -78,6 +83,7 @@ const VENCIMENTO_STATUS_FILTRO_TODOS = 'todos';
 const VENCIMENTO_STATUS_OPCOES = [
   { value: 'vencido', label: 'Vencido' },
   { value: 'vence_hoje', label: 'Vence hoje' },
+  { value: 'vence_amanha', label: 'Vence amanhã' },
   { value: 'no_prazo', label: 'No prazo' },
   { value: 'sem_vencimento', label: 'Sem vencimento' },
 ];
