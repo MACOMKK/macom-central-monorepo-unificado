@@ -490,7 +490,6 @@ export default function Pagamentos() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-64">
-          <span className="text-xs text-muted-foreground">Buscar</span>
           <SearchInput
             value={busca}
             onChange={setBusca}
@@ -499,13 +498,12 @@ export default function Pagamentos() {
         </div>
 
         <div className="w-48 space-y-1">
-          <span className="text-xs text-muted-foreground">Status de vencimento</span>
           <Select value={vencimentoStatusFiltro} onValueChange={setVencimentoStatusFiltro}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={VENCIMENTO_STATUS_FILTRO_TODOS}>Todos</SelectItem>
+              <SelectItem value={VENCIMENTO_STATUS_FILTRO_TODOS}>Todos vencimentos</SelectItem>
               {VENCIMENTO_STATUS_OPCOES.map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label}
@@ -516,7 +514,6 @@ export default function Pagamentos() {
         </div>
 
         <div className="w-48 space-y-1">
-          <span className="text-xs text-muted-foreground">Situação</span>
           <Select value={statusPagamentoFiltro} onValueChange={setStatusPagamentoFiltro}>
             <SelectTrigger>
               <SelectValue />

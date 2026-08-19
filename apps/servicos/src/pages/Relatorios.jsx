@@ -40,12 +40,6 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
 } from '@macom/ui';
 import { useEmpresas } from '@/hooks/useCatalogos';
 import { formatValor, STATUS_LABEL } from '@/lib/financeiroFormat';
@@ -321,23 +315,32 @@ export default function Relatorios() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">De</span>
-            <Input type="date" value={dataDe} onChange={(event) => setDataDe(event.target.value)} />
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={dataDe}
+                onChange={(event) => setDataDe(event.target.value)}
+                aria-label="Período de"
+              />
+              <span className="text-xs text-muted-foreground">até</span>
+              <Input
+                type="date"
+                value={dataAte}
+                onChange={(event) => setDataAte(event.target.value)}
+                aria-label="Período até"
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Até</span>
-            <Input type="date" value={dataAte} onChange={(event) => setDataAte(event.target.value)} />
-          </div>
-          <div className="w-56 space-y-1">
-            <span className="text-xs text-muted-foreground">Empresa</span>
+
+          <div className="w-56">
             <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas</SelectItem>
+                <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas empresas</SelectItem>
                 {empresas.map((empresa) => (
                   <SelectItem key={empresa.id} value={empresa.id}>
                     {empresa.nome}
@@ -346,6 +349,7 @@ export default function Relatorios() {
               </SelectContent>
             </Select>
           </div>
+
           {temFiltroAtivo && (
             <Button variant="ghost" size="sm" onClick={limparFiltros} className="text-muted-foreground">
               <RotateCcw className="h-3.5 w-3.5" />
@@ -400,61 +404,17 @@ export default function Relatorios() {
           )}
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-3">
-              {porCategoria.length > 0 && (
-                <ChartCard title="Por categoria" subtitle="Valor solicitado, exclui reprovadas e canceladas" icon={Tag}>
-                  <CategoriaBarChart data={porCategoria} />
-                </ChartCard>
-              )}
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead className="text-right">Qtd.</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {porCategoria.map((item) => (
-                      <TableRow key={item.categoria}>
-                        <TableCell>{item.categoria}</TableCell>
-                        <TableCell className="text-right">{item.quantidade}</TableCell>
-                        <TableCell className="text-right">{formatValor(item.valor)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
+            {porCategoria.length > 0 && (
+              <ChartCard title="Por categoria" subtitle="Valor solicitado, exclui reprovadas e canceladas" icon={Tag}>
+                <CategoriaBarChart data={porCategoria} />
+              </ChartCard>
+            )}
 
-            <div className="space-y-3">
-              {porStatus.length > 0 && (
-                <ChartCard title="Por status" subtitle="Distribuição do valor total por status" icon={PieChartIcon}>
-                  <StatusDonutChart data={porStatus} total={resumo.total_valor} />
-                </ChartCard>
-              )}
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Qtd.</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {porStatus.map((item) => (
-                      <TableRow key={item.status}>
-                        <TableCell>{STATUS_LABEL[item.status] || item.status}</TableCell>
-                        <TableCell className="text-right">{item.quantidade}</TableCell>
-                        <TableCell className="text-right">{formatValor(item.valor)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
+            {porStatus.length > 0 && (
+              <ChartCard title="Por status" subtitle="Distribuição do valor total por status" icon={PieChartIcon}>
+                <StatusDonutChart data={porStatus} total={resumo.total_valor} />
+              </ChartCard>
+            )}
           </div>
         </>
       )}

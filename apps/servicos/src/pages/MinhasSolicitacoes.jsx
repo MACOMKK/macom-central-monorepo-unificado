@@ -281,12 +281,10 @@ export default function MinhasSolicitacoes() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-64">
-          <span className="text-xs text-muted-foreground">Buscar</span>
           <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." />
         </div>
 
         <div className="w-48 space-y-1">
-          <span className="text-xs text-muted-foreground">Status</span>
           <Select value={statusFiltro} onValueChange={setStatusFiltro}>
             <SelectTrigger>
               <SelectValue />

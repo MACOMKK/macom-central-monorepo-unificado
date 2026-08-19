@@ -7,7 +7,6 @@ import {
   Badge,
   Button,
   Input,
-  Label,
   Spinner,
   Switch,
   Table,
@@ -183,29 +182,27 @@ export default function Categorias() {
       <div>
         <h2 className="text-xl font-bold">Categorias</h2>
         <p className="text-sm text-muted-foreground">
-          Cadastro de categorias de despesa usado nas solicitações de pagamento. Categorias
-          inativas deixam de aparecer no select de nova solicitação, mas continuam vinculadas às
-          solicitações já criadas.
+          Categorias de despesa usadas nas solicitações de pagamento.
         </p>
       </div>
 
-      <form onSubmit={handleCriar} className="flex items-end gap-2">
-        <div className="flex-1 space-y-2">
-          <Label htmlFor="novaCategoria">Nova categoria</Label>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." className="max-w-sm" />
+
+        <form onSubmit={handleCriar} className="flex items-end gap-2">
           <Input
             id="novaCategoria"
             value={novoNome}
             onChange={(event) => setNovoNome(event.target.value)}
             placeholder="Nome da categoria"
+            className="w-48"
           />
-        </div>
-        <Button type="submit" disabled={criarMutation.isPending || !novoNome.trim()}>
-          {criarMutation.isPending ? <Spinner size="sm" className="mr-1" /> : <Plus className="mr-1 h-4 w-4" />}
-          Cadastrar
-        </Button>
-      </form>
-
-      <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." className="max-w-sm" />
+          <Button type="submit" disabled={criarMutation.isPending || !novoNome.trim()}>
+            {criarMutation.isPending ? <Spinner size="sm" className="mr-1" /> : <Plus className="mr-1 h-4 w-4" />}
+            Cadastrar
+          </Button>
+        </form>
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
