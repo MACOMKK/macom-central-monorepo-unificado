@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Spinner, Toaster } from '@macom/ui';
+import { BrandLoader, Spinner, Toaster } from '@macom/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -73,11 +73,7 @@ const AuthenticatedApp = () => {
   }
 
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <Spinner size="lg" className="text-primary" />
-      </div>
-    );
+    return <BrandLoader />;
   }
 
   if (authError) {

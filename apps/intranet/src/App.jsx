@@ -1,4 +1,4 @@
-import { Spinner, Toaster } from '@macom/ui';
+import { BrandLoader, Toaster } from '@macom/ui';
 import React, { lazy } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -25,24 +25,11 @@ const PlatformGuide = lazy(() => import('./pages/PlatformGuide'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Settings = lazy(() => import('./pages/Settings'));
 
-const MACOM_LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
-
-const FullScreenLoader = () => (
-  <div className="fixed inset-0 flex items-center justify-center bg-background">
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-sm">
-        <img src={MACOM_LOGO_URL} alt="MACOM" className="h-10 w-10 object-contain" />
-      </div>
-      <Spinner size="lg" className="text-primary" />
-    </div>
-  </div>
-);
-
 const ProtectedShell = () => {
   const { isLoadingAuth, isAuthenticated, mustChangeEmail, mustChangePassword } = useAuth();
 
   if (isLoadingAuth) {
-    return <FullScreenLoader />;
+    return <BrandLoader />;
   }
 
   if (!isAuthenticated) {

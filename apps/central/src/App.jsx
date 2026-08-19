@@ -25,7 +25,7 @@ const TermsPossession = lazy(() => import('@/pages/TermsPossession'));
 const Units = lazy(() => import('@/pages/Units'));
 
 function RouteFallback() {
-  return <PageLoader label="Carregando pagina..." />;
+  return <PageLoader />;
 }
 
 function LoginRoute() {

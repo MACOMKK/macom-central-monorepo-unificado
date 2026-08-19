@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { PageLoader } from '@macom/ui';
+import { BrandLoader } from '@macom/ui';
 
 import { useAuth } from './AuthContext';
 
@@ -7,7 +7,7 @@ export default function ProtectedRoute() {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
-    return <PageLoader label="Preparando sessao..." />;
+    return <BrandLoader />;
   }
 
   if (!isAuthenticated) {

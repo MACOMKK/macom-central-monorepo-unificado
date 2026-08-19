@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { PageLoader, Toaster } from '@macom/ui';
+import { BrandLoader, Toaster } from '@macom/ui';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { queryClientInstance } from '@/lib/query-client';
@@ -29,7 +29,7 @@ const getFromPath = (search) => {
   }
 };
 
-const LoadingScreen = () => <PageLoader label="Preparando MACOM Servicos..." />;
+const LoadingScreen = () => <BrandLoader />;
 
 const LoginRoute = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();

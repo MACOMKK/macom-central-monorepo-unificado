@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { PageLoader } from '@macom/ui';
+import { BrandLoader } from '@macom/ui';
 import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Layout from '@/components/Layout';
@@ -31,7 +31,7 @@ const getFromPath = (search) => {
   }
 };
 
-const LoadingScreen = () => <PageLoader label="Preparando REVVO CRM..." />;
+const LoadingScreen = () => <BrandLoader />;
 
 const LoginRoute = () => {
   const { isAuthenticated, isLoadingAuth } = useAuth();
