@@ -205,7 +205,7 @@ export default function Fornecedores() {
         </Button>
       </form>
 
-      <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar fornecedor..." className="max-w-sm" />
+      <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." className="max-w-sm" />
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

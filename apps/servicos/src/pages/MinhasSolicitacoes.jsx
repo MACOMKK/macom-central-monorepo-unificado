@@ -64,6 +64,8 @@ export default function MinhasSolicitacoes() {
   const [formTarget, setFormTarget] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelMotivo, setCancelMotivo] = useState('');
+  const [reprovarTarget, setReprovarTarget] = useState(null);
+  const [reprovarMotivo, setReprovarMotivo] = useState('');
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState(STATUS_FILTRO_TODOS);
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
@@ -167,6 +169,28 @@ export default function MinhasSolicitacoes() {
     },
   });
 
+  const reprovarMutation = useMutation({
+    mutationFn: ({ id, motivo }) => financeiroApi.solicitacoes.setStatus(id, 'reprovado', motivo),
+    onMutate: ({ id }) => {
+      const previous = queryClient.getQueryData(minhasSolicitacoesKey);
+      queryClient.setQueryData(minhasSolicitacoesKey, (old) =>
+        (old || []).map((row) => (row.id === id ? { ...row, status: 'reprovado' } : row)),
+      );
+      setReprovarTarget(null);
+      setReprovarMotivo('');
+      setSelectedId(null);
+      return { previous };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Solicitação reprovada' });
+    },
+    onError: (error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(minhasSolicitacoesKey, context.previous);
+      toast({ title: 'Não foi possível reprovar a solicitação', description: `${error.message} Tente novamente.` });
+    },
+  });
+
   const title = 'Solicitações';
 
   function handleCancelar() {
@@ -174,7 +198,14 @@ export default function MinhasSolicitacoes() {
     cancelarMutation.mutate({ id: cancelTarget.id, motivo: cancelMotivo.trim() || null });
   }
 
+  function handleReprovar() {
+    if (!reprovarTarget || !reprovarMotivo.trim()) return;
+    reprovarMutation.mutate({ id: reprovarTarget.id, motivo: reprovarMotivo.trim() });
+  }
+
   const isDono = (row) => String(row.solicitante_id) === String(user?.collaborator?.id);
+  const isAprovadorDestino = (row) =>
+    user?.isAprovador && String(row.aprovador_destino_id) === String(user?.collaborator?.id);
 
   const activeFilterCount = [
     statusFiltro !== STATUS_FILTRO_TODOS,
@@ -219,6 +250,14 @@ export default function MinhasSolicitacoes() {
         </Button>
       );
     }
+    if (selected.status === 'aprovado' && (user?.isFinanceiro || isAprovadorDestino(selected))) {
+      return (
+        <Button variant="outline" className="w-full" onClick={() => setReprovarTarget(selected)}>
+          <X className="mr-2 h-4 w-4" />
+          Reprovar
+        </Button>
+      );
+    }
     if (selected.status === 'pago' && user?.isFinanceiro) {
       return (
         <Button variant="outline" className="w-full" onClick={() => setCancelTarget(selected)}>
@@ -242,8 +281,8 @@ export default function MinhasSolicitacoes() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-64">
-          <span className="text-xs text-muted-foreground">Pesquisar</span>
-          <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
+          <span className="text-xs text-muted-foreground">Buscar</span>
+          <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." />
         </div>
 
         <div className="w-48 space-y-1">
@@ -389,6 +428,7 @@ export default function MinhasSolicitacoes() {
                 key={row.id}
                 row={row}
                 onClick={() => setSelectedId(row.id)}
+                showAprovador
                 badges={
                   <>
                     <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
@@ -448,6 +488,31 @@ export default function MinhasSolicitacoes() {
             rows={3}
           />
         )}
+      </ConfirmDeleteDialog>
+
+      <ConfirmDeleteDialog
+        open={Boolean(reprovarTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReprovarTarget(null);
+            setReprovarMotivo('');
+          }
+        }}
+        onConfirm={handleReprovar}
+        isLoading={reprovarMutation.isPending}
+        confirmDisabled={!reprovarMotivo.trim()}
+        title="Reprovar solicitação aprovada"
+        description="Isso reverte a aprovação anterior e o solicitante será notificado. Informe o motivo abaixo."
+        confirmLabel="Reprovar solicitação"
+        loadingLabel="Reprovando..."
+        cancelLabel="Manter aprovada"
+      >
+        <Textarea
+          value={reprovarMotivo}
+          onChange={(event) => setReprovarMotivo(event.target.value)}
+          placeholder="Motivo da reprovação (obrigatório)"
+          rows={3}
+        />
       </ConfirmDeleteDialog>
     </div>
   );

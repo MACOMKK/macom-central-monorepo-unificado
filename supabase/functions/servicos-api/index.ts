@@ -164,6 +164,37 @@ async function inserirPlanoParcelas(solicitacaoId: string, parcelas: Array<Recor
   return inserted;
 }
 
+// Reaproveitado por update/reenviar_solicitacao pra deixar o solicitante ajustar o plano de
+// parcelas junto com a edicao, enquanto a solicitacao ainda esta pendente (nao passou por
+// criar_parcelas ainda). Array vazio = volta a ser "a vista", so apaga o plano existente.
+async function substituirPlanoParcelas(
+  solicitacaoId: string,
+  parcelasPropostas: Array<Record<string, unknown>>,
+  valorReferencia: number,
+  collaboradorId: string,
+) {
+  if (parcelasPropostas.length) {
+    validateParcelasSum(parcelasPropostas, valorReferencia);
+  }
+
+  const pagas = await sql.unsafe(
+    `select count(*)::int as total from ${SERVICOS_SCHEMA}.parcelas_pagamento where solicitacao_id = $1 and status <> 'pendente';`,
+    [solicitacaoId],
+  );
+  if (Number(pagas[0]?.total || 0) > 0) {
+    throw Object.assign(new Error('Ja existem parcelas pagas para esta solicitacao; nao e possivel redefinir o plano.'), { status: 400 });
+  }
+
+  await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.parcelas_pagamento where solicitacao_id = $1;`, [solicitacaoId]);
+
+  if (parcelasPropostas.length) {
+    await inserirPlanoParcelas(solicitacaoId, parcelasPropostas);
+    await insertHistorico(solicitacaoId, 'parcela_criada', collaboradorId, `${parcelasPropostas.length} parcela(s) atualizada(s) pelo solicitante.`);
+  } else {
+    await insertHistorico(solicitacaoId, 'parcela_criada', collaboradorId, 'Parcelamento removido pelo solicitante.');
+  }
+}
+
 // Acesso a uma solicitacao especifica: financeiro/contas_a_pagar ve/mexe em qualquer uma; o
 // proprio solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
 // a ele (aprovador_destino_id), nao qualquer solicitacao pendente; e qualquer papel ve as
@@ -1232,8 +1263,16 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Somente o solicitante pode editar a solicitacao enquanto pendente.'), { status: 403 });
       }
 
+      // Chave 'parcelas' presente no payload = usuario mexeu no parcelamento (array vazio =
+      // voltar a ser a vista); ausente = nao altera o plano de parcelas existente.
+      const parcelasPropostas = Array.isArray(body.payload?.parcelas)
+        ? (body.payload.parcelas as Array<Record<string, unknown>>)
+        : null;
+
       const payload = sanitizePayload(UPDATE_FIELDS, body.payload || {});
-      if (!Object.keys(payload).length) return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      if (!Object.keys(payload).length && parcelasPropostas === null) {
+        return json({ error: 'Nenhum campo para atualizar.' }, 400);
+      }
       if ('comprovante_path' in body.payload) {
         validateComprovanteSize(body.payload?.comprovante_file_size);
       }
@@ -1266,18 +1305,27 @@ Deno.serve(async (request) => {
       }
 
       const fields = Object.keys(payload);
-      const assignments = fields.map((field, index) => `${quoteIdentifier(field)} = $${index + 2}`).join(', ');
-      const rows = await sql.unsafe(
-        `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
-        [id, ...fields.map((field) => payload[field])],
-      );
+      let row = existing;
+      if (fields.length) {
+        const assignments = fields.map((field, index) => `${quoteIdentifier(field)} = $${index + 2}`).join(', ');
+        const rows = await sql.unsafe(
+          `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set ${assignments} where id = $1 returning *;`,
+          [id, ...fields.map((field) => payload[field])],
+        );
+        row = rows[0] || existing;
 
-      const camposAlterados = fields
-        .map((field) => UPDATE_FIELD_LABELS[field as (typeof CREATE_FIELDS)[number]] || field)
-        .join(', ');
-      await insertHistorico(id, 'editada', collaborator!.id as string, `Campos alterados: ${camposAlterados}`);
+        const camposAlterados = fields
+          .map((field) => UPDATE_FIELD_LABELS[field as (typeof CREATE_FIELDS)[number]] || field)
+          .join(', ');
+        await insertHistorico(id, 'editada', collaborator!.id as string, `Campos alterados: ${camposAlterados}`);
+      }
 
-      return json({ row: rows[0] || null });
+      if (parcelasPropostas !== null) {
+        const valorReferencia = payload.valor != null ? Number(payload.valor) : Number(existing.valor);
+        await substituirPlanoParcelas(id, parcelasPropostas, valorReferencia, collaborator!.id as string);
+      }
+
+      return json({ row });
     }
 
     if (action === 'cancelar_solicitacao') {
@@ -1326,6 +1374,10 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Somente solicitacoes reprovadas podem ser reenviadas.'), { status: 400 });
       }
 
+      const parcelasPropostas = Array.isArray(body.payload?.parcelas)
+        ? (body.payload.parcelas as Array<Record<string, unknown>>)
+        : null;
+
       const payload = sanitizePayload(UPDATE_FIELDS, body.payload || {});
       if ('comprovante_path' in body.payload) {
         validateComprovanteSize(body.payload?.comprovante_file_size);
@@ -1372,6 +1424,12 @@ Deno.serve(async (request) => {
 
       const row = rows[0] || null;
       await insertHistorico(id, 'reenviada', collaborator!.id as string);
+
+      if (parcelasPropostas !== null) {
+        const valorReferencia = payload.valor != null ? Number(payload.valor) : Number(existing.valor);
+        await substituirPlanoParcelas(id, parcelasPropostas, valorReferencia, collaborator!.id as string);
+      }
+
       if (row) await notifyAprovadorNovaSolicitacao(row, 'Solicitação corrigida e reenviada', collaborator!.id as string);
       return json({ row });
     }
@@ -1390,20 +1448,33 @@ Deno.serve(async (request) => {
 
       if (status === 'aprovado' || status === 'reprovado') {
         const reprovandoAprovada = status === 'reprovado' && existing.status === 'aprovado';
+        const isAprovadorDestino =
+          moduleRole === 'aprovador' && String(existing.aprovador_destino_id || '') === String(collaborator!.id);
 
         if (reprovandoAprovada) {
-          if (!isFinanceiro(moduleRole)) {
+          if (!isFinanceiro(moduleRole) && !isAprovadorDestino) {
             throw Object.assign(
-              new Error('Apenas o financeiro pode reprovar uma solicitacao ja aprovada.'),
+              new Error('Apenas o aprovador designado ou o financeiro pode reprovar uma solicitacao ja aprovada.'),
               { status: 403 },
             );
           }
           if (!observacao) {
             throw Object.assign(new Error('Informe o motivo da reprovacao.'), { status: 400 });
           }
+          // Se ja saiu algum pagamento (parcela paga), reprovar deixaria a solicitacao num
+          // estado inconsistente (dinheiro pago numa solicitacao "nao aprovada"). Nesse caso o
+          // caminho correto e o cancelamento de pagamento (financeiro), nao a reprovacao.
+          const parcelasPagas = await sql.unsafe(
+            `select count(*)::int as total from ${SERVICOS_SCHEMA}.parcelas_pagamento where solicitacao_id = $1 and status <> 'pendente';`,
+            [id],
+          );
+          if (Number(parcelasPagas[0]?.total || 0) > 0) {
+            throw Object.assign(
+              new Error('Esta solicitacao ja teve parcela(s) paga(s); nao e possivel reprovar. Use o cancelamento de pagamento, se necessario.'),
+              { status: 400 },
+            );
+          }
         } else {
-          const isAprovadorDestino =
-            moduleRole === 'aprovador' && String(existing.aprovador_destino_id || '') === String(collaborator!.id);
           if (!isFinanceiro(moduleRole) && !isAprovadorDestino) {
             throw Object.assign(
               new Error('Apenas o aprovador designado ou o financeiro podem aprovar ou reprovar esta solicitacao.'),

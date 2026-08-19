@@ -152,8 +152,8 @@ export default function Aprovacoes() {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full space-y-1 sm:w-64">
-          <span className="text-xs text-muted-foreground">Pesquisar</span>
-          <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar em qualquer coluna..." />
+          <span className="text-xs text-muted-foreground">Buscar</span>
+          <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." />
         </div>
 
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>

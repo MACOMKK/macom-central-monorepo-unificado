@@ -125,7 +125,7 @@ export default function Permissoes() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <SearchInput value={busca} onChange={setBusca} placeholder="Pesquisar colaborador..." className="max-w-sm" />
+        <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." className="max-w-sm" />
         <Select value={papelFiltro} onValueChange={setPapelFiltro}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Nível de acesso" />

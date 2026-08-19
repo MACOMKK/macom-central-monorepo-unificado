@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Paperclip, Plus, Trash2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
@@ -37,6 +37,11 @@ import {
 } from '@macom/ui';
 
 const FORMAS_PAGAMENTO = Object.entries(FORMA_PAGAMENTO_LABEL).map(([value, label]) => ({ value, label }));
+
+// Referencia estavel: um `[]` literal como default do useQuery criaria um array novo a cada
+// render (a query fica desabilitada/sem dado ao criar uma solicitacao nova), o que reexecutava
+// o useEffect que le esse valor em loop infinito ("Maximum update depth exceeded").
+const EMPTY_PARCELAS = [];
 
 const EMPTY_FORM = {
   titulo: '',
@@ -171,6 +176,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     aprovadores = [],
   } = catalogos || {};
 
+  const { data: parcelasExistentes = EMPTY_PARCELAS, isLoading: parcelasLoading } = useQuery({
+    queryKey: ['servicos', 'parcelas', solicitacao?.id],
+    queryFn: () => financeiroApi.parcelas.list(solicitacao.id),
+    enabled: visible && (isEdicao || isReenvio) && Boolean(solicitacao?.id),
+  });
+
   useEffect(() => {
     if (skipNextResetRef.current) {
       skipNextResetRef.current = false;
@@ -179,7 +190,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     // Selects de fornecedor/aprovador/categoria ficam montados (vazios, so disabled) antes do
     // catalogo carregar; preencher o valor antes disso faz o Radix Select ressincronizar com o
     // <select> nativo interno (sem <option> correspondente ainda) e zerar o campo sozinho.
-    if (visible && (isReenvio || isEdicao) && catalogosLoading) return;
+    if (visible && (isReenvio || isEdicao) && (catalogosLoading || parcelasLoading)) return;
     if (visible && (isReenvio || isEdicao)) {
       const loadedForm = {
         titulo: solicitacao.titulo || '',
@@ -196,6 +207,18 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       };
       setForm(loadedForm);
       initialFormRef.current = loadedForm;
+      if (parcelasExistentes.length > 0) {
+        setParcelado(true);
+        setDraftParcelas(
+          parcelasExistentes.map((parcela) => ({
+            valor: String(parcela.valor),
+            data_vencimento: parcela.data_vencimento ? parcela.data_vencimento.slice(0, 10) : '',
+          })),
+        );
+      } else {
+        setParcelado(false);
+        setDraftParcelas([]);
+      }
     } else if (visible) {
       setForm((current) => {
         const loadedForm = {
@@ -213,7 +236,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       setDraftParcelas([]);
       initialFormRef.current = EMPTY_FORM;
     }
-  }, [visible, catalogosLoading]);
+  }, [visible, catalogosLoading, parcelasLoading, parcelasExistentes]);
 
   function handleToggleParcelado(checked) {
     const nextChecked = checked === true;
@@ -352,6 +375,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         return;
       }
       parcelasPayload = draftParcelas.map((item) => ({ valor: Number(item.valor), data_vencimento: item.data_vencimento || null }));
+    } else if ((isEdicao || isReenvio) && parcelasExistentes.length > 0) {
+      // Tinha parcelamento e o usuario desmarcou: manda vazio explicito pra API apagar o
+      // plano existente (volta a ser "a vista") -- ver substituirPlanoParcelas.
+      parcelasPayload = [];
     }
 
     submitMutation.mutate({
@@ -497,13 +524,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             </div>
           </div>
 
-          {!isEdicao && !isReenvio && (
-            <div className="space-y-3 rounded-md border border-border p-3">
-              <label htmlFor="parcelado" className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-                <Checkbox id="parcelado" checked={parcelado} onCheckedChange={handleToggleParcelado} />
-                Parcelar pagamento
-              </label>
-              {parcelado && (
+          <div className="space-y-3 rounded-md border border-border p-3">
+            <label htmlFor="parcelado" className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+              <Checkbox id="parcelado" checked={parcelado} onCheckedChange={handleToggleParcelado} />
+              Parcelar pagamento
+            </label>
+            {parcelado && (
                 <div className="space-y-3">
                   {draftParcelas.map((item, index) => (
                     <div key={index} className="flex items-end gap-2">
@@ -539,11 +565,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                   <p className="text-xs text-muted-foreground">
                     A soma das parcelas precisa ser igual ao valor total da solicitação. O plano fica sujeito a
                     revisão do financeiro/contas a pagar depois de aprovado.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+                </p>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

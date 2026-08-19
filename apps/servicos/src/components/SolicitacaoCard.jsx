@@ -4,7 +4,7 @@ import { formatDataVencimento, formatValor } from '@/lib/financeiroFormat';
 // solicitacoes (MinhasSolicitacoes, Aprovacoes, Pagamentos) -- mesmo `row` da tabela, so muda a
 // marcacao. `badges`/`actions` ficam a cargo de cada tela pra nao acoplar esse componente ao
 // status/acoes especificas de cada uma.
-export default function SolicitacaoCard({ row, onClick, showSolicitante = false, badges, actions }) {
+export default function SolicitacaoCard({ row, onClick, showSolicitante = false, showAprovador = false, badges, actions }) {
   return (
     <div
       role={onClick ? 'button' : undefined}
@@ -22,6 +22,10 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
 
       {showSolicitante && row.solicitante_nome && (
         <p className="text-xs text-muted-foreground">{row.solicitante_nome}</p>
+      )}
+
+      {showAprovador && row.aprovador_destino_nome && (
+        <p className="text-xs text-muted-foreground">Aprovador: {row.aprovador_destino_nome}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
