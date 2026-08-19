@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 
 import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
+import InstallPromptBanner from '@/components/layout/InstallPromptBanner';
 import Sidebar from '@/components/layout/Sidebar';
 
 export default function AppLayout() {
@@ -32,6 +33,8 @@ export default function AppLayout() {
       />
 
       <BottomNav onOpenMore={() => setMobileOpen(true)} />
+
+      <InstallPromptBanner />
 
       <div className={`transition-all duration-300 ${collapsed ? 'lg:ml-[88px]' : 'lg:ml-64'}`}>
         <Header onOpenMobileMenu={() => setMobileOpen(true)} />

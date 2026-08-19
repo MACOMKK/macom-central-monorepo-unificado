@@ -2,10 +2,14 @@ import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseCl
 import { PUSH_SW_URL, VAPID_PUBLIC_KEY } from './constants';
 
 // Pacote generico de Web Push, pensado pra ser reaproveitado por qualquer app do monorepo (hoje
-// so `servicos` usa) -- so exige registrar `public/push-sw.js` (copia de packages/push/push-sw.js)
-// no app e chamar `subscribeToPush({ sistema })`/`unsubscribeFromPush({ sistema })` com o slug do
-// app (mesmo `sistema` de public.sistemas). Backend generico correspondente: Edge Function
-// `push-api` + supabase/functions/_shared/push.ts.
+// so `servicos` usa) -- basta chamar `subscribeToPush({ sistema })`/`unsubscribeFromPush({
+// sistema })` com o slug do app (mesmo `sistema` de public.sistemas). Backend generico
+// correspondente: Edge Function `push-api` + supabase/functions/_shared/push.ts.
+// App sem PWA: copiar `packages/push/push-sw.js` pra `public/push-sw.js` -- e registrado sob
+// demanda por `getOrRegisterSW()` abaixo. App com PWA (vite-plugin-pwa): a logica de push (mesmo
+// codigo de push-sw.js) precisa ir dentro do service worker do proprio app (estrategia
+// `injectManifest`), nao em um arquivo separado -- os dois SWs disputariam o mesmo escopo '/'.
+// Ver apps/servicos/src/sw.js como referencia.
 
 export function isPushSupported() {
   return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
@@ -25,6 +29,22 @@ function urlBase64ToUint8Array(base64String) {
 
 function toError(message) {
   return new Error(typeof message === 'string' ? message : message?.message || 'Falha na inscricao de push.');
+}
+
+// Reaproveita o service worker ja registrado no escopo '/' se houver um (caso de apps PWA, cujo
+// vite-plugin-pwa ja registrou um SW que trata push -- ver apps/servicos/src/sw.js). So registra
+// push-sw.js aqui se nao houver nenhum registro ainda (apps sem PWA). Nao da pra ter os dois SWs
+// coexistindo: o registro e chaveado por escopo, entao o segundo `.register()` substituiria o
+// primeiro.
+async function getOrRegisterSW() {
+  const existing = await navigator.serviceWorker.getRegistration();
+  if (existing) {
+    await navigator.serviceWorker.ready;
+    return existing;
+  }
+  const registration = await navigator.serviceWorker.register(PUSH_SW_URL);
+  await navigator.serviceWorker.ready;
+  return registration;
 }
 
 async function invokePushApi(body) {
@@ -54,8 +74,7 @@ export async function subscribeToPush({ sistema }) {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error('Permissao de notificacao negada.');
 
-  const registration = await navigator.serviceWorker.register(PUSH_SW_URL);
-  await navigator.serviceWorker.ready;
+  const registration = await getOrRegisterSW();
 
   const existing = await registration.pushManager.getSubscription();
   const subscription =
@@ -72,7 +91,7 @@ export async function subscribeToPush({ sistema }) {
 export async function unsubscribeFromPush({ sistema }) {
   if (!isPushSupported()) return;
 
-  const registration = await navigator.serviceWorker.getRegistration(PUSH_SW_URL);
+  const registration = await navigator.serviceWorker.getRegistration();
   const subscription = await registration?.pushManager.getSubscription();
   if (!subscription) return;
 
@@ -82,6 +101,6 @@ export async function unsubscribeFromPush({ sistema }) {
 
 export async function getActivePushSubscription() {
   if (!isPushSupported()) return null;
-  const registration = await navigator.serviceWorker.getRegistration(PUSH_SW_URL);
+  const registration = await navigator.serviceWorker.getRegistration();
   return (await registration?.pushManager.getSubscription()) || null;
 }

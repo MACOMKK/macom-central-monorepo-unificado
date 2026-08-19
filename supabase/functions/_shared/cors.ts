@@ -13,6 +13,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:5175',
   'http://localhost:5176',
   'http://localhost:5177',
+  'http://localhost:4173',
 ]);
 
 export function buildCorsHeaders(request: Request): Record<string, string> {

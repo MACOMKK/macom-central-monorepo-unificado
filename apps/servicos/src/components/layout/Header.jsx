@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { LogOut, Menu } from 'lucide-react';
+import { Download, LogOut, Menu } from 'lucide-react';
 
 import { Button } from '@macom/ui';
 import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
+import { useInstallPrompt } from '@/lib/useInstallPrompt';
 
 const ROLE_LABEL = {
   usuario: 'Usuário',
@@ -25,6 +26,7 @@ function getInitials(name) {
 
 export default function Header({ onOpenMobileMenu }) {
   const { user, logout } = useAuth();
+  const { canInstall, promptInstall } = useInstallPrompt();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -44,6 +46,28 @@ export default function Header({ onOpenMobileMenu }) {
       <div className="hidden lg:block" />
 
       <div className="flex items-center gap-2">
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={promptInstall}
+            className="hidden items-center gap-2 rounded-full border border-primary px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground sm:flex"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Instalar app
+          </button>
+        ) : null}
+
+        {canInstall ? (
+          <button
+            type="button"
+            onClick={promptInstall}
+            aria-label="Instalar aplicativo"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:hidden"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        ) : null}
+
         <NotificationsBell />
 
         <div ref={profileRef} className="relative">
