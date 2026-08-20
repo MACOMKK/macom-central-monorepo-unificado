@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  clearPushHeartbeat,
   getActivePushSubscription,
   getPushPermission,
   isPushSupported,
@@ -35,13 +36,27 @@ export function usePushNotifications({ sistema }) {
       if (document.visibilityState === 'visible') sendPushHeartbeat({ sistema });
     }
 
+    // Ao ficar oculta (minimizado, trocou de aba) ou fechar/recarregar, avisa na hora -- sem
+    // isso o push so voltaria a chegar depois do heartbeat anterior envelhecer (ate 35s).
+    function onFicaOculta() {
+      if (document.visibilityState === 'hidden') clearPushHeartbeat({ sistema });
+      else heartbeatSeVisivel();
+    }
+
+    function onPageHide() {
+      clearPushHeartbeat({ sistema });
+    }
+
     heartbeatSeVisivel();
     const intervalId = setInterval(heartbeatSeVisivel, HEARTBEAT_INTERVALO_MS);
-    document.addEventListener('visibilitychange', heartbeatSeVisivel);
+    document.addEventListener('visibilitychange', onFicaOculta);
+    window.addEventListener('pagehide', onPageHide);
 
     return () => {
       clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', heartbeatSeVisivel);
+      document.removeEventListener('visibilitychange', onFicaOculta);
+      window.removeEventListener('pagehide', onPageHide);
+      clearPushHeartbeat({ sistema });
     };
   }, [supported, subscribed, sistema]);
 

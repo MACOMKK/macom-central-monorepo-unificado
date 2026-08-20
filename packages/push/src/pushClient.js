@@ -119,3 +119,17 @@ export async function sendPushHeartbeat({ sistema }) {
     // silencioso -- heartbeat nao pode derrubar a tela do usuario
   }
 }
+
+// Contraparte de sendPushHeartbeat: avisa que o dispositivo NAO esta mais com o app na tela,
+// pra sendPushToColaborador voltar a mandar push imediatamente (sem esperar o heartbeat anterior
+// envelhecer). Chamado quando a aba fica oculta ou a pagina descarrega.
+export async function clearPushHeartbeat({ sistema }) {
+  if (!isPushSupported()) return;
+  try {
+    const subscription = await getActivePushSubscription();
+    if (!subscription) return;
+    await invokePushApi({ action: 'heartbeat_clear', sistema, endpoint: subscription.endpoint });
+  } catch {
+    // silencioso -- mesmo criterio de sendPushHeartbeat
+  }
+}

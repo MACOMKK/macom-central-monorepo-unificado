@@ -115,6 +115,21 @@ Deno.serve(async (request) => {
       return json({ ok: true });
     }
 
+    if (action === 'heartbeat_clear') {
+      // Chamado na hora que a aba fica oculta (visibilitychange) ou a pagina descarrega
+      // (pagehide) -- zera o last_seen_em na hora, em vez de deixar o push suprimido ate o
+      // heartbeat anterior envelhecer sozinho (ate 35s de espera desnecessaria, ver
+      // HEARTBEAT_ATIVO_MS em _shared/push.ts).
+      const endpoint = String(body.endpoint || '').trim();
+      if (!endpoint) throw Object.assign(new Error('Informe o endpoint.'), { status: 400 });
+
+      await sql.unsafe(
+        `update public.push_subscriptions set last_seen_em = null where sistema = $1 and endpoint = $2 and colaborador_id = $3;`,
+        [sistema, endpoint, colaboradorId],
+      );
+      return json({ ok: true });
+    }
+
     if (action === 'unsubscribe') {
       const endpoint = String(body.endpoint || '').trim();
       if (!endpoint) throw Object.assign(new Error('Informe o endpoint.'), { status: 400 });
