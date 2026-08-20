@@ -80,6 +80,12 @@ export default function NotificationsBell({ buttonClassName = '' }) {
         (payload) => {
           queryClient.invalidateQueries({ queryKey: notificacoesKey });
           const notificacao = payload.new || {};
+          // Toda notificacao relevante pra este colaborador tambem significa que uma
+          // solicitacao mudou (aprovada, reprovada, paga, cancelada, nova pendente...) -- sem
+          // isso, quem esta com a lista aberta so via o status novo depois de um F5.
+          if (notificacao.referencia_tipo === 'solicitacao_pagamento') {
+            queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+          }
           if (notificacao.titulo) {
             toast({ title: notificacao.titulo, description: notificacao.mensagem || undefined });
           }
