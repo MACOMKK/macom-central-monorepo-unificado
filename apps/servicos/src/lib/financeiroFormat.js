@@ -114,6 +114,28 @@ export function formatDataVencimento(data) {
   return `${dia}/${mes}/${ano}`;
 }
 
+// Classifica o vencimento pra dar destaque visual (Badge) nas listagens/cards -- movido pra ca
+// (era local a Pagamentos.jsx) pra Aprovacoes/SolicitacaoCard tambem poderem usar.
+export function getVencimentoInfo(dataVencimento) {
+  // toLocalDateOnly (nao toDateOnly): precisa bater com o dia que formatData mostra na tela,
+  // que interpreta a data no fuso local do navegador -- se data_vencimento vier como timestamp
+  // UTC (ex. "2026-08-14T00:00:00.000Z"), fatiar a string crua e comparar com um "hoje" tambem
+  // em fuso local pode divergir em um dia perto da meia-noite.
+  const dia = toLocalDateOnly(dataVencimento);
+  if (!dia) return { key: 'sem_vencimento', label: 'Sem vencimento', variant: 'outline' };
+
+  const agora = new Date();
+  const hoje = toLocalDateOnly(agora);
+  const amanhaDate = new Date(agora);
+  amanhaDate.setDate(amanhaDate.getDate() + 1);
+  const amanha = toLocalDateOnly(amanhaDate);
+
+  if (dia < hoje) return { key: 'vencido', label: 'Vencido', variant: 'destructive' };
+  if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
+  if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'info' };
+  return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
+}
+
 export function formatDataHora(data) {
   if (!data) return '-';
   return new Date(data).toLocaleString('pt-BR');
