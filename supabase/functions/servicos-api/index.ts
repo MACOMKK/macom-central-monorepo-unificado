@@ -499,6 +499,7 @@ async function insertNotificacao(
   referenciaTipo: string | null,
   referenciaId: string | null,
   criadoPor: string | null,
+  papelLabel: string | null = null,
 ) {
   await sql!.unsafe(
     `
@@ -516,6 +517,15 @@ async function insertNotificacao(
     body: mensagem,
     url: link,
   }).catch((error) => console.error('sendPushToColaborador failed:', error));
+
+  // Deixa visivel, na propria timeline da solicitacao, quem foi avisado e quando -- sem isso o
+  // unico registro fica em gestao_servicos.notificacoes, sem vinculo visual com a solicitacao.
+  if (referenciaTipo === 'solicitacao_pagamento' && referenciaId) {
+    const destinatario = await sql!.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [colaboradorId]);
+    const nome = destinatario[0]?.nome || 'Colaborador';
+    const observacao = papelLabel ? `Notificado: ${nome} (${papelLabel})` : `Notificado: ${nome}`;
+    await insertHistorico(referenciaId, 'notificacao_enviada', criadoPor, observacao);
+  }
 }
 
 // Mesmo padrao de enqueueStatusEmail, mas pro sino in-app -- chamado nos mesmos pontos, pro
@@ -525,6 +535,7 @@ async function notifySolicitanteStatusChange(row: Record<string, unknown>, statu
     aprovado: 'Solicitação aprovada',
     reprovado: 'Solicitação reprovada',
     pago: 'Pagamento efetuado',
+    cancelado: 'Solicitação cancelada',
   };
   const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   await insertNotificacao(
@@ -536,6 +547,7 @@ async function notifySolicitanteStatusChange(row: Record<string, unknown>, statu
     'solicitacao_pagamento',
     String(row.id),
     autorId,
+    'solicitante',
   );
 }
 
@@ -555,6 +567,43 @@ async function notifyAprovadorNovaSolicitacao(row: Record<string, unknown>, titu
     'solicitacao_pagamento',
     String(row.id),
     autorId,
+    'aprovador',
+  );
+}
+
+// Notifica quem paga (papel financeiro/contas_a_pagar no modulo, ou admin do sistema) que uma
+// solicitacao acabou de cair na fila de "Contas a pagar" -- ate aqui so o aprovador e o
+// solicitante recebiam aviso, o financeiro precisava checar a fila manualmente pra saber que
+// tinha algo novo pra pagar.
+async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>, autorId: string) {
+  const financeiros = await sql!.unsafe(
+    `
+      select distinct aus.colaborador_id
+      from public.acessos_usuario_sistema aus
+      join public.sistemas s on s.id = aus.sistema_id
+      left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = aus.colaborador_id and pm.modulo = 'financeiro'
+      where s.slug = $1 and s.ativo = true and aus.ativo = true
+        and (aus.nivel_acesso = 'admin' or pm.papel in ('financeiro', 'contas_a_pagar'));
+    `,
+    [SERVICOS_SYSTEM_SLUG],
+  );
+  if (!financeiros.length) return;
+
+  const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  await Promise.all(
+    financeiros.map((item: { colaborador_id: string }) =>
+      insertNotificacao(
+        item.colaborador_id,
+        'solicitacao_aprovada_financeiro',
+        'Solicitação aguardando pagamento',
+        `${row.fornecedor} — ${valorFormatado}`,
+        `/pagamentos?sol=${row.id}`,
+        'solicitacao_pagamento',
+        String(row.id),
+        autorId,
+        'financeiro',
+      ),
+    ),
   );
 }
 
@@ -1392,6 +1441,11 @@ Deno.serve(async (request) => {
         [id],
       );
       await insertHistorico(id, 'cancelada', collaborator!.id as string, motivo);
+      // So notifica se quem cancelou nao foi o proprio solicitante (ex. financeiro cancelando
+      // um pagamento em duplicidade) -- se ele mesmo cancelou, ja sabe.
+      if (!souSolicitante) {
+        await notifySolicitanteStatusChange(rows[0], 'cancelado', collaborator!.id as string);
+      }
       return json({ row: rows[0] || null });
     }
 
@@ -1533,6 +1587,9 @@ Deno.serve(async (request) => {
         await insertHistorico(id, evento, collaborator!.id as string, observacao);
         await enqueueStatusEmail(row, status);
         await notifySolicitanteStatusChange(row, status, collaborator!.id as string);
+        if (status === 'aprovado') {
+          await notifyFinanceirosSolicitacaoAprovada(row, collaborator!.id as string);
+        }
         return json({ row });
       }
 

@@ -101,6 +101,7 @@ const EVENTO_LABEL = {
   pago: 'Marcada como paga',
   anexo_adicionado: 'Anexo incluído',
   anexo_removido: 'Anexo removido',
+  notificacao_enviada: 'Notificação enviada',
 };
 
 const PARCELA_STATUS_LABEL = {

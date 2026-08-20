@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { Banknote, Paperclip, Plus, Trash2, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
@@ -141,6 +142,26 @@ export default function Pagamentos() {
   const rows = solicitacoesQuery.data || [];
   const loading = solicitacoesQuery.isLoading;
   const dialogRow = rows.find((row) => row.id === dialogRowId) || null;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const solAbertoRef = useRef(false);
+  // Resolve o link vindo da notificacao de "solicitacao aprovada, aguardando pagamento"
+  // (?sol=<id>) -- mesmo padrao de apps/servicos/src/pages/Aprovacoes.jsx.
+  useEffect(() => {
+    if (solAbertoRef.current || loading) return;
+    const solId = searchParams.get('sol');
+    solAbertoRef.current = true;
+    if (!solId) return;
+
+    if (rows.some((row) => row.id === solId)) {
+      setDialogRowId(solId);
+    }
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('sol');
+      return params;
+    }, { replace: true });
+  }, [loading, rows, searchParams, setSearchParams]);
 
   const parcelasQuery = useQuery({
     queryKey: ['servicos', 'parcelas', dialogRowId],
