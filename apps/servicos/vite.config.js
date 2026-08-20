@@ -12,6 +12,10 @@ const baseConfig = createAppConfig(import.meta.url, {
     port: 5177,
     strictPort: true,
   },
+  preview: {
+    port: 4177,
+    strictPort: true,
+  },
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },

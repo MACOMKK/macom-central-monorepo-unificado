@@ -13,7 +13,14 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:5175',
   'http://localhost:5176',
   'http://localhost:5177',
-  'http://localhost:4173',
+  // Portas de `vite preview` (build de producao local) -- mesmo prefixo dos apps, trocando 51 por 41.
+  'http://localhost:4170',
+  'http://localhost:4171',
+  'http://localhost:4172',
+  'http://localhost:4174',
+  'http://localhost:4175',
+  'http://localhost:4176',
+  'http://localhost:4177',
 ]);
 
 export function buildCorsHeaders(request: Request): Record<string, string> {

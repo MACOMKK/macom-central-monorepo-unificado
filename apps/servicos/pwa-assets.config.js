@@ -1,10 +1,10 @@
 import { defineConfig, minimal2023Preset } from '@vite-pwa/assets-generator/config';
 
-// A ferramenta sempre escreve os arquivos gerados ao lado da imagem de origem (nao tem opcao de
-// outDir) -- depois de rodar `npm run generate:pwa-icons`, mover manualmente os PNGs de
-// `resources/` pra `public/pwa-icons/` (mantendo `resources/icon.png`, que tambem e o source do
-// icone Android/Capacitor).
+// Fonte compartilhada com os demais apps (favicon.svg de fundo transparente) -- `resources/icon.png`
+// continua existindo só como source do icone nativo Android/Capacitor (fundo solido na cor da marca
+// e um requisito desse contexto, nao do PWA web). Usar `resources/icon.png` aqui reintroduz o bug do
+// quadrado vermelho no instalavel PWA/preview de link, ja visto em producao -- nao trocar de volta.
 export default defineConfig({
   preset: minimal2023Preset,
-  images: ['./resources/icon.png'],
+  images: ['../../packages/assets/favicon.svg'],
 });

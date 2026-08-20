@@ -9,6 +9,10 @@ const baseConfig = createAppConfig(import.meta.url, {
     strictPort: true,
     allowedHosts: ['.ngrok-free.app'],
   },
+  preview: {
+    port: 4176,
+    strictPort: true,
+  },
   includeTestConfig: false,
 });
 

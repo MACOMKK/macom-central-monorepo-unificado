@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Bell, Copy, ExternalLink, Info, MessageCircle, Pencil, Pin, Plus, Share2, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, Copy, Info, Pencil, Pin, Plus, Share2, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { appClient } from '@/api/client';
@@ -21,6 +21,7 @@ import {
   DialogTrigger,
   FeedbackToast,
   Skeleton,
+  SocialLink,
 } from '@macom/ui';
 import AnnouncementForm from '../components/announcements/AnnouncementForm';
 import AnnouncementDetailsDialog from '../components/announcements/AnnouncementDetailsDialog';
@@ -611,42 +612,26 @@ export default function Announcements() {
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <a
+                <SocialLink
+                  network="whatsapp"
                   href={`https://wa.me/?text=${encodeURIComponent(`${shareAnnouncement.title}\n${buildAnnouncementUrl(shareAnnouncement)}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp
-                </a>
-                <a
+                />
+                <SocialLink
+                  network="facebook"
                   href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Facebook
-                </a>
-                <a
+                />
+                <SocialLink
+                  network="linkedin"
                   href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  LinkedIn
-                </a>
-                <a
+                />
+                <SocialLink
+                  network="x"
                   href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareAnnouncement.title)}&url=${encodeURIComponent(buildAnnouncementUrl(shareAnnouncement))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  X
-                </a>
+                />
               </div>
 
               <Button

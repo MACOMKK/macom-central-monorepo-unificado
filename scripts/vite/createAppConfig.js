@@ -25,6 +25,7 @@ export function createAppConfig(importMetaUrl, options = {}) {
   const {
     logLevel = 'error',
     server,
+    preview,
     includeTestConfig = true,
     define,
   } = options;
@@ -48,6 +49,10 @@ export function createAppConfig(importMetaUrl, options = {}) {
 
   if (server) {
     config.server = server;
+  }
+
+  if (preview) {
+    config.preview = preview;
   }
 
   if (define) {

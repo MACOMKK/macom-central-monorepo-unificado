@@ -16,6 +16,7 @@ export * from './scroll-area';
 export * from './select';
 export * from './skeleton';
 export * from './separator';
+export * from './social-icons';
 export * from './spinner';
 export * from './sheet';
 export * from './switch';
