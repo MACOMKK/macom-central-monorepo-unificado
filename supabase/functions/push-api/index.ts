@@ -77,6 +77,15 @@ Deno.serve(async (request) => {
       }
 
       const userAgent = request.headers.get('user-agent') || null;
+      // Dado estruturado detectado no client (User-Agent Client Hints com fallback pra parse de
+      // user-agent, ver packages/push/src/pushClient.js -> detectarDispositivo) -- mais confiavel
+      // que reinterpretar o user_agent bruto toda vez que a lista e exibida (Configuracoes.jsx).
+      const dispositivo = body.dispositivo as
+        | { tipoDispositivo?: string; sistemaOperacional?: string; navegador?: string }
+        | undefined;
+      const tipoDispositivo = dispositivo?.tipoDispositivo || null;
+      const sistemaOperacional = dispositivo?.sistemaOperacional || null;
+      const navegador = dispositivo?.navegador || null;
 
       // Limpa inscricoes antigas do mesmo colaborador+sistema+navegador antes de gravar a nova --
       // o navegador troca de endpoint ao reautorizar notificacoes (ex. depois de mexer em
@@ -90,12 +99,19 @@ Deno.serve(async (request) => {
 
       await sql.unsafe(
         `
-          insert into public.push_subscriptions (colaborador_id, sistema, endpoint, p256dh, auth, user_agent)
-          values ($1, $2, $3, $4, $5, $6)
+          insert into public.push_subscriptions
+            (colaborador_id, sistema, endpoint, p256dh, auth, user_agent, tipo_dispositivo, sistema_operacional, navegador)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           on conflict (sistema, endpoint)
-          do update set colaborador_id = excluded.colaborador_id, p256dh = excluded.p256dh, auth = excluded.auth;
+          do update set
+            colaborador_id = excluded.colaborador_id,
+            p256dh = excluded.p256dh,
+            auth = excluded.auth,
+            tipo_dispositivo = excluded.tipo_dispositivo,
+            sistema_operacional = excluded.sistema_operacional,
+            navegador = excluded.navegador;
         `,
-        [colaboradorId, sistema, endpoint, p256dh, auth, userAgent],
+        [colaboradorId, sistema, endpoint, p256dh, auth, userAgent, tipoDispositivo, sistemaOperacional, navegador],
       );
       return json({ ok: true });
     }

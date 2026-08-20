@@ -1001,7 +1001,8 @@ Deno.serve(async (request) => {
 
       const rows = await sql.unsafe(
         `
-          select ps.id, ps.colaborador_id, c.nome, c.email, ps.user_agent, ps.criado_em
+          select ps.id, ps.colaborador_id, c.nome, c.email, ps.user_agent,
+            ps.tipo_dispositivo, ps.sistema_operacional, ps.navegador, ps.criado_em
           from public.push_subscriptions ps
           join public.colaboradores c on c.id = ps.colaborador_id
           where ps.sistema = $1

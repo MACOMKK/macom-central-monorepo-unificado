@@ -32,10 +32,10 @@ function formatData(value) {
   });
 }
 
-// Extrai um resumo curto e legivel do user_agent bruto (ex. "Chrome no Windows") em vez de
-// mostrar a string tecnica inteira -- so cobre os casos mais comuns, sem pretensao de ser
-// um parser completo de user-agent.
-function resumoDispositivo(userAgent) {
+// Fallback pra inscricoes antigas (de antes desta coluna existir) ou de navegadores sem
+// User-Agent Client Hints -- so cobre os casos mais comuns, sem pretensao de ser um parser
+// completo de user-agent.
+function resumoDispositivoPorUserAgent(userAgent) {
   if (!userAgent) return 'Dispositivo desconhecido';
 
   let navegador = 'Navegador desconhecido';
@@ -53,6 +53,18 @@ function resumoDispositivo(userAgent) {
   else if (/Linux/.test(userAgent)) sistema = 'Linux';
 
   return sistema ? `${navegador} · ${sistema}` : navegador;
+}
+
+// Usa o dado estruturado capturado na inscricao (User-Agent Client Hints, ver
+// packages/push/src/pushClient.js -> detectarDispositivo) quando disponivel -- mais confiavel
+// que reinterpretar o user_agent bruto, que o Chrome vem "congelando" por privacidade. Cai pro
+// parse antigo so pra inscricoes feitas antes dessa coluna existir.
+function resumoDispositivo(sub) {
+  if (sub.navegador || sub.sistema_operacional) {
+    const tipo = sub.tipo_dispositivo === 'mobile' ? ' (mobile)' : '';
+    return [sub.navegador, sub.sistema_operacional].filter(Boolean).join(' · ') + tipo;
+  }
+  return resumoDispositivoPorUserAgent(sub.user_agent);
 }
 
 function NotificacoesPushTab() {
@@ -112,7 +124,7 @@ function NotificacoesPushTab() {
                     <div className="font-medium">{sub.nome}</div>
                     <div className="text-xs text-muted-foreground">{sub.email}</div>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{resumoDispositivo(sub.user_agent)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{resumoDispositivo(sub)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatData(sub.criado_em)}</TableCell>
                   <TableCell className="text-right">
                     <Button type="button" variant="ghost" size="sm" onClick={() => setRevogarAlvo(sub)}>
@@ -134,7 +146,7 @@ function NotificacoesPushTab() {
         title="Remover inscrição de notificação"
         description={
           revogarAlvo
-            ? `Isso remove a inscrição de push de "${resumoDispositivo(revogarAlvo.user_agent)}" para ${revogarAlvo.nome}. Ele(a) vai precisar autorizar notificações de novo nesse dispositivo.`
+            ? `Isso remove a inscrição de push de "${resumoDispositivo(revogarAlvo)}" para ${revogarAlvo.nome}. Ele(a) vai precisar autorizar notificações de novo nesse dispositivo.`
             : ''
         }
         confirmLabel="Remover"

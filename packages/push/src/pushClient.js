@@ -31,6 +31,52 @@ function toError(message) {
   return new Error(typeof message === 'string' ? message : message?.message || 'Falha na inscricao de push.');
 }
 
+// Fallback pra navegadores sem User-Agent Client Hints (Safari, Firefox) -- mesma logica que
+// ja existia em apps/servicos/src/pages/Configuracoes.jsx (resumoDispositivo), so que aqui
+// devolve os campos separados em vez de uma string pronta pra exibir.
+function detectarDispositivoPorUserAgent() {
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+
+  let navegador = null;
+  if (/Edg\//.test(userAgent)) navegador = 'Edge';
+  else if (/OPR\//.test(userAgent)) navegador = 'Opera';
+  else if (/Chrome\//.test(userAgent)) navegador = 'Chrome';
+  else if (/Firefox\//.test(userAgent)) navegador = 'Firefox';
+  else if (/Safari\//.test(userAgent)) navegador = 'Safari';
+
+  let sistemaOperacional = null;
+  if (/Windows/.test(userAgent)) sistemaOperacional = 'Windows';
+  else if (/Android/.test(userAgent)) sistemaOperacional = 'Android';
+  else if (/iPhone|iPad|iOS/.test(userAgent)) sistemaOperacional = 'iOS';
+  else if (/Mac OS X/.test(userAgent)) sistemaOperacional = 'macOS';
+  else if (/Linux/.test(userAgent)) sistemaOperacional = 'Linux';
+
+  const tipoDispositivo = /Android|iPhone|iPad|Mobile/.test(userAgent) ? 'mobile' : 'desktop';
+
+  return { tipoDispositivo, sistemaOperacional, navegador };
+}
+
+// User-Agent Client Hints (Chrome/Edge/Opera): dado estruturado direto do navegador, sem
+// precisar interpretar a string de user-agent (que o Chrome vem "congelando"/genericando por
+// privacidade, deixando o parse por regex cada vez menos confiavel). Cai pro fallback acima em
+// quem nao suporta (Safari, Firefox).
+async function detectarDispositivo() {
+  const uaData = typeof navigator !== 'undefined' ? navigator.userAgentData : undefined;
+  if (!uaData) return detectarDispositivoPorUserAgent();
+
+  try {
+    const { platform, brands } = await uaData.getHighEntropyValues(['platform']);
+    const navegador = brands?.find((item) => !/Not.A.Brand/i.test(item.brand))?.brand || null;
+    return {
+      tipoDispositivo: uaData.mobile ? 'mobile' : 'desktop',
+      sistemaOperacional: platform || null,
+      navegador,
+    };
+  } catch {
+    return detectarDispositivoPorUserAgent();
+  }
+}
+
 // Reaproveita o service worker ja registrado no escopo '/' se houver um (caso de apps PWA, cujo
 // vite-plugin-pwa ja registrou um SW que trata push -- ver apps/servicos/src/sw.js). So registra
 // push-sw.js aqui se nao houver nenhum registro ainda (apps sem PWA). Nao da pra ter os dois SWs
@@ -84,7 +130,8 @@ export async function subscribeToPush({ sistema }) {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     }));
 
-  await invokePushApi({ action: 'subscribe', sistema, subscription: subscription.toJSON() });
+  const dispositivo = await detectarDispositivo();
+  await invokePushApi({ action: 'subscribe', sistema, subscription: subscription.toJSON(), dispositivo });
   return subscription;
 }
 
