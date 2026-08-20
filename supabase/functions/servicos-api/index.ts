@@ -203,7 +203,12 @@ async function substituirPlanoParcelas(
 function canAccessSolicitacao(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
-  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown },
+  row: {
+    solicitante_id: unknown;
+    aprovador_destino_id?: unknown;
+    departamento_id?: unknown;
+    aprovador_destino_departamento_id?: unknown;
+  },
   departamentoId?: string | null,
 ) {
   if (isPagador(moduleRole)) return true;
@@ -211,7 +216,16 @@ function canAccessSolicitacao(
   if (moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '')) {
     return true;
   }
-  return Boolean(departamentoId) && String(row.departamento_id || '') === String(departamentoId);
+  if (!departamentoId) return false;
+  if (String(row.departamento_id || '') === String(departamentoId)) return true;
+  // Aprovadores do mesmo departamento entre si acompanham a fila uns dos outros, mesmo quando o
+  // solicitante e de outro setor -- departamento_id da linha e so o snapshot do solicitante, por
+  // isso essa checagem separada olha pro departamento do proprio aprovador designado.
+  return (
+    moduleRole === 'aprovador' &&
+    Boolean(row.aprovador_destino_departamento_id) &&
+    String(row.aprovador_destino_departamento_id) === String(departamentoId)
+  );
 }
 
 // Anexo sigiloso e mais restrito que acesso normal a solicitacao: contas_a_pagar tem acesso a
@@ -397,7 +411,8 @@ async function validateAprovadorDestino(aprovadorDestinoId: string) {
 async function ensureRowAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome
+      select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome,
+        ac.departamento_id as aprovador_destino_departamento_id
       from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
       join public.colaboradores c on c.id = sp.solicitante_id
       left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
@@ -627,9 +642,11 @@ async function createSignedUrlForPath(path: string | null) {
 async function ensureParcelaAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.status as solicitacao_status
+      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.status as solicitacao_status,
+        ac.departamento_id as aprovador_destino_departamento_id
       from ${SERVICOS_SCHEMA}.parcelas_pagamento pp
       join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = pp.solicitacao_id
+      left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
       where pp.id = $1
       limit 1;
     `,
@@ -1077,7 +1094,14 @@ Deno.serve(async (request) => {
         const departamentoId = collaborator!.departamento_id as string | null | undefined;
         if (departamentoId) {
           values.push(departamentoId);
-          clauses.push(`(${pessoaisClause} or sp.departamento_id = $${values.length})`);
+          // Aprovadores do mesmo departamento entre si tambem veem a fila uns dos outros (ac e o
+          // join com o colaborador do aprovador_destino_id, ja usado pra aprovador_destino_nome
+          // logo abaixo no SELECT) -- sp.departamento_id sozinho e so o snapshot do solicitante.
+          const departamentoClause =
+            moduleRole === 'aprovador'
+              ? `(sp.departamento_id = $${values.length} or ac.departamento_id = $${values.length})`
+              : `sp.departamento_id = $${values.length}`;
+          clauses.push(`(${pessoaisClause} or ${departamentoClause})`);
         } else {
           clauses.push(pessoaisClause);
         }

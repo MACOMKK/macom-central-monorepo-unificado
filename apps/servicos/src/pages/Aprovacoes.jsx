@@ -177,6 +177,22 @@ export default function Aprovacoes() {
           <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." />
         </div>
 
+        <div className="w-48 space-y-1">
+          <Select value={aprovadorFiltro} onValueChange={setAprovadorFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={APROVADOR_FILTRO_TODOS}>Todos os aprovadores</SelectItem>
+              {aprovadores.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
           <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
             <SelectTrigger>
@@ -213,20 +229,6 @@ export default function Aprovacoes() {
             <SelectContent>
               <SelectItem value={SOLICITANTE_FILTRO_TODOS}>Todos os solicitantes</SelectItem>
               {solicitantes.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {item.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={aprovadorFiltro} onValueChange={setAprovadorFiltro}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={APROVADOR_FILTRO_TODOS}>Todos os aprovadores</SelectItem>
-              {aprovadores.map((item) => (
                 <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
                 </SelectItem>
