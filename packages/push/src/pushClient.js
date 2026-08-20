@@ -104,3 +104,18 @@ export async function getActivePushSubscription() {
   const registration = await navigator.serviceWorker.getRegistration();
   return (await registration?.pushManager.getSubscription()) || null;
 }
+
+// Avisa o backend que este dispositivo esta com o app aberto/visivel agora -- usado por
+// sendPushToColaborador (supabase/functions/_shared/push.ts) pra pular o push nativo neste
+// dispositivo especifico e evitar duplicar o toast in-app que ja chega via Realtime. Falha
+// silenciosa: se o heartbeat nao chegar, o pior caso e so voltar a receber o push normalmente.
+export async function sendPushHeartbeat({ sistema }) {
+  if (!isPushSupported()) return;
+  try {
+    const subscription = await getActivePushSubscription();
+    if (!subscription) return;
+    await invokePushApi({ action: 'heartbeat', sistema, endpoint: subscription.endpoint });
+  } catch {
+    // silencioso -- heartbeat nao pode derrubar a tela do usuario
+  }
+}
