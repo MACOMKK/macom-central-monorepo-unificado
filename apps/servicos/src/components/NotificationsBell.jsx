@@ -41,6 +41,7 @@ export default function NotificationsBell({ buttonClassName = '' }) {
   });
   const notificacoes = notificacoesQuery.data || [];
   const naoLidas = notificacoes.filter((item) => !item.lida_em);
+  const lidas = notificacoes.filter((item) => item.lida_em);
 
   const marcarLidaMutation = useMutation({
     mutationFn: (id) => financeiroApi.notificacoes.marcarLida(id),
@@ -118,7 +119,7 @@ export default function NotificationsBell({ buttonClassName = '' }) {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-50 flex h-[420px] w-[340px] flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl">
+        <div className="fixed inset-x-3 top-16 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-md border border-border bg-card shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:h-[420px] sm:max-h-none sm:w-[340px]">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <h2 className="text-sm font-bold">Notificações</h2>
             <div className="flex items-center gap-3">
@@ -154,36 +155,65 @@ export default function NotificationsBell({ buttonClassName = '' }) {
             {notificacoes.length === 0 ? (
               <p className="p-3 text-center text-sm text-muted-foreground">Nenhuma notificação ainda.</p>
             ) : (
-              <div className="space-y-1.5">
-                {notificacoes.map((notificacao) => (
-                  <button
-                    key={notificacao.id}
-                    type="button"
-                    onClick={() => handleAbrirNotificacao(notificacao)}
-                    className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
-                      notificacao.lida_em
-                        ? 'border-border hover:bg-accent'
-                        : 'border-primary/40 bg-primary/5 hover:bg-primary/10'
-                    }`}
-                  >
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="min-w-0 text-[13px] font-semibold leading-4">{notificacao.titulo}</span>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {formatNotificacaoData(notificacao.criado_em)}
-                      </span>
-                    </span>
-                    {notificacao.mensagem && (
-                      <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
-                        {notificacao.mensagem}
-                      </span>
-                    )}
-                  </button>
-                ))}
+              <div className="space-y-4">
+                {naoLidas.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="px-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Não lidas
+                    </h3>
+                    {naoLidas.map((notificacao) => (
+                      <NotificationItem
+                        key={notificacao.id}
+                        notificacao={notificacao}
+                        onClick={() => handleAbrirNotificacao(notificacao)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {lidas.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="px-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                      Lidas
+                    </h3>
+                    {lidas.map((notificacao) => (
+                      <NotificationItem
+                        key={notificacao.id}
+                        notificacao={notificacao}
+                        onClick={() => handleAbrirNotificacao(notificacao)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function NotificationItem({ notificacao, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
+        notificacao.lida_em
+          ? 'border-border hover:bg-accent'
+          : 'border-primary/40 bg-primary/5 hover:bg-primary/10'
+      }`}
+    >
+      <span className="flex items-start justify-between gap-3">
+        <span className="min-w-0 text-[13px] font-semibold leading-4">{notificacao.titulo}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {formatNotificacaoData(notificacao.criado_em)}
+        </span>
+      </span>
+      {notificacao.mensagem && (
+        <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">{notificacao.mensagem}</span>
+      )}
+    </button>
   );
 }
