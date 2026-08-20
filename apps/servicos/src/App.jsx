@@ -13,7 +13,7 @@ import Pagamentos from '@/pages/Pagamentos';
 import Fornecedores from '@/pages/Fornecedores';
 import Categorias from '@/pages/Categorias';
 import Relatorios from '@/pages/Relatorios';
-import Permissoes from '@/pages/Permissoes';
+import Configuracoes from '@/pages/Configuracoes';
 import ModuloEmBreve from '@/pages/ModuloEmBreve';
 
 const getFromPath = (search) => {
@@ -65,7 +65,8 @@ const ServicosRoutes = () => {
         {user?.isFinanceiro && <Route path="/fornecedores" element={<Fornecedores />} />}
         {user?.isFinanceiro && <Route path="/categorias" element={<Categorias />} />}
         {user?.isFinanceiro && <Route path="/relatorios" element={<Relatorios />} />}
-        {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Permissoes />} />}
+        {user?.system_access_level === 'admin' && <Route path="/configuracoes" element={<Configuracoes />} />}
+        {user?.system_access_level === 'admin' && <Route path="/permissoes" element={<Navigate replace to="/configuracoes" />} />}
         <Route
           path="/atendimento"
           element={<ModuloEmBreve titulo="Atendimento" descricao="Recepcao de clientes, abertura de OS, agendamento e historico de veiculos." />}

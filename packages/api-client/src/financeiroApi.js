@@ -263,6 +263,15 @@ export const financeiroApi = {
       return invokeServicos({ action: 'limpar_dados_teste_financeiro' });
     },
   },
+  pushSubscriptions: {
+    async list() {
+      const result = await invokeServicos({ action: 'list_push_subscriptions' });
+      return result.rows || [];
+    },
+    async revoke(id) {
+      await invokeServicos({ action: 'revoke_push_subscription', id });
+    },
+  },
   notificacoes: {
     async list() {
       const result = await invokeServicos({ action: 'list_notificacoes' });

@@ -76,6 +76,18 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Inscricao de push invalida.'), { status: 400 });
       }
 
+      const userAgent = request.headers.get('user-agent') || null;
+
+      // Limpa inscricoes antigas do mesmo colaborador+sistema+navegador antes de gravar a nova --
+      // o navegador troca de endpoint ao reautorizar notificacoes (ex. depois de mexer em
+      // permissao do SO), e sem isso a linha antiga fica orfa (sendPushToColaborador manda pra
+      // ela tambem, sem garantia de que o navegador ainda esteja ouvindo aquele endpoint).
+      await sql.unsafe(
+        `delete from public.push_subscriptions
+         where colaborador_id = $1 and sistema = $2 and user_agent = $3 and endpoint <> $4;`,
+        [colaboradorId, sistema, userAgent, endpoint],
+      );
+
       await sql.unsafe(
         `
           insert into public.push_subscriptions (colaborador_id, sistema, endpoint, p256dh, auth, user_agent)
@@ -83,7 +95,7 @@ Deno.serve(async (request) => {
           on conflict (sistema, endpoint)
           do update set colaborador_id = excluded.colaborador_id, p256dh = excluded.p256dh, auth = excluded.auth;
         `,
-        [colaboradorId, sistema, endpoint, p256dh, auth, request.headers.get('user-agent') || null],
+        [colaboradorId, sistema, endpoint, p256dh, auth, userAgent],
       );
       return json({ ok: true });
     }

@@ -541,6 +541,8 @@ async function notifySolicitanteStatusChange(row: Record<string, unknown>, statu
 
 // Notifica o aprovador designado que uma solicitacao esta esperando decisao dele (criacao nova
 // ou reenvio apos correcao) -- hoje isso so gerava historico, sem avisar o aprovador de nada.
+// Link aponta pra /aprovacoes (fila de pendentes, com os botoes Aprovar/Reprovar), nao pra
+// /solicitacoes (lista "minhas solicitacoes" do solicitante, sem acao de decisao no footer).
 async function notifyAprovadorNovaSolicitacao(row: Record<string, unknown>, titulo: string, autorId: string) {
   if (!row.aprovador_destino_id) return;
   const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -549,7 +551,7 @@ async function notifyAprovadorNovaSolicitacao(row: Record<string, unknown>, titu
     'solicitacao_pendente',
     titulo,
     `${row.fornecedor} — ${valorFormatado}`,
-    `/solicitacoes?sol=${row.id}`,
+    `/aprovacoes?sol=${row.id}`,
     'solicitacao_pagamento',
     String(row.id),
     autorId,
@@ -941,6 +943,37 @@ Deno.serve(async (request) => {
       );
 
       return json({ row: rows[0] || null });
+    }
+
+    if (action === 'list_push_subscriptions') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem ver as inscricoes de notificacao.'), { status: 403 });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          select ps.id, ps.colaborador_id, c.nome, c.email, ps.user_agent, ps.criado_em
+          from public.push_subscriptions ps
+          join public.colaboradores c on c.id = ps.colaborador_id
+          where ps.sistema = $1
+          order by c.nome, ps.criado_em desc;
+        `,
+        [SERVICOS_SYSTEM_SLUG],
+      );
+
+      return json({ rows });
+    }
+
+    if (action === 'revoke_push_subscription') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem remover inscricoes de notificacao.'), { status: 403 });
+      }
+
+      const id = String(body.id || '');
+      if (!id) return json({ error: 'id obrigatorio.' }, 400);
+
+      await sql.unsafe(`delete from public.push_subscriptions where id = $1 and sistema = $2;`, [id, SERVICOS_SYSTEM_SLUG]);
+      return json({ ok: true });
     }
 
     if (action === 'limpar_dados_teste_financeiro') {

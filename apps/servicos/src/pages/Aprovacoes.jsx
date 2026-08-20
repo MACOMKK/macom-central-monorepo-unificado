@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 
@@ -63,6 +64,27 @@ export default function Aprovacoes() {
   const rows = solicitacoesQuery.data || [];
   const loading = solicitacoesQuery.isLoading;
   const selected = rows.find((row) => row.id === selectedId) || null;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const solAbertoRef = useRef(false);
+  // Resolve o link vindo da notificacao de "nova solicitacao pra aprovar" (?sol=<id>) -- abre o
+  // drawer direto na fila de pendentes, que e onde ficam os botoes Aprovar/Reprovar. So roda
+  // uma vez, depois que a lista carrega (mesmo padrao de apps/servicos/src/pages/MinhasSolicitacoes.jsx).
+  useEffect(() => {
+    if (solAbertoRef.current || loading) return;
+    const solId = searchParams.get('sol');
+    solAbertoRef.current = true;
+    if (!solId) return;
+
+    if (rows.some((row) => row.id === solId)) {
+      setSelectedId(solId);
+    }
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      params.delete('sol');
+      return params;
+    }, { replace: true });
+  }, [loading, rows, searchParams, setSearchParams]);
 
   const solicitantes = useMemo(() => {
     const porId = new Map();

@@ -17,6 +17,9 @@ self.addEventListener('push', (event) => {
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     data: { url: data.url || '/' },
+    // Fica fixa na tela ate o usuario interagir -- por padrao o SO some com o toast em
+    // poucos segundos, e o usuario pode nao estar olhando na hora.
+    requireInteraction: true,
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
