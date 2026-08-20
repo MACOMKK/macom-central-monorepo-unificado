@@ -1,3 +1,4 @@
+import { ArrowRight } from 'lucide-react';
 import { Badge } from '@macom/ui';
 import { formatDataVencimento, formatValor, getVencimentoInfo } from '@/lib/financeiroFormat';
 
@@ -23,18 +24,22 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
         <p className="shrink-0 text-sm font-semibold">{formatValor(row.valor)}</p>
       </div>
 
-      {showSolicitante && row.solicitante_nome && (
-        <p className="text-xs text-muted-foreground">{row.solicitante_nome}</p>
-      )}
-
-      {showAprovador && row.aprovador_destino_nome && (
-        <Badge variant="outline" className="font-normal">
-          Aprovador: {row.aprovador_destino_nome}
-        </Badge>
+      {((showSolicitante && row.solicitante_nome) || (showAprovador && row.aprovador_destino_nome)) && (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          {showSolicitante && row.solicitante_nome && <span className="truncate">{row.solicitante_nome}</span>}
+          {showSolicitante && row.solicitante_nome && showAprovador && row.aprovador_destino_nome && (
+            <ArrowRight className="h-3 w-3 shrink-0" />
+          )}
+          {showAprovador && row.aprovador_destino_nome && (
+            <span className="truncate font-medium text-foreground">{row.aprovador_destino_nome}</span>
+          )}
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <Badge variant={vencimentoInfo.variant}>{formatDataVencimento(row.vencimento_efetivo)}</Badge>
+        <Badge variant={vencimentoInfo.variant} className="shrink-0">
+          {formatDataVencimento(row.vencimento_efetivo)}
+        </Badge>
         {row.fornecedor && <span>{row.fornecedor}</span>}
         {row.categoria && (
           <>

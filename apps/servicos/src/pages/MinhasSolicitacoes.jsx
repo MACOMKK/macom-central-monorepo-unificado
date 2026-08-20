@@ -426,6 +426,7 @@ export default function MinhasSolicitacoes() {
                 key={row.id}
                 row={row}
                 onClick={() => setSelectedId(row.id)}
+                showSolicitante
                 showAprovador
                 badges={
                   <>
