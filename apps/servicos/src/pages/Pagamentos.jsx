@@ -46,6 +46,7 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
+  getVencimentoInfo,
   isParcialmentePago,
   STATUS_LABEL,
   STATUS_VARIANT,
@@ -66,26 +67,6 @@ const EMPRESA_FILTRO_TODAS = 'todas';
 const FORNECEDOR_FILTRO_TODOS = 'todos';
 const APROVADOR_FILTRO_TODOS = 'todos';
 const FORMA_PAGAMENTO_FILTRO_TODAS = 'todas';
-
-function getVencimentoInfo(dataVencimento) {
-  // toLocalDateOnly (nao toDateOnly): precisa bater com o dia que formatData mostra na tela,
-  // que interpreta a data no fuso local do navegador -- se data_vencimento vier como timestamp
-  // UTC (ex. "2026-08-14T00:00:00.000Z"), fatiar a string crua e comparar com um "hoje" tambem
-  // em fuso local pode divergir em um dia perto da meia-noite.
-  const dia = toLocalDateOnly(dataVencimento);
-  if (!dia) return { key: 'sem_vencimento', label: 'Sem vencimento', variant: 'outline' };
-
-  const agora = new Date();
-  const hoje = toLocalDateOnly(agora);
-  const amanhaDate = new Date(agora);
-  amanhaDate.setDate(amanhaDate.getDate() + 1);
-  const amanha = toLocalDateOnly(amanhaDate);
-
-  if (dia < hoje) return { key: 'vencido', label: 'Vencido', variant: 'destructive' };
-  if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
-  if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'info' };
-  return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
-}
 
 const VENCIMENTO_STATUS_FILTRO_TODOS = 'todos';
 const VENCIMENTO_STATUS_OPCOES = [

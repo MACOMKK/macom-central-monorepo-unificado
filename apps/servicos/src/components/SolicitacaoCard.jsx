@@ -1,10 +1,13 @@
-import { formatDataVencimento, formatValor } from '@/lib/financeiroFormat';
+import { Badge } from '@macom/ui';
+import { formatDataVencimento, formatValor, getVencimentoInfo } from '@/lib/financeiroFormat';
 
 // Card usado como fallback de <Table> em telas estreitas (md:hidden) nas listagens de
 // solicitacoes (MinhasSolicitacoes, Aprovacoes, Pagamentos) -- mesmo `row` da tabela, so muda a
 // marcacao. `badges`/`actions` ficam a cargo de cada tela pra nao acoplar esse componente ao
 // status/acoes especificas de cada uma.
 export default function SolicitacaoCard({ row, onClick, showSolicitante = false, showAprovador = false, badges, actions }) {
+  const vencimentoInfo = getVencimentoInfo(row.vencimento_efetivo);
+
   return (
     <div
       role={onClick ? 'button' : undefined}
@@ -25,17 +28,14 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
       )}
 
       {showAprovador && row.aprovador_destino_nome && (
-        <p className="text-xs text-muted-foreground">Aprovador: {row.aprovador_destino_nome}</p>
+        <Badge variant="outline" className="font-normal">
+          Aprovador: {row.aprovador_destino_nome}
+        </Badge>
       )}
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span>{formatDataVencimento(row.vencimento_efetivo)}</span>
-        {row.fornecedor && (
-          <>
-            <span>·</span>
-            <span>{row.fornecedor}</span>
-          </>
-        )}
+        <Badge variant={vencimentoInfo.variant}>{formatDataVencimento(row.vencimento_efetivo)}</Badge>
+        {row.fornecedor && <span>{row.fornecedor}</span>}
         {row.categoria && (
           <>
             <span>·</span>

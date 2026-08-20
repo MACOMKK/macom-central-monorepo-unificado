@@ -288,7 +288,7 @@ export default function Aprovacoes() {
 
           <div className="space-y-3 md:hidden">
             {pageItems.map((row) => (
-              <SolicitacaoCard key={row.id} row={row} onClick={() => setSelectedId(row.id)} showSolicitante />
+              <SolicitacaoCard key={row.id} row={row} onClick={() => setSelectedId(row.id)} showSolicitante showAprovador />
             ))}
           </div>
 
