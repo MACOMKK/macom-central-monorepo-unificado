@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, LogOut, Menu } from 'lucide-react';
+import { BellRing, Download, LogOut, Menu } from 'lucide-react';
 
 import { Button } from '@macom/ui';
 import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
 import { useInstallPrompt } from '@/lib/useInstallPrompt';
+import { usePushBanner } from '@/lib/usePushBanner';
 
 const ROLE_LABEL = {
   usuario: 'Usuário',
@@ -27,6 +28,7 @@ function getInitials(name) {
 export default function Header({ onOpenMobileMenu }) {
   const { user, logout } = useAuth();
   const { canInstall, promptInstall } = useInstallPrompt();
+  const { canShowBanner: canShowPushButton, permission, loading, subscribe } = usePushBanner();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -38,6 +40,8 @@ export default function Header({ onOpenMobileMenu }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const showPushButton = canShowPushButton && permission !== 'denied';
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-4 will-change-transform [transform:translateZ(0)] sm:px-6 lg:px-8">
       <Button variant="ghost" size="icon" className="lg:hidden" onClick={onOpenMobileMenu}>
@@ -46,6 +50,30 @@ export default function Header({ onOpenMobileMenu }) {
       <div className="hidden lg:block" />
 
       <div className="flex items-center gap-2">
+        {showPushButton ? (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={subscribe}
+            className="hidden items-center gap-2 rounded-full border border-primary px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60 sm:flex"
+          >
+            <BellRing className="h-3.5 w-3.5" />
+            Ativar notificações
+          </button>
+        ) : null}
+
+        {showPushButton ? (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={subscribe}
+            aria-label="Ativar notificações"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60 sm:hidden"
+          >
+            <BellRing className="h-4 w-4" />
+          </button>
+        ) : null}
+
         {canInstall ? (
           <button
             type="button"
