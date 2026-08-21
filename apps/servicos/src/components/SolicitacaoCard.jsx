@@ -23,7 +23,7 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
       </div>
 
       {((showSolicitante && row.solicitante_nome) || (showAprovador && row.aprovador_destino_nome)) && (
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
           {showSolicitante && row.solicitante_nome && <span className="truncate">{row.solicitante_nome}</span>}
           {showSolicitante && row.solicitante_nome && showAprovador && row.aprovador_destino_nome && (
             <ArrowRight className="h-3 w-3 shrink-0" />
@@ -33,7 +33,7 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
               {row.aprovador_destino_nome}
             </Badge>
           )}
-        </p>
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
