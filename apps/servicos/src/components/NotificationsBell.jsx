@@ -5,11 +5,9 @@ import { Bell, BellOff, BellRing, CheckCheck } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { supabase } from '@macom/api-client/supabaseClient';
-import { usePushNotifications } from '@macom/push';
 import { Button, useToast } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
-
-const PUSH_SISTEMA = 'servicos';
+import { usePush } from '@/lib/PushContext';
 
 function formatNotificacaoData(value) {
   const date = new Date(value);
@@ -31,7 +29,7 @@ export default function NotificationsBell({ buttonClassName = '' }) {
   // um fica visivel por CSS, mas os dois ficam no DOM) -- sem esse id por instancia, os dois
   // abririam um canal Realtime com o mesmo nome e o supabase-js quebra a aba inteira.
   const instanceId = useId();
-  const push = usePushNotifications({ sistema: PUSH_SISTEMA });
+  const push = usePush();
 
   const notificacoesQuery = useQuery({
     queryKey: notificacoesKey,
@@ -60,6 +58,13 @@ export default function NotificationsBell({ buttonClassName = '' }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // subscribe()/unsubscribe() capturam o erro internamente em push.error em vez de rejeitar a
+  // Promise -- sem isso o clique no sino falhava silenciosamente (ex.: sessao expirada, push-api
+  // fora do ar) sem nenhum feedback visivel.
+  useEffect(() => {
+    if (push.error) toast({ title: 'Erro', description: push.error.message, variant: 'destructive' });
+  }, [push.error, toast]);
 
   // Empurra notificacao nova em tempo real (aprovacao/reprovacao/pagamento/nova solicitacao
   // pra aprovar), sem precisar de polling curto -- mesmo padrao ja usado em

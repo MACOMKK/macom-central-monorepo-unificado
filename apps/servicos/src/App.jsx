@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'r
 
 import { queryClientInstance } from '@/lib/query-client';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { PushProvider } from '@/lib/PushContext';
 import AppLayout from '@/components/layout/AppLayout';
 import NativeBackButtonHandler from '@/components/NativeBackButtonHandler';
 import Login from '@/pages/Login';
@@ -56,6 +57,7 @@ const ServicosRoutes = () => {
   }
 
   return (
+    <PushProvider>
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Navigate replace to="/solicitacoes" />} />
@@ -90,6 +92,7 @@ const ServicosRoutes = () => {
         <Route path="*" element={<Navigate replace to="/solicitacoes" />} />
       </Route>
     </Routes>
+    </PushProvider>
   );
 };
 

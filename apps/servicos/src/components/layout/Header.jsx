@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BellRing, Download, LogOut, Menu } from 'lucide-react';
 
-import { Button } from '@macom/ui';
+import { Button, useToast } from '@macom/ui';
 import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
 import { useInstallPrompt } from '@/lib/useInstallPrompt';
@@ -28,7 +28,8 @@ function getInitials(name) {
 export default function Header({ onOpenMobileMenu }) {
   const { user, logout } = useAuth();
   const { canInstall, promptInstall } = useInstallPrompt();
-  const { canShowBanner: canShowPushButton, permission, loading, subscribe } = usePushBanner();
+  const { canShowBanner: canShowPushButton, permission, loading, error: pushError, subscribe } = usePushBanner();
+  const { toast } = useToast();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -39,6 +40,10 @@ export default function Header({ onOpenMobileMenu }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (pushError) toast({ title: 'Erro', description: pushError.message, variant: 'destructive' });
+  }, [pushError, toast]);
 
   const showPushButton = canShowPushButton && permission !== 'denied';
 
