@@ -116,11 +116,9 @@ export default function Permissoes() {
       <div>
         <h2 className="text-xl font-bold">Permissões por módulo</h2>
         <p className="text-sm text-muted-foreground">
-          Define o papel de cada colaborador em cada módulo do Serviços. Quem tem acesso
-          &quot;Admin&quot; ao sistema (console) sempre tem papel máximo em todos os módulos.
-          {modulosEmBreve.length > 0 && (
-            <> Colunas em cinza são módulos ainda sem tela real — aparecem aqui só pra dar visão do que vem a seguir.</>
-          )}
+          Papel de cada colaborador por módulo. Acesso &quot;Admin&quot; ao sistema já dá papel
+          máximo em todos.
+          {modulosEmBreve.length > 0 && <> Colunas em cinza ainda não têm tela real.</>}
         </p>
       </div>
 

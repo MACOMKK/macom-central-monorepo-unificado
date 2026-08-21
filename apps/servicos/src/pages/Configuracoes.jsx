@@ -93,9 +93,8 @@ function NotificacoesPushTab() {
       <div>
         <h2 className="text-xl font-bold">Notificações push</h2>
         <p className="text-sm text-muted-foreground">
-          Colaboradores com notificações push ativadas no Serviços (um dispositivo/navegador pode
-          gerar mais de uma linha). Use &quot;Remover&quot; se um colaborador relatar que parou de
-          receber notificações — isso força uma reinscrição limpa na próxima vez que ele autorizar.
+          Colaboradores com notificações push ativadas. Use &quot;Remover&quot; se alguém parar de
+          receber notificações.
         </p>
       </div>
 

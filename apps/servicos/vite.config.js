@@ -9,17 +9,43 @@ import { createAppConfig } from '../../scripts/vite/createAppConfig.js';
 const { version } = createRequire(import.meta.url)('./package.json');
 
 // A versao exibida no rodape da sidebar (Sidebar.jsx) precisa mudar a cada deploy pra dar pra
-// confirmar visualmente que o build novo foi ao ar -- bumpar o "version" do package.json a mao
-// nunca acontecia na pratica (ficou parado em 1.0.0 por meses). Em vez disso, anexa metadado de
-// build (data + hash curto do commit) ao version base, que muda sozinho a cada commit/deploy sem
-// exigir nenhuma acao manual. Funciona mesmo em clone raso (Vercel), pois so olha o HEAD atual.
+// confirmar visualmente que o build novo foi ao ar. O 4o numero e a contagem de commits desde o
+// ultimo bump manual do "version" no package.json -- zera (.0) sempre que alguem sobe o version
+// base (ex.: 1.0.0 -> 1.0.1) e sobe sozinho a cada commit depois disso: v1.0.1.0, v1.0.1.1,
+// v1.0.1.2... Precisa de historico completo pra contar certo -- na Vercel, desativar "Shallow
+// clone" nas configuracoes do projeto (Settings > Git), senao a busca do commit de bump falha e
+// cai no fallback ".0" fixo.
+const PKG_RELATIVE_PATH = 'apps/servicos/package.json';
+
+function findVersionBumpCommit(baseVersion) {
+  const commits = execSync(`git log --follow --format=%H --reverse -- ${PKG_RELATIVE_PATH}`)
+    .toString()
+    .trim()
+    .split('\n')
+    .filter(Boolean);
+
+  let previousVersion = null;
+  for (const commit of commits) {
+    let content;
+    try {
+      content = execSync(`git show ${commit}:${PKG_RELATIVE_PATH}`).toString();
+    } catch {
+      continue;
+    }
+    const version = content.match(/"version"\s*:\s*"([^"]+)"/)?.[1];
+    if (version === baseVersion && previousVersion !== baseVersion) return commit;
+    previousVersion = version;
+  }
+  return commits[0];
+}
+
 function withBuildMetadata(baseVersion) {
   try {
-    const date = execSync('git log -1 --format=%cd --date=format:%Y%m%d').toString().trim();
-    const shortSha = execSync('git rev-parse --short HEAD').toString().trim();
-    return `${baseVersion}+${date}.${shortSha}`;
+    const bumpCommit = findVersionBumpCommit(baseVersion);
+    const buildNumber = execSync(`git rev-list --count ${bumpCommit}..HEAD`).toString().trim();
+    return `${baseVersion}.${buildNumber}`;
   } catch {
-    return baseVersion;
+    return `${baseVersion}.0`;
   }
 }
 
