@@ -251,40 +251,42 @@ export default function Aprovacoes() {
         </p>
       ) : (
         <>
-          <Table className="hidden md:table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead>Solicitante</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead>Forma de pagamento</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>Aprovador</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead className="text-right">Detalhes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageItems.map((row) => (
-                <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
-                  <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
-                  <TableCell>{row.solicitante_nome}</TableCell>
-                  <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>
-                  <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
-                  <TableCell>{row.categoria || '-'}</TableCell>
-                  <TableCell className="font-medium">{row.fornecedor}</TableCell>
-                  <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
-                  <TableCell>{formatValor(row.valor)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
-                      Ver
-                    </Button>
-                  </TableCell>
+          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Solicitante</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Forma de pagamento</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Aprovador</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead className="text-right">Detalhes</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {pageItems.map((row) => (
+                  <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
+                    <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
+                    <TableCell>{row.solicitante_nome}</TableCell>
+                    <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>
+                    <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
+                    <TableCell>{row.categoria || '-'}</TableCell>
+                    <TableCell className="font-medium">{row.fornecedor}</TableCell>
+                    <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
+                    <TableCell>{formatValor(row.valor)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
+                        Ver
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
 
           <div className="space-y-3 md:hidden">
             {pageItems.map((row) => (

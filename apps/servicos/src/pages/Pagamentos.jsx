@@ -643,7 +643,8 @@ export default function Pagamentos() {
         <p className="text-sm text-muted-foreground">Nenhuma solicitação aguardando pagamento.</p>
       ) : (
         <>
-        <Table className="hidden md:table">
+        <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
@@ -721,6 +722,7 @@ export default function Pagamentos() {
             })}
           </TableBody>
         </Table>
+        </div>
 
         <div className="space-y-3 md:hidden">
           {pageItems.map((row) => {
