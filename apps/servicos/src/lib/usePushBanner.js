@@ -21,7 +21,12 @@ export function usePushBanner() {
     setDismissed(true);
   }, []);
 
-  const needsAttention = push.supported && push.permission !== 'granted' && !push.subscribed;
+  // Nao basta permission !== 'granted': o navegador pode ja ter concedido a permissao antes mas
+  // a subscription real ter sumido (dados do site limpos, subscription expirada, revogada no
+  // backend etc.) -- nesse caso permission continua 'granted' pra sempre, entao o que decide se
+  // precisa reativar e apenas !subscribed. 'denied' e tratado à parte (Header esconde o botao,
+  // ja que requestPermission() nao reabre o prompt nesse estado).
+  const needsAttention = push.supported && push.permission !== 'denied' && !push.subscribed;
   const canShowBanner = needsAttention && !dismissed;
 
   return {
