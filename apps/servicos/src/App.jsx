@@ -11,6 +11,7 @@ import Login from '@/pages/Login';
 import MinhasSolicitacoes from '@/pages/MinhasSolicitacoes';
 import Aprovacoes from '@/pages/Aprovacoes';
 import Pagamentos from '@/pages/Pagamentos';
+import CalendarioVencimentos from '@/pages/CalendarioVencimentos';
 import Fornecedores from '@/pages/Fornecedores';
 import Categorias from '@/pages/Categorias';
 import Relatorios from '@/pages/Relatorios';
@@ -64,6 +65,7 @@ const ServicosRoutes = () => {
         <Route path="/solicitacoes" element={<MinhasSolicitacoes />} />
         {user?.isAprovador && <Route path="/aprovacoes" element={<Aprovacoes />} />}
         {user?.isPagador && <Route path="/pagamentos" element={<Pagamentos />} />}
+        {user?.isPagador && <Route path="/calendario-vencimentos" element={<CalendarioVencimentos />} />}
         {user?.isFinanceiro && <Route path="/fornecedores" element={<Fornecedores />} />}
         {user?.isFinanceiro && <Route path="/categorias" element={<Categorias />} />}
         {user?.isFinanceiro && <Route path="/relatorios" element={<Relatorios />} />}

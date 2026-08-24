@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, X } from 'lucide-react';
+import { Check, Eye, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -278,8 +278,13 @@ export default function Aprovacoes() {
                     <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
                     <TableCell>{formatValor(row.valor)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
-                        Ver
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Ver detalhes"
+                        onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}
+                      >
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

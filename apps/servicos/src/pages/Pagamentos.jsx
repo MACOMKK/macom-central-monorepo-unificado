@@ -707,7 +707,7 @@ export default function Pagamentos() {
                           )}
                           <Button
                             size="sm"
-                            className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                            className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
                             onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
                           >
                             <Banknote className="mr-1 h-4 w-4" />
@@ -762,7 +762,7 @@ export default function Pagamentos() {
                       )}
                       <Button
                         size="sm"
-                        className="bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                        className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
                         onClick={() => openPagamentoAVista(row)}
                       >
                         <Banknote className="mr-1 h-4 w-4" />

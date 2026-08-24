@@ -29,6 +29,7 @@
     "@tanstack/react-query": "^5.101.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "lucide-react": "^0.475.0",
     "pdf-lib": "^1.17.1",
     "react": "^18.2.0",

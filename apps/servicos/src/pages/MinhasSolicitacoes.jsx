@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, Plus, X } from 'lucide-react';
+import { Eye, Pencil, Plus, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -412,8 +412,13 @@ export default function MinhasSolicitacoes() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}>
-                        Ver
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Ver detalhes"
+                        onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}
+                      >
+                        <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

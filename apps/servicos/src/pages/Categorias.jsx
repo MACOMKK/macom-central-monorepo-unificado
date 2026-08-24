@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -264,8 +264,8 @@ export default function Categorias() {
                       </div>
                     ) : (
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
-                          Editar nome
+                        <Button variant="ghost" size="icon" aria-label="Editar nome" onClick={() => startEdit(row)}>
+                          <Pencil className="h-4 w-4" />
                         </Button>
                         <TooltipProvider>
                           <Tooltip>
