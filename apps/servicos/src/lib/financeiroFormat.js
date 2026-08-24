@@ -65,6 +65,12 @@ export function isParcialmentePago(row) {
   return total > 0 && pagas > 0 && pagas < total;
 }
 
+// Pendencia e um flag ortogonal ao status (nao um novo valor da maquina de estados) -- por isso
+// nao entra em STATUS_LABEL/STATUS_VARIANT, ver CLAUDE.md do app. So se aplica a 'aprovado'.
+export function isBloqueadaPorPendencia(row) {
+  return Boolean(row.pendencia_bloqueio);
+}
+
 export function formatValor(valor) {
   return Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -157,6 +163,7 @@ export function buildSolicitacaoSearchText(row) {
     row.aprovador_destino_nome,
     STATUS_LABEL[row.status] || row.status,
     formatValor(row.valor),
+    row.pendencia_motivo,
   ]
     .filter(Boolean)
     .join(' ');

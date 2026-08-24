@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { Badge } from '@macom/ui';
 import { formatDataVencimento, formatValor } from '@/lib/financeiroFormat';
 
@@ -6,7 +6,15 @@ import { formatDataVencimento, formatValor } from '@/lib/financeiroFormat';
 // solicitacoes (MinhasSolicitacoes, Aprovacoes, Pagamentos) -- mesmo `row` da tabela, so muda a
 // marcacao. `badges`/`actions` ficam a cargo de cada tela pra nao acoplar esse componente ao
 // status/acoes especificas de cada uma.
-export default function SolicitacaoCard({ row, onClick, showSolicitante = false, showAprovador = false, badges, actions }) {
+export default function SolicitacaoCard({
+  row,
+  onClick,
+  showSolicitante = false,
+  showAprovador = false,
+  badges,
+  actions,
+  pendenciaMotivo,
+}) {
   return (
     <div
       role={onClick ? 'button' : undefined}
@@ -15,8 +23,17 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
       onKeyDown={(event) => {
         if (onClick && (event.key === 'Enter' || event.key === ' ')) onClick(event);
       }}
-      className="space-y-2 rounded-lg border border-border bg-card p-4 active:bg-accent/50"
+      className={`overflow-hidden rounded-lg border bg-card active:bg-accent/50 ${
+        pendenciaMotivo ? 'border-2 border-destructive' : 'border-border'
+      }`}
     >
+      {pendenciaMotivo && (
+        <div className="flex items-center gap-1.5 bg-destructive px-4 py-1.5 text-xs font-medium text-destructive-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{pendenciaMotivo}</span>
+        </div>
+      )}
+      <div className="space-y-2 p-4">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium leading-snug">{row.titulo || '-'}</p>
         <p className="shrink-0 text-sm font-semibold">{formatValor(row.valor)}</p>
@@ -56,6 +73,7 @@ export default function SolicitacaoCard({ row, onClick, showSolicitante = false,
           {actions}
         </div>
       )}
+      </div>
     </div>
   );
 }

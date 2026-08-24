@@ -374,11 +374,14 @@ async function updateCollaboratorAccessProfile({
   id,
   payload,
   centralAccessTier,
+  corsHeaders,
 }: {
   id?: string | null;
   payload: Record<string, unknown>;
   centralAccessTier: string | null;
+  corsHeaders: Record<string, string>;
 }) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
   const sanitized = sanitizeCollaboratorAccessPayload(payload);
@@ -428,11 +431,14 @@ async function updateCollaboratorPassword({
   id,
   password,
   centralAccessTier,
+  corsHeaders,
 }: {
   id?: string | null;
   password?: string | null;
   centralAccessTier: string | null;
+  corsHeaders: Record<string, string>;
 }) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
   if (!password || password.length < 6) {
     return json({ error: 'Senha obrigatoria com pelo menos 6 caracteres.' }, 400);
@@ -467,12 +473,15 @@ async function updateCollaboratorEmail({
   email,
   resetPassword,
   centralAccessTier,
+  corsHeaders,
 }: {
   id?: string | null;
   email?: string | null;
   resetPassword?: boolean;
   centralAccessTier: string | null;
+  corsHeaders: Record<string, string>;
 }) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
   const nextEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -533,10 +542,13 @@ async function updateCollaboratorEmail({
 async function saveSystemAccess({
   payload,
   centralAccessTier,
+  corsHeaders,
 }: {
   payload: Record<string, unknown>;
   centralAccessTier: string | null;
+  corsHeaders: Record<string, string>;
 }) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   const sanitized = sanitizeSystemAccessPayload(payload);
   const colaboradorId = typeof sanitized.colaborador_id === 'string' ? sanitized.colaborador_id : null;
   const sistemaId = typeof sanitized.sistema_id === 'string' ? sanitized.sistema_id : null;
@@ -582,11 +594,14 @@ async function updateSystemAccess({
   id,
   payload,
   centralAccessTier,
+  corsHeaders,
 }: {
   id?: string | null;
   payload: Record<string, unknown>;
   centralAccessTier: string | null;
+  corsHeaders: Record<string, string>;
 }) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
   const sanitized = sanitizeSystemAccessPayload(payload);
@@ -617,7 +632,8 @@ async function updateSystemAccess({
   return json({ row: rows[0] || null });
 }
 
-async function deleteSystemAccess(id?: string | null) {
+async function deleteSystemAccess(id: string | null | undefined, corsHeaders: Record<string, string>) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
   const beforeRow = await fetchRowById('public', 'acessos_usuario_sistema', id);
@@ -632,7 +648,8 @@ async function deleteSystemAccess(id?: string | null) {
   return json({ success: true });
 }
 
-async function saveCentralPermission(payload: Record<string, unknown> = {}) {
+async function saveCentralPermission(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   const funcao = typeof payload.funcao === 'string' ? payload.funcao : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : 'sem';
@@ -661,7 +678,8 @@ async function saveCentralPermission(payload: Record<string, unknown> = {}) {
   return json({ row: rows[0] || null });
 }
 
-async function saveCentralPermissionNivel(payload: Record<string, unknown> = {}) {
+async function saveCentralPermissionNivel(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
@@ -690,7 +708,8 @@ async function saveCentralPermissionNivel(payload: Record<string, unknown> = {})
   return json({ row: rows[0] || null });
 }
 
-async function saveReportsFunctionPermission(payload: Record<string, unknown> = {}) {
+async function saveReportsFunctionPermission(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+  const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
@@ -902,59 +921,64 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'save' && entity === 'acessos_usuario_sistema') {
-      return saveSystemAccess({
+      return await saveSystemAccess({
         payload: body.payload || {},
         centralAccessTier,
+        corsHeaders,
       });
     }
 
     if (action === 'save' && entity === 'permissoes_central') {
-      return saveCentralPermission(body.payload || {});
+      return await saveCentralPermission(body.payload || {}, corsHeaders);
     }
 
     if (action === 'save' && entity === 'permissoes_central_nivel') {
-      return saveCentralPermissionNivel(body.payload || {});
+      return await saveCentralPermissionNivel(body.payload || {}, corsHeaders);
     }
 
     if (action === 'save' && entity === 'permissoes_funcoes_relatorios') {
-      return saveReportsFunctionPermission(body.payload || {});
+      return await saveReportsFunctionPermission(body.payload || {}, corsHeaders);
     }
 
     if (action === 'update' && entity === 'colaboradores') {
-      return updateCollaboratorAccessProfile({
+      return await updateCollaboratorAccessProfile({
         id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
         centralAccessTier,
+        corsHeaders,
       });
     }
 
     if (action === 'update_password' && entity === 'colaboradores') {
-      return updateCollaboratorPassword({
+      return await updateCollaboratorPassword({
         id: typeof body.id === 'string' ? body.id : null,
         password: typeof body.password === 'string' ? body.password : null,
         centralAccessTier,
+        corsHeaders,
       });
     }
 
     if (action === 'update_email' && entity === 'colaboradores') {
-      return updateCollaboratorEmail({
+      return await updateCollaboratorEmail({
         id: typeof body.id === 'string' ? body.id : null,
         email: typeof body.email === 'string' ? body.email : null,
         resetPassword: body.reset_password === true,
         centralAccessTier,
+        corsHeaders,
       });
     }
 
     if (action === 'update' && entity === 'acessos_usuario_sistema') {
-      return updateSystemAccess({
+      return await updateSystemAccess({
         id: typeof body.id === 'string' ? body.id : null,
         payload: body.payload || {},
         centralAccessTier,
+        corsHeaders,
       });
     }
 
     if (action === 'delete' && entity === 'acessos_usuario_sistema') {
-      return deleteSystemAccess(typeof body.id === 'string' ? body.id : null);
+      return await deleteSystemAccess(typeof body.id === 'string' ? body.id : null, corsHeaders);
     }
 
     if (action === 'list' && entity === 'logs_acesso') {

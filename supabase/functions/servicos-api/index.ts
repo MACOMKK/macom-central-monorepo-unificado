@@ -412,10 +412,11 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   const rows = await sql!.unsafe(
     `
       select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome,
-        ac.departamento_id as aprovador_destino_departamento_id
+        ac.departamento_id as aprovador_destino_departamento_id, pc.nome as pendencia_aberta_por_nome
       from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
       join public.colaboradores c on c.id = sp.solicitante_id
       left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
+      left join public.colaboradores pc on pc.id = sp.pendencia_aberta_por
       where sp.id = $1
       limit 1;
     `,
@@ -566,6 +567,45 @@ async function notifySolicitanteStatusChange(row: Record<string, unknown>, statu
   );
 }
 
+// Mesmo padrao de notifySolicitanteStatusChange, mas pra pendencia (que nao muda o status) --
+// avisa o solicitante tanto quando a pendencia abre (motivo em `mensagem`) quanto quando libera.
+async function notifySolicitantePendencia(row: Record<string, unknown>, ativa: boolean, autorId: string) {
+  const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  await insertNotificacao(
+    String(row.solicitante_id),
+    'pendencia_solicitacao',
+    ativa ? 'Pendência em sua solicitação' : 'Pendência liberada',
+    ativa
+      ? `${row.fornecedor} — ${valorFormatado}: ${row.pendencia_motivo}`
+      : `${row.fornecedor} — ${valorFormatado} liberada para pagamento`,
+    `/solicitacoes?sol=${row.id}`,
+    'solicitacao_pagamento',
+    String(row.id),
+    autorId,
+    'solicitante',
+  );
+
+  if (!sql) return;
+  const rows = await sql.unsafe(`select nome, email from public.colaboradores where id = $1 limit 1;`, [row.solicitante_id]);
+  const solicitante = rows[0];
+  if (!solicitante?.email) return;
+
+  const assunto = ativa ? 'Pendência aberta em sua solicitação de pagamento' : 'Pendência liberada em sua solicitação de pagamento';
+  const bodyText = ativa
+    ? `Ola ${solicitante.nome},\n\nSua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} teve uma pendencia sinalizada pelo contas a pagar:\n\n${row.pendencia_motivo}\n\nO pagamento fica bloqueado ate a pendencia ser resolvida e liberada.\n\nMACOM Servicos - Financeiro`
+    : `Ola ${solicitante.nome},\n\nA pendencia da sua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi liberada. O pagamento segue normalmente.\n\nMACOM Servicos - Financeiro`;
+
+  await sql.unsafe(
+    `insert into gestao_ativos.fila_emails (tipo, destinatario, assunto, payload) values ($1, $2, $3, $4::jsonb);`,
+    [
+      ativa ? 'pendencia_aberta' : 'pendencia_liberada',
+      solicitante.email,
+      assunto,
+      JSON.stringify({ to: solicitante.email, subject: assunto, body_text: bodyText }),
+    ],
+  );
+}
+
 // Notifica o aprovador designado que uma solicitacao esta esperando decisao dele (criacao nova
 // ou reenvio apos correcao) -- hoje isso so gerava historico, sem avisar o aprovador de nada.
 // Link aponta pra /aprovacoes (fila de pendentes, com os botoes Aprovar/Reprovar), nao pra
@@ -643,7 +683,7 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
   const rows = await sql!.unsafe(
     `
       select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.status as solicitacao_status,
-        ac.departamento_id as aprovador_destino_departamento_id
+        sp.pendencia_bloqueio, ac.departamento_id as aprovador_destino_departamento_id
       from ${SERVICOS_SCHEMA}.parcelas_pagamento pp
       join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = pp.solicitacao_id
       left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
@@ -1125,6 +1165,7 @@ Deno.serve(async (request) => {
             sp.*,
             c.nome as solicitante_nome,
             ac.nome as aprovador_destino_nome,
+            pc.nome as pendencia_aberta_por_nome,
             e.nome as empresa_nome,
             d.nome as departamento_nome,
             coalesce(pp.parcelas_total, 0) as parcelas_total,
@@ -1137,6 +1178,7 @@ Deno.serve(async (request) => {
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
           join public.colaboradores c on c.id = sp.solicitante_id
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
+          left join public.colaboradores pc on pc.id = sp.pendencia_aberta_por
           left join public.empresas e on e.id = sp.empresa_id
           left join public.departamentos d on d.id = sp.departamento_id
           left join lateral (
@@ -1366,8 +1408,9 @@ Deno.serve(async (request) => {
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
       const existing = await ensureRowAccess(id, moduleRole, collaborator);
-      if (String(existing.solicitante_id) !== String(collaborator!.id) || existing.status !== 'pendente') {
-        throw Object.assign(new Error('Somente o solicitante pode editar a solicitacao enquanto pendente.'), { status: 403 });
+      const podeEditar = existing.status === 'pendente' || existing.pendencia_bloqueio === true;
+      if (String(existing.solicitante_id) !== String(collaborator!.id) || !podeEditar) {
+        throw Object.assign(new Error('Somente o solicitante pode editar a solicitacao enquanto pendente ou com pendencia aberta.'), { status: 403 });
       }
 
       // Chave 'parcelas' presente no payload = usuario mexeu no parcelamento (array vazio =
@@ -1625,6 +1668,9 @@ Deno.serve(async (request) => {
         if (existing.status !== 'aprovado') {
           throw Object.assign(new Error('Somente solicitacoes aprovadas podem ser marcadas como pagas.'), { status: 400 });
         }
+        if (existing.pendencia_bloqueio) {
+          throw Object.assign(new Error('Solicitacao com pendencia aberta; libere a pendencia antes de pagar.'), { status: 400 });
+        }
 
         const rows = await sql.unsafe(
           `
@@ -1641,6 +1687,66 @@ Deno.serve(async (request) => {
         await notifySolicitanteStatusChange(row, status, collaborator!.id as string);
         return json({ row });
       }
+    }
+
+    if (action === 'marcar_pendencia') {
+      const id = String(body.id || '');
+      const motivo = String(body.motivo || '').trim();
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+      if (!motivo) return json({ error: 'Informe o motivo da pendencia.' }, 400);
+      if (!isPagador(moduleRole)) {
+        throw Object.assign(new Error('Apenas financeiro ou contas a pagar podem sinalizar pendencia.'), { status: 403 });
+      }
+
+      const existing = await ensureRowAccess(id, moduleRole, collaborator);
+      if (existing.status !== 'aprovado') {
+        throw Object.assign(new Error('Somente solicitacoes aprovadas podem receber pendencia.'), { status: 400 });
+      }
+      if (existing.pendencia_bloqueio) {
+        throw Object.assign(new Error('Esta solicitacao ja tem uma pendencia aberta.'), { status: 400 });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
+          set pendencia_bloqueio = true, pendencia_motivo = $2, pendencia_aberta_por = $3, pendencia_aberta_em = now()
+          where id = $1
+          returning *;
+        `,
+        [id, motivo, collaborator!.id],
+      );
+      const row = rows[0];
+      await insertHistorico(id, 'pendencia_aberta', collaborator!.id as string, motivo);
+      await notifySolicitantePendencia(row, true, collaborator!.id as string);
+      return json({ row });
+    }
+
+    if (action === 'liberar_pendencia') {
+      const id = String(body.id || '');
+      const observacao = body.observacao ? String(body.observacao) : null;
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+      if (!isPagador(moduleRole)) {
+        throw Object.assign(new Error('Apenas financeiro ou contas a pagar podem liberar pendencia.'), { status: 403 });
+      }
+
+      const existing = await ensureRowAccess(id, moduleRole, collaborator);
+      if (!existing.pendencia_bloqueio) {
+        throw Object.assign(new Error('Esta solicitacao nao tem pendencia aberta.'), { status: 400 });
+      }
+
+      const rows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
+          set pendencia_bloqueio = false, pendencia_motivo = null, pendencia_aberta_por = null, pendencia_aberta_em = null
+          where id = $1
+          returning *;
+        `,
+        [id],
+      );
+      const row = rows[0];
+      await insertHistorico(id, 'pendencia_liberada', collaborator!.id as string, observacao);
+      await notifySolicitantePendencia(row, false, collaborator!.id as string);
+      return json({ row });
     }
 
     if (action === 'list_anexos') {
@@ -1720,7 +1826,7 @@ Deno.serve(async (request) => {
 
       const rows = await sql.unsafe(
         `
-          select an.*, sp.solicitante_id, sp.status as solicitacao_status
+          select an.*, sp.solicitante_id, sp.status as solicitacao_status, sp.pendencia_bloqueio
           from ${SERVICOS_SCHEMA}.anexos_solicitacao an
           join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = an.solicitacao_id
           where an.id = $1
@@ -1732,7 +1838,8 @@ Deno.serve(async (request) => {
       if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
       const podeComoFinanceiro = isFinanceiro(moduleRole);
       const podeComoDono =
-        String(anexo.solicitante_id) === String(collaborator!.id) && anexo.solicitacao_status === 'pendente';
+        String(anexo.solicitante_id) === String(collaborator!.id) &&
+        (anexo.solicitacao_status === 'pendente' || anexo.pendencia_bloqueio === true);
       if (!podeComoFinanceiro && !podeComoDono) {
         throw Object.assign(
           new Error('Somente o solicitante (enquanto pendente) ou o financeiro podem remover anexos.'),
@@ -1802,6 +1909,9 @@ Deno.serve(async (request) => {
       const parcela = await ensureParcelaAccess(id, moduleRole, collaborator);
       if (parcela.status !== 'pendente') {
         throw Object.assign(new Error('Esta parcela ja foi paga.'), { status: 400 });
+      }
+      if (parcela.pendencia_bloqueio) {
+        throw Object.assign(new Error('Solicitacao com pendencia aberta; libere a pendencia antes de pagar.'), { status: 400 });
       }
 
       const rows = await sql.unsafe(

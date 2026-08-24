@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, Pencil, Plus, X } from 'lucide-react';
+import { AlertTriangle, Eye, Pencil, Plus, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -28,6 +28,7 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
+  isBloqueadaPorPendencia,
   isParcialmentePago,
   STATUS_LABEL,
   STATUS_VARIANT,
@@ -242,6 +243,14 @@ export default function MinhasSolicitacoes() {
         </div>
       );
     }
+    if (isBloqueadaPorPendencia(selected) && isDono(selected)) {
+      return (
+        <Button className="w-full" onClick={() => setFormTarget(selected)}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Editar
+        </Button>
+      );
+    }
     if (selected.status === 'reprovado' && isDono(selected)) {
       return (
         <Button className="w-full" onClick={() => setFormTarget(selected)}>
@@ -393,8 +402,21 @@ export default function MinhasSolicitacoes() {
               </TableHeader>
               <TableBody>
                 {pageItems.map((row) => (
-                  <TableRow key={row.id} className="cursor-pointer hover:bg-primary/10" onClick={() => setSelectedId(row.id)}>
-                    <TableCell className="max-w-xs truncate">{row.titulo || '-'}</TableCell>
+                  <TableRow
+                    key={row.id}
+                    className={`cursor-pointer hover:bg-primary/10 ${
+                      isBloqueadaPorPendencia(row) ? 'border-l-4 border-l-destructive bg-destructive/5' : ''
+                    }`}
+                    onClick={() => setSelectedId(row.id)}
+                  >
+                    <TableCell className="max-w-xs">
+                      <div className="flex items-center gap-1.5">
+                        {isBloqueadaPorPendencia(row) && (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
+                        )}
+                        <span className="truncate">{row.titulo || '-'}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>
                     <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                     <TableCell>{row.categoria || '-'}</TableCell>
@@ -435,6 +457,7 @@ export default function MinhasSolicitacoes() {
                 onClick={() => setSelectedId(row.id)}
                 showSolicitante
                 showAprovador
+                pendenciaMotivo={isBloqueadaPorPendencia(row) ? row.pendencia_motivo : null}
                 badges={
                   <>
                     <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>

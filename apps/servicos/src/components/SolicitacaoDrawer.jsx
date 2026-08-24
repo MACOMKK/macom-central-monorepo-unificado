@@ -56,6 +56,7 @@ import {
   ANEXO_CATEGORIA_LABEL,
   ANEXO_CATEGORIA_OPCOES,
   FORMA_PAGAMENTO_LABEL,
+  isBloqueadaPorPendencia,
   STATUS_LABEL,
   STATUS_VARIANT,
   getTiposDocumentoPorCategoria,
@@ -102,6 +103,8 @@ const EVENTO_LABEL = {
   anexo_adicionado: 'Anexo incluído',
   anexo_removido: 'Anexo removido',
   notificacao_enviada: 'Notificação enviada',
+  pendencia_aberta: 'Pendência sinalizada',
+  pendencia_liberada: 'Pendência liberada',
 };
 
 const PARCELA_STATUS_LABEL = {
@@ -132,11 +135,12 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     }
   }, [novaCategoria]);
 
-  const isDonoSolicitacao = Boolean(user?.id) && String(solicitacao?.criado_por) === String(user?.id);
+  const isDonoSolicitacao = Boolean(user?.id) && String(solicitacao?.solicitante_id) === String(user?.id);
   const isAprovadorDestino = Boolean(user?.id) && String(solicitacao?.aprovador_destino_id) === String(user?.id);
   const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
   const podeRemoverAnexo =
-    Boolean(user?.isFinanceiro) || (isDonoSolicitacao && solicitacao?.status === 'pendente');
+    Boolean(user?.isFinanceiro) ||
+    (isDonoSolicitacao && (solicitacao?.status === 'pendente' || solicitacao?.pendencia_bloqueio === true));
   const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino;
 
   const solicitacaoId = solicitacao?.id;
@@ -345,6 +349,9 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   {STATUS_LABEL[solicitacao.status] || solicitacao.status}
                 </Badge>
               )}
+              {solicitacao && isBloqueadaPorPendencia(solicitacao) && (
+                <Badge variant="destructive">Pendência</Badge>
+              )}
             </span>
           </SheetTitle>
         </SheetHeader>
@@ -360,6 +367,19 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               </TabsList>
 
               <TabsContent value="detalhes" className="space-y-4 text-sm">
+                {isBloqueadaPorPendencia(solicitacao) && (
+                  <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+                    <div className="flex items-center gap-2 font-semibold text-destructive">
+                      <Lock className="h-4 w-4" />
+                      Pagamento bloqueado por pendência
+                    </div>
+                    <p className="text-foreground">{solicitacao.pendencia_motivo}</p>
+                    <div className="grid grid-cols-2 gap-4 border-t border-destructive/20 pt-2">
+                      <CampoDetalhe icon={User} label="Sinalizada por" value={solicitacao.pendencia_aberta_por_nome} />
+                      <CampoDetalhe icon={Clock} label="Sinalizada em" value={formatDataHora(solicitacao.pendencia_aberta_em)} />
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-3 rounded-md border border-border p-3">
                   <SectionLabel>Informações gerais</SectionLabel>
                   <div className="grid grid-cols-2 gap-4">

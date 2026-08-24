@@ -201,6 +201,14 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'set_status', id, status, observacao_analise });
       return result.row || null;
     },
+    async marcarPendencia(id, motivo) {
+      const result = await invokeServicos({ action: 'marcar_pendencia', id, motivo });
+      return result.row || null;
+    },
+    async liberarPendencia(id, observacao) {
+      const result = await invokeServicos({ action: 'liberar_pendencia', id, observacao: observacao || null });
+      return result.row || null;
+    },
     async cancelar(id, motivo) {
       const result = await invokeServicos({ action: 'cancelar_solicitacao', id, motivo: motivo || null });
       return result.row || null;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Banknote, Paperclip, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Banknote, Paperclip, Plus, Trash2, Unlock, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -47,6 +47,7 @@ import {
   formatValor,
   FORMA_PAGAMENTO_LABEL,
   getVencimentoInfo,
+  isBloqueadaPorPendencia,
   isParcialmentePago,
   STATUS_LABEL,
   STATUS_VARIANT,
@@ -104,6 +105,10 @@ export default function Pagamentos() {
 
   const [reprovarTarget, setReprovarTarget] = useState(null);
   const [motivoReprovacao, setMotivoReprovacao] = useState('');
+
+  const [pendenciaTarget, setPendenciaTarget] = useState(null);
+  const [motivoPendencia, setMotivoPendencia] = useState('');
+  const [liberarTarget, setLiberarTarget] = useState(null);
 
   const [pagamentoTarget, setPagamentoTarget] = useState(null);
   const [comprovantes, setComprovantes] = useState([]);
@@ -410,6 +415,55 @@ export default function Pagamentos() {
     reprovarMutation.mutate({ id: reprovarTarget.id, motivo: motivoReprovacao.trim() });
   }
 
+  function closePendencia() {
+    setPendenciaTarget(null);
+    setMotivoPendencia('');
+  }
+
+  const sinalizarPendenciaMutation = useMutation({
+    mutationFn: ({ id, motivo }) => financeiroApi.solicitacoes.marcarPendencia(id, motivo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Pendência sinalizada', description: 'O solicitante foi notificado. O pagamento fica bloqueado até a liberação.' });
+      closePendencia();
+    },
+    onError: (error) => {
+      toast({
+        title: 'Não foi possível sinalizar a pendência',
+        description: getFriendlyErrorMessage(error),
+      });
+    },
+  });
+
+  function handleSinalizarPendencia() {
+    if (!pendenciaTarget || !motivoPendencia.trim()) return;
+    sinalizarPendenciaMutation.mutate({ id: pendenciaTarget.id, motivo: motivoPendencia.trim() });
+  }
+
+  function closeLiberar() {
+    setLiberarTarget(null);
+  }
+
+  const liberarPendenciaMutation = useMutation({
+    mutationFn: (id) => financeiroApi.solicitacoes.liberarPendencia(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Pendência liberada', description: 'A solicitação já pode ser paga normalmente.' });
+      closeLiberar();
+    },
+    onError: (error) => {
+      toast({
+        title: 'Não foi possível liberar a pendência',
+        description: getFriendlyErrorMessage(error),
+      });
+    },
+  });
+
+  function handleLiberarPendencia() {
+    if (!liberarTarget) return;
+    liberarPendenciaMutation.mutate(liberarTarget.id);
+  }
+
   function openParcelas(row) {
     setDialogRowId(row.id);
   }
@@ -666,18 +720,29 @@ export default function Pagamentos() {
               return (
                 <TableRow
                   key={row.id}
-                  className="cursor-pointer transition-colors hover:bg-muted/50"
+                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                    isBloqueadaPorPendencia(row) ? 'border-l-4 border-l-destructive bg-destructive/5' : ''
+                  }`}
                   onClick={() => openParcelas(row)}
                   title="Ver parcelas e detalhes"
                 >
-                  <TableCell className="font-medium">{row.titulo || '-'}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-1.5">
+                      {isBloqueadaPorPendencia(row) && (
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
+                      )}
+                      <span className="truncate">{row.titulo || '-'}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>{row.solicitante_nome}</TableCell>
                   <TableCell>
-                    {parcial ? (
-                      <Badge variant="secondary">Parcialmente pago</Badge>
-                    ) : (
-                      <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {parcial ? (
+                        <Badge variant="secondary">Parcialmente pago</Badge>
+                      ) : (
+                        <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
@@ -705,14 +770,38 @@ export default function Pagamentos() {
                               <X className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
-                            onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
-                          >
-                            <Banknote className="mr-1 h-4 w-4" />
-                            Pagar
-                          </Button>
+                          {user?.isPagador && !isBloqueadaPorPendencia(row) && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              title="Sinalizar pendência"
+                              aria-label="Sinalizar pendência"
+                              onClick={(event) => { event.stopPropagation(); setPendenciaTarget(row); }}
+                            >
+                              <AlertTriangle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isBloqueadaPorPendencia(row) ? (
+                            user?.isPagador && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(event) => { event.stopPropagation(); setLiberarTarget(row); }}
+                              >
+                                <Unlock className="mr-1 h-4 w-4" />
+                                Liberar pendência
+                              </Button>
+                            )
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                              onClick={(event) => { event.stopPropagation(); openPagamentoAVista(row); }}
+                            >
+                              <Banknote className="mr-1 h-4 w-4" />
+                              Pagar
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -734,6 +823,7 @@ export default function Pagamentos() {
                 row={row}
                 onClick={() => openParcelas(row)}
                 showSolicitante
+                pendenciaMotivo={isBloqueadaPorPendencia(row) ? row.pendencia_motivo : null}
                 badges={
                   <>
                     {parcial ? (
@@ -760,14 +850,34 @@ export default function Pagamentos() {
                           <X className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
-                        onClick={() => openPagamentoAVista(row)}
-                      >
-                        <Banknote className="mr-1 h-4 w-4" />
-                        Pagar
-                      </Button>
+                      {user?.isPagador && !isBloqueadaPorPendencia(row) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Sinalizar pendência"
+                          aria-label="Sinalizar pendência"
+                          onClick={() => setPendenciaTarget(row)}
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {isBloqueadaPorPendencia(row) ? (
+                        user?.isPagador && (
+                          <Button size="sm" variant="outline" onClick={() => setLiberarTarget(row)}>
+                            <Unlock className="mr-1 h-4 w-4" />
+                            Liberar pendência
+                          </Button>
+                        )
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="h-9 bg-emerald-600 text-white shadow hover:bg-emerald-600/90"
+                          onClick={() => openPagamentoAVista(row)}
+                        >
+                          <Banknote className="mr-1 h-4 w-4" />
+                          Pagar
+                        </Button>
+                      )}
                     </>
                   ) : null
                 }
@@ -884,6 +994,58 @@ export default function Pagamentos() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {reprovarMutation.isPending ? 'Reprovando...' : 'Reprovar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(pendenciaTarget)} onOpenChange={(open) => !open && closePendencia()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sinalizar pendência</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            A solicitação continua aprovada, mas o pagamento fica bloqueado até a pendência ser
+            liberada. O solicitante será notificado do motivo.
+          </p>
+          <Textarea
+            value={motivoPendencia}
+            onChange={(event) => setMotivoPendencia(event.target.value)}
+            placeholder="Motivo da pendência"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={closePendencia} disabled={sinalizarPendenciaMutation.isPending}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSinalizarPendencia}
+              disabled={sinalizarPendenciaMutation.isPending || !motivoPendencia.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {sinalizarPendenciaMutation.isPending ? 'Sinalizando...' : 'Sinalizar pendência'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(liberarTarget)} onOpenChange={(open) => !open && closeLiberar()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Liberar pendência</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {liberarTarget?.pendencia_motivo && (
+              <>Motivo registrado: "{liberarTarget.pendencia_motivo}". </>
+            )}
+            A solicitação volta a ficar disponível para pagamento.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeLiberar} disabled={liberarPendenciaMutation.isPending}>
+              Cancelar
+            </Button>
+            <Button onClick={handleLiberarPendencia} disabled={liberarPendenciaMutation.isPending}>
+              {liberarPendenciaMutation.isPending ? 'Liberando...' : 'Liberar pendência'}
             </Button>
           </DialogFooter>
         </DialogContent>

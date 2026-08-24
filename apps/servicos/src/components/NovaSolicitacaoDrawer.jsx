@@ -62,7 +62,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isReenvio = Boolean(solicitacao) && solicitacao.status === 'reprovado';
-  const isEdicao = Boolean(solicitacao) && solicitacao.status === 'pendente';
+  const isEdicao =
+    Boolean(solicitacao) && (solicitacao.status === 'pendente' || solicitacao.pendencia_bloqueio === true);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [anexos, setAnexos] = useState([]);
