@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
 import { Badge } from '@macom/ui';
 import { formatDataVencimento, formatValor } from '@/lib/financeiroFormat';
 
@@ -14,6 +14,7 @@ export default function SolicitacaoCard({
   badges,
   actions,
   pendenciaMotivo,
+  pendenciaAtualizada = false,
 }) {
   return (
     <div
@@ -24,13 +25,21 @@ export default function SolicitacaoCard({
         if (onClick && (event.key === 'Enter' || event.key === ' ')) onClick(event);
       }}
       className={`overflow-hidden rounded-lg border bg-card active:bg-accent/50 ${
-        pendenciaMotivo ? 'border-2 border-destructive' : 'border-border'
+        pendenciaMotivo ? (pendenciaAtualizada ? 'border-2 border-amber-500' : 'border-2 border-destructive') : 'border-border'
       }`}
     >
       {pendenciaMotivo && (
-        <div className="flex items-center gap-1.5 bg-destructive px-4 py-1.5 text-xs font-medium text-destructive-foreground">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{pendenciaMotivo}</span>
+        <div
+          className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium ${
+            pendenciaAtualizada ? 'bg-amber-500 text-white' : 'bg-destructive text-destructive-foreground'
+          }`}
+        >
+          {pendenciaAtualizada ? (
+            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span className="truncate">{pendenciaAtualizada ? 'Corrigido pelo solicitante — revisar' : pendenciaMotivo}</span>
         </div>
       )}
       <div className="space-y-2 p-4">

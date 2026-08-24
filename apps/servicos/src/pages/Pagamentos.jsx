@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Banknote, Paperclip, Plus, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, Banknote, Paperclip, Plus, RefreshCw, Trash2, Unlock, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -43,6 +43,7 @@ import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexo
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
   buildSolicitacaoSearchText,
+  formatDataHora,
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
@@ -721,16 +722,26 @@ export default function Pagamentos() {
                 <TableRow
                   key={row.id}
                   className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                    isBloqueadaPorPendencia(row) ? 'border-l-4 border-l-destructive bg-destructive/5' : ''
+                    isBloqueadaPorPendencia(row)
+                      ? row.pendencia_atualizada_em
+                        ? 'border-l-4 border-l-amber-500 bg-amber-500/5'
+                        : 'border-l-4 border-l-destructive bg-destructive/5'
+                      : ''
                   }`}
                   onClick={() => openParcelas(row)}
                   title="Ver parcelas e detalhes"
                 >
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-1.5">
-                      {isBloqueadaPorPendencia(row) && (
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
-                      )}
+                      {isBloqueadaPorPendencia(row) &&
+                        (row.pendencia_atualizada_em ? (
+                          <RefreshCw
+                            className="h-4 w-4 shrink-0 text-amber-600"
+                            aria-label={`Pendência corrigida em ${formatDataHora(row.pendencia_atualizada_em)}`}
+                          />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
+                        ))}
                       <span className="truncate">{row.titulo || '-'}</span>
                     </div>
                   </TableCell>
@@ -824,6 +835,7 @@ export default function Pagamentos() {
                 onClick={() => openParcelas(row)}
                 showSolicitante
                 pendenciaMotivo={isBloqueadaPorPendencia(row) ? row.pendencia_motivo : null}
+                pendenciaAtualizada={isBloqueadaPorPendencia(row) && Boolean(row.pendencia_atualizada_em)}
                 badges={
                   <>
                     {parcial ? (

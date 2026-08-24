@@ -606,6 +606,25 @@ async function notifySolicitantePendencia(row: Record<string, unknown>, ativa: b
   );
 }
 
+// Avisa quem abriu a pendencia que o solicitante corrigiu algo (dados ou anexo) enquanto ela
+// estava aberta -- sem isso o contas a pagar so descobre reconferindo manualmente a solicitacao.
+// So in-app/push (nao entra na fila de e-mail, evento operacional menos critico que abrir/liberar).
+async function notifySolicitantePendenciaAtualizada(row: Record<string, unknown>, autorId: string) {
+  if (!row.pendencia_aberta_por) return;
+  const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  await insertNotificacao(
+    String(row.pendencia_aberta_por),
+    'pendencia_solicitacao_atualizada',
+    'Solicitante corrigiu pendência',
+    `${row.fornecedor} — ${valorFormatado}: solicitante atualizou os dados, revisar pendência`,
+    `/pagamentos?sol=${row.id}`,
+    'solicitacao_pagamento',
+    String(row.id),
+    autorId,
+    'contas a pagar',
+  );
+}
+
 // Notifica o aprovador designado que uma solicitacao esta esperando decisao dele (criacao nova
 // ou reenvio apos correcao) -- hoje isso so gerava historico, sem avisar o aprovador de nada.
 // Link aponta pra /aprovacoes (fila de pendentes, com os botoes Aprovar/Reprovar), nao pra
@@ -1475,6 +1494,18 @@ Deno.serve(async (request) => {
         await substituirPlanoParcelas(id, parcelasPropostas, valorReferencia, collaborator!.id as string);
       }
 
+      // Solicitante corrigindo dados/anexos enquanto a pendencia esta aberta -- sinaliza pro
+      // contas a pagar que ha novidade a revisar, sem precisar ficar reconferindo manualmente.
+      if (existing.pendencia_bloqueio === true && (fields.length || parcelasPropostas !== null)) {
+        const rows = await sql.unsafe(
+          `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set pendencia_atualizada_em = now() where id = $1 returning *;`,
+          [id],
+        );
+        row = rows[0] || row;
+        await insertHistorico(id, 'pendencia_atualizada_pelo_solicitante', collaborator!.id as string);
+        await notifySolicitantePendenciaAtualizada(row, collaborator!.id as string);
+      }
+
       return json({ row });
     }
 
@@ -1709,7 +1740,8 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
-          set pendencia_bloqueio = true, pendencia_motivo = $2, pendencia_aberta_por = $3, pendencia_aberta_em = now()
+          set pendencia_bloqueio = true, pendencia_motivo = $2, pendencia_aberta_por = $3, pendencia_aberta_em = now(),
+            pendencia_atualizada_em = null
           where id = $1
           returning *;
         `,
@@ -1737,7 +1769,8 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
-          set pendencia_bloqueio = false, pendencia_motivo = null, pendencia_aberta_por = null, pendencia_aberta_em = null
+          set pendencia_bloqueio = false, pendencia_motivo = null, pendencia_aberta_por = null, pendencia_aberta_em = null,
+            pendencia_atualizada_em = null
           where id = $1
           returning *;
         `,

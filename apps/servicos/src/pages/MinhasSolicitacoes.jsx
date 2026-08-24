@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Eye, Pencil, Plus, X } from 'lucide-react';
+import { AlertTriangle, Eye, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -405,15 +405,22 @@ export default function MinhasSolicitacoes() {
                   <TableRow
                     key={row.id}
                     className={`cursor-pointer hover:bg-primary/10 ${
-                      isBloqueadaPorPendencia(row) ? 'border-l-4 border-l-destructive bg-destructive/5' : ''
+                      isBloqueadaPorPendencia(row)
+                        ? row.pendencia_atualizada_em
+                          ? 'border-l-4 border-l-amber-500 bg-amber-500/5'
+                          : 'border-l-4 border-l-destructive bg-destructive/5'
+                        : ''
                     }`}
                     onClick={() => setSelectedId(row.id)}
                   >
                     <TableCell className="max-w-xs">
                       <div className="flex items-center gap-1.5">
-                        {isBloqueadaPorPendencia(row) && (
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
-                        )}
+                        {isBloqueadaPorPendencia(row) &&
+                          (row.pendencia_atualizada_em ? (
+                            <RefreshCw className="h-4 w-4 shrink-0 text-amber-600" aria-label="Pendência corrigida, aguardando revisão" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
+                          ))}
                         <span className="truncate">{row.titulo || '-'}</span>
                       </div>
                     </TableCell>
@@ -458,6 +465,7 @@ export default function MinhasSolicitacoes() {
                 showSolicitante
                 showAprovador
                 pendenciaMotivo={isBloqueadaPorPendencia(row) ? row.pendencia_motivo : null}
+                pendenciaAtualizada={isBloqueadaPorPendencia(row) && Boolean(row.pendencia_atualizada_em)}
                 badges={
                   <>
                     <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>

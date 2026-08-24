@@ -13,6 +13,7 @@ import {
   Landmark,
   Lock,
   Paperclip,
+  RefreshCw,
   Tag,
   Trash2,
   User,
@@ -105,6 +106,7 @@ const EVENTO_LABEL = {
   notificacao_enviada: 'Notificação enviada',
   pendencia_aberta: 'Pendência sinalizada',
   pendencia_liberada: 'Pendência liberada',
+  pendencia_atualizada_pelo_solicitante: 'Solicitante corrigiu pendência',
 };
 
 const PARCELA_STATUS_LABEL = {
@@ -350,7 +352,17 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 </Badge>
               )}
               {solicitacao && isBloqueadaPorPendencia(solicitacao) && (
-                <Badge variant="destructive">Pendência</Badge>
+                <Badge
+                  variant={solicitacao.pendencia_atualizada_em ? 'outline' : 'destructive'}
+                  className={
+                    solicitacao.pendencia_atualizada_em
+                      ? 'gap-1 border-amber-500/50 bg-amber-500/10 text-amber-600'
+                      : 'gap-1'
+                  }
+                >
+                  {solicitacao.pendencia_atualizada_em && <RefreshCw className="h-3 w-3" />}
+                  {solicitacao.pendencia_atualizada_em ? 'Pendência • Corrigida' : 'Pendência'}
+                </Badge>
               )}
             </span>
           </SheetTitle>
@@ -378,6 +390,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                       <CampoDetalhe icon={User} label="Sinalizada por" value={solicitacao.pendencia_aberta_por_nome} />
                       <CampoDetalhe icon={Clock} label="Sinalizada em" value={formatDataHora(solicitacao.pendencia_aberta_em)} />
                     </div>
+                    {solicitacao.pendencia_atualizada_em && (
+                      <div className="flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700">
+                        <RefreshCw className="h-4 w-4 shrink-0" />
+                        <p className="text-xs font-medium">
+                          Corrigido pelo solicitante em {formatDataHora(solicitacao.pendencia_atualizada_em)} — revisar antes de liberar.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="space-y-3 rounded-md border border-border p-3">
