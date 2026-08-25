@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
+  Label,
   Spinner,
   Switch,
   Table,
@@ -32,7 +38,104 @@ function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+const onlyLetters = (value) => String(value || '').replace(/[^a-zA-Z]/g, '');
+const digitsAndDash = (value) => String(value || '').replace(/[^\d-]/g, '');
+
+function formatDocumento(value) {
+  const digits = onlyDigits(value).slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function formatTelefone(value) {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+  }
+  return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+}
+
+function formatCep(value) {
+  const digits = onlyDigits(value).slice(0, 8);
+  return digits.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
+}
+
 const fornecedoresKey = ['servicos', 'fornecedores', 'admin'];
+
+const FORM_VAZIO = {
+  nome: '',
+  tipo_pessoa: '',
+  documento: '',
+  inscricao_estadual: '',
+  email: '',
+  telefone: '',
+  endereco: '',
+  cidade: '',
+  uf: '',
+  cep: '',
+  banco: '',
+  agencia: '',
+  conta: '',
+  tipo_conta: '',
+  chave_pix: '',
+};
+
+function formFromRow(row) {
+  return {
+    ...FORM_VAZIO,
+    ...Object.fromEntries(Object.keys(FORM_VAZIO).map((key) => [key, row?.[key] ?? ''])),
+  };
+}
+
+const TIPO_CONTA_LABEL = {
+  corrente: 'Conta corrente',
+  poupanca: 'Conta poupança',
+  pagamento: 'Conta pagamento',
+};
+
+function ViewField({ label, value, className = '', copyable = false }) {
+  const { toast } = useToast();
+  const [copiado, setCopiado] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch (error) {
+      toast({ title: 'Não foi possível copiar', description: error.message });
+    }
+  }
+
+  return (
+    <div className={className}>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-sm">{value || '-'}</p>
+        {copyable && value && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            title="Copiar"
+          >
+            {copiado ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function invalidateFornecedoresCatalogo(queryClient) {
   queryClient.invalidateQueries({ queryKey: ['servicos', 'fornecedores'], exact: true });
@@ -42,11 +145,12 @@ function invalidateFornecedoresCatalogo(queryClient) {
 export default function Fornecedores() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [novoNome, setNovoNome] = useState('');
-  const [editId, setEditId] = useState(null);
-  const [editNome, setEditNome] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [form, setForm] = useState(FORM_VAZIO);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busca, setBusca] = useState('');
+  const [viewRow, setViewRow] = useState(null);
 
   const fornecedoresQuery = useQuery({
     queryKey: fornecedoresKey,
@@ -54,60 +158,46 @@ export default function Fornecedores() {
   });
   const rows = fornecedoresQuery.data || [];
   const loading = fornecedoresQuery.isLoading;
-  const filteredRows = rows.filter((row) => !busca.trim() || normalize(row.nome).includes(normalize(busca)));
+  const filteredRows = rows.filter(
+    (row) =>
+      !busca.trim() ||
+      normalize(row.nome).includes(normalize(busca)) ||
+      normalize(row.documento || '').includes(normalize(busca)),
+  );
   const { page, setPage, pageItems, total } = usePagination(filteredRows, 10);
 
   const criarMutation = useMutation({
-    mutationFn: ({ nome }) => financeiroApi.fornecedores.criar(nome),
-    onMutate: ({ nome, tempId }) => {
-      const previous = queryClient.getQueryData(fornecedoresKey);
-      const optimisticRow = { id: tempId, nome, ativo: true, criado_em: new Date().toISOString(), total_solicitacoes: 0 };
-      queryClient.setQueryData(fornecedoresKey, (old) => [...(old || []), optimisticRow]);
-      setNovoNome('');
-      return { previous, tempId };
-    },
-    onSuccess: (row, _variables, context) => {
-      queryClient.setQueryData(fornecedoresKey, (old) =>
-        (old || []).map((item) => (item.id === context.tempId ? { ...item, ...row } : item)),
-      );
+    mutationFn: (dados) => financeiroApi.fornecedores.criar(dados),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fornecedoresKey });
       invalidateFornecedoresCatalogo(queryClient);
       toast({ title: 'Fornecedor cadastrado' });
+      closeDialog();
     },
-    onError: (error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+    onError: (error) => {
       toast({ title: 'Não foi possível cadastrar o fornecedor', description: error.message });
     },
   });
 
   const atualizarMutation = useMutation({
-    mutationFn: ({ id, nome, ativo }) => financeiroApi.fornecedores.atualizar(id, { nome, ativo }),
-    onMutate: ({ id, nome, ativo }) => {
-      const previous = queryClient.getQueryData(fornecedoresKey);
-      queryClient.setQueryData(fornecedoresKey, (old) =>
-        (old || []).map((item) => (item.id === id ? { ...item, nome, ativo } : item)),
-      );
-      cancelEdit();
-      return { previous };
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(fornecedoresKey, (old) =>
-        (old || []).map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
-      );
+    mutationFn: ({ id, dados }) => financeiroApi.fornecedores.atualizar(id, dados),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: fornecedoresKey });
       invalidateFornecedoresCatalogo(queryClient);
       toast({ title: 'Fornecedor atualizado' });
+      closeDialog();
     },
-    onError: (error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(fornecedoresKey, context.previous);
+    onError: (error) => {
       toast({ title: 'Não foi possível atualizar o fornecedor', description: error.message });
     },
   });
 
   const toggleAtivoMutation = useMutation({
-    mutationFn: ({ id, nome, ativo }) => financeiroApi.fornecedores.atualizar(id, { nome, ativo }),
-    onMutate: ({ id, ativo }) => {
+    mutationFn: ({ row, ativo }) => financeiroApi.fornecedores.atualizar(row.id, { ...formFromRow(row), ativo }),
+    onMutate: ({ row, ativo }) => {
       const previous = queryClient.getQueryData(fornecedoresKey);
       queryClient.setQueryData(fornecedoresKey, (old) =>
-        (old || []).map((item) => (item.id === id ? { ...item, ativo } : item)),
+        (old || []).map((item) => (item.id === row.id ? { ...item, ativo } : item)),
       );
       return { previous };
     },
@@ -142,31 +232,50 @@ export default function Fornecedores() {
     },
   });
 
-  function handleCriar(event) {
+  function openNovo() {
+    setEditRow(null);
+    setForm(FORM_VAZIO);
+    setDialogOpen(true);
+  }
+
+  function openEdit(row) {
+    setViewRow(null);
+    setEditRow(row);
+    setForm(formFromRow(row));
+    setDialogOpen(true);
+  }
+
+  function openView(row) {
+    setViewRow(row);
+  }
+
+  function closeView() {
+    setViewRow(null);
+  }
+
+  function closeDialog() {
+    setDialogOpen(false);
+    setEditRow(null);
+    setForm(FORM_VAZIO);
+  }
+
+  function updateForm(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleSubmit(event) {
     event.preventDefault();
-    const nome = novoNome.trim();
-    if (!nome || criarMutation.isPending) return;
-    criarMutation.mutate({ nome, tempId: `optimistic-${crypto.randomUUID()}` });
-  }
-
-  function startEdit(row) {
-    setEditId(row.id);
-    setEditNome(row.nome);
-  }
-
-  function cancelEdit() {
-    setEditId(null);
-    setEditNome('');
-  }
-
-  function handleSalvarNome(row) {
-    const nome = editNome.trim();
+    const nome = form.nome.trim();
     if (!nome) return;
-    atualizarMutation.mutate({ id: row.id, nome, ativo: row.ativo });
+    if (editRow) {
+      atualizarMutation.mutate({ id: editRow.id, dados: { ...form, nome, ativo: editRow.ativo } });
+    } else {
+      criarMutation.mutate({ ...form, nome });
+    }
   }
 
   function handleToggleAtivo(row) {
-    toggleAtivoMutation.mutate({ id: row.id, nome: row.nome, ativo: !row.ativo });
+    toggleAtivoMutation.mutate({ row, ativo: !row.ativo });
   }
 
   function handleDeletar() {
@@ -174,8 +283,8 @@ export default function Fornecedores() {
     deletarMutation.mutate(deleteTarget.id);
   }
 
-  const isSaving = (id) => atualizarMutation.variables?.id === id && atualizarMutation.isPending
-    || toggleAtivoMutation.variables?.id === id && toggleAtivoMutation.isPending;
+  const isSaving = criarMutation.isPending || atualizarMutation.isPending;
+  const isTogglingAtivo = (id) => toggleAtivoMutation.variables?.row?.id === id && toggleAtivoMutation.isPending;
 
   return (
     <div className="space-y-4">
@@ -187,21 +296,12 @@ export default function Fornecedores() {
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <SearchInput value={busca} onChange={setBusca} placeholder="Buscar..." className="max-w-sm" />
+        <SearchInput value={busca} onChange={setBusca} placeholder="Buscar por nome ou documento..." className="max-w-sm" />
 
-        <form onSubmit={handleCriar} className="flex items-end gap-2">
-          <Input
-            id="novoFornecedor"
-            value={novoNome}
-            onChange={(event) => setNovoNome(event.target.value)}
-            placeholder="Nome do fornecedor"
-            className="w-48"
-          />
-          <Button type="submit" disabled={criarMutation.isPending || !novoNome.trim()}>
-            {criarMutation.isPending ? <Spinner size="sm" className="mr-1" /> : <Plus className="mr-1 h-4 w-4" />}
-            Cadastrar
-          </Button>
-        </form>
+        <Button onClick={openNovo}>
+          <Plus className="mr-1 h-4 w-4" />
+          Cadastrar fornecedor
+        </Button>
       </div>
 
       {loading ? (
@@ -219,6 +319,7 @@ export default function Fornecedores() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
+                <TableHead>Documento</TableHead>
                 <TableHead>Cadastrado em</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -226,25 +327,17 @@ export default function Fornecedores() {
             </TableHeader>
             <TableBody>
               {pageItems.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className="cursor-pointer" onClick={() => openView(row)}>
                   <TableCell className="max-w-xs">
-                    {editId === row.id ? (
-                      <Input
-                        autoFocus
-                        value={editNome}
-                        onChange={(event) => setEditNome(event.target.value)}
-                        disabled={isSaving(row.id)}
-                      />
-                    ) : (
-                      <span className="font-medium">{row.nome}</span>
-                    )}
+                    <span className="font-medium">{row.nome}</span>
                   </TableCell>
+                  <TableCell>{row.documento ? formatDocumento(row.documento) : '-'}</TableCell>
                   <TableCell>{formatData(row.criado_em)}</TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <Switch
                         checked={row.ativo}
-                        disabled={isSaving(row.id)}
+                        disabled={isTogglingAtivo(row.id)}
                         onCheckedChange={() => handleToggleAtivo(row)}
                       />
                       <Badge variant={row.ativo ? 'default' : 'secondary'}>
@@ -252,44 +345,33 @@ export default function Fornecedores() {
                       </Badge>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    {editId === row.id ? (
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={cancelEdit} disabled={isSaving(row.id)}>
-                          Cancelar
-                        </Button>
-                        <Button size="sm" onClick={() => handleSalvarNome(row)} disabled={isSaving(row.id)}>
-                          {isSaving(row.id) ? <Spinner size="sm" /> : 'Salvar'}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" aria-label="Editar nome" onClick={() => startEdit(row)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={row.total_solicitacoes > 0}
-                                  onClick={() => setDeleteTarget(row)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {row.total_solicitacoes > 0
-                                ? `Usado em ${row.total_solicitacoes} solicitação(ões) — não pode ser excluído, apenas inativado.`
-                                : 'Excluir fornecedor'}
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    )}
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" aria-label="Editar fornecedor" onClick={() => openEdit(row)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={row.total_solicitacoes > 0}
+                                onClick={() => setDeleteTarget(row)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {row.total_solicitacoes > 0
+                              ? `Usado em ${row.total_solicitacoes} solicitação(ões) — não pode ser excluído, apenas inativado.`
+                              : 'Excluir fornecedor'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -301,6 +383,189 @@ export default function Fornecedores() {
       {filteredRows.length > 0 && (
         <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="fornecedor(es)" />
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editRow ? 'Editar fornecedor' : 'Cadastrar fornecedor'}</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="nome">Nome *</Label>
+                <Input id="nome" maxLength={120} value={form.nome} onChange={(e) => updateForm('nome', e.target.value)} required />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="tipo_pessoa">Tipo de pessoa</Label>
+                <select
+                  id="tipo_pessoa"
+                  value={form.tipo_pessoa}
+                  onChange={(e) => updateForm('tipo_pessoa', e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Não informado</option>
+                  <option value="fisica">Pessoa física</option>
+                  <option value="juridica">Pessoa jurídica</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="documento">CPF/CNPJ</Label>
+                <Input
+                  id="documento"
+                  inputMode="numeric"
+                  value={form.documento}
+                  onChange={(e) => updateForm('documento', formatDocumento(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="inscricao_estadual">Inscrição estadual</Label>
+                <Input
+                  id="inscricao_estadual"
+                  maxLength={20}
+                  value={form.inscricao_estadual}
+                  onChange={(e) => updateForm('inscricao_estadual', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => updateForm('email', e.target.value.trim().toLowerCase())}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="telefone">Telefone</Label>
+                <Input
+                  id="telefone"
+                  inputMode="numeric"
+                  value={form.telefone}
+                  onChange={(e) => updateForm('telefone', formatTelefone(e.target.value))}
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="endereco">Endereço</Label>
+                <Input id="endereco" maxLength={150} value={form.endereco} onChange={(e) => updateForm('endereco', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cidade">Cidade</Label>
+                <Input id="cidade" maxLength={80} value={form.cidade} onChange={(e) => updateForm('cidade', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="uf">UF</Label>
+                  <Input id="uf" maxLength={2} value={form.uf} onChange={(e) => updateForm('uf', onlyLetters(e.target.value).toUpperCase())} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cep">CEP</Label>
+                  <Input id="cep" inputMode="numeric" value={form.cep} onChange={(e) => updateForm('cep', formatCep(e.target.value))} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="banco">Banco</Label>
+                <Input id="banco" maxLength={60} value={form.banco} onChange={(e) => updateForm('banco', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="tipo_conta">Tipo de conta</Label>
+                <select
+                  id="tipo_conta"
+                  value={form.tipo_conta}
+                  onChange={(e) => updateForm('tipo_conta', e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Não informado</option>
+                  <option value="corrente">Conta corrente</option>
+                  <option value="poupanca">Conta poupança</option>
+                  <option value="pagamento">Conta pagamento</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="agencia">Agência</Label>
+                <Input
+                  id="agencia"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={form.agencia}
+                  onChange={(e) => updateForm('agencia', digitsAndDash(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="conta">Conta</Label>
+                <Input
+                  id="conta"
+                  inputMode="numeric"
+                  maxLength={15}
+                  value={form.conta}
+                  onChange={(e) => updateForm('conta', digitsAndDash(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="chave_pix">Chave PIX</Label>
+                <Input id="chave_pix" maxLength={140} value={form.chave_pix} onChange={(e) => updateForm('chave_pix', e.target.value)} />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeDialog} disabled={isSaving}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSaving || !form.nome.trim()}>
+                {isSaving ? <Spinner size="sm" className="mr-1" /> : null}
+                {editRow ? 'Salvar' : 'Cadastrar'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(viewRow)} onOpenChange={(open) => !open && closeView()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewRow?.nome}</DialogTitle>
+          </DialogHeader>
+
+          {viewRow ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={viewRow.ativo ? 'default' : 'secondary'}>{viewRow.ativo ? 'Ativo' : 'Inativo'}</Badge>
+                <span className="text-xs text-muted-foreground">Cadastrado em {formatData(viewRow.criado_em)}</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+                <ViewField label="Tipo de pessoa" value={viewRow.tipo_pessoa === 'juridica' ? 'Pessoa jurídica' : viewRow.tipo_pessoa === 'fisica' ? 'Pessoa física' : null} />
+                <ViewField label="CPF/CNPJ" value={viewRow.documento ? formatDocumento(viewRow.documento) : null} copyable />
+                <ViewField label="Inscrição estadual" value={viewRow.inscricao_estadual} copyable />
+                <ViewField label="E-mail" value={viewRow.email} copyable />
+                <ViewField label="Telefone" value={viewRow.telefone ? formatTelefone(viewRow.telefone) : null} copyable />
+                <ViewField label="Endereço" value={viewRow.endereco} className="sm:col-span-2" />
+                <ViewField label="Cidade" value={viewRow.cidade} />
+                <ViewField label="UF" value={viewRow.uf} />
+                <ViewField label="CEP" value={viewRow.cep ? formatCep(viewRow.cep) : null} copyable />
+                <ViewField label="Banco" value={viewRow.banco} />
+                <ViewField label="Tipo de conta" value={TIPO_CONTA_LABEL[viewRow.tipo_conta] || viewRow.tipo_conta} />
+                <ViewField label="Agência" value={viewRow.agencia} copyable />
+                <ViewField label="Conta" value={viewRow.conta} copyable />
+                <ViewField label="Chave PIX" value={viewRow.chave_pix} className="sm:col-span-2" copyable />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeView}>
+              Fechar
+            </Button>
+            <Button type="button" onClick={() => openEdit(viewRow)}>
+              <Pencil className="mr-1 h-4 w-4" />
+              Editar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDeleteDialog
         open={Boolean(deleteTarget)}

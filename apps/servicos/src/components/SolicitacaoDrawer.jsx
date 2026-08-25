@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PDFDocument } from 'pdf-lib';
 import {
   Building2,
   Calendar,
+  Check,
   Clock,
+  Copy,
   CreditCard,
   Download,
   Eye,
@@ -69,13 +72,26 @@ function SectionLabel({ children }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</p>;
 }
 
-function CampoDetalhe({ icon: Icon, label, value }) {
+function CampoDetalhe({ icon: Icon, label, value, onClick, trailing }) {
   return (
     <div className="flex items-start gap-2">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <div>
+      <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-medium">{value || '-'}</p>
+        <div className="flex items-center gap-1">
+          {onClick ? (
+            <button
+              type="button"
+              onClick={onClick}
+              className="truncate text-left font-medium underline-offset-2 hover:underline"
+            >
+              {value || '-'}
+            </button>
+          ) : (
+            <p className="truncate font-medium">{value || '-'}</p>
+          )}
+          {trailing}
+        </div>
       </div>
     </div>
   );
@@ -118,8 +134,10 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [novaCategoria, setNovaCategoria] = useState(ANEXO_CATEGORIA_OPCOES[0]?.value || '');
+  const [numeroCopiado, setNumeroCopiado] = useState(false);
   const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
   const [novoSigiloso, setNovoSigiloso] = useState(false);
   const [removerTarget, setRemoverTarget] = useState(null);
@@ -188,6 +206,21 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       toast({ title: 'Não foi possível carregar o histórico', description: getFriendlyErrorMessage(historicoQuery.error) });
     }
   }, [historicoQuery.error]);
+
+  async function handleCopiarNumero(numero) {
+    try {
+      await navigator.clipboard.writeText(String(numero));
+      setNumeroCopiado(true);
+      setTimeout(() => setNumeroCopiado(false), 1500);
+    } catch (error) {
+      toast({ title: 'Não foi possível copiar o número', description: getFriendlyErrorMessage(error) });
+    }
+  }
+
+  function handleAbrirFornecedor() {
+    onOpenChange(false);
+    navigate('/fornecedores');
+  }
 
   function loadAnexos() {
     queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
@@ -403,9 +436,30 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 <div className="space-y-3 rounded-md border border-border p-3">
                   <SectionLabel>Informações gerais</SectionLabel>
                   <div className="grid grid-cols-2 gap-4">
-                    <CampoDetalhe icon={Hash} label="Nº" value={solicitacao.numero} />
+                    <CampoDetalhe
+                      icon={Hash}
+                      label="Nº"
+                      value={solicitacao.numero}
+                      trailing={
+                        solicitacao.numero && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopiarNumero(solicitacao.numero)}
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                            title="Copiar número"
+                          >
+                            {numeroCopiado ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                        )
+                      }
+                    />
                     <CampoDetalhe icon={User} label="Solicitante" value={solicitacao.solicitante_nome} />
-                    <CampoDetalhe icon={Building2} label="Fornecedor" value={solicitacao.fornecedor} />
+                    <CampoDetalhe
+                      icon={Building2}
+                      label="Fornecedor"
+                      value={solicitacao.fornecedor}
+                      onClick={user?.isFinanceiro && solicitacao.fornecedor ? handleAbrirFornecedor : undefined}
+                    />
                     <CampoDetalhe icon={UserCheck} label="Aprovador responsável" value={solicitacao.aprovador_destino_nome} />
                     <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
                     <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />

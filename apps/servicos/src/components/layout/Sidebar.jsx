@@ -124,7 +124,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        <div className={`relative flex h-16 items-center border-b border-border ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
+        <div className={`relative flex min-h-16 items-center border-b border-border pt-safe ${collapsed ? 'justify-center px-3' : 'justify-between px-4'}`}>
           {!collapsed ? (
             <div className="flex items-center gap-2 pl-1">
               <img src={logoUrl} alt="MACOM" className="h-8 w-8 object-contain" />

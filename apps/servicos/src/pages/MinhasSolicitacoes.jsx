@@ -435,7 +435,7 @@ export default function MinhasSolicitacoes() {
                         <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
                         {row.status === 'aprovado' && isParcialmentePago(row) && (
                           <Badge variant="outline">
-                            Parcialmente pago ({row.parcelas_pagas}/{row.parcelas_total})
+                            Pago parcial ({row.parcelas_pagas}/{row.parcelas_total})
                           </Badge>
                         )}
                       </div>
@@ -471,7 +471,7 @@ export default function MinhasSolicitacoes() {
                     <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
                     {row.status === 'aprovado' && isParcialmentePago(row) && (
                       <Badge variant="outline">
-                        Parcialmente pago ({row.parcelas_pagas}/{row.parcelas_total})
+                        Pago parcial ({row.parcelas_pagas}/{row.parcelas_total})
                       </Badge>
                     )}
                   </>

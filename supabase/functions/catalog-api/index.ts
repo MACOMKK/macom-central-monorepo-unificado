@@ -99,7 +99,7 @@ const ENTITY_CONFIG = {
     ],
   },
   fila_emails: {
-    schema: 'gestao_ativos',
+    schema: 'notificacoes',
     table: 'fila_emails',
     orderBy: 'criado_em',
     orderDirection: 'desc',

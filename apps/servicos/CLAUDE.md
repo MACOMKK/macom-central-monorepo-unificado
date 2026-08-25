@@ -118,13 +118,22 @@ reais (só adicionar coluna `mod_<novo>` na tabela, seguindo o mesmo padrão).
     (checado via `isFinanceiro(moduleRole)`, que já cobre admin da Camada 1 — `getServicosModuleRole`
     retorna `'financeiro'` pra admin). Tela dedicada `/fornecedores` (`src/pages/Fornecedores.jsx`,
     só no menu pra `isFinanceiro`), ações `list_fornecedores_admin` (todos, com `ativo`),
-    `criar_fornecedor` e `atualizar_fornecedor` (nome + toggle `ativo`). `list_fornecedores`
+    `criar_fornecedor` e `atualizar_fornecedor`. `list_fornecedores`
     (usada no select do `NovaSolicitacaoDrawer.jsx`, disponível a qualquer solicitante) só retorna
     `ativo = true`. Fornecedor é inativado, nunca apagado — `solicitacoes_pagamento.fornecedor_id`
     referencia a linha e `fornecedor` já é snapshot do nome, então inativar não quebra histórico.
     Antes disso o cadastro era feito inline no próprio drawer por qualquer solicitante
     (`criar_fornecedor` sem checagem de papel); migrado pra tela própria em
     `20260806120000_add_servicos_fornecedores_gestao.sql` (colunas `ativo`/`atualizado_em`).
+    Cadastro expandido em `20260824140000_expand_servicos_fornecedores.sql` com campos fiscais
+    (`tipo_pessoa`, `documento` — único quando preenchido, `inscricao_estadual`), contato
+    (`email`, `telefone`), endereço (`endereco`, `cidade`, `uf`, `cep`) e dados bancários
+    (`banco`, `agencia`, `conta`, `tipo_conta`, `chave_pix`) — todos nullable, normalizados em
+    `extrairDadosFornecedor()` na edge function (documento sem pontuação, campos vazios viram
+    `null`). A tela trocou os inputs inline por um `Dialog` de cadastro/edição
+    (`src/pages/Fornecedores.jsx`) com todos os campos; a tabela continua enxuta (nome,
+    documento, status). `list_fornecedores` (catálogo do drawer de nova solicitação) não mudou —
+    continua só `id, nome`.
   - Categorias (`gestao_servicos.categorias`): mesmo padrão de fornecedores (cadastro exclusivo
     do papel `financeiro`, tela dedicada `/categorias` — `src/pages/Categorias.jsx`, ações
     `list_categorias_admin`/`criar_categoria`/`atualizar_categoria`, `list_categorias` só ativas

@@ -115,6 +115,41 @@ function sanitizePayload(fields: readonly string[], payload: Record<string, unkn
   return sanitized;
 }
 
+const TIPOS_PESSOA = new Set(['fisica', 'juridica']);
+const TIPOS_CONTA = new Set(['corrente', 'poupanca', 'pagamento']);
+
+function extrairDadosFornecedor(body: Record<string, unknown>) {
+  const texto = (valor: unknown, max?: number) => {
+    let trimmed = String(valor ?? '').trim();
+    if (max) trimmed = trimmed.slice(0, max);
+    return trimmed || null;
+  };
+  const soDigitos = (valor: unknown, max?: number) => {
+    const digitos = String(valor ?? '').replace(/\D/g, '');
+    return (max ? digitos.slice(0, max) : digitos) || null;
+  };
+  const tipoPessoa = texto(body.tipo_pessoa);
+  const tipoConta = texto(body.tipo_conta);
+  const uf = texto(body.uf, 2)?.replace(/[^a-zA-Z]/g, '').toUpperCase() || null;
+  const email = texto(body.email, 160)?.toLowerCase() || null;
+  return {
+    tipo_pessoa: tipoPessoa && TIPOS_PESSOA.has(tipoPessoa) ? tipoPessoa : null,
+    documento: soDigitos(body.documento, 14),
+    inscricao_estadual: texto(body.inscricao_estadual, 20),
+    email,
+    telefone: soDigitos(body.telefone, 11),
+    endereco: texto(body.endereco, 150),
+    cidade: texto(body.cidade, 80),
+    uf,
+    cep: soDigitos(body.cep, 8),
+    banco: texto(body.banco, 60),
+    agencia: texto(body.agencia, 10)?.replace(/[^\d-]/g, '') || null,
+    conta: texto(body.conta, 15)?.replace(/[^\d-]/g, '') || null,
+    tipo_conta: tipoConta && TIPOS_CONTA.has(tipoConta) ? tipoConta : null,
+    chave_pix: texto(body.chave_pix, 140),
+  };
+}
+
 function getAccessLevel(access: Record<string, unknown> | null) {
   return String(access?.nivel_acesso || '');
 }
@@ -487,7 +522,7 @@ async function enqueueStatusEmail(row: Record<string, unknown>, status: string) 
 
   await sql.unsafe(
     `
-      insert into gestao_ativos.fila_emails (tipo, destinatario, assunto, payload)
+      insert into notificacoes.fila_emails (tipo, destinatario, assunto, payload)
       values ($1, $2, $3, $4::jsonb);
     `,
     [
@@ -596,7 +631,7 @@ async function notifySolicitantePendencia(row: Record<string, unknown>, ativa: b
     : `Ola ${solicitante.nome},\n\nA pendencia da sua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi liberada. O pagamento segue normalmente.\n\nMACOM Servicos - Financeiro`;
 
   await sql.unsafe(
-    `insert into gestao_ativos.fila_emails (tipo, destinatario, assunto, payload) values ($1, $2, $3, $4::jsonb);`,
+    `insert into notificacoes.fila_emails (tipo, destinatario, assunto, payload) values ($1, $2, $3, $4::jsonb);`,
     [
       ativa ? 'pendencia_aberta' : 'pendencia_liberada',
       solicitante.email,
@@ -774,6 +809,9 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           select f.id, f.nome, f.ativo, f.criado_em, f.atualizado_em,
+            f.tipo_pessoa, f.documento, f.inscricao_estadual, f.email, f.telefone,
+            f.endereco, f.cidade, f.uf, f.cep,
+            f.banco, f.agencia, f.conta, f.tipo_conta, f.chave_pix,
             count(sp.id) as total_solicitacoes
           from ${SERVICOS_SCHEMA}.fornecedores f
           left join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.fornecedor_id = f.id
@@ -791,6 +829,7 @@ Deno.serve(async (request) => {
 
       const nome = String(body.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
+      const dados = extrairDadosFornecedor(body);
 
       const existing = await sql.unsafe(
         `select id, nome, ativo, criado_em, atualizado_em from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) limit 1;`,
@@ -799,8 +838,20 @@ Deno.serve(async (request) => {
       if (existing[0]) return json({ row: existing[0] });
 
       const rows = await sql.unsafe(
-        `insert into ${SERVICOS_SCHEMA}.fornecedores (nome, criado_por) values ($1, $2) returning id, nome, ativo, criado_em, atualizado_em;`,
-        [nome, collaborator!.id],
+        `
+          insert into ${SERVICOS_SCHEMA}.fornecedores (
+            nome, criado_por, tipo_pessoa, documento, inscricao_estadual, email, telefone,
+            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix
+          ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          returning id, nome, ativo, criado_em, atualizado_em,
+            tipo_pessoa, documento, inscricao_estadual, email, telefone,
+            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix;
+        `,
+        [
+          nome, collaborator!.id, dados.tipo_pessoa, dados.documento, dados.inscricao_estadual,
+          dados.email, dados.telefone, dados.endereco, dados.cidade, dados.uf, dados.cep,
+          dados.banco, dados.agencia, dados.conta, dados.tipo_conta, dados.chave_pix,
+        ],
       );
       return json({ row: rows[0] || null });
     }
@@ -816,6 +867,7 @@ Deno.serve(async (request) => {
       const nome = String(body.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
       const ativo = Boolean(body.ativo);
+      const dados = extrairDadosFornecedor(body);
 
       const duplicated = await sql.unsafe(
         `select id from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) and id <> $2 limit 1;`,
@@ -826,11 +878,20 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           update ${SERVICOS_SCHEMA}.fornecedores
-          set nome = $1, ativo = $2, atualizado_em = now()
+          set nome = $1, ativo = $2, atualizado_em = now(),
+            tipo_pessoa = $4, documento = $5, inscricao_estadual = $6, email = $7, telefone = $8,
+            endereco = $9, cidade = $10, uf = $11, cep = $12,
+            banco = $13, agencia = $14, conta = $15, tipo_conta = $16, chave_pix = $17
           where id = $3
-          returning id, nome, ativo, criado_em, atualizado_em;
+          returning id, nome, ativo, criado_em, atualizado_em,
+            tipo_pessoa, documento, inscricao_estadual, email, telefone,
+            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix;
         `,
-        [nome, ativo, id],
+        [
+          nome, ativo, id, dados.tipo_pessoa, dados.documento, dados.inscricao_estadual,
+          dados.email, dados.telefone, dados.endereco, dados.cidade, dados.uf, dados.cep,
+          dados.banco, dados.agencia, dados.conta, dados.tipo_conta, dados.chave_pix,
+        ],
       );
       if (!rows[0]) throw Object.assign(new Error('Fornecedor nao encontrado.'), { status: 404 });
       return json({ row: rows[0] });

@@ -87,12 +87,12 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'list_fornecedores_admin' });
       return result.rows || [];
     },
-    async criar(nome) {
-      const result = await invokeServicos({ action: 'criar_fornecedor', nome });
+    async criar(dados) {
+      const result = await invokeServicos({ action: 'criar_fornecedor', ...dados });
       return result.row || null;
     },
-    async atualizar(id, { nome, ativo }) {
-      const result = await invokeServicos({ action: 'atualizar_fornecedor', id, nome, ativo });
+    async atualizar(id, dados) {
+      const result = await invokeServicos({ action: 'atualizar_fornecedor', id, ...dados });
       return result.row || null;
     },
     async deletar(id) {

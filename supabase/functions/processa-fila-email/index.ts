@@ -77,7 +77,9 @@ async function sendGmail(payload: Record<string, unknown>) {
 
   const tokenData = await tokenResp.json();
   if (!tokenResp.ok || !tokenData.access_token) {
-    throw new Error(tokenData.error_description || tokenData.error || 'Falha ao obter access token Gmail');
+    throw new Error(
+      `Falha ao obter access token Gmail (${tokenResp.status}): ${JSON.stringify(tokenData).slice(0, 500)}`,
+    );
   }
 
   const boundary = 'boundary_macom_termo';
@@ -132,7 +134,7 @@ async function sendGmail(payload: Record<string, unknown>) {
 
   const gmailData = await gmailResp.json();
   if (!gmailResp.ok) {
-    throw new Error(gmailData?.error?.message || 'Falha ao enviar email pelo Gmail API');
+    throw new Error(`Gmail send failed (${gmailResp.status}): ${JSON.stringify(gmailData).slice(0, 500)}`);
   }
 
   return gmailData.id;
@@ -159,7 +161,7 @@ serve(async (req) => {
     const nowIso = new Date().toISOString();
 
     const { data: jobs, error: selectError } = await supabase
-      .schema('gestao_ativos')
+      .schema('notificacoes')
       .from('fila_emails')
       .select('*')
       .eq('status', 'pendente')
@@ -176,7 +178,7 @@ serve(async (req) => {
       const attempt = (job.tentativas || 0) + 1;
 
       const { data: lockedJob, error: lockError } = await supabase
-        .schema('gestao_ativos')
+        .schema('notificacoes')
         .from('fila_emails')
         .update({
           status: 'processando',
@@ -198,7 +200,7 @@ serve(async (req) => {
         const gmailId = await sendGmail(job.payload || {});
 
         const { error: sentError } = await supabase
-          .schema('gestao_ativos')
+          .schema('notificacoes')
           .from('fila_emails')
           .update({
             status: 'enviado',
@@ -218,7 +220,7 @@ serve(async (req) => {
         const nextSchedule = new Date(Date.now() + retryMinutes * 60 * 1000).toISOString();
 
         const { error: failError } = await supabase
-          .schema('gestao_ativos')
+          .schema('notificacoes')
           .from('fila_emails')
           .update({
             status: shouldFail ? 'erro' : 'pendente',

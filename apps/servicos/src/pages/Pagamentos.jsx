@@ -622,7 +622,7 @@ export default function Pagamentos() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={CLASSIFICACAO_TODAS}>Todas</SelectItem>
-                <SelectItem value={CLASSIFICACAO_PARCIAL}>Parcialmente pagas</SelectItem>
+                <SelectItem value={CLASSIFICACAO_PARCIAL}>Pago parcial</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -749,7 +749,7 @@ export default function Pagamentos() {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       {parcial ? (
-                        <Badge variant="secondary">Parcialmente pago</Badge>
+                        <Badge variant="secondary">Pago parcial</Badge>
                       ) : (
                         <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
                       )}
@@ -839,7 +839,7 @@ export default function Pagamentos() {
                 badges={
                   <>
                     {parcial ? (
-                      <Badge variant="secondary">Parcialmente pago</Badge>
+                      <Badge variant="secondary">Pago parcial</Badge>
                     ) : (
                       row.status !== 'aprovado' && (
                         <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
