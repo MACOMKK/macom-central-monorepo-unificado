@@ -80,7 +80,7 @@ export default mergeConfig(baseConfig, {
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        background_color: '#f4f4f5',
+        background_color: '#f5f5f5',
         theme_color: '#E30613',
         icons: [
           { src: '/pwa-icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },

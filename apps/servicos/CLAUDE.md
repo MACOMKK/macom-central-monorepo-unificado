@@ -229,6 +229,13 @@ front-end separado, então qualquer mudança em `src/` já vale pra web e pro ap
   pra testar, mas antes de publicar de verdade vale substituir por uma arte quadrada desenhada
   pra isso (o logo é retangular, o resultado gerado fica ok mas não é ideal). Pra regerar todas
   as resoluções depois de trocar o source: `npx @capacitor/assets generate --android`.
+  A splash nativa (`AppTheme.NoActionBarLaunch` em `android/app/src/main/res/values/styles.xml`)
+  **não usa** o `@drawable/splash` gerado — foi trocada pra um fundo sólido
+  (`@color/splash_background`, `#F5F5F5`, mesmo `bg-background` do `BrandLoader` em
+  `packages/ui/src/spinner.jsx`), pra a splash do Android virar só uma transição neutra em vez de
+  mostrar o logo estático antes do `BrandLoader` (loading animado) entrar. Rodar
+  `npx @capacitor/assets generate --android` de novo reescreve o `@drawable/splash` mas não deve
+  mexer nessa linha do `styles.xml`; se mexer, reaplicar a troca pro `@color/splash_background`.
 - **Botão voltar do Android**: `src/components/NativeBackButtonHandler.jsx`, montado dentro do
   `<Router>` em `App.jsx`. Sem isso o botão físico/gesto fecha o app inteiro em vez de navegar
   pra trás — só ativa via `Capacitor.isNativePlatform()`, não afeta a versão web.
