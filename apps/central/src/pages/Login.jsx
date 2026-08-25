@@ -5,9 +5,9 @@ const bgUrl = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v
 const prefetchDashboardRoute = () => import('@/pages/Dashboard');
 
 export default function Login({ onSubmit, loading, defaultEmail = '' }) {
-  const handleSubmit = async (email, password) => {
+  const handleSubmit = async (email, password, captchaToken) => {
     void prefetchDashboardRoute();
-    await onSubmit(email, password);
+    await (captchaToken ? onSubmit(email, password, captchaToken) : onSubmit(email, password));
   };
 
   return (

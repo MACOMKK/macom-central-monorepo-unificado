@@ -24,9 +24,9 @@ export default function Login() {
     return <Navigate to={redirectTo} replace />;
   }
 
-  const handleSubmit = async (email, password) => {
+  const handleSubmit = async (email, password, captchaToken) => {
     try {
-      await login(email, password);
+      await login(email, password, captchaToken);
       navigate(redirectTo, { replace: true });
     } catch (submitError) {
       throw new Error(getLoginErrorMessage(submitError));

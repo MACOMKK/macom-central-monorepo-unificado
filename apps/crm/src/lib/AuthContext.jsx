@@ -174,9 +174,13 @@ export function AuthProvider({ children }) {
     return validationPromise;
   }
 
-  async function login(email, password) {
+  async function login(email, password, captchaToken) {
     assertSupabaseConfigured();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: captchaToken ? { captchaToken } : undefined,
+    });
     if (error) throw error;
     return checkUserAuth(data?.session || null, { force: true });
   }

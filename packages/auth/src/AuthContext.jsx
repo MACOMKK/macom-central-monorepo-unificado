@@ -250,8 +250,12 @@ export function AuthProvider({
       loading,
       systemSlug,
       authFunctionName,
-      async login(email, password) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      async login(email, password, captchaToken) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: captchaToken ? { captchaToken } : undefined,
+        });
         if (error) throw error;
         await validateSession(data.session || null);
       },

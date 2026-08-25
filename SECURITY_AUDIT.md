@@ -2,6 +2,35 @@
 
 > Realizada em 2026-08-25. Escopo: backend Supabase (Edge Functions + migrations em `supabase/`) e frontend (apps React em `apps/**` e pacotes `packages/@macom/*`).
 
+## ✅ Correções já aplicadas
+
+### Proteção contra força bruta / múltiplas tentativas de login
+
+Plano em 5 camadas proposto; status de cada uma:
+
+1. **[FEITO] CAPTCHA no login (Cloudflare Turnstile)** — widget integrado em
+   `packages/ui/src/turnstile-widget.jsx` e `packages/ui/src/auth-login-card.jsx` (componente
+   compartilhado por todos os 7 apps: central, admin, crm, servicos, intranet, relatorios,
+   comunicacao). `captchaToken` propagado até `supabase.auth.signInWithPassword` em cada app.
+   Site key pública em `VITE_TURNSTILE_SITE_KEY` (`.env.local` da raiz, cobre todos os apps via
+   `envDir` compartilhado). Secret key já cadastrada no Dashboard do Supabase (Auth → Attack
+   Protection). Sem a env var, o CAPTCHA fica desativado automaticamente (não quebra ambientes
+   sem a variável configurada). Testes do `central` (única suite existente) ajustados e passando.
+   **Pendente:** adicionar `VITE_TURNSTILE_SITE_KEY` nas env vars de cada projeto **Vercel**
+   (produção) — o `.env.local` só vale para dev local.
+2. **[PENDENTE] Apertar rate limit nativo do Supabase Auth** — hoje `sign_in_sign_ups = 30`/hora
+   por IP (`supabase/config.toml:202`, config local; confirmar/ajustar também no Dashboard de
+   produção). Verificar se o IP real chega corretamente atrás de proxy/CDN antes de apertar.
+3. **[PENDENTE] Lockout progressivo por conta** — Supabase Auth só limita por IP, não por e-mail;
+   um ataque distribuído contorna o rate limit por IP. Requer lógica própria (contar falhas por
+   e-mail, reaproveitando `gestao_plataforma.logs_acesso`) — ainda não implementado.
+4. **[PENDENTE] Aumentar `minimum_password_length`** — hoje `6` (`supabase/config.toml:177`),
+   recomendado subir para 8-10 e considerar `password_requirements`.
+5. **[PENDENTE] Alertar sobre picos de tentativas falhas** — não há dashboard/alerta hoje sobre
+   picos de falha de login por IP/conta em `logs_acesso`.
+
+---
+
 ## 🔴 CRÍTICO
 
 ### 1. RLS desabilitada em `acessos_usuario_sistema` e `sistemas` — auto-escalada de privilégio total

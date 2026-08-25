@@ -6,6 +6,7 @@ import { Button } from './button';
 import { Input } from './input';
 import { Label } from './label';
 import { Spinner } from './spinner';
+import { TurnstileWidget } from './turnstile-widget';
 
 export function AuthLoginCard({
   logoUrl,
@@ -24,20 +25,30 @@ export function AuthLoginCard({
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaKey, setCaptchaKey] = useState(0);
 
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
   const isBusy = loading || submitting;
   const displayError = error || localError;
+  const captchaRequired = Boolean(turnstileSiteKey);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (isBusy) return;
+    if (captchaRequired && !captchaToken) {
+      setLocalError('Confirme que voce nao e um robo.');
+      return;
+    }
 
     setLocalError('');
     setSubmitting(true);
     try {
-      await onSubmit(email.trim(), password);
+      await (captchaToken ? onSubmit(email.trim(), password, captchaToken) : onSubmit(email.trim(), password));
     } catch (submitError) {
       setLocalError(submitError.message || 'Falha ao entrar.');
+      setCaptchaToken('');
+      setCaptchaKey((current) => current + 1);
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +126,16 @@ export function AuthLoginCard({
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isBusy}>
+            {captchaRequired ? (
+              <TurnstileWidget
+                key={captchaKey}
+                siteKey={turnstileSiteKey}
+                onVerify={setCaptchaToken}
+                onExpire={() => setCaptchaToken('')}
+              />
+            ) : null}
+
+            <Button type="submit" className="w-full" disabled={isBusy || (captchaRequired && !captchaToken)}>
               {isBusy ? <Spinner size="sm" /> : 'Entrar'}
             </Button>
           </form>

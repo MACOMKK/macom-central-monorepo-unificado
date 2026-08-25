@@ -11,9 +11,13 @@ const BG_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/
 export default function Login({ loading = false }) {
   const { checkUserAuth } = useAuth();
 
-  const handleSubmit = async (email, password) => {
+  const handleSubmit = async (email, password, captchaToken) => {
     void prefetchDashboardRoute();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: captchaToken ? { captchaToken } : undefined,
+    });
 
     if (error) {
       throw new Error(error.message);

@@ -61,6 +61,9 @@ function upsertAccess(accesses, access) {
 export default function SystemAccessManagement() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [filterSistemaId, setFilterSistemaId] = useState('all');
+  const [filterNivel, setFilterNivel] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [collaboratorSearch, setCollaboratorSearch] = useState('');
   const [accessToDelete, setAccessToDelete] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -101,6 +104,17 @@ export default function SystemAccessManagement() {
     [systems],
   );
 
+  const userCountBySystem = useMemo(() => {
+    const counts = new Map();
+    accesses.forEach((entry) => {
+      if (!entry.ativo) return;
+      counts.set(entry.sistema_id, (counts.get(entry.sistema_id) || 0) + 1);
+    });
+    return grantableSystems
+      .map((system) => ({ system, count: counts.get(system.id) || 0 }))
+      .sort((a, b) => b.count - a.count);
+  }, [accesses, grantableSystems]);
+
   const activeCollaborators = useMemo(
     () => collaborators.filter((collaborator) => collaborator.status !== 'inativo'),
     [collaborators],
@@ -127,18 +141,22 @@ export default function SystemAccessManagement() {
 
   const filteredAccesses = useMemo(() => {
     const term = normalize(search);
-    if (!term) return hydratedAccesses;
 
-    return hydratedAccesses.filter((entry) =>
-      [
+    return hydratedAccesses.filter((entry) => {
+      if (filterSistemaId !== 'all' && entry.sistema_id !== filterSistemaId) return false;
+      if (filterNivel !== 'all' && entry.nivel_acesso !== filterNivel) return false;
+      if (filterStatus !== 'all' && String(entry.ativo) !== filterStatus) return false;
+      if (!term) return true;
+
+      return [
         entry.colaborador?.nome,
         entry.colaborador?.email,
         entry.sistema?.nome,
         entry.sistema?.slug,
         entry.nivel_acesso,
-      ].some((value) => normalize(value).includes(term)),
-    );
-  }, [hydratedAccesses, search]);
+      ].some((value) => normalize(value).includes(term));
+    });
+  }, [hydratedAccesses, search, filterSistemaId, filterNivel, filterStatus]);
 
   const saveMutation = useMutation({
     mutationFn: (payload) => platformUsersApi.accesses.save(payload),
@@ -455,8 +473,73 @@ export default function SystemAccessManagement() {
 
       <Card className="space-y-4 p-5">
         <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          <h2 className="text-sm font-bold uppercase text-foreground">Usuarios por sistema</h2>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {userCountBySystem.map(({ system, count }) => (
+            <button
+              key={system.id}
+              type="button"
+              onClick={() => setFilterSistemaId((current) => (current === system.id ? 'all' : system.id))}
+              className={`rounded-lg border p-3 text-left transition-colors hover:border-primary ${
+                filterSistemaId === system.id ? 'border-primary bg-primary/5' : 'border-border'
+              }`}
+            >
+              <p className="truncate text-sm font-medium text-foreground">{system.nome}</p>
+              <p className="text-2xl font-bold text-foreground">{count}</p>
+              <p className="text-xs text-muted-foreground">{count === 1 ? 'usuario liberado' : 'usuarios liberados'}</p>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="space-y-4 p-5">
+        <div className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-primary" />
           <h2 className="text-sm font-bold uppercase text-foreground">Acessos atuais</h2>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Select value={filterSistemaId} onValueChange={setFilterSistemaId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Sistema" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os sistemas</SelectItem>
+              {systems.map((system) => (
+                <SelectItem key={system.id} value={system.id}>
+                  {system.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterNivel} onValueChange={setFilterNivel}>
+            <SelectTrigger>
+              <SelectValue placeholder="Nivel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os niveis</SelectItem>
+              {accessOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger>
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="true">Liberado</SelectItem>
+              <SelectItem value="false">Bloqueado</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <Table>

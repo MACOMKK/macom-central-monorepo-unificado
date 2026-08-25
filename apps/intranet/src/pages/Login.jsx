@@ -49,9 +49,9 @@ export default function Login() {
     return <Navigate to={redirectTo} replace />;
   }
 
-  const handleSubmit = async (email, password) => {
+  const handleSubmit = async (email, password, captchaToken) => {
     try {
-      await signIn({ email, password });
+      await signIn({ email, password, captchaToken });
       navigate(redirectTo, { replace: true });
     } catch (error) {
       throw new Error(getSignInErrorMessage(error) || 'Não foi possível entrar.');

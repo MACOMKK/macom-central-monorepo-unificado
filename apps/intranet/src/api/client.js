@@ -189,9 +189,13 @@ export const appClient = {
       return intranetApi.auth.trustedIpAccess();
     },
 
-    async signIn({ email, password }) {
+    async signIn({ email, password, captchaToken }) {
       assertSupabaseConfigured();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: captchaToken ? { captchaToken } : undefined,
+      });
       if (error) throw normalizeFunctionError(error, 'Falha ao entrar.');
       return intranetApi.auth.me(data?.session?.access_token);
     },

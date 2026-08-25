@@ -8,9 +8,9 @@ const BG_URL = "https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/
 export default function Login({ loading = false }) {
   const { authError, login } = useAuth();
 
-  const handleSubmit = async (email, password) => {
+  const handleSubmit = async (email, password, captchaToken) => {
     try {
-      await login(email, password);
+      await login(email, password, captchaToken);
     } catch (error) {
       throw new Error(error.message || "Não foi possível entrar no CRM.");
     }

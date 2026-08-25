@@ -4,6 +4,15 @@ import userEvent from '@testing-library/user-event';
 import Login from '@/pages/Login';
 
 describe('Login page', () => {
+  beforeEach(() => {
+    // Testes nao devem depender do captcha real configurado no .env.local do dev
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('preenche o email padrao e envia credenciais com trim', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn().mockResolvedValue(undefined);
