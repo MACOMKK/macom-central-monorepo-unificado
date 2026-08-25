@@ -11,12 +11,7 @@ alter table gestao_servicos.fornecedores
   add column if not exists endereco text,
   add column if not exists cidade text,
   add column if not exists uf text,
-  add column if not exists cep text,
-  add column if not exists banco text,
-  add column if not exists agencia text,
-  add column if not exists conta text,
-  add column if not exists tipo_conta text,
-  add column if not exists chave_pix text;
+  add column if not exists cep text;
 
 create unique index if not exists idx_servicos_fornecedores_documento
   on gestao_servicos.fornecedores (documento)

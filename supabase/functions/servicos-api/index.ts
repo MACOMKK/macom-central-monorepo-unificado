@@ -47,7 +47,17 @@ const UPDATE_FIELD_LABELS: Record<(typeof CREATE_FIELDS)[number], string> = {
   observacao: 'Observacao',
   aprovador_destino_id: 'Aprovador responsavel',
 };
-const FORMAS_PAGAMENTO = ['pix', 'boleto', 'transferencia', 'cartao', 'outros'];
+const FORMAS_PAGAMENTO = [
+  'pix',
+  'boleto',
+  'transferencia',
+  'cartao',
+  'dinheiro',
+  'cheque',
+  'arquivo_bancario',
+  'deposito_bancario',
+  'outros',
+];
 const ANEXO_CATEGORIAS = [
   'comprovante_solicitacao',
   'nf_boleto',
@@ -116,7 +126,6 @@ function sanitizePayload(fields: readonly string[], payload: Record<string, unkn
 }
 
 const TIPOS_PESSOA = new Set(['fisica', 'juridica']);
-const TIPOS_CONTA = new Set(['corrente', 'poupanca', 'pagamento']);
 
 function extrairDadosFornecedor(body: Record<string, unknown>) {
   const texto = (valor: unknown, max?: number) => {
@@ -129,7 +138,6 @@ function extrairDadosFornecedor(body: Record<string, unknown>) {
     return (max ? digitos.slice(0, max) : digitos) || null;
   };
   const tipoPessoa = texto(body.tipo_pessoa);
-  const tipoConta = texto(body.tipo_conta);
   const uf = texto(body.uf, 2)?.replace(/[^a-zA-Z]/g, '').toUpperCase() || null;
   const email = texto(body.email, 160)?.toLowerCase() || null;
   return {
@@ -142,11 +150,6 @@ function extrairDadosFornecedor(body: Record<string, unknown>) {
     cidade: texto(body.cidade, 80),
     uf,
     cep: soDigitos(body.cep, 8),
-    banco: texto(body.banco, 60),
-    agencia: texto(body.agencia, 10)?.replace(/[^\d-]/g, '') || null,
-    conta: texto(body.conta, 15)?.replace(/[^\d-]/g, '') || null,
-    tipo_conta: tipoConta && TIPOS_CONTA.has(tipoConta) ? tipoConta : null,
-    chave_pix: texto(body.chave_pix, 140),
   };
 }
 
@@ -811,7 +814,6 @@ Deno.serve(async (request) => {
           select f.id, f.nome, f.ativo, f.criado_em, f.atualizado_em,
             f.tipo_pessoa, f.documento, f.inscricao_estadual, f.email, f.telefone,
             f.endereco, f.cidade, f.uf, f.cep,
-            f.banco, f.agencia, f.conta, f.tipo_conta, f.chave_pix,
             count(sp.id) as total_solicitacoes
           from ${SERVICOS_SCHEMA}.fornecedores f
           left join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.fornecedor_id = f.id
@@ -841,16 +843,15 @@ Deno.serve(async (request) => {
         `
           insert into ${SERVICOS_SCHEMA}.fornecedores (
             nome, criado_por, tipo_pessoa, documento, inscricao_estadual, email, telefone,
-            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix
-          ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            endereco, cidade, uf, cep
+          ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           returning id, nome, ativo, criado_em, atualizado_em,
             tipo_pessoa, documento, inscricao_estadual, email, telefone,
-            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix;
+            endereco, cidade, uf, cep;
         `,
         [
           nome, collaborator!.id, dados.tipo_pessoa, dados.documento, dados.inscricao_estadual,
           dados.email, dados.telefone, dados.endereco, dados.cidade, dados.uf, dados.cep,
-          dados.banco, dados.agencia, dados.conta, dados.tipo_conta, dados.chave_pix,
         ],
       );
       return json({ row: rows[0] || null });
@@ -880,17 +881,15 @@ Deno.serve(async (request) => {
           update ${SERVICOS_SCHEMA}.fornecedores
           set nome = $1, ativo = $2, atualizado_em = now(),
             tipo_pessoa = $4, documento = $5, inscricao_estadual = $6, email = $7, telefone = $8,
-            endereco = $9, cidade = $10, uf = $11, cep = $12,
-            banco = $13, agencia = $14, conta = $15, tipo_conta = $16, chave_pix = $17
+            endereco = $9, cidade = $10, uf = $11, cep = $12
           where id = $3
           returning id, nome, ativo, criado_em, atualizado_em,
             tipo_pessoa, documento, inscricao_estadual, email, telefone,
-            endereco, cidade, uf, cep, banco, agencia, conta, tipo_conta, chave_pix;
+            endereco, cidade, uf, cep;
         `,
         [
           nome, ativo, id, dados.tipo_pessoa, dados.documento, dados.inscricao_estadual,
           dados.email, dados.telefone, dados.endereco, dados.cidade, dados.uf, dados.cep,
-          dados.banco, dados.agencia, dados.conta, dados.tipo_conta, dados.chave_pix,
         ],
       );
       if (!rows[0]) throw Object.assign(new Error('Fornecedor nao encontrado.'), { status: 404 });

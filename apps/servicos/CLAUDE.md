@@ -127,10 +127,11 @@ reais (só adicionar coluna `mod_<novo>` na tabela, seguindo o mesmo padrão).
     `20260806120000_add_servicos_fornecedores_gestao.sql` (colunas `ativo`/`atualizado_em`).
     Cadastro expandido em `20260824140000_expand_servicos_fornecedores.sql` com campos fiscais
     (`tipo_pessoa`, `documento` — único quando preenchido, `inscricao_estadual`), contato
-    (`email`, `telefone`), endereço (`endereco`, `cidade`, `uf`, `cep`) e dados bancários
-    (`banco`, `agencia`, `conta`, `tipo_conta`, `chave_pix`) — todos nullable, normalizados em
-    `extrairDadosFornecedor()` na edge function (documento sem pontuação, campos vazios viram
-    `null`). A tela trocou os inputs inline por um `Dialog` de cadastro/edição
+    (`email`, `telefone`) e endereço (`endereco`, `cidade`, `uf`, `cep`) — todos nullable,
+    normalizados em `extrairDadosFornecedor()` na edge function (documento sem pontuação, campos
+    vazios viram `null`). Dados bancários (banco/agência/conta/PIX) ficaram fora de escopo —
+    o Financeiro decidiu não guardar essa informação no cadastro de fornecedor. A tela trocou os
+    inputs inline por um `Dialog` de cadastro/edição
     (`src/pages/Fornecedores.jsx`) com todos os campos; a tabela continua enxuta (nome,
     documento, status). `list_fornecedores` (catálogo do drawer de nova solicitação) não mudou —
     continua só `id, nome`.

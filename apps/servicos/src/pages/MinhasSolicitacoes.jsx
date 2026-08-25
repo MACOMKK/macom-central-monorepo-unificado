@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Eye, Pencil, Plus, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -397,7 +397,6 @@ export default function MinhasSolicitacoes() {
                   <TableHead>Aprovador</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Detalhes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,16 +438,6 @@ export default function MinhasSolicitacoes() {
                           </Badge>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Ver detalhes"
-                        onClick={(event) => { event.stopPropagation(); setSelectedId(row.id); }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

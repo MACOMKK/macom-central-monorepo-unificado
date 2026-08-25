@@ -10,7 +10,12 @@ import { getFriendlyErrorMessage } from '@/lib/errorMessage';
 import {
   ANEXO_CATEGORIA_OPCOES,
   FORMA_PAGAMENTO_LABEL,
+  FORNECEDOR_FORM_VAZIO,
+  formatCep,
+  formatDocumento,
+  formatTelefone,
   getTiposDocumentoPorCategoria,
+  onlyLetters,
 } from '@/lib/financeiroFormat';
 import {
   Button,
@@ -73,7 +78,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const skipNextResetRef = useRef(false);
   const initialFormRef = useRef(EMPTY_FORM);
   const [novoFornecedorOpen, setNovoFornecedorOpen] = useState(false);
-  const [novoFornecedorNome, setNovoFornecedorNome] = useState('');
+  const [novoFornecedorForm, setNovoFornecedorForm] = useState(FORNECEDOR_FORM_VAZIO);
 
   useEffect(() => {
     setVisible(open);
@@ -262,13 +267,13 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   }
 
   const criarFornecedorMutation = useMutation({
-    mutationFn: (nome) => financeiroApi.fornecedores.criar(nome),
+    mutationFn: (dados) => financeiroApi.fornecedores.criar(dados),
     onSuccess: (row) => {
       if (!row) return;
       queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
       setForm((current) => ({ ...current, fornecedorId: row.id }));
       setNovoFornecedorOpen(false);
-      setNovoFornecedorNome('');
+      setNovoFornecedorForm(FORNECEDOR_FORM_VAZIO);
       toast({ title: 'Fornecedor cadastrado' });
     },
     onError: (error) => {
@@ -276,11 +281,15 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     },
   });
 
+  function updateNovoFornecedorForm(field, value) {
+    setNovoFornecedorForm((current) => ({ ...current, [field]: value }));
+  }
+
   function handleCriarFornecedor(event) {
     event.preventDefault();
-    const nome = novoFornecedorNome.trim();
+    const nome = novoFornecedorForm.nome.trim();
     if (!nome) return;
-    criarFornecedorMutation.mutate(nome);
+    criarFornecedorMutation.mutate({ ...novoFornecedorForm, nome });
   }
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
@@ -571,16 +580,18 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dataVencimento">Data de vencimento</Label>
-              <Input
-                id="dataVencimento"
-                type="date"
-                value={form.dataVencimento}
-                onChange={(event) => setField('dataVencimento')(event.target.value)}
-              />
-            </div>
+          <div className={parcelado ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'}>
+            {!parcelado && (
+              <div className="space-y-2">
+                <Label htmlFor="dataVencimento">Data de vencimento</Label>
+                <Input
+                  id="dataVencimento"
+                  type="date"
+                  value={form.dataVencimento}
+                  onChange={(event) => setField('dataVencimento')(event.target.value)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="formaPagamento">
@@ -726,32 +737,131 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         </form>
       </SheetContent>
 
-      <Dialog open={novoFornecedorOpen} onOpenChange={setNovoFornecedorOpen}>
-        <DialogContent>
+      <Dialog
+        open={novoFornecedorOpen}
+        onOpenChange={(nextOpen) => {
+          setNovoFornecedorOpen(nextOpen);
+          if (!nextOpen) setNovoFornecedorForm(FORNECEDOR_FORM_VAZIO);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Cadastrar novo fornecedor</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCriarFornecedor} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="novoFornecedorNome">Nome do fornecedor</Label>
-              <Input
-                id="novoFornecedorNome"
-                value={novoFornecedorNome}
-                onChange={(event) => setNovoFornecedorNome(event.target.value)}
-                autoFocus
-                required
-              />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="novoFornecedorNome">Nome *</Label>
+                <Input
+                  id="novoFornecedorNome"
+                  maxLength={120}
+                  value={novoFornecedorForm.nome}
+                  onChange={(event) => updateNovoFornecedorForm('nome', event.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorTipoPessoa">Tipo de pessoa</Label>
+                <select
+                  id="novoFornecedorTipoPessoa"
+                  value={novoFornecedorForm.tipo_pessoa}
+                  onChange={(event) => updateNovoFornecedorForm('tipo_pessoa', event.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Não informado</option>
+                  <option value="fisica">Pessoa física</option>
+                  <option value="juridica">Pessoa jurídica</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorDocumento">CPF/CNPJ</Label>
+                <Input
+                  id="novoFornecedorDocumento"
+                  inputMode="numeric"
+                  value={novoFornecedorForm.documento}
+                  onChange={(event) => updateNovoFornecedorForm('documento', formatDocumento(event.target.value))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorInscricaoEstadual">Inscrição estadual</Label>
+                <Input
+                  id="novoFornecedorInscricaoEstadual"
+                  maxLength={20}
+                  value={novoFornecedorForm.inscricao_estadual}
+                  onChange={(event) => updateNovoFornecedorForm('inscricao_estadual', event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorEmail">E-mail</Label>
+                <Input
+                  id="novoFornecedorEmail"
+                  type="email"
+                  value={novoFornecedorForm.email}
+                  onChange={(event) => updateNovoFornecedorForm('email', event.target.value.trim().toLowerCase())}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorTelefone">Telefone</Label>
+                <Input
+                  id="novoFornecedorTelefone"
+                  inputMode="numeric"
+                  value={novoFornecedorForm.telefone}
+                  onChange={(event) => updateNovoFornecedorForm('telefone', formatTelefone(event.target.value))}
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="novoFornecedorEndereco">Endereço</Label>
+                <Input
+                  id="novoFornecedorEndereco"
+                  maxLength={150}
+                  value={novoFornecedorForm.endereco}
+                  onChange={(event) => updateNovoFornecedorForm('endereco', event.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="novoFornecedorCidade">Cidade</Label>
+                <Input
+                  id="novoFornecedorCidade"
+                  maxLength={80}
+                  value={novoFornecedorForm.cidade}
+                  onChange={(event) => updateNovoFornecedorForm('cidade', event.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="novoFornecedorUf">UF</Label>
+                  <Input
+                    id="novoFornecedorUf"
+                    maxLength={2}
+                    value={novoFornecedorForm.uf}
+                    onChange={(event) => updateNovoFornecedorForm('uf', onlyLetters(event.target.value).toUpperCase())}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="novoFornecedorCep">CEP</Label>
+                  <Input
+                    id="novoFornecedorCep"
+                    inputMode="numeric"
+                    value={novoFornecedorForm.cep}
+                    onChange={(event) => updateNovoFornecedorForm('cep', formatCep(event.target.value))}
+                  />
+                </div>
+              </div>
             </div>
+
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => { setNovoFornecedorOpen(false); setNovoFornecedorNome(''); }}
+                onClick={() => { setNovoFornecedorOpen(false); setNovoFornecedorForm(FORNECEDOR_FORM_VAZIO); }}
                 disabled={criarFornecedorMutation.isPending}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={criarFornecedorMutation.isPending || !novoFornecedorNome.trim()}>
+              <Button type="submit" disabled={criarFornecedorMutation.isPending || !novoFornecedorForm.nome.trim()}>
                 {criarFornecedorMutation.isPending ? <Spinner size="sm" className="mr-2" /> : null}
                 Cadastrar
               </Button>

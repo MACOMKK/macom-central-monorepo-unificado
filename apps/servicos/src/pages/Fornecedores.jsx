@@ -28,9 +28,17 @@ import {
   useToast,
 } from '@macom/ui';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import CopyButton from '@/components/CopyButton';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
 import { usePagination } from '@/hooks/usePagination';
+import {
+  FORNECEDOR_FORM_VAZIO,
+  formatCep,
+  formatDocumento,
+  formatTelefone,
+  onlyLetters,
+} from '@/lib/financeiroFormat';
 import { normalize } from '@/lib/normalize';
 
 function formatData(data) {
@@ -38,57 +46,8 @@ function formatData(data) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
-const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
-const onlyLetters = (value) => String(value || '').replace(/[^a-zA-Z]/g, '');
-const digitsAndDash = (value) => String(value || '').replace(/[^\d-]/g, '');
-
-function formatDocumento(value) {
-  const digits = onlyDigits(value).slice(0, 14);
-  if (digits.length <= 11) {
-    return digits
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  }
-  return digits
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-}
-
-function formatTelefone(value) {
-  const digits = onlyDigits(value).slice(0, 11);
-  if (digits.length <= 10) {
-    return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d{1,4})$/, '$1-$2');
-  }
-  return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{1,4})$/, '$1-$2');
-}
-
-function formatCep(value) {
-  const digits = onlyDigits(value).slice(0, 8);
-  return digits.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
-}
-
 const fornecedoresKey = ['servicos', 'fornecedores', 'admin'];
-
-const FORM_VAZIO = {
-  nome: '',
-  tipo_pessoa: '',
-  documento: '',
-  inscricao_estadual: '',
-  email: '',
-  telefone: '',
-  endereco: '',
-  cidade: '',
-  uf: '',
-  cep: '',
-  banco: '',
-  agencia: '',
-  conta: '',
-  tipo_conta: '',
-  chave_pix: '',
-};
+const FORM_VAZIO = FORNECEDOR_FORM_VAZIO;
 
 function formFromRow(row) {
   return {
@@ -96,12 +55,6 @@ function formFromRow(row) {
     ...Object.fromEntries(Object.keys(FORM_VAZIO).map((key) => [key, row?.[key] ?? ''])),
   };
 }
-
-const TIPO_CONTA_LABEL = {
-  corrente: 'Conta corrente',
-  poupanca: 'Conta poupança',
-  pagamento: 'Conta pagamento',
-};
 
 function ViewField({ label, value, className = '', copyable = false }) {
   const { toast } = useToast();
@@ -329,7 +282,10 @@ export default function Fornecedores() {
               {pageItems.map((row) => (
                 <TableRow key={row.id} className="cursor-pointer" onClick={() => openView(row)}>
                   <TableCell className="max-w-xs">
-                    <span className="font-medium">{row.nome}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium">{row.nome}</span>
+                      <CopyButton value={row.nome} label="Copiar nome" />
+                    </div>
                   </TableCell>
                   <TableCell>{row.documento ? formatDocumento(row.documento) : '-'}</TableCell>
                   <TableCell>{formatData(row.criado_em)}</TableCell>
@@ -465,49 +421,6 @@ export default function Fornecedores() {
                   <Input id="cep" inputMode="numeric" value={form.cep} onChange={(e) => updateForm('cep', formatCep(e.target.value))} />
                 </div>
               </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="banco">Banco</Label>
-                <Input id="banco" maxLength={60} value={form.banco} onChange={(e) => updateForm('banco', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="tipo_conta">Tipo de conta</Label>
-                <select
-                  id="tipo_conta"
-                  value={form.tipo_conta}
-                  onChange={(e) => updateForm('tipo_conta', e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">Não informado</option>
-                  <option value="corrente">Conta corrente</option>
-                  <option value="poupanca">Conta poupança</option>
-                  <option value="pagamento">Conta pagamento</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="agencia">Agência</Label>
-                <Input
-                  id="agencia"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={form.agencia}
-                  onChange={(e) => updateForm('agencia', digitsAndDash(e.target.value))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="conta">Conta</Label>
-                <Input
-                  id="conta"
-                  inputMode="numeric"
-                  maxLength={15}
-                  value={form.conta}
-                  onChange={(e) => updateForm('conta', digitsAndDash(e.target.value))}
-                />
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <Label htmlFor="chave_pix">Chave PIX</Label>
-                <Input id="chave_pix" maxLength={140} value={form.chave_pix} onChange={(e) => updateForm('chave_pix', e.target.value)} />
-              </div>
             </div>
 
             <DialogFooter>
@@ -526,7 +439,10 @@ export default function Fornecedores() {
       <Dialog open={Boolean(viewRow)} onOpenChange={(open) => !open && closeView()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{viewRow?.nome}</DialogTitle>
+            <DialogTitle className="flex items-center gap-1">
+              <span>{viewRow?.nome}</span>
+              <CopyButton value={viewRow?.nome} label="Copiar nome" />
+            </DialogTitle>
           </DialogHeader>
 
           {viewRow ? (
@@ -546,11 +462,6 @@ export default function Fornecedores() {
                 <ViewField label="Cidade" value={viewRow.cidade} />
                 <ViewField label="UF" value={viewRow.uf} />
                 <ViewField label="CEP" value={viewRow.cep ? formatCep(viewRow.cep) : null} copyable />
-                <ViewField label="Banco" value={viewRow.banco} />
-                <ViewField label="Tipo de conta" value={TIPO_CONTA_LABEL[viewRow.tipo_conta] || viewRow.tipo_conta} />
-                <ViewField label="Agência" value={viewRow.agencia} copyable />
-                <ViewField label="Conta" value={viewRow.conta} copyable />
-                <ViewField label="Chave PIX" value={viewRow.chave_pix} className="sm:col-span-2" copyable />
               </div>
             </div>
           ) : null}

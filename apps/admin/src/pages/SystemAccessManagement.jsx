@@ -65,7 +65,7 @@ export default function SystemAccessManagement() {
   const [accessToDelete, setAccessToDelete] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [form, setForm] = useState({
-    colaborador_id: '',
+    colaborador_ids: [],
     sistema_ids: [],
     nivel_acesso: 'usuario',
     ativo: 'true',
@@ -179,19 +179,23 @@ export default function SystemAccessManagement() {
   });
 
   const handleSaveAccess = async () => {
-    if (!form.colaborador_id || form.sistema_ids.length === 0) return;
+    if (form.colaborador_ids.length === 0 || form.sistema_ids.length === 0) return;
+
+    const totalCombinacoes = form.colaborador_ids.length * form.sistema_ids.length;
 
     try {
-      for (const sistemaId of form.sistema_ids) {
-        await saveMutation.mutateAsync({
-          colaborador_id: form.colaborador_id,
-          sistema_id: sistemaId,
-          nivel_acesso: form.nivel_acesso,
-          ativo: form.ativo === 'true',
-        });
+      for (const colaboradorId of form.colaborador_ids) {
+        for (const sistemaId of form.sistema_ids) {
+          await saveMutation.mutateAsync({
+            colaborador_id: colaboradorId,
+            sistema_id: sistemaId,
+            nivel_acesso: form.nivel_acesso,
+            ativo: form.ativo === 'true',
+          });
+        }
       }
       setForm({
-        colaborador_id: '',
+        colaborador_ids: [],
         sistema_ids: [],
         nivel_acesso: 'usuario',
         ativo: 'true',
@@ -199,7 +203,7 @@ export default function SystemAccessManagement() {
       setCollaboratorSearch('');
       setFeedback({
         type: 'success',
-        message: form.sistema_ids.length > 1 ? 'Acessos salvos pelo Console.' : 'Acesso salvo pelo Console.',
+        message: totalCombinacoes > 1 ? 'Acessos salvos pelo Console.' : 'Acesso salvo pelo Console.',
       });
     } catch {
       // erro individual ja tratado pelo onError do saveMutation
@@ -324,27 +328,50 @@ export default function SystemAccessManagement() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
-            <Label>Colaborador</Label>
-            <Select value={form.colaborador_id} onValueChange={(value) => setForm((current) => ({ ...current, colaborador_id: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o colaborador" />
-              </SelectTrigger>
-              <SelectContent>
+            <Label>Colaboradores</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between font-normal">
+                  <span className="truncate text-left">
+                    {form.colaborador_ids.length === 0
+                      ? 'Selecione o(s) colaborador(es)'
+                      : form.colaborador_ids
+                        .map((id) => collaboratorsById.get(id)?.nome || collaboratorsById.get(id)?.email)
+                        .filter(Boolean)
+                        .join(', ')}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64" align="start">
                 <div className="p-2">
                   <Input
                     className="h-8"
                     placeholder="Buscar colaborador..."
                     value={collaboratorSearch}
                     onChange={(event) => setCollaboratorSearch(event.target.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
                   />
                 </div>
                 {filteredCollaborators.map((collaborator) => (
-                  <SelectItem key={collaborator.id} value={collaborator.id}>
+                  <DropdownMenuCheckboxItem
+                    key={collaborator.id}
+                    checked={form.colaborador_ids.includes(collaborator.id)}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      setForm((current) => ({
+                        ...current,
+                        colaborador_ids: checked
+                          ? [...current.colaborador_ids, collaborator.id]
+                          : current.colaborador_ids.filter((id) => id !== collaborator.id),
+                      }));
+                    }}
+                  >
                     {collaborator.nome || collaborator.email}
-                  </SelectItem>
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="space-y-2">
@@ -417,7 +444,7 @@ export default function SystemAccessManagement() {
 
         <div className="flex justify-end">
           <Button
-            disabled={!form.colaborador_id || form.sistema_ids.length === 0 || saveMutation.isPending}
+            disabled={form.colaborador_ids.length === 0 || form.sistema_ids.length === 0 || saveMutation.isPending}
             onClick={handleSaveAccess}
           >
             <Plus className="h-4 w-4" />
