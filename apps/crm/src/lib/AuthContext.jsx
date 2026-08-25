@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { crmApi } from '@macom/api-client/crmApi';
-import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+import { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -181,7 +181,10 @@ export function AuthProvider({ children }) {
       password,
       options: captchaToken ? { captchaToken } : undefined,
     });
-    if (error) throw error;
+    if (error) {
+      reportFailedLogin(email, 'crm');
+      throw error;
+    }
     return checkUserAuth(data?.session || null, { force: true });
   }
 

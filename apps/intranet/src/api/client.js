@@ -1,6 +1,6 @@
 import { intranetApi } from '@macom/api-client/intranetApi';
 
-import { assertSupabaseConfigured, supabase } from '@/api/supabaseClient';
+import { assertSupabaseConfigured, reportFailedLogin, supabase } from '@/api/supabaseClient';
 
 const DOCUMENT_STORAGE_BUCKET = 'documentos';
 const ANNOUNCEMENT_IMAGE_STORAGE_BUCKET = 'avisos';
@@ -196,7 +196,10 @@ export const appClient = {
         password,
         options: captchaToken ? { captchaToken } : undefined,
       });
-      if (error) throw normalizeFunctionError(error, 'Falha ao entrar.');
+      if (error) {
+        reportFailedLogin(email, 'intranet');
+        throw normalizeFunctionError(error, 'Falha ao entrar.');
+      }
       return intranetApi.auth.me(data?.session?.access_token);
     },
 

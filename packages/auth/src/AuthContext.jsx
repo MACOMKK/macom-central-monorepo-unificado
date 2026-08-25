@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { assertSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+import { assertSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -256,7 +256,10 @@ export function AuthProvider({
           password,
           options: captchaToken ? { captchaToken } : undefined,
         });
-        if (error) throw error;
+        if (error) {
+          reportFailedLogin(email, systemSlug);
+          throw error;
+        }
         await validateSession(data.session || null);
       },
       async logout() {

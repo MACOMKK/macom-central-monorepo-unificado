@@ -16,18 +16,31 @@ Plano em 5 camadas proposto; status de cada uma:
    `envDir` compartilhado). Secret key já cadastrada no Dashboard do Supabase (Auth → Attack
    Protection). Sem a env var, o CAPTCHA fica desativado automaticamente (não quebra ambientes
    sem a variável configurada). Testes do `central` (única suite existente) ajustados e passando.
-   **Pendente:** adicionar `VITE_TURNSTILE_SITE_KEY` nas env vars de cada projeto **Vercel**
-   (produção) — o `.env.local` só vale para dev local.
-2. **[PENDENTE] Apertar rate limit nativo do Supabase Auth** — hoje `sign_in_sign_ups = 30`/hora
-   por IP (`supabase/config.toml:202`, config local; confirmar/ajustar também no Dashboard de
-   produção). Verificar se o IP real chega corretamente atrás de proxy/CDN antes de apertar.
+   `VITE_TURNSTILE_SITE_KEY` já adicionada nas env vars de produção dos 7 projetos Vercel.
+2. **[FEITO] Apertar rate limit nativo do Supabase Auth** — `sign_in_sign_ups` reduzido de `30`
+   para `10` a cada 5 minutos por IP (`supabase/config.toml:202`), replicado no Dashboard de
+   produção (Authentication → Rate Limits) e IP real confirmado atrás de proxy/CDN.
 3. **[PENDENTE] Lockout progressivo por conta** — Supabase Auth só limita por IP, não por e-mail;
    um ataque distribuído contorna o rate limit por IP. Requer lógica própria (contar falhas por
    e-mail, reaproveitando `gestao_plataforma.logs_acesso`) — ainda não implementado.
-4. **[PENDENTE] Aumentar `minimum_password_length`** — hoje `6` (`supabase/config.toml:177`),
-   recomendado subir para 8-10 e considerar `password_requirements`.
-5. **[PENDENTE] Alertar sobre picos de tentativas falhas** — não há dashboard/alerta hoje sobre
-   picos de falha de login por IP/conta em `logs_acesso`.
+4. **[FEITO] Aumentar `minimum_password_length`** — alterado de `6` para `8` em
+   `supabase/config.toml:177`. Não afeta usuários existentes (senha já cadastrada continua
+   valendo); passa a exigir 8+ caracteres apenas em novos cadastros e trocas de senha.
+   **Pendente:** replicar o mesmo valor no Dashboard do Supabase de produção (Auth → Policies →
+   Password) — o `config.toml` só vale localmente/CLI, não é aplicado automaticamente ao projeto
+   hospedado.
+5. **[FEITO] Alertar sobre picos de tentativas falhas** — toda tentativa de login rejeitada
+   (qualquer app) agora é registrada em `gestao_plataforma.logs_acesso` (`evento = 'login_falha'`,
+   função `security-log-failed-login`, chamada por `reportFailedLogin` em
+   `packages/api-client/src/supabaseClient.js`, disparada nos 7 fluxos de login — `packages/auth`
+   cobre central/admin, e `crm`/`servicos`/`comunicacao`/`relatorios`/`intranet` chamam
+   diretamente). Um cron (`security-alerta-picos-login`, a cada 15 min,
+   `supabase/migrations/20260825120100_schedule_security_alerta_picos_login.sql`) verifica picos —
+   ≥8 falhas/15min no mesmo IP ou ≥5 falhas/15min no mesmo e-mail — e envia e-mail aos admins via a
+   fila já existente (`notificacoes.fila_emails` / `processa-fila-email`), com cooldown de 60min
+   por chave (`gestao_plataforma.alertas_seguranca_enviados`) para não repetir o alerta a cada
+   execução enquanto o pico continua ativo. Migrations aplicadas e Edge Functions
+   (`security-log-failed-login`, `security-alerta-picos-login`) em deploy no projeto de produção.
 
 ---
 

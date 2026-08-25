@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
-import { assertSupabaseConfigured, isSupabaseConfigured, supabase } from '@macom/api-client/supabaseClient';
+import { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -179,7 +179,10 @@ export function AuthProvider({ children }) {
       password,
       options: captchaToken ? { captchaToken } : undefined,
     });
-    if (error) throw error;
+    if (error) {
+      reportFailedLogin(email, 'servicos');
+      throw error;
+    }
     return checkUserAuth(data?.session || null, { force: true });
   }
 

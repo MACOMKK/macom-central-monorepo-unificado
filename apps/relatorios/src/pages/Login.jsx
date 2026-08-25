@@ -1,5 +1,5 @@
 import { AuthLoginCard } from '@macom/ui';
-import { supabase } from '@/api/supabaseClient';
+import { reportFailedLogin, supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { MACOM_LOGO_URL } from '@/config/branding';
 
@@ -20,6 +20,7 @@ export default function Login({ loading = false }) {
     });
 
     if (error) {
+      reportFailedLogin(email, 'relatorios');
       throw new Error(error.message);
     }
 
