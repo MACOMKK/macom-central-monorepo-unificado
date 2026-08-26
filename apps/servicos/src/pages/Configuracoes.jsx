@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Button,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -154,6 +155,60 @@ function NotificacoesPushTab() {
   );
 }
 
+function FinanceiroTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const configQuery = useQuery({
+    queryKey: ['servicos', 'configuracao-modulo'],
+    queryFn: () => financeiroApi.configuracaoModulo.get(),
+  });
+
+  const atualizarMutation = useMutation({
+    mutationFn: (valor) => financeiroApi.configuracaoModulo.atualizar(valor),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'configuracao-modulo'] });
+      toast({ title: 'Configuração atualizada' });
+    },
+    onError: (error) => toast({ title: 'Não foi possível atualizar', description: error.message }),
+  });
+
+  const restringir = configQuery.data?.restringir_visibilidade_pagamento_dinheiro ?? true;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">Financeiro</h2>
+        <p className="text-sm text-muted-foreground">Regras de visibilidade das solicitações de pagamento.</p>
+      </div>
+
+      {configQuery.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner size="sm" />
+          Carregando...
+        </div>
+      ) : (
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+          <div>
+            <p className="font-medium">Restringir visibilidade de solicitações em dinheiro</p>
+            <p className="text-sm text-muted-foreground">
+              Quando ativo, uma solicitação com forma de pagamento &quot;Dinheiro&quot; fica visível
+              apenas para quem a abriu, o aprovador designado e o financeiro — o papel &quot;contas a
+              pagar&quot; não vê nem paga essas solicitações, e a regra de visibilidade por setor não se
+              aplica a elas.
+            </p>
+          </div>
+          <Switch
+            checked={restringir}
+            onCheckedChange={(checked) => atualizarMutation.mutate(checked)}
+            disabled={atualizarMutation.isPending}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Configuracoes() {
   const [tab, setTab] = useState('notificacoes');
 
@@ -161,6 +216,7 @@ export default function Configuracoes() {
     () => [
       { value: 'notificacoes', label: 'Notificações' },
       { value: 'permissoes', label: 'Permissões' },
+      { value: 'financeiro', label: 'Financeiro' },
     ],
     [],
   );
@@ -187,6 +243,10 @@ export default function Configuracoes() {
 
         <TabsContent value="permissoes" className="mt-4">
           <Permissoes />
+        </TabsContent>
+
+        <TabsContent value="financeiro" className="mt-4">
+          <FinanceiroTab />
         </TabsContent>
       </Tabs>
     </div>

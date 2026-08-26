@@ -68,6 +68,25 @@ Duas camadas, mesmo padrão que a intranet usa (`gestao_intranet.permissoes_usua
 | `financeiro` | Ve/acessa todas as solicitações (não só as endereçadas a ele) + tudo do aprovador + marcar `aprovado` como `pago` |
 | `nenhum` | Sem acesso ao módulo (mas continua com Camada 1 ativa, pra outros módulos) |
 
+**Solicitação em dinheiro tem visibilidade restrita** (migration
+`20260825150000_add_servicos_dinheiro_visibilidade_restrita.sql`): com
+`forma_pagamento = 'dinheiro'`, só o solicitante, o aprovador destino (na etapa de aprovação) e o
+papel `financeiro` (na etapa de pagamento) veem a solicitação — `contas_a_pagar` fica de fora
+(mesmo tendo acesso amplo às demais formas de pagamento via `isPagador`), e a regra de "mesmo
+setor" (ver abaixo) não amplia a visibilidade nesse caso. Configurável (liga/desliga) via
+`gestao_servicos.configuracoes_modulo.restringir_visibilidade_pagamento_dinheiro` (linha única,
+default `true`, fail-safe `true` se a linha não existir) — não existe mecanismo de
+configuração/feature-flag genérico no sistema, essa tabela foi criada só pra esse caso, mas
+desenhada pra reaproveitar (próximo flag do módulo vira só mais uma coluna na mesma linha). Toggle
+exposto em `/configuracoes` (aba "Financeiro", só pra quem é `isFinanceiro`). Aplicado em 3
+camadas: `canAccessSolicitacao`/`canViewAnexoSigiloso` (edge function, agora `async` porque leem o
+flag via `getRestringeVisibilidadeDinheiro`, cacheado 30s), a query de `list` (constrói o `WHERE`
+manualmente, não reaproveita RLS — precisa da mesma regra duplicada em SQL), e
+`public.servicos_can_access_solicitacao`/policy `servicos_parcelas_write_financeiro` (RLS, defesa
+em profundidade). As ações `marcar_pendencia`/`criar_parcelas`/`registrar_pagamento_parcela`
+continuam usando `isPagador` sem checagem extra — ficam protegidas automaticamente porque chamam
+`ensureRowAccess`/`ensureParcelaAccess` internamente.
+
 **Aprovador é por solicitação, não por papel** (migration
 `20260806110000_scope_servicos_aprovador_destino.sql`): toda solicitação tem um
 `aprovador_destino_id` obrigatório, escolhido pelo solicitante na criação (select "Aprovador

@@ -126,6 +126,19 @@ export const financeiroApi = {
       return result.rows || [];
     },
   },
+  configuracaoModulo: {
+    async get() {
+      const result = await invokeServicos({ action: 'get_configuracao_modulo' });
+      return result.row || null;
+    },
+    async atualizar(restringirVisibilidadePagamentoDinheiro) {
+      const result = await invokeServicos({
+        action: 'atualizar_configuracao_modulo',
+        restringir_visibilidade_pagamento_dinheiro: restringirVisibilidadePagamentoDinheiro,
+      });
+      return result.row || null;
+    },
+  },
   relatorios: {
     async financeiro(filtros) {
       const result = await invokeServicos({ action: 'relatorio_financeiro', filtros: filtros || {} });

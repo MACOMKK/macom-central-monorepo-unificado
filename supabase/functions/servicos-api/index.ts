@@ -168,6 +168,29 @@ function isPagador(moduleRole: string | null) {
   return moduleRole === 'financeiro' || moduleRole === 'contas_a_pagar';
 }
 
+// Flag configuravel (gestao_servicos.configuracoes_modulo) que restringe a visibilidade de
+// solicitacoes em dinheiro a solicitante/aprovador-destino/financeiro, excluindo contas_a_pagar
+// e a ampliacao por setor. Cacheado com TTL curto (mesma ideia do authContextCache) pra nao
+// disparar uma query extra a cada chamada -- o valor muda raramente.
+const CONFIG_MODULO_TTL_MS = 30 * 1000;
+let restringeVisibilidadeDinheiroCache: { expiresAt: number; value: boolean } | null = null;
+
+async function getRestringeVisibilidadeDinheiro(): Promise<boolean> {
+  if (restringeVisibilidadeDinheiroCache && restringeVisibilidadeDinheiroCache.expiresAt > Date.now()) {
+    return restringeVisibilidadeDinheiroCache.value;
+  }
+  if (!sql) return true;
+  const rows = await sql.unsafe(
+    `select restringir_visibilidade_pagamento_dinheiro from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+    ['financeiro'],
+  );
+  // Fail-safe: sem linha de config, assume restritivo (mais seguro) -- espelha
+  // public.servicos_restringe_visibilidade_dinheiro() no banco.
+  const value = rows[0] ? Boolean(rows[0].restringir_visibilidade_pagamento_dinheiro) : true;
+  restringeVisibilidadeDinheiroCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
+  return value;
+}
+
 // Usado tanto na criacao da solicitacao (solicitante propondo parcelamento) quanto em
 // criar_parcelas (financeiro/contas_a_pagar revisando o plano depois de aprovado) — a soma
 // precisa bater com o valor total da solicitacao pra evitar plano de pagamento inconsistente.
@@ -238,7 +261,7 @@ async function substituirPlanoParcelas(
 // a ele (aprovador_destino_id), nao qualquer solicitacao pendente; e qualquer papel ve as
 // solicitacoes de colegas do mesmo setor (departamento_id atual do colaborador logado
 // comparado ao snapshot de departamento_id da solicitacao).
-function canAccessSolicitacao(
+async function canAccessSolicitacao(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
   row: {
@@ -246,9 +269,20 @@ function canAccessSolicitacao(
     aprovador_destino_id?: unknown;
     departamento_id?: unknown;
     aprovador_destino_departamento_id?: unknown;
+    forma_pagamento?: unknown;
   },
   departamentoId?: string | null,
 ) {
+  // Dinheiro: visibilidade restrita a solicitante/aprovador-destino/financeiro, ignorando
+  // isPagador (exclui contas_a_pagar) e a ampliacao por setor -- espelha
+  // public.servicos_can_access_solicitacao() no banco. Configuravel via
+  // gestao_servicos.configuracoes_modulo (getRestringeVisibilidadeDinheiro).
+  if (row.forma_pagamento === 'dinheiro' && (await getRestringeVisibilidadeDinheiro())) {
+    if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
+    if (isFinanceiro(moduleRole)) return true;
+    return moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '');
+  }
+
   if (isPagador(moduleRole)) return true;
   if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
   if (moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '')) {
@@ -269,11 +303,12 @@ function canAccessSolicitacao(
 // Anexo sigiloso e mais restrito que acesso normal a solicitacao: contas_a_pagar tem acesso a
 // linha (pode ver/pagar a solicitacao) mas nunca ve anexo marcado sigiloso. Quem ve: financeiro,
 // o proprio solicitante, o aprovador designado, e colegas do mesmo setor da solicitacao (mesma
-// regra de setor usada em canAccessSolicitacao).
-function canViewAnexoSigiloso(
+// regra de setor usada em canAccessSolicitacao) -- exceto em dinheiro, onde a ampliacao por setor
+// tambem nao se aplica aqui.
+async function canViewAnexoSigiloso(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
-  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown },
+  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown; forma_pagamento?: unknown },
   departamentoId?: string | null,
 ) {
   if (isFinanceiro(moduleRole)) return true;
@@ -281,6 +316,7 @@ function canViewAnexoSigiloso(
   if (moduleRole === 'aprovador' && String(row.aprovador_destino_id || '') === String(collaboradorId || '')) {
     return true;
   }
+  if (row.forma_pagamento === 'dinheiro' && (await getRestringeVisibilidadeDinheiro())) return false;
   return Boolean(departamentoId) && String(row.departamento_id || '') === String(departamentoId);
 }
 
@@ -464,7 +500,7 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   if (!row) throw Object.assign(new Error('Solicitacao nao encontrada.'), { status: 404 });
 
   const departamentoId = collaborator?.departamento_id as string | null | undefined;
-  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
+  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta solicitacao.'), { status: 403 });
 }
@@ -753,7 +789,7 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
   if (!row) throw Object.assign(new Error('Parcela nao encontrada.'), { status: 404 });
 
   const departamentoId = collaborator?.departamento_id as string | null | undefined;
-  if (canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
+  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta parcela.'), { status: 403 });
 }
@@ -782,6 +818,37 @@ Deno.serve(async (request) => {
     }
 
     ensureHasAccess(access);
+
+    if (action === 'get_configuracao_modulo') {
+      const rows = await sql.unsafe(
+        `select modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        ['financeiro'],
+      );
+      return json({ row: rows[0] || { modulo: 'financeiro', restringir_visibilidade_pagamento_dinheiro: true } });
+    }
+
+    if (action === 'atualizar_configuracao_modulo') {
+      if (!isFinanceiro(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro pode alterar configuracoes do modulo.'), { status: 403 });
+      }
+
+      const restringir = Boolean(body.restringir_visibilidade_pagamento_dinheiro);
+      const rows = await sql.unsafe(
+        `
+          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_por, atualizado_em)
+          values ($1, $2, $3, now())
+          on conflict (modulo) do update
+            set restringir_visibilidade_pagamento_dinheiro = excluded.restringir_visibilidade_pagamento_dinheiro,
+              atualizado_por = excluded.atualizado_por,
+              atualizado_em = now()
+          returning modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_em;
+        `,
+        ['financeiro', restringir, collaborator!.id],
+      );
+      // Invalida o cache em memoria pra a mudanca valer imediatamente nesta instancia da function.
+      restringeVisibilidadeDinheiroCache = null;
+      return json({ row: rows[0] });
+    }
 
     if (action === 'list_empresas') {
       const rows = await sql.unsafe(
@@ -1201,8 +1268,16 @@ Deno.serve(async (request) => {
 
       // financeiro/contas_a_pagar veem tudo; aprovador ve as proprias + as endereçadas a ele +
       // as do mesmo setor; usuario ve as proprias + as do mesmo setor (departamento_id atual do
-      // colaborador logado comparado ao snapshot de departamento_id da solicitacao).
-      if (!isPagador(moduleRole)) {
+      // colaborador logado comparado ao snapshot de departamento_id da solicitacao). Solicitacao
+      // em dinheiro (com o flag ligado) e mais restrita: nunca amplia por setor, e contas_a_pagar
+      // (isPagador mas nao financeiro) fica de fora -- espelha canAccessSolicitacao/RLS.
+      const restringeDinheiro = await getRestringeVisibilidadeDinheiro();
+
+      if (isPagador(moduleRole)) {
+        if (!isFinanceiro(moduleRole) && restringeDinheiro) {
+          clauses.push(`sp.forma_pagamento <> 'dinheiro'`);
+        }
+      } else {
         values.push(collaborator!.id);
         const collaboradorIdParam = values.length;
         const pessoaisClause =
@@ -1211,6 +1286,7 @@ Deno.serve(async (request) => {
             : `sp.solicitante_id = $${collaboradorIdParam}`;
 
         const departamentoId = collaborator!.departamento_id as string | null | undefined;
+        let acessoClause = pessoaisClause;
         if (departamentoId) {
           values.push(departamentoId);
           // Aprovadores do mesmo departamento entre si tambem veem a fila uns dos outros (ac e o
@@ -1220,10 +1296,14 @@ Deno.serve(async (request) => {
             moduleRole === 'aprovador'
               ? `(sp.departamento_id = $${values.length} or ac.departamento_id = $${values.length})`
               : `sp.departamento_id = $${values.length}`;
-          clauses.push(`(${pessoaisClause} or ${departamentoClause})`);
-        } else {
-          clauses.push(pessoaisClause);
+          acessoClause = `(${pessoaisClause} or ${departamentoClause})`;
         }
+
+        clauses.push(
+          restringeDinheiro
+            ? `((sp.forma_pagamento <> 'dinheiro' and ${acessoClause}) or (sp.forma_pagamento = 'dinheiro' and ${pessoaisClause}))`
+            : acessoClause,
+        );
       }
 
       if (status) {
@@ -1855,11 +1935,15 @@ Deno.serve(async (request) => {
       // contas_a_pagar tem acesso a linha (ve/paga a solicitacao) mas nunca ve anexo sigiloso --
       // por isso usa canViewAnexoSigiloso aqui, nao canAccessSolicitacao.
       const departamentoIdAnexos = collaborator?.departamento_id as string | null | undefined;
-      const visiveis = rows.filter(
-        (anexo: Record<string, unknown>) =>
-          !anexo.sigiloso ||
-          canViewAnexoSigiloso(moduleRole, collaborator?.id as string | undefined, solicitacaoRow, departamentoIdAnexos),
+      // solicitacaoRow e a mesma pra todos os anexos da lista -- o resultado nao muda por anexo,
+      // entao calcula uma vez em vez de repetir o await dentro do filter.
+      const podeVerSigiloso = await canViewAnexoSigiloso(
+        moduleRole,
+        collaborator?.id as string | undefined,
+        solicitacaoRow,
+        departamentoIdAnexos,
       );
+      const visiveis = rows.filter((anexo: Record<string, unknown>) => !anexo.sigiloso || podeVerSigiloso);
       const withUrls = await Promise.all(
         visiveis.map(async (anexo: Record<string, unknown>) => ({
           ...anexo,
