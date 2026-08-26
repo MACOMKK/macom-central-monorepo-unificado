@@ -800,14 +800,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 ) : historico.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum evento registrado.</p>
                 ) : (
-                  <ul>
+                  <ul className="min-w-0">
                     {historico.map((item, index) => {
                       const meta = EVENTO_META[item.evento] || EVENTO_META_DEFAULT;
                       const EventoIcon = meta.icon;
                       const isLast = index === historico.length - 1;
                       return (
-                        <li key={item.id} className="flex gap-3 text-sm">
-                          <div className="flex flex-col items-center">
+                        <li key={item.id} className="flex min-w-0 gap-3 text-sm">
+                          <div className="flex shrink-0 flex-col items-center">
                             <span
                               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}
                             >
@@ -815,13 +815,15 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                             </span>
                             {!isLast && <span className="my-1 w-0.5 flex-1 bg-border" />}
                           </div>
-                          <div className="min-w-0 pb-4 pt-1">
-                            <p className="font-medium">{meta.label || item.evento}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="min-w-0 flex-1 pb-4 pt-1">
+                            <p className="break-words font-medium">{meta.label || item.evento}</p>
+                            <p className="break-words text-xs text-muted-foreground">
                               {formatDataHora(item.criado_em)}
                               {item.autor_nome ? ` — ${item.autor_nome}` : ''}
                             </p>
-                            {item.observacao && <p className="mt-1 text-muted-foreground">{item.observacao}</p>}
+                            {item.observacao && (
+                              <p className="mt-1 break-words text-muted-foreground">{item.observacao}</p>
+                            )}
                           </div>
                         </li>
                       );
