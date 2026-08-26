@@ -6,6 +6,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://macom-relatorios.vercel.app',
   'https://macom-servicos.vercel.app',
   'https://macom-comunicacao.vercel.app',
+  'https://chatmacom.vercel.app',
   'http://localhost:5170',
   'http://localhost:5171',
   'http://localhost:5172',
