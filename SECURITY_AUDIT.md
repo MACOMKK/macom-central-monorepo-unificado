@@ -20,9 +20,47 @@ Plano em 5 camadas proposto; status de cada uma:
 2. **[FEITO] Apertar rate limit nativo do Supabase Auth** — `sign_in_sign_ups` reduzido de `30`
    para `10` a cada 5 minutos por IP (`supabase/config.toml:202`), replicado no Dashboard de
    produção (Authentication → Rate Limits) e IP real confirmado atrás de proxy/CDN.
-3. **[PENDENTE] Lockout progressivo por conta** — Supabase Auth só limita por IP, não por e-mail;
-   um ataque distribuído contorna o rate limit por IP. Requer lógica própria (contar falhas por
-   e-mail, reaproveitando `gestao_plataforma.logs_acesso`) — ainda não implementado.
+3. **[FEITO — fallback client-side] Lockout progressivo por conta** — Supabase Auth só limita por
+   IP nativamente; um ataque distribuído contorna o rate limit do item 2.
+   - **Forma correta (não contornável): Auth Hook "Password Verification Attempt"**, que roda
+     dentro do próprio GoTrue a cada tentativa e pode rejeitar mesmo uma senha correta se a conta
+     estiver travada. Implementado em `gestao_plataforma.hook_verificacao_senha`
+     (`supabase/migrations/20260825130000_add_login_lockout_hook.sql`), estado em
+     `gestao_plataforma.bloqueios_login` (por `usuario_id`). **Bloqueado no plano atual do
+     Supabase**: esse hook exige plano **Team ou Enterprise** (confirmado no Dashboard —
+     Authentication → Hooks mostra "Password Verification Attempt" desabilitado com aviso "Team or
+     Enterprise Plan required"). A migration e a função ficam prontas no banco, só não podem ser
+     habilitadas via Dashboard até um eventual upgrade de plano — nesse momento, é só ativar em
+     Authentication → Hooks → Password Verification Attempt → Postgres Function →
+     `gestao_plataforma.hook_verificacao_senha` (nenhuma mudança de código necessária).
+   - **Fallback implementado enquanto isso, no plano atual**: checagem client-side antes de
+     chamar `supabase.auth.signInWithPassword`. Duas Edge Functions novas —
+     `security-check-login-lock` (consultada por `checkLoginLock`, em
+     `packages/api-client/src/supabaseClient.js`, antes de toda tentativa de login nos 7 apps) e
+     `security-log-login-success` (chamada após login bem-sucedido, via `reportLoginSuccess`, para
+     resetar a janela de falhas). Reaproveita os mesmos dados de
+     `gestao_plataforma.logs_acesso` já gravados pelo item 5 (`evento = 'login_falha'`), sem
+     tabela de estado própria — conta falhas desde o último `login_sucesso` (ou dos últimos 30min,
+     o que for mais recente) e aplica os mesmos limiares do perfil moderado (5→1min, 10→5min,
+     15→30min, 20+→1h).
+   - **Limitação conhecida e aceita:** diferente do hook nativo, este fallback só protege quem
+     passa pelo app normalmente — um atacante que ataque a API do Supabase Auth diretamente,
+     sem passar pelo frontend, nunca aciona a checagem. Esse caminho residual continua coberto
+     pelo CAPTCHA (item 1) e pelo rate limit nativo por IP (item 2), mas não pelo lockout por
+     conta. Ao migrar para plano Team/Enterprise, o hook nativo passa a ser a defesa primária
+     (não contornável) e este fallback pode continuar como camada extra ou ser removido.
+   - **Correção aplicada durante a implementação:** a primeira versão de
+     `security-log-login-success` aceitava o `email` no body da requisição sem autenticação —
+     qualquer pessoa podia chamar essa function repetidamente com o e-mail de outra conta para
+     resetar o contador de falhas dela (`evento = 'login_sucesso'` forjado), anulando o lockout
+     enquanto o ataque de força bruta de verdade continuava em paralelo. Corrigido: a function
+     agora exige o token de acesso da sessão recém-criada e deriva o e-mail via
+     `supabase.auth.getUser(token)` — nunca de um campo do body — então só um login realmente
+     bem-sucedido consegue resetar o próprio contador.
+   **Pendente:** aplicar as migrations novas em produção
+   (`20260825130000_add_login_lockout_hook.sql`, `20260825140000_add_logs_acesso_email_index.sql`)
+   e fazer deploy das duas novas Edge Functions (`security-check-login-lock`,
+   `security-log-login-success`).
 4. **[FEITO] Aumentar `minimum_password_length`** — alterado de `6` para `8` em
    `supabase/config.toml:177`. Não afeta usuários existentes (senha já cadastrada continua
    valendo); passa a exigir 8+ caracteres apenas em novos cadastros e trocas de senha.

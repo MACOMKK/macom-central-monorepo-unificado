@@ -1,7 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
-import { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
+import {
+  assertSupabaseConfigured,
+  checkLoginLock,
+  isSupabaseConfigured,
+  reportFailedLogin,
+  reportLoginSuccess,
+  supabase,
+} from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -166,6 +173,9 @@ export function AuthProvider({ children }) {
 
   async function login(email, password, captchaToken) {
     assertSupabaseConfigured();
+    const lock = await checkLoginLock(email, 'comunicacao');
+    if (lock.locked) throw new Error(lock.message);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -175,6 +185,7 @@ export function AuthProvider({ children }) {
       reportFailedLogin(email, 'comunicacao');
       throw error;
     }
+    reportLoginSuccess('comunicacao');
     return checkUserAuth(data?.session || null, { force: true });
   }
 

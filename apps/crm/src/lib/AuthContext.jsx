@@ -1,7 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { crmApi } from '@macom/api-client/crmApi';
-import { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
+import {
+  assertSupabaseConfigured,
+  checkLoginLock,
+  isSupabaseConfigured,
+  reportFailedLogin,
+  reportLoginSuccess,
+  supabase,
+} from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -176,6 +183,9 @@ export function AuthProvider({ children }) {
 
   async function login(email, password, captchaToken) {
     assertSupabaseConfigured();
+    const lock = await checkLoginLock(email, 'crm');
+    if (lock.locked) throw new Error(lock.message);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -185,6 +195,7 @@ export function AuthProvider({ children }) {
       reportFailedLogin(email, 'crm');
       throw error;
     }
+    reportLoginSuccess('crm');
     return checkUserAuth(data?.session || null, { force: true });
   }
 

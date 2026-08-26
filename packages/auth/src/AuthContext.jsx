@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { assertSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
+import {
+  assertSupabaseConfigured,
+  checkLoginLock,
+  reportFailedLogin,
+  reportLoginSuccess,
+  supabase,
+} from '@macom/api-client/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -251,6 +257,9 @@ export function AuthProvider({
       systemSlug,
       authFunctionName,
       async login(email, password, captchaToken) {
+        const lock = await checkLoginLock(email, systemSlug);
+        if (lock.locked) throw new Error(lock.message);
+
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -260,6 +269,7 @@ export function AuthProvider({
           reportFailedLogin(email, systemSlug);
           throw error;
         }
+        reportLoginSuccess(systemSlug);
         await validateSession(data.session || null);
       },
       async logout() {

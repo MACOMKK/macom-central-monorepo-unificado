@@ -1,5 +1,5 @@
 import { AuthLoginCard } from '@macom/ui';
-import { reportFailedLogin, supabase } from '@/api/supabaseClient';
+import { checkLoginLock, reportFailedLogin, reportLoginSuccess, supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { MACOM_LOGO_URL } from '@/config/branding';
 
@@ -13,6 +13,9 @@ export default function Login({ loading = false }) {
 
   const handleSubmit = async (email, password, captchaToken) => {
     void prefetchDashboardRoute();
+    const lock = await checkLoginLock(email, 'relatorios');
+    if (lock.locked) throw new Error(lock.message);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -23,6 +26,8 @@ export default function Login({ loading = false }) {
       reportFailedLogin(email, 'relatorios');
       throw new Error(error.message);
     }
+
+    reportLoginSuccess('relatorios');
 
     try {
       await checkUserAuth(data?.session || null, { force: true });

@@ -280,6 +280,14 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
+# Lockout progressivo por conta (item 3 do plano de forca bruta, SECURITY_AUDIT.md) -- rejeita
+# mesmo uma senha correta se a conta estiver temporariamente travada por falhas repetidas.
+# So documentativo/dev local: producao precisa ser habilitado manualmente no Dashboard
+# (Authentication -> Hooks -> Password Verification Attempt).
+[auth.hook.password_verification_attempt]
+enabled = true
+uri = "pg-functions://postgres/gestao_plataforma/hook_verificacao_senha"
+
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
 enabled = false

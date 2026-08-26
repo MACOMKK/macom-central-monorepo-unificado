@@ -1,6 +1,6 @@
 import { intranetApi } from '@macom/api-client/intranetApi';
 
-import { assertSupabaseConfigured, reportFailedLogin, supabase } from '@/api/supabaseClient';
+import { assertSupabaseConfigured, checkLoginLock, reportFailedLogin, reportLoginSuccess, supabase } from '@/api/supabaseClient';
 
 const DOCUMENT_STORAGE_BUCKET = 'documentos';
 const ANNOUNCEMENT_IMAGE_STORAGE_BUCKET = 'avisos';
@@ -191,6 +191,9 @@ export const appClient = {
 
     async signIn({ email, password, captchaToken }) {
       assertSupabaseConfigured();
+      const lock = await checkLoginLock(email, 'intranet');
+      if (lock.locked) throw new Error(lock.message);
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -200,6 +203,7 @@ export const appClient = {
         reportFailedLogin(email, 'intranet');
         throw normalizeFunctionError(error, 'Falha ao entrar.');
       }
+      reportLoginSuccess('intranet');
       return intranetApi.auth.me(data?.session?.access_token);
     },
 

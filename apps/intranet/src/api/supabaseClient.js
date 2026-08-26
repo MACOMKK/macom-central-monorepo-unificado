@@ -1,5 +1,12 @@
-import { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase } from '@macom/api-client/supabaseClient';
+import {
+  assertSupabaseConfigured,
+  checkLoginLock,
+  isSupabaseConfigured,
+  reportFailedLogin,
+  reportLoginSuccess,
+  supabase,
+} from '@macom/api-client/supabaseClient';
 
-export { assertSupabaseConfigured, isSupabaseConfigured, reportFailedLogin, supabase };
+export { assertSupabaseConfigured, checkLoginLock, isSupabaseConfigured, reportFailedLogin, reportLoginSuccess, supabase };
 
 export const hasSupabaseEnv = isSupabaseConfigured;
