@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PDFDocument } from 'pdf-lib';
 import {
+  Bell,
   Building2,
   Calendar,
   Check,
@@ -16,12 +17,15 @@ import {
   Landmark,
   Lock,
   Paperclip,
+  Pencil,
   RefreshCw,
   Tag,
   Trash2,
+  Unlock,
   User,
   UserCheck,
   Wallet,
+  X,
 } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
@@ -106,24 +110,38 @@ function getPreviewType(anexo) {
   return 'unsupported';
 }
 
-const EVENTO_LABEL = {
-  criada: 'Solicitação criada',
-  editada: 'Solicitação editada',
-  aprovada: 'Aprovada',
-  reprovada: 'Reprovada',
-  reprovada_pos_aprovacao: 'Reprovada após aprovação',
-  cancelada: 'Cancelada',
-  reenviada: 'Corrigida e reenviada',
-  parcela_criada: 'Plano de pagamento definido',
-  parcela_paga: 'Parcela paga',
-  pago: 'Marcada como paga',
-  anexo_adicionado: 'Anexo incluído',
-  anexo_removido: 'Anexo removido',
-  notificacao_enviada: 'Notificação enviada',
-  pendencia_aberta: 'Pendência sinalizada',
-  pendencia_liberada: 'Pendência liberada',
-  pendencia_atualizada_pelo_solicitante: 'Solicitante corrigiu pendência',
+const EVENTO_META = {
+  criada: { label: 'Solicitação criada', icon: FileStack, className: 'text-muted-foreground bg-muted' },
+  editada: { label: 'Solicitação editada', icon: Pencil, className: 'text-muted-foreground bg-muted' },
+  aprovada: { label: 'Aprovada', icon: Check, className: 'text-emerald-600 bg-emerald-500/20' },
+  reprovada: { label: 'Reprovada', icon: X, className: 'text-destructive bg-destructive/20' },
+  reprovada_pos_aprovacao: {
+    label: 'Reprovada após aprovação',
+    icon: X,
+    className: 'text-destructive bg-destructive/20',
+  },
+  cancelada: { label: 'Cancelada', icon: X, className: 'text-destructive bg-destructive/20' },
+  reenviada: { label: 'Corrigida e reenviada', icon: RefreshCw, className: 'text-muted-foreground bg-muted' },
+  parcela_criada: {
+    label: 'Plano de pagamento definido',
+    icon: CreditCard,
+    className: 'text-muted-foreground bg-muted',
+  },
+  parcela_paga: { label: 'Parcela paga', icon: Wallet, className: 'text-emerald-600 bg-emerald-500/20' },
+  pago: { label: 'Marcada como paga', icon: Wallet, className: 'text-emerald-600 bg-emerald-500/20' },
+  anexo_adicionado: { label: 'Anexo incluído', icon: Paperclip, className: 'text-muted-foreground bg-muted' },
+  anexo_removido: { label: 'Anexo removido', icon: Trash2, className: 'text-destructive bg-destructive/20' },
+  notificacao_enviada: { label: 'Notificação enviada', icon: Bell, className: 'text-muted-foreground bg-muted' },
+  pendencia_aberta: { label: 'Pendência sinalizada', icon: Lock, className: 'text-destructive bg-destructive/20' },
+  pendencia_liberada: { label: 'Pendência liberada', icon: Unlock, className: 'text-emerald-600 bg-emerald-500/20' },
+  pendencia_atualizada_pelo_solicitante: {
+    label: 'Solicitante corrigiu pendência',
+    icon: RefreshCw,
+    className: 'text-amber-600 bg-amber-500/10',
+  },
 };
+
+const EVENTO_META_DEFAULT = { label: null, icon: Clock, className: 'text-muted-foreground bg-muted' };
 
 const PARCELA_STATUS_LABEL = {
   pendente: 'Pendente',
@@ -782,18 +800,32 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 ) : historico.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum evento registrado.</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {historico.map((item) => (
-                      <li key={item.id} className="relative border-l-2 border-border pl-4 text-sm">
-                        <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-primary" />
-                        <p className="font-medium">{EVENTO_LABEL[item.evento] || item.evento}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDataHora(item.criado_em)}
-                          {item.autor_nome ? ` — ${item.autor_nome}` : ''}
-                        </p>
-                        {item.observacao && <p className="mt-1 text-muted-foreground">{item.observacao}</p>}
-                      </li>
-                    ))}
+                  <ul>
+                    {historico.map((item, index) => {
+                      const meta = EVENTO_META[item.evento] || EVENTO_META_DEFAULT;
+                      const EventoIcon = meta.icon;
+                      const isLast = index === historico.length - 1;
+                      return (
+                        <li key={item.id} className="flex gap-3 text-sm">
+                          <div className="flex flex-col items-center">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}
+                            >
+                              <EventoIcon className="h-3 w-3" />
+                            </span>
+                            {!isLast && <span className="my-1 w-0.5 flex-1 bg-border" />}
+                          </div>
+                          <div className="min-w-0 pb-4 pt-1">
+                            <p className="font-medium">{meta.label || item.evento}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDataHora(item.criado_em)}
+                              {item.autor_nome ? ` — ${item.autor_nome}` : ''}
+                            </p>
+                            {item.observacao && <p className="mt-1 text-muted-foreground">{item.observacao}</p>}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </TabsContent>
