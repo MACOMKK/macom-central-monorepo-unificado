@@ -148,6 +148,14 @@ serve(async (req) => {
   }
 
   try {
+    const INTERNAL_INVOKE_SECRET = Deno.env.get('INTERNAL_INVOKE_SECRET');
+    if (!INTERNAL_INVOKE_SECRET || req.headers.get('x-invoke-secret') !== INTERNAL_INVOKE_SECRET) {
+      return new Response(JSON.stringify({ success: false, error: 'Nao autorizado.' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 

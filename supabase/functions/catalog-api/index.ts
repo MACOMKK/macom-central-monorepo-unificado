@@ -29,7 +29,6 @@ const ENTITY_CONFIG = {
     table: 'colaboradores',
     orderBy: 'nome',
     allowedFields: [
-      'id',
       'nome',
       'email',
       'funcao',
@@ -2255,6 +2254,17 @@ Deno.serve(async (request) => {
     }
     if (['save', 'update', 'delete'].includes(action) && entity === 'acessos_usuario_sistema') {
       return json({ error: 'A gestao de acessos foi movida para a plataforma-api.' }, 410);
+    }
+
+    if (['create', 'update', 'delete'].includes(action) && entity === 'sistemas' && !isGlobalAdmin) {
+      return json({ error: 'Apenas administradores podem gerenciar sistemas.' }, 403);
+    }
+
+    if (
+      ['create', 'update', 'delete'].includes(action) &&
+      (entity === 'logs_auditoria' || entity === 'logs_auditoria_relatorios')
+    ) {
+      return json({ error: 'Logs de auditoria sao somente leitura.' }, 403);
     }
 
     if (action === 'save' && entity === 'permissoes_central') {

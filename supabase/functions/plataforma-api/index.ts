@@ -449,8 +449,8 @@ async function updateCollaboratorPassword({
     return json({ error: 'Colaborador nao encontrado.' }, 404);
   }
 
-  if (!isGlobalAdmin(centralAccessTier) && collaboratorRow.funcao === 'admin') {
-    return json({ error: 'Apenas administradores podem redefinir senha de colaboradores admin.' }, 403);
+  if (!isGlobalAdmin(centralAccessTier) && (collaboratorRow.funcao === 'admin' || collaboratorRow.funcao === 'gestor')) {
+    return json({ error: 'Apenas administradores podem redefinir senha de colaboradores admin ou gestor.' }, 403);
   }
 
   const adminClient = getAdminClient();
@@ -632,11 +632,18 @@ async function updateSystemAccess({
   return json({ row: rows[0] || null });
 }
 
-async function deleteSystemAccess(id: string | null | undefined, corsHeaders: Record<string, string>) {
+async function deleteSystemAccess(
+  id: string | null | undefined,
+  centralAccessTier: string | null,
+  corsHeaders: Record<string, string>,
+) {
   const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
   if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
   const beforeRow = await fetchRowById('public', 'acessos_usuario_sistema', id);
+  if (!isGlobalAdmin(centralAccessTier) && beforeRow?.nivel_acesso === 'admin') {
+    return json({ error: 'Apenas administradores podem remover acesso admin de sistemas.' }, 403);
+  }
   if (beforeRow) {
     await syncIntranetPermissionOnAccessChange({
       ...beforeRow,
@@ -648,8 +655,15 @@ async function deleteSystemAccess(id: string | null | undefined, corsHeaders: Re
   return json({ success: true });
 }
 
-async function saveCentralPermission(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+async function saveCentralPermission(
+  payload: Record<string, unknown> = {},
+  centralAccessTier: string | null = null,
+  corsHeaders: Record<string, string> = {},
+) {
   const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
+  if (!isGlobalAdmin(centralAccessTier)) {
+    return json({ error: 'Apenas administradores podem alterar permissoes do console.' }, 403);
+  }
   const funcao = typeof payload.funcao === 'string' ? payload.funcao : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : 'sem';
@@ -678,8 +692,15 @@ async function saveCentralPermission(payload: Record<string, unknown> = {}, cors
   return json({ row: rows[0] || null });
 }
 
-async function saveCentralPermissionNivel(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+async function saveCentralPermissionNivel(
+  payload: Record<string, unknown> = {},
+  centralAccessTier: string | null = null,
+  corsHeaders: Record<string, string> = {},
+) {
   const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
+  if (!isGlobalAdmin(centralAccessTier)) {
+    return json({ error: 'Apenas administradores podem alterar permissoes do console.' }, 403);
+  }
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
@@ -708,8 +729,15 @@ async function saveCentralPermissionNivel(payload: Record<string, unknown> = {},
   return json({ row: rows[0] || null });
 }
 
-async function saveReportsFunctionPermission(payload: Record<string, unknown> = {}, corsHeaders: Record<string, string> = {}) {
+async function saveReportsFunctionPermission(
+  payload: Record<string, unknown> = {},
+  centralAccessTier: string | null = null,
+  corsHeaders: Record<string, string> = {},
+) {
   const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
+  if (!isGlobalAdmin(centralAccessTier)) {
+    return json({ error: 'Apenas administradores podem alterar permissoes do console.' }, 403);
+  }
   const nivelAcesso = typeof payload.nivel_acesso === 'string' ? payload.nivel_acesso : null;
   const modulo = typeof payload.modulo === 'string' ? payload.modulo : null;
   const permissao = typeof payload.permissao === 'string' ? payload.permissao : 'sem';
@@ -929,15 +957,15 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'save' && entity === 'permissoes_central') {
-      return await saveCentralPermission(body.payload || {}, corsHeaders);
+      return await saveCentralPermission(body.payload || {}, centralAccessTier, corsHeaders);
     }
 
     if (action === 'save' && entity === 'permissoes_central_nivel') {
-      return await saveCentralPermissionNivel(body.payload || {}, corsHeaders);
+      return await saveCentralPermissionNivel(body.payload || {}, centralAccessTier, corsHeaders);
     }
 
     if (action === 'save' && entity === 'permissoes_funcoes_relatorios') {
-      return await saveReportsFunctionPermission(body.payload || {}, corsHeaders);
+      return await saveReportsFunctionPermission(body.payload || {}, centralAccessTier, corsHeaders);
     }
 
     if (action === 'update' && entity === 'colaboradores') {
@@ -978,7 +1006,7 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'delete' && entity === 'acessos_usuario_sistema') {
-      return await deleteSystemAccess(typeof body.id === 'string' ? body.id : null, corsHeaders);
+      return await deleteSystemAccess(typeof body.id === 'string' ? body.id : null, centralAccessTier, corsHeaders);
     }
 
     if (action === 'list' && entity === 'logs_acesso') {

@@ -2198,6 +2198,8 @@ Deno.serve(async (request) => {
         }
 
         const sanitized = sanitizePayload(entity, payload);
+        delete sanitized.sistema_id;
+        delete sanitized.colaborador_id;
         if (!Object.keys(sanitized).length) {
           return json({ error: 'Nenhum campo para atualizar.' }, 400);
         }
@@ -2649,6 +2651,9 @@ Deno.serve(async (request) => {
         });
       }
       if (entity === 'colaboradores') {
+        if (!isGlobalAdmin && ['admin', 'gestor'].includes(String(beforeRow?.funcao || ''))) {
+          return json({ error: 'Apenas administradores podem excluir colaboradores admin ou gestor.' }, 403);
+        }
         await insertCentralAuditLog({
           action: 'excluir',
           entity,

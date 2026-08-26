@@ -934,8 +934,18 @@ function convertOrder(entityName: keyof typeof ENTITY_CONFIG, orderBy?: string) 
   const normalizedOrder = orderBy || config.defaultOrder;
   const ascending = !normalizedOrder.startsWith('-');
   const key = ascending ? normalizedOrder : normalizedOrder.slice(1);
-  const column = config.orderMap[key as keyof typeof config.orderMap] || key;
-  return { column, ascending };
+  const column = config.orderMap[key as keyof typeof config.orderMap];
+
+  if (column) {
+    return { column, ascending };
+  }
+
+  const defaultAscending = !config.defaultOrder.startsWith('-');
+  const defaultKey = defaultAscending ? config.defaultOrder : config.defaultOrder.slice(1);
+  return {
+    column: config.orderMap[defaultKey as keyof typeof config.orderMap],
+    ascending: defaultAscending,
+  };
 }
 
 function buildWhereClause(entityName: keyof typeof ENTITY_CONFIG, filters: Record<string, unknown> = {}, startIndex = 1) {
@@ -4726,6 +4736,15 @@ Deno.serve(async (request) => {
       const moduleKey = getEntityModule(entity);
       if (entity === 'AnnouncementReaction') {
         assertModuleView(context.user as Record<string, unknown>, 'avisos');
+        const reactionRows = await runSql<Record<string, unknown>>(
+          'select criado_por from gestao_intranet.reacoes_avisos where id = $1 limit 1;',
+          [id],
+        );
+        const reactionRow = reactionRows[0];
+        const isOwner = reactionRow && String(reactionRow.criado_por) === String(context.collaboratorId);
+        if (reactionRow && !isOwner && (context.user as Record<string, unknown>).role !== 'admin') {
+          return json({ error: 'Voce so pode remover suas proprias reacoes.' }, 403);
+        }
       } else if (moduleKey === 'admin') {
         assertAdmin(context.user as Record<string, unknown>);
       } else if (moduleKey) {
@@ -4742,9 +4761,13 @@ Deno.serve(async (request) => {
 
     return json({ error: 'Acao invalida.' }, 400);
   } catch (error) {
+    const hasKnownStatus = typeof (error as { status?: unknown })?.status === 'number';
+    if (!hasKnownStatus) {
+      console.error('intranet-api error:', error);
+    }
     return json(
       {
-        error: normalizeError(error),
+        error: hasKnownStatus ? normalizeError(error) : 'Erro ao processar a solicitacao.',
         code: getErrorCode(error),
       },
       getErrorStatus(error),

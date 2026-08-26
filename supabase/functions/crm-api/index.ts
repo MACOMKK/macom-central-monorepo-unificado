@@ -1255,6 +1255,9 @@ Deno.serve(async (request) => {
       if (entity === 'historico_atendimentos' && payload.lead_id) {
         await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }
+      if (entity === 'historico_atendimentos' && !payload.lead_id && payload.cliente_id) {
+        await ensureEntityAccess('clientes', String(payload.cliente_id), access, collaborator);
+      }
       if (entity === 'veiculos_interesse' && payload.lead_id) {
         await ensureLeadAccessLight(String(payload.lead_id), access, collaborator);
       }

@@ -57,16 +57,12 @@ Plano em 5 camadas proposto; status de cada uma:
      agora exige o token de acesso da sessão recém-criada e deriva o e-mail via
      `supabase.auth.getUser(token)` — nunca de um campo do body — então só um login realmente
      bem-sucedido consegue resetar o próprio contador.
-   **Pendente:** aplicar as migrations novas em produção
-   (`20260825130000_add_login_lockout_hook.sql`, `20260825140000_add_logs_acesso_email_index.sql`)
-   e fazer deploy das duas novas Edge Functions (`security-check-login-lock`,
-   `security-log-login-success`).
+   **[FEITO — implantado em produção]** Migrations e Edge Functions
+   (`security-check-login-lock`, `security-log-login-success`) aplicadas/deployadas.
 4. **[FEITO] Aumentar `minimum_password_length`** — alterado de `6` para `8` em
    `supabase/config.toml:177`. Não afeta usuários existentes (senha já cadastrada continua
    valendo); passa a exigir 8+ caracteres apenas em novos cadastros e trocas de senha.
-   **Pendente:** replicar o mesmo valor no Dashboard do Supabase de produção (Auth → Policies →
-   Password) — o `config.toml` só vale localmente/CLI, não é aplicado automaticamente ao projeto
-   hospedado.
+   **[FEITO — replicado no Dashboard de produção]**
 5. **[FEITO] Alertar sobre picos de tentativas falhas** — toda tentativa de login rejeitada
    (qualquer app) agora é registrada em `gestao_plataforma.logs_acesso` (`evento = 'login_falha'`,
    função `security-log-failed-login`, chamada por `reportFailedLogin` em
@@ -82,9 +78,49 @@ Plano em 5 camadas proposto; status de cada uma:
 
 ---
 
+**[FEITO — implantado em produção em 2026-08-26]** Deploy das 7 Edge Functions alteradas
+(`enviar-termo-gmail`, `intranet-api`, `plataforma-api`, `central-api`, `catalog-api`, `crm-api`,
+`servicos-api`) e migration `20260826150000_enable_rls_empresas_cargos.sql` aplicados pelo
+usuário.
+
+## Próximos lotes — ordem do mais seguro para o mais arriscado
+
+Itens restantes (fora do lote 1), organizados por risco de quebra crescente:
+
+1. **`intranet-api` — IDOR ao remover reação de aviso** (LOW, ~4499-4532): checar `criado_por` além
+   de `avisos:view` antes de remover a reação de outro usuário. Mudança isolada, sem impacto em
+   fluxo legítimo.
+2. **`servicos-api` — `limpar_dados_teste_financeiro`** (MEDIUM, ~1166-1193): restringir o `DELETE`
+   para não apagar a tabela inteira sem filtro — já restrito a admin, só falta tornar seletivo
+   (ex.: exigir filtro explícito ou remover a ação se não for mais necessária). Baixo risco, ação
+   já é admin-only; só precisa confirmar se a rotina ainda é usada.
+3. **`processa-fila-email`/`servicos-lembrete-aprovacoes` — sem secret de invocação** (LOW):
+   adicionar secret compartilhado (env var) validado no início da function. Baixo risco de quebra,
+   mas exige configurar a secret no Dashboard e no cron que chama a function antes do deploy.
+4. **Item 8 — XSS `embed_code` em Relatórios** (HIGH, risco médio de quebra): antes de trocar
+   `dangerouslySetInnerHTML` por extração/validação estrita de `src`, consultar no banco quais
+   `embed_code` já estão salvos, para não quebrar relatório existente que não seja um `<iframe>`
+   puro.
+5. **Item 4 — IP spoofing na intranet** (HIGH, risco médio-alto de quebra): confirmar antes se
+   algum cliente usa de fato o "acesso automático por rede do escritório"; se sim, avisar antes de
+   remover o mecanismo de auth por IP.
+6. **Item 1 — RLS em `acessos_usuario_sistema`/`sistemas`** (CRÍTICO, maior risco de toda a
+   auditoria): a tabela da qual toda checagem de permissão do monorepo depende. Antes de reabilitar
+   RLS, levantar todo uso de `.from('acessos_usuario_sistema'...)`/`.from('sistemas'...)` no
+   frontend dos 7 apps, para não quebrar login/checagem de acesso em produção. Fica sempre por
+   último.
+
+Fora dessa lista (não é ação de segurança necessária agora): `apps/crm/src/components/ui/chart.jsx`
+`dangerouslySetInnerHTML` com `ChartConfig` estático — risco baixo, reclassificar só se `config`
+passar a vir de API sem validação.
+
+---
+
 ## 🔴 CRÍTICO
 
 ### 1. RLS desabilitada em `acessos_usuario_sistema` e `sistemas` — auto-escalada de privilégio total
+
+**[PENDENTE — item mais delicado, fora do lote 1]** ver seção "Risco de quebra" abaixo.
 **Arquivo:** `supabase/migrations/20260512143000_grant_sistemas_access_to_authenticated.sql:1-4`
 
 ```sql
@@ -104,6 +140,14 @@ e virar admin de qualquer app (CRM, Financeiro, Intranet, Relatórios, Central) 
 **Correção:** reabilitar RLS em `sistemas` e `acessos_usuario_sistema`; restringir `insert/update/delete` a `service_role` (as Edge Functions já usam service role e fazem a checagem de admin — a tabela nunca deveria ser gravável pelo cliente).
 
 ### 2. SQL Injection via `orderBy` em `intranet-api`
+
+**[FEITO]** `convertOrder()` não faz mais fallback para a string crua do cliente — quando a chave
+não existe em `orderMap`, usa a coluna do `defaultOrder` da entidade. O catch final do handler
+não propaga mais `error.message` do Postgres ao cliente (mensagem genérica + log server-side via
+`console.error`); status code inferido continua funcionando via `getErrorStatus`. Pendente (não
+incluído neste lote, por depender de confirmação de regra de negócio): filtrar `listFeedback()`
+por `criado_por` — ver observação ao final desta seção.
+
 **Arquivo:** `supabase/functions/intranet-api/index.ts`, `convertOrder()` (~932-939), usado em `listBaseEntity`/`filterBaseEntity`/`listAnnouncements`/`listDocuments` (~2255, 2269, 2284, 2486)
 
 ```js
@@ -123,6 +167,10 @@ const column = config.orderMap[key as keyof typeof config.orderMap] || key; // f
 ## 🟠 HIGH
 
 ### 3. `enviar-termo-gmail` é um relay de e-mail sem autenticação
+
+**[FEITO]** Adicionado `getAuthenticatedUser()` (mesmo padrão de `crm-api`/`plataforma-api`) —
+exige JWT válido via `Authorization` header antes de processar o payload e chamar `sendGmail()`.
+
 **Arquivo:** `supabase/functions/enviar-termo-gmail/index.ts` (todo o arquivo — `serve()` linha 157)
 
 Não há checagem de JWT, secret compartilhado ou origem antes de enviar e-mail. A function lê `to`, `subject`, `body_text`, `body_html`, `filename`, `pdf_base64` diretamente do body e envia via Gmail API usando credenciais OAuth da empresa.
@@ -132,6 +180,10 @@ Não há checagem de JWT, secret compartilhado ou origem antes de enviar e-mail.
 **Correção:** exigir JWT válido (`auth.getUser()`) e checar permissão de envio, ou no mínimo validar um secret compartilhado.
 
 ### 4. Bypass de autenticação via spoofing de IP em `intranet-api`
+
+**[PENDENTE — fora do lote 1]** precisa confirmar se o "acesso por rede do escritório" está em
+uso ativo antes de remover.
+
 **Arquivo:** `supabase/functions/intranet-api/index.ts`, `getClientIp`/`getTrustedIpContext` (~675-696, 1230-1284), fallback no handler principal (~4581-4591)
 
 ```js
@@ -149,6 +201,10 @@ Quando não há JWT válido, a function tenta autenticar por IP confiável (`ges
 **Correção:** não usar cabeçalhos client-controlados como prova de rede confiável fora de uma borda que garanta a origem do header.
 
 ### 5. `plataforma-api` — gestor pode redefinir senha de outro gestor (account takeover)
+
+**[FEITO]** `updateCollaboratorPassword` agora bloqueia `admin` OU `gestor` quando ator não é
+`isGlobalAdmin`, igual a `updateCollaboratorEmail`.
+
 **Arquivo:** `supabase/functions/plataforma-api/index.ts`, `updateCollaboratorPassword` (~linha 452)
 
 A checagem só bloqueia alvo `funcao === 'admin'`, não `'gestor'` (inconsistente com `updateCollaboratorEmail`, que bloqueia ambos). Um `gestor` não-admin pode chamar `update_password` sobre outro gestor (de qualquer unidade) e assumir a conta via `adminClient.auth.admin.updateUserById`.
@@ -156,6 +212,10 @@ A checagem só bloqueia alvo `funcao === 'admin'`, não `'gestor'` (inconsistent
 **Correção:** replicar em `updateCollaboratorPassword` a mesma regra de `updateCollaboratorEmail` (bloquear `admin` OU `gestor` quando ator não é global admin).
 
 ### 6. `plataforma-api` — gestor pode reescrever a matriz de permissões do Console
+
+**[FEITO]** `saveCentralPermission`/`saveCentralPermissionNivel`/`saveReportsFunctionPermission`
+agora exigem `isGlobalAdmin(centralAccessTier)` internamente.
+
 **Arquivo:** `supabase/functions/plataforma-api/index.ts`, `saveCentralPermission`/`saveCentralPermissionNivel`/`saveReportsFunctionPermission` (~651-711), gate em `action==='save'` (~931-941)
 
 Nenhuma dessas rotas exige `isGlobalAdmin`; apenas `canAccessPlataforma` (admin OU gestor). Um gestor pode reescrever `permissoes_central_nivel`/`permissoes_funcoes` para elevar as próprias capacidades no Central/Relatórios.
@@ -163,6 +223,10 @@ Nenhuma dessas rotas exige `isGlobalAdmin`; apenas `canAccessPlataforma` (admin 
 **Correção:** exigir `isGlobalAdmin(centralAccessTier)` nessas três rotas.
 
 ### 7. `central-api` — escalada entre sistemas via `update` de `acessos_usuario_sistema`
+
+**[FEITO]** `sanitized.sistema_id`/`sanitized.colaborador_id` agora são removidos do payload antes
+do `buildUpdateQuery` nesse bloco restrito (mesmo padrão de `plataforma-api`'s `updateSystemAccess`).
+
 **Arquivo:** `central-api/index.ts:2169-2213` (bloco só alcançável quando `!isCentralContext && !isGlobalAdmin && isReportsAdmin`)
 
 ```js
@@ -192,6 +256,10 @@ Concedendo a si mesmo acesso fora do escopo de relatórios.
 **Correção:** validar `sanitized.sistema_id` (se presente) contra `reportsSystemId` da mesma forma que o `save`, ou remover `sistema_id` do payload antes do `buildUpdateQuery` nesse bloco restrito.
 
 ### 8. XSS armazenado via `embed_code` em Relatórios
+
+**[PENDENTE — fora do lote 1]** precisa checar `embed_code`s já salvos antes de trocar por
+extração/validação estrita de `src`.
+
 **Arquivo:** `apps/relatorios/src/pages/ReportViewer.jsx:310`
 
 ```jsx
@@ -209,29 +277,25 @@ Concedendo a si mesmo acesso fora do escopo de relatórios.
 
 ## 🟡 MEDIUM
 
-- **`plataforma-api` `deleteSystemAccess`** (~635-649): diferente de `saveSystemAccess`, o delete não valida `nivel_acesso` do registro-alvo — um gestor pode remover acesso `admin` de outro colaborador a qualquer sistema.
+- **[FEITO]** **`plataforma-api` `deleteSystemAccess`** (~635-649): agora busca o registro antes do delete e bloqueia `!isGlobalAdmin && beforeRow?.nivel_acesso === 'admin'`.
 
-- **`central-api` — `delete` de `colaboradores` sem proteção anti-rebaixamento** (~2616-2688 vs. proteção equivalente em ~2513-2529 no `update`): um gestor não-global com permissão `gerenciar` em `colaboradores` pode excluir (hard delete) diretamente um colaborador `admin`/`gestor`, ação mais destrutiva que a inativação já bloqueada no `update`. Se houver `ON DELETE CASCADE`, também remove seus acessos.
-  **Correção:** replicar em `action === 'delete'` a checagem `!isGlobalAdmin && ['admin','gestor'].includes(beforeRow?.funcao)`.
+- **[FEITO]** **`central-api` — `delete` de `colaboradores` sem proteção anti-rebaixamento** (~2616-2688 vs. proteção equivalente em ~2513-2529 no `update`): replicada a checagem `!isGlobalAdmin && ['admin','gestor'].includes(beforeRow?.funcao)` antes do `delete from`.
 
-- **`catalog-api` — `create` de `colaboradores` aceita `id` do payload** (`allowedFields` inclui `'id'`; `delete sanitized.id` só existe no `update`, não no `create`). Como colaboradores são casados por `id = auth.users.id`, um usuário com permissão `gerenciar` em `colaboradores` pode criar registro com `id` = UUID de um usuário Auth alvo conhecido, pré-atribuindo cargo/departamento/status antes do vínculo legítimo.
-  **Correção:** remover `'id'` de `allowedFields` de `colaboradores` (deixar o banco gerar o UUID).
+- **[FEITO]** **`catalog-api` — `create` de `colaboradores` aceita `id` do payload**: removido `'id'` de `ENTITY_CONFIG.colaboradores.allowedFields` (banco gera o UUID via `default gen_random_uuid()`).
 
-- **`catalog-api` — módulo `acessos_usuario_sistema` herda permissão total sobre `sistemas`**: qualquer usuário com `gerenciar` em `acessos_usuario_sistema` pode `create/update/delete` na tabela `public.sistemas` (catálogo global de apps), podendo desativar/renomear o `slug` de outro app e derrubar acesso de todos os usuários a ele.
-  **Correção:** restringir `create/update/delete` de `sistemas` a `isGlobalAdmin`.
+- **[FEITO]** **`catalog-api` — módulo `acessos_usuario_sistema` herda permissão total sobre `sistemas`**: `create`/`update`/`delete` de `entity === 'sistemas'` agora exige `isGlobalAdmin`.
 
-- **`catalog-api` — `logs_auditoria` mutável via fallback genérico**: diferente de `acessos_usuario_sistema` (bloqueado explicitamente no fallback), `logs_auditoria` não tem proteção — um usuário com `gerenciar` nesse módulo pode alterar/apagar registros de auditoria, apagando evidências de ações administrativas.
-  **Correção:** tratar `logs_auditoria`/`logs_auditoria_relatorios` como somente-leitura no fallback genérico.
+- **[FEITO]** **`catalog-api` — `logs_auditoria` mutável via fallback genérico**: `create`/`update`/`delete` de `logs_auditoria`/`logs_auditoria_relatorios` agora bloqueados (403, somente leitura).
 
-- **`crm-api`** — `historico_atendimentos` criado só com `cliente_id` (sem `lead_id`) escapa da checagem de escopo `ensureLeadAccessLight` (~1247-1264), permitindo inserir histórico em clientes fora do escopo do usuário.
+- **[FEITO]** **`crm-api`** — `historico_atendimentos` criado só com `cliente_id` (sem `lead_id`) agora valida escopo via `ensureEntityAccess('clientes', ...)` antes do insert.
 
-- **`servicos-api`** — `criar_fornecedor` acessível a qualquer papel do módulo (nível mínimo `usuario`, ~825-857), diferente de `atualizar_fornecedor`/`deletar_fornecedor` que exigem `isFinanceiro`. Permite cadastrar fornecedor com dados bancários/PIX próprios antes de solicitar pagamento a ele.
+- **[FEITO]** **`servicos-api`** — `criar_fornecedor` agora exige `isFinanceiro(moduleRole)`, igual a `atualizar_fornecedor`/`deletar_fornecedor` (confirmado com `apps/servicos/CLAUDE.md`: cadastro já é feito só na tela dedicada `/fornecedores`, restrita a financeiro).
 
-- **`servicos-api`** — `limpar_dados_teste_financeiro` (~1166-1193) apaga **toda** a tabela de pagamentos e anexos associados, sem filtrar por nenhum indicador de "teste" — mesmo restrito a admin, o `DELETE` não é seletivo.
+- **`servicos-api`** — `limpar_dados_teste_financeiro` (~1232-1259) apaga **toda** a tabela de pagamentos e anexos associados, sem filtrar por nenhum indicador de "teste" — mesmo restrito a admin, o `DELETE` não é seletivo. **[BAIXA PRIORIDADE — confirmado com o usuário que o sistema ainda não foi lançado e essa ação só é usada em ambiente de teste; sem risco de dado real de produção hoje. Revisar antes do lançamento** (adicionar critério de seleção ou remover a ação se não for mais necessária em produção).**]**
 
-- **`intranet-api`** — `listFeedback()` (~2411-2415) não filtra por `criado_por`; qualquer colaborador com permissão padrão `view` lista o feedback identificado (não-anônimo) de toda a empresa.
+- **`intranet-api`** — `listFeedback()` (~2411-2415) não filtra por `criado_por`; qualquer colaborador com permissão padrão `view` lista o feedback identificado (não-anônimo) de toda a empresa. **[PENDENTE — fora do lote 1, depende de confirmar a regra de negócio com o usuário: usuário comum só vê o próprio feedback vs. feedback é visível a todos por design.]**
 
-- **`public.empresas` e `public.cargos` sem RLS** (`supabase/migrations/20260709110000_create_empresas.sql:34`, `20260624150000_create_cargos.sql:54`): ambas concedem CRUD total a `authenticated` sem RLS habilitada. `empresas` é usada para escopo por empresa (`colaboradores.empresa_id`, documentos da intranet) — qualquer usuário autenticado pode corromper esse escopo.
+- **[FEITO]** **`public.empresas` e `public.cargos` sem RLS** (`supabase/migrations/20260709110000_create_empresas.sql:34`, `20260624150000_create_cargos.sql:54`): nova migration `20260826150000_enable_rls_empresas_cargos.sql` habilita RLS em ambas, com policy de `select` ampla para `authenticated` e `insert/update/delete` restritos a `service_role` (via Edge Functions). **Pendente:** aplicar em produção (`npx supabase db push`).
 
 ---
 
@@ -239,7 +303,7 @@ Concedendo a si mesmo acesso fora do escopo de relatórios.
 
 - **`processa-fila-email` e `servicos-lembrete-aprovacoes`** sem secret de invocação dedicado — aceitam apenas o gateway JWT padrão do Supabase (`anon key` pública), permitindo disparo fora de hora por qualquer parte que conheça a chave pública do projeto.
 
-- **`intranet-api`** — IDOR ao remover reação de aviso de outro usuário (`AnnouncementReaction`, ~4499-4532): checa apenas `avisos:view`, não `criado_por`.
+- **[FEITO — implantado]** **`intranet-api`** — IDOR ao remover reação de aviso de outro usuário (`AnnouncementReaction`): agora busca `criado_por` da reação antes do delete e bloqueia (403) se o ator não for o dono nem `admin`.
 
 - **`apps/crm/src/components/ui/chart.jsx:61`** — `dangerouslySetInnerHTML` usado para injetar CSS custom properties a partir de `ChartConfig` estático definido no código (não input de usuário/API). Risco baixo; reclassificar só se `config` passar a vir de dados de API sem validação.
 
