@@ -31,6 +31,14 @@
 - Secret de invocação (`x-invoke-secret`) em `processa-fila-email` e `servicos-lembrete-aprovacoes`:
   implantado, secret configurado, cron atualizado. Validado em produção — sem o header retorna 401,
   com o header correto retorna 200.
+- **Item 8 — XSS via `embed_code` em Relatórios**: corrigido em `ReportViewer.jsx`. Conferidos os
+  15 `embed_code` salvos no banco (`gestao_relatorio.relatorios`) — todos iframes simples de
+  `app.powerbi.com`/`datastudio.google.com`. Trocado `dangerouslySetInnerHTML` por extração do
+  `src` com validação de protocolo (`https:`) e allow-list de host (`app.powerbi.com`,
+  `datastudio.google.com`, `lookerstudio.google.com`); `embed_code` que não bater nesse padrão
+  agora mostra mensagem de erro em vez de renderizar HTML bruto. Nenhum relatório existente é
+  afetado. Falta apenas o build/deploy do app `relatorios` (frontend, sem Edge Function/migration
+  envolvida).
 
 ### Lockout progressivo — pendências antigas fechadas
 - Migrations `20260825130000_add_login_lockout_hook.sql` e
@@ -45,11 +53,9 @@
 
 ## 🔲 Falta implementar — ordem sugerida (mais seguro → mais arriscado)
 
-1. **Item 8 — XSS via `embed_code` em Relatórios** — precisa checar no banco quais `embed_code` já
-   estão salvos antes de trocar `dangerouslySetInnerHTML` por extração/validação de `src`.
-2. **Item 4 — IP spoofing na intranet** — precisa confirmar se o "acesso automático por rede do
+1. **Item 4 — IP spoofing na intranet** — precisa confirmar se o "acesso automático por rede do
    escritório" está em uso ativo antes de remover.
-3. **Item 1 — RLS em `acessos_usuario_sistema`/`sistemas`** — o mais arriscado de toda a auditoria
+2. **Item 1 — RLS em `acessos_usuario_sistema`/`sistemas`** — o mais arriscado de toda a auditoria
    (tabela da qual toda checagem de permissão do monorepo depende). Precisa levantar todos os usos
    dessas tabelas no frontend dos 7 apps antes de reabilitar RLS. Sempre por último.
 

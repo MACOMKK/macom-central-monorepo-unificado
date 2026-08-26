@@ -152,10 +152,20 @@ export default function ReportViewer() {
     report && activeNotice && !isAdminUser && noticeRequiresAcceptance && !hasAcceptedCurrentVersion
   );
 
+  const ALLOWED_EMBED_HOSTS = ['app.powerbi.com', 'datastudio.google.com', 'lookerstudio.google.com'];
+
   const iframeSrc = useMemo(() => {
     if (!report?.embed_code) return null;
     const match = report.embed_code.match(/src=["']([^"']+)["']/);
-    return match ? match[1] : null;
+    if (!match) return null;
+
+    try {
+      const url = new URL(match[1]);
+      if (url.protocol !== 'https:' || !ALLOWED_EMBED_HOSTS.includes(url.hostname)) return null;
+      return url.href;
+    } catch {
+      return null;
+    }
   }, [report?.embed_code]);
 
   const headerReport = report || previewReport;
@@ -304,11 +314,9 @@ export default function ReportViewer() {
             allowFullScreen
           />
         ) : report.embed_code ? (
-          <div
-            className="h-full w-full"
-            style={{ minHeight: 'calc(100vh - 120px)' }}
-            dangerouslySetInnerHTML={{ __html: report.embed_code }}
-          />
+          <div className="flex h-full items-center justify-center text-sm uppercase tracking-widest text-white opacity-40">
+            Codigo embed invalido ou de provedor nao suportado.
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm uppercase tracking-widest text-white opacity-40">
             Nenhum codigo embed configurado.
