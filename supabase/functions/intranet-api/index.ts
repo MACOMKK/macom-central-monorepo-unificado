@@ -687,12 +687,12 @@ function normalizeForwardedIp(value: string | null) {
 }
 
 function getClientIp(request: Request) {
-  return (
-    normalizeForwardedIp(request.headers.get('cf-connecting-ip')) ||
-    normalizeForwardedIp(request.headers.get('x-real-ip')) ||
-    normalizeForwardedIp(request.headers.get('x-forwarded-for')) ||
-    normalizeForwardedIp(request.headers.get('forwarded'))
-  );
+  // So confiamos no cf-connecting-ip: e o unico header dessa lista que o Cloudflare
+  // sobrescreve na borda, entao o cliente nao consegue forjar. x-real-ip/x-forwarded-for/
+  // forwarded sao headers HTTP comuns que qualquer requisicao pode setar manualmente --
+  // usa-los aqui permitiria logar como acesso confiavel da rede do escritorio sem
+  // credencial nenhuma, so mandando o header certo.
+  return normalizeForwardedIp(request.headers.get('cf-connecting-ip'));
 }
 
 function assertAnnouncementOwnerOrAdmin(

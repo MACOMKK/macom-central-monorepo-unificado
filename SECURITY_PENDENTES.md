@@ -39,6 +39,27 @@
   agora mostra mensagem de erro em vez de renderizar HTML bruto. Nenhum relatório existente é
   afetado. Falta apenas o build/deploy do app `relatorios` (frontend, sem Edge Function/migration
   envolvida).
+- **Item 4 — IP spoofing na intranet**: corrigido em `intranet-api/index.ts` (`getClientIp`).
+  Decisão do usuário: manter o acesso automático por IP da rede do escritório (é só consulta, sem
+  ação sensível). O problema era que `getClientIp` aceitava `x-real-ip`/`x-forwarded-for`/
+  `forwarded` como fallback — headers que qualquer requisição externa pode forjar manualmente,
+  permitindo logar como o usuário `trusted_ip` sem nenhuma credencial. Agora usa só
+  `cf-connecting-ip`, que o Cloudflare sobrescreve na borda e o cliente não controla. Falta apenas
+  o deploy da Edge Function `intranet-api`.
+- **Item 1 — RLS em `sistemas`/`acessos_usuario_sistema`**: corrigido e validado em produção
+  (migration `20260826170000_enable_rls_sistemas_acessos_usuario_sistema.sql`, aplicada via
+  `npx supabase db push`). Levantamento minucioso nos 7 apps + pacotes `@macom/*` confirmou que
+  nenhum app lê/grava essas tabelas via `supabase-js` direto do client — tudo passa por Edge
+  Function (`central-api`, `plataforma-api`, `relatorios-api`, `catalog-api`), que usam conexão
+  `DATABASE_URL`/`service_role` e não são afetadas por RLS. O risco real era que
+  `acessos_usuario_sistema` tinha `grant insert/update/delete` liberado para `authenticated` sem
+  RLS, permitindo qualquer usuário autenticado se auto-promover admin de um sistema via
+  `supabase.from('acessos_usuario_sistema').update(...)` direto do navegador. A migration habilita
+  RLS nas duas tabelas, mantém `select` liberado para `authenticated` (leitura inalterada) e revoga
+  `insert/update/delete` de `authenticated` (só Edge Functions gravam). Testado via Playwright
+  contra produção, logado como usuário comum: `select` em ambas as tabelas segue `200`; `update`
+  de `nivel_acesso` para `admin`, `insert` em `acessos_usuario_sistema` e `insert` em `sistemas`
+  direto via REST (sem passar por Edge Function) agora retornam `403 permission denied`.
 
 ### Lockout progressivo — pendências antigas fechadas
 - Migrations `20260825130000_add_login_lockout_hook.sql` e
@@ -51,13 +72,10 @@
   pagamentos, mas confirmado que só é usado em teste (sistema ainda não lançado). Revisar antes do
   lançamento em produção.
 
-## 🔲 Falta implementar — ordem sugerida (mais seguro → mais arriscado)
+## 🔲 Falta implementar
 
-1. **Item 4 — IP spoofing na intranet** — precisa confirmar se o "acesso automático por rede do
-   escritório" está em uso ativo antes de remover.
-2. **Item 1 — RLS em `acessos_usuario_sistema`/`sistemas`** — o mais arriscado de toda a auditoria
-   (tabela da qual toda checagem de permissão do monorepo depende). Precisa levantar todos os usos
-   dessas tabelas no frontend dos 7 apps antes de reabilitar RLS. Sempre por último.
+Nenhum item de código restante. Falta apenas o deploy da Edge Function `intranet-api` (item 4) e o
+build/deploy do app `relatorios` (item 8) — item 1 (RLS) já aplicado e validado em produção.
 
 `minimum_password_length = 8` também já foi replicado no Dashboard de produção. Todas as
 pendências antigas (de antes desta sessão) estão fechadas.
