@@ -23,13 +23,15 @@
 | 17 | Trim respostas de API | ⚠️ PARCIAL | ajustes pontuais feitos (`logs_auditoria`), sem revisão geral de `SELECT` |
 | 18 | Security headers | ⚠️ PARCIAL | `vercel.json` tem headers básicos, falta CSP e HSTS |
 | 19 | Forçar HTTPS | ✅ JÁ TEM | garantido pela hospedagem Vercel |
-| 20 | Scan de dependências | ❌ PRECISA | sem Dependabot/CI de audit; sem script `npm audit` |
+| 20 | Scan de dependências | ⚠️ PARCIAL | script `npm run audit` configurado (2026-08-27); `npm audit fix` aplicado (23→10). `@capacitor/cli`: já na versão estável mais recente, vuln é em `xcode`/`uuid` (tooling iOS não usado) — risco aceito. `sharp` (vite-plugin-pwa/assets-generator): corrigido via `overrides` no `package.json` raiz forçando `sharp@^0.35.4` (10→7 vulnerabilidades); testado build:admin, build:crm e `generate:pwa-icons` sem regressão. Restam 7 (react-quill sem fix real, react-router-dom pendente Etapa 3, uuid/xcode risco aceito) |
 
 ## Prioridades reais (itens que realmente faltam)
 
-1. **#14 — Validação de inputs**: adotar Zod (pacote `@macom/validation` já existe) nas Edge Functions.
-2. **#9 — Proteger cookies**: revisar como o Supabase Auth persiste sessão no client e reforçar flags onde aplicável.
-3. **#20 — Scan de dependências**: configurar Dependabot ou script `npm audit` no CI/local.
-4. **#5 — Criptografia de dados sensíveis**: avaliar quais colunas precisam de criptografia adicional além do padrão do Postgres.
+Ordem do menos arriscado (implementar primeiro) para o mais arriscado:
+
+1. ~~**#20 — Scan de dependências**~~ — feito em 2026-08-27: script `npm run audit` (`npm audit --audit-level=high`) adicionado ao `package.json` raiz. `npm audit fix` aplicado, reduzindo de 23 para 10 vulnerabilidades; validado com `npm run build:central` (ok) e `npm run typecheck`/`test:run` (mesmos erros pré-existentes de antes, sem regressão). As 10 restantes (7 moderadas, 3 altas) só saem via `npm audit fix --force` com breaking change (react-quill, react-router-dom, vite-plugin-pwa, @capacitor/cli) — pendente de decisão. Ainda não configurado Dependabot/CI automático.
+2. **#5 — Criptografia de dados sensíveis**: avaliar quais colunas precisam de criptografia adicional além do padrão do Postgres. Pode ser feito tabela por tabela, testando isoladamente.
+3. **#9 — Proteger cookies**: revisar como o Supabase Auth persiste sessão no client e reforçar flags onde aplicável. Escopo pequeno e fácil de testar (login/logout), mas erro numa flag pode derrubar sessão de todo mundo.
+4. **#14 — Validação de inputs**: adotar Zod (pacote `@macom/validation` já existe) nas Edge Functions. Maior risco: mexe em todas as funções e pode passar a rejeitar payloads que hoje funcionam — implementar uma função por vez, testando o fluxo real de cada app antes de seguir pra próxima.
 
 Os itens marcados como **PARCIAL** (2, 7, 8, 11, 16, 17, 18) são melhorias incrementais sobre uma base que já existe, não bugs abertos.
