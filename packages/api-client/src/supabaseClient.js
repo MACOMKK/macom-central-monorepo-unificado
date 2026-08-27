@@ -35,6 +35,39 @@ export function reportLoginSuccess(systemSlug) {
     .catch(() => {});
 }
 
+// Traduz erros de autenticacao do Supabase (e alguns casos genericos de rede/captcha) para
+// mensagens amigaveis em pt-BR. Usado por todos os fluxos de login do monorepo, direto ou via
+// packages/auth, para evitar mensagens cruas como "Invalid login credentials" chegando ao usuario.
+export function getAuthErrorMessage(error, fallback = 'Não foi possível entrar.') {
+  const code = error?.code;
+  const msg = typeof error?.message === 'string' ? error.message : '';
+  const lower = msg.toLowerCase();
+
+  if (code === 'invalid_credentials' || msg === 'Invalid login credentials') {
+    return 'E-mail ou senha incorretos.';
+  }
+  if (code === 'email_not_confirmed' || lower.includes('email not confirmed')) {
+    return 'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.';
+  }
+  if (lower.includes('captcha')) {
+    return 'Falha na verificação de segurança. Recarregue a página e tente novamente.';
+  }
+  if (code === 'over_request_rate_limit' || lower.includes('rate limit') || lower.includes('too many requests')) {
+    return 'Muitas tentativas. Aguarde alguns instantes e tente novamente.';
+  }
+  if (lower.includes('failed to fetch') || lower.includes('network')) {
+    return 'Falha de conexão. Verifique sua internet e tente novamente.';
+  }
+  if (lower.includes('auth session missing')) {
+    return null;
+  }
+  if (lower.includes('missing sub claim')) {
+    return 'Sua sessão está inválida ou expirada. Faça login novamente.';
+  }
+
+  return msg || fallback;
+}
+
 // Fallback client-side do lockout por conta (item 3 do plano de forca bruta, SECURITY_AUDIT.md):
 // o Auth Hook nativo "Password Verification Attempt" exige plano Team/Enterprise do Supabase,
 // indisponivel neste projeto. Chamar ANTES de supabase.auth.signInWithPassword; fail-open (nunca

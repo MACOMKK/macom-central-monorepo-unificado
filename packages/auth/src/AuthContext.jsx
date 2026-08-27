@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import {
   assertSupabaseConfigured,
   checkLoginLock,
+  getAuthErrorMessage,
   reportFailedLogin,
   reportLoginSuccess,
   supabase,
@@ -267,7 +268,7 @@ export function AuthProvider({
         });
         if (error) {
           reportFailedLogin(email, systemSlug);
-          throw error;
+          throw new Error(getAuthErrorMessage(error) ?? 'Não foi possível entrar.');
         }
         reportLoginSuccess(systemSlug);
         await validateSession(data.session || null);

@@ -4,6 +4,7 @@ import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   assertSupabaseConfigured,
   checkLoginLock,
+  getAuthErrorMessage,
   isSupabaseConfigured,
   reportFailedLogin,
   reportLoginSuccess,
@@ -191,7 +192,7 @@ export function AuthProvider({ children }) {
     });
     if (error) {
       reportFailedLogin(email, 'servicos');
-      throw error;
+      throw new Error(getAuthErrorMessage(error) ?? 'Não foi possível entrar.');
     }
     reportLoginSuccess('servicos');
     return checkUserAuth(data?.session || null, { force: true });

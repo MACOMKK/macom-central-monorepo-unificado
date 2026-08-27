@@ -1,5 +1,6 @@
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthLoginCard } from '@macom/ui';
+import { getAuthErrorMessage } from '@macom/api-client/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 
 const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1777603989/logo_vermelha_e2aob2.png';
@@ -7,10 +8,7 @@ const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_aut
 const BG_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1779216591/fundo_mit_motors_in0y1d.webp';
 
 function getLoginErrorMessage(error) {
-  if (error?.code === 'invalid_credentials' || error?.message === 'Invalid login credentials') {
-    return 'E-mail ou senha incorretos.';
-  }
-  return error?.message || 'Nao foi possivel entrar.';
+  return getAuthErrorMessage(error, 'Não foi possível entrar.') ?? 'Não foi possível entrar.';
 }
 
 export default function Login() {

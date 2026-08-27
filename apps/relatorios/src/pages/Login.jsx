@@ -1,5 +1,11 @@
 import { AuthLoginCard } from '@macom/ui';
-import { checkLoginLock, reportFailedLogin, reportLoginSuccess, supabase } from '@/api/supabaseClient';
+import {
+  checkLoginLock,
+  getAuthErrorMessage,
+  reportFailedLogin,
+  reportLoginSuccess,
+  supabase,
+} from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { MACOM_LOGO_URL } from '@/config/branding';
 
@@ -24,7 +30,7 @@ export default function Login({ loading = false }) {
 
     if (error) {
       reportFailedLogin(email, 'relatorios');
-      throw new Error(error.message);
+      throw new Error(getAuthErrorMessage(error));
     }
 
     reportLoginSuccess('relatorios');

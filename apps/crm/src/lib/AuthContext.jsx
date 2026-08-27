@@ -4,6 +4,7 @@ import { crmApi } from '@macom/api-client/crmApi';
 import {
   assertSupabaseConfigured,
   checkLoginLock,
+  getAuthErrorMessage,
   isSupabaseConfigured,
   reportFailedLogin,
   reportLoginSuccess,
@@ -193,7 +194,7 @@ export function AuthProvider({ children }) {
     });
     if (error) {
       reportFailedLogin(email, 'crm');
-      throw error;
+      throw new Error(getAuthErrorMessage(error) ?? 'Não foi possível entrar no CRM.');
     }
     reportLoginSuccess('crm');
     return checkUserAuth(data?.session || null, { force: true });

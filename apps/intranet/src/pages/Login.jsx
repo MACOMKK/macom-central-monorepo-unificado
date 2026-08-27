@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Wifi } from 'lucide-react';
 import { AuthLoginCard, Button, Spinner } from '@macom/ui';
+import { getAuthErrorMessage } from '@macom/api-client/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 
@@ -9,18 +10,6 @@ const LOGO_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_aut
 const LOGIN_BG_URL = 'https://res.cloudinary.com/drevbr5eq/image/upload/q_auto/f_auto/v1779212740/Macom_fundo_xaaynv.webp';
 
 function getSignInErrorMessage(error) {
-  if (typeof error?.message === 'string' && error.message.toLowerCase().includes('auth session missing')) {
-    return null;
-  }
-
-  if (error?.code === 'invalid_credentials' || error?.message === 'Invalid login credentials') {
-    return 'E-mail ou senha incorretos.';
-  }
-
-  if (typeof error?.message === 'string' && error.message.toLowerCase().includes('missing sub claim')) {
-    return 'Sua sessão está inválida ou expirada. Faça login novamente.';
-  }
-
   if (error?.code === 'INTRANET_COLLABORATOR_NOT_FOUND') {
     return 'Seu usuário autenticado não está vinculado a um colaborador da intranet.';
   }
@@ -33,7 +22,7 @@ function getSignInErrorMessage(error) {
     return 'Seu colaborador está ativo, mas ainda não possui acesso liberado para a intranet.';
   }
 
-  return error?.message || 'Não foi possível entrar.';
+  return getAuthErrorMessage(error, 'Não foi possível entrar.');
 }
 
 export default function Login() {
