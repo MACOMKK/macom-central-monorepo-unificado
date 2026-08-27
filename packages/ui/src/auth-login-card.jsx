@@ -8,6 +8,80 @@ import { Label } from './label';
 import { Spinner } from './spinner';
 import { TurnstileWidget } from './turnstile-widget';
 
+const LOGIN_OVERLAY_CSS = `
+@keyframes login-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes login-diamond-top {
+  0% { transform: translateY(-220px) scale(0.6); opacity: 0; }
+  35% { opacity: 1; }
+  55%, 80% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-220px) scale(0.6); opacity: 0; }
+}
+@keyframes login-diamond-left {
+  0% { transform: translate(-190px, 160px) scale(0.6); opacity: 0; }
+  35% { opacity: 1; }
+  55%, 80% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(-190px, 160px) scale(0.6); opacity: 0; }
+}
+@keyframes login-diamond-right {
+  0% { transform: translate(190px, 160px) scale(0.6); opacity: 0; }
+  35% { opacity: 1; }
+  55%, 80% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(190px, 160px) scale(0.6); opacity: 0; }
+}
+@keyframes login-overlay-fade-text {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.login-overlay-diamond {
+  transform-box: view-box;
+  transform-origin: 490px 570px;
+}
+`;
+
+function LoginOverlay() {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-slate-950/70 backdrop-blur-md"
+      style={{ animation: 'login-overlay-fade-in 0.25s ease-out' }}
+      role="status"
+      aria-label="Entrando"
+    >
+      <style>{LOGIN_OVERLAY_CSS}</style>
+      <div className="h-24 w-24">
+        <svg viewBox="0 0 988 850" className="h-full w-full overflow-visible">
+          <path
+            className="login-overlay-diamond"
+            style={{ animation: 'login-diamond-top 1.6s cubic-bezier(.5,-0.4,.4,1.4) infinite' }}
+            fill="#E60012"
+            d="M 490,10 L 655,290 L 490,570 L 325,290 Z"
+          />
+          <path
+            className="login-overlay-diamond"
+            style={{ animation: 'login-diamond-left 1.6s cubic-bezier(.5,-0.4,.4,1.4) infinite' }}
+            fill="#E60012"
+            d="M 175,570 L 490,570 L 345,850 L 0,850 Z"
+          />
+          <path
+            className="login-overlay-diamond"
+            style={{ animation: 'login-diamond-right 1.6s cubic-bezier(.5,-0.4,.4,1.4) infinite' }}
+            fill="#E60012"
+            d="M 490,570 L 805,570 L 988,850 L 645,850 Z"
+          />
+        </svg>
+      </div>
+      <span
+        className="text-sm uppercase tracking-[4px] text-white/90"
+        style={{ animation: 'login-overlay-fade-text 1.4s ease-in-out infinite' }}
+      >
+        Entrando
+      </span>
+    </div>
+  );
+}
+
 export function AuthLoginCard({
   logoUrl,
   backgroundImageUrl,
@@ -64,7 +138,13 @@ export function AuthLoginCard({
         backgroundSize: 'cover',
       }}
     >
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/80 bg-white/82 p-8 shadow-2xl shadow-slate-950/20 backdrop-blur-lg">
+      {isBusy ? <LoginOverlay /> : null}
+
+      <div
+        className={`relative w-full max-w-md overflow-hidden rounded-3xl border border-white/80 bg-white/82 p-8 shadow-2xl shadow-slate-950/20 backdrop-blur-lg transition-all duration-300 ${
+          isBusy ? 'scale-[0.98] opacity-90 blur-[1px]' : 'scale-100 opacity-100 blur-0'
+        }`}
+      >
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.08))]" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/85" />
 
