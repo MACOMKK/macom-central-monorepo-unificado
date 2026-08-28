@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useCatalogosSolicitacao } from '@/hooks/useCatalogos';
 import { isAllowedAnexoMimeType, MAX_ANEXO_SIZE, uploadAnexo } from '@/lib/anexoUpload';
 import { getFriendlyErrorMessage } from '@/lib/errorMessage';
+import { proximaDataUtil } from '@/lib/diasUteis';
 import {
   ANEXO_CATEGORIA_OPCOES,
   FORMA_PAGAMENTO_LABEL,
@@ -259,7 +260,30 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     setDraftParcelas((current) => [...current, { valor: '', data_vencimento: '' }]);
   }
 
+  function avisarAjusteDiaUtil(dataAjustada) {
+    toast({
+      title: 'Vencimento ajustado',
+      description: `Sábados, domingos e feriados não são permitidos. Data ajustada para ${dataAjustada.split('-').reverse().join('/')}.`,
+    });
+  }
+
+  function handleDataVencimentoChange(value) {
+    if (!value) {
+      setField('dataVencimento')(value);
+      return;
+    }
+    const ajustada = proximaDataUtil(value);
+    if (ajustada !== value) avisarAjusteDiaUtil(ajustada);
+    setField('dataVencimento')(ajustada);
+  }
+
   function updateDraftParcela(index, field, value) {
+    if (field === 'data_vencimento' && value) {
+      const ajustada = proximaDataUtil(value);
+      if (ajustada !== value) avisarAjusteDiaUtil(ajustada);
+      setDraftParcelas((current) => current.map((item, i) => (i === index ? { ...item, data_vencimento: ajustada } : item)));
+      return;
+    }
     setDraftParcelas((current) => current.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
   }
 
@@ -592,7 +616,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                   id="dataVencimento"
                   type="date"
                   value={form.dataVencimento}
-                  onChange={(event) => setField('dataVencimento')(event.target.value)}
+                  onChange={(event) => handleDataVencimentoChange(event.target.value)}
                 />
               </div>
             )}

@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { sendPushToColaborador } from '../_shared/push.ts';
+import { proximaDataUtil } from '../_shared/diasUteis.ts';
 import {
   criarFornecedorBodySchema,
   atualizarFornecedorBodySchema,
@@ -231,13 +232,20 @@ async function inserirPlanoParcelas(solicitacaoId: string, parcelas: Array<Recor
     if (!Number.isFinite(valor) || valor <= 0) {
       throw Object.assign(new Error(`Valor invalido na parcela ${index + 1}.`), { status: 400 });
     }
+    let dataVencimento = parcela.data_vencimento ? String(parcela.data_vencimento) : null;
+    if (dataVencimento) {
+      if (Number.isNaN(Date.parse(dataVencimento))) {
+        throw Object.assign(new Error(`Data de vencimento invalida na parcela ${index + 1}.`), { status: 400 });
+      }
+      dataVencimento = proximaDataUtil(dataVencimento);
+    }
     const rows = await sql.unsafe(
       `
         insert into ${SERVICOS_SCHEMA}.parcelas_pagamento (solicitacao_id, numero, valor, data_vencimento)
         values ($1, $2, $3, $4)
         returning *;
       `,
-      [solicitacaoId, index + 1, valor, parcela.data_vencimento || null],
+      [solicitacaoId, index + 1, valor, dataVencimento],
     );
     inserted.push(rows[0]);
   }
@@ -480,8 +488,11 @@ function validateCreatePayload(payload: Record<string, unknown>) {
     throw Object.assign(new Error('Informe a forma de pagamento.'), { status: 400 });
   }
 
-  if (payload.data_vencimento && Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
-    throw Object.assign(new Error('Data de vencimento invalida.'), { status: 400 });
+  if (payload.data_vencimento) {
+    if (Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
+      throw Object.assign(new Error('Data de vencimento invalida.'), { status: 400 });
+    }
+    payload.data_vencimento = proximaDataUtil(String(payload.data_vencimento));
   }
 }
 
@@ -1690,6 +1701,13 @@ Deno.serve(async (request) => {
         payload.aprovador_destino_id = aprovadorDestinoId;
       }
 
+      if (payload.data_vencimento) {
+        if (Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
+          throw Object.assign(new Error('Data de vencimento invalida.'), { status: 400 });
+        }
+        payload.data_vencimento = proximaDataUtil(String(payload.data_vencimento));
+      }
+
       const fields = Object.keys(payload);
       let row = existing;
       if (fields.length) {
@@ -1899,6 +1917,13 @@ Deno.serve(async (request) => {
         }
         await validateAprovadorDestino(aprovadorDestinoId);
         payload.aprovador_destino_id = aprovadorDestinoId;
+      }
+
+      if (payload.data_vencimento) {
+        if (Number.isNaN(Date.parse(String(payload.data_vencimento)))) {
+          throw Object.assign(new Error('Data de vencimento invalida.'), { status: 400 });
+        }
+        payload.data_vencimento = proximaDataUtil(String(payload.data_vencimento));
       }
 
       payload.status = 'pendente';
@@ -2203,13 +2228,12 @@ Deno.serve(async (request) => {
       );
       const anexo = rows[0];
       if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
-      const podeComoFinanceiro = isFinanceiro(moduleRole);
-      const podeComoDono =
-        String(anexo.solicitante_id) === String(collaborator!.id) &&
-        (anexo.solicitacao_status === 'pendente' || anexo.pendencia_bloqueio === true);
+      const dentroDaJanela = anexo.solicitacao_status === 'pendente' || anexo.pendencia_bloqueio === true;
+      const podeComoFinanceiro = isFinanceiro(moduleRole) && dentroDaJanela;
+      const podeComoDono = String(anexo.solicitante_id) === String(collaborator!.id) && dentroDaJanela;
       if (!podeComoFinanceiro && !podeComoDono) {
         throw Object.assign(
-          new Error('Somente o solicitante (enquanto pendente) ou o financeiro podem remover anexos.'),
+          new Error('Anexos só podem ser removidos enquanto a solicitação estiver pendente.'),
           { status: 403 },
         );
       }

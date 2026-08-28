@@ -177,9 +177,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const isDonoSolicitacao = Boolean(user?.id) && String(solicitacao?.solicitante_id) === String(user?.id);
   const isAprovadorDestino = Boolean(user?.id) && String(solicitacao?.aprovador_destino_id) === String(user?.id);
   const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
-  const podeRemoverAnexo =
-    Boolean(user?.isFinanceiro) ||
-    (isDonoSolicitacao && (solicitacao?.status === 'pendente' || solicitacao?.pendencia_bloqueio === true));
+  const dentroDaJanelaRemocao = solicitacao?.status === 'pendente' || solicitacao?.pendencia_bloqueio === true;
+  const podeRemoverAnexo = (Boolean(user?.isFinanceiro) || isDonoSolicitacao) && dentroDaJanelaRemocao;
   const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino;
 
   const solicitacaoId = solicitacao?.id;
