@@ -10,10 +10,14 @@ vi.mock('@/lib/AuthContext', () => ({
   useAuth: () => useAuthMock(),
 }));
 
-vi.mock('@/lib/theme', () => ({
-  applyTheme: (theme) => applyThemeMock(theme),
-  getInitialTheme: () => getInitialThemeMock(),
-}));
+vi.mock('@macom/ui', async () => {
+  const actual = await vi.importActual('@macom/ui');
+  return {
+    ...actual,
+    applyTheme: (theme) => applyThemeMock(theme),
+    getInitialTheme: () => getInitialThemeMock(),
+  };
+});
 
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';

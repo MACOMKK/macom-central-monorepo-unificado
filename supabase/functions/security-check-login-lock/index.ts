@@ -14,6 +14,7 @@
 // sucesso (evento = 'login_sucesso') ou dos ultimos 30 minutos, o que for mais recente -- mesmos
 // limiares do hook nativo (nao usado ainda): 5 -> 1min, 10 -> 5min, 15 -> 30min, 20+ -> 1h.
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { loginTelemetryBodySchema } from '../_shared/validation.ts';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 
 const JANELA_MINUTOS = 30;
@@ -45,8 +46,9 @@ Deno.serve(async (request) => {
 
   let sql;
   try {
-    const body = await request.json().catch(() => ({}));
-    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase().slice(0, 320) : '';
+    const rawBody = await request.json().catch(() => ({}));
+    const body = loginTelemetryBodySchema.parse(rawBody);
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 320) : '';
     if (!email) return respondNaoTravado();
 
     sql = postgres(databaseUrl, { prepare: false, max: 2, idle_timeout: 5, connect_timeout: 10 });

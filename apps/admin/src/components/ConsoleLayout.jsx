@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
-import { Button, Spinner } from '@macom/ui';
+import { applyTheme, Button, getInitialTheme, Spinner, ThemeToggleButton } from '@macom/ui';
 import { useAuth } from '@macom/auth';
 
 const ContentLoader = () => (
@@ -59,6 +59,21 @@ function ConsoleNavLink({ item, onClick }) {
 export default function ConsoleLayout() {
   const navigate = useNavigate();
   const { logout, profile } = useAuth();
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    const initial = getInitialTheme();
+    setTheme(initial);
+    applyTheme(initial);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -84,7 +99,8 @@ export default function ConsoleLayout() {
             <p className="truncate text-sm font-semibold">{profile?.nome || profile?.email || 'Usuario autenticado'}</p>
             <p className="truncate text-xs text-muted-foreground">{profile?.funcao || 'perfil ativo'}</p>
           </div>
-          <Button type="button" variant="outline" className="w-full justify-start" onClick={handleLogout}>
+          <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
+          <Button type="button" variant="outline" className="mt-2 w-full justify-start" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
             Sair
           </Button>
@@ -98,6 +114,9 @@ export default function ConsoleLayout() {
               <ConsoleNavLink key={item.path} item={item} />
             ))}
           </nav>
+          <div className="shrink-0 [&>button]:w-auto">
+            <ThemeToggleButton theme={theme} onToggle={toggleTheme} collapsed />
+          </div>
           <Button type="button" variant="outline" size="icon" onClick={handleLogout} title="Sair" className="shrink-0">
             <LogOut className="h-4 w-4" />
           </Button>

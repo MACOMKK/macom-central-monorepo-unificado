@@ -43,6 +43,8 @@ config compartilhado (`packages/config/tailwind/base.cjs`) para não afetar outr
 
 - App intencionalmente "flat": `pages/` sem subpastas por domínio. Só reorganizar em
   subpastas se o número de páginas crescer bastante — hoje (9 páginas) não compensa.
-- Sem dark mode (diferente da Central). Não implementar sem pedido explícito.
+- Dark mode implementado (2026-08) usando o `ThemeToggleButton`/`getInitialTheme`/`applyTheme`
+  compartilhados de `@macom/ui`, mesmo padrão da Central. Tokens `--success`/`--warning`/`--info`
+  locais têm variantes `.dark` próprias em `src/index.css`.
 - Textos em português sem acentuação em identificadores/rótulos de rota — convenção
   existente no app, manter ao adicionar rotas/labels novos.

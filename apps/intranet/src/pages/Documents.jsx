@@ -18,6 +18,7 @@ import {
   X,
   Pencil,
 } from 'lucide-react';
+import { sanitizeUrl } from '@/lib/utils';
 import {
   Alert,
   AlertDescription,
@@ -729,7 +730,7 @@ export default function Documents() {
                         </Button>
                       )}
                       {document.file_url && (
-                        <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+                        <a href={sanitizeUrl(document.file_url)} target="_blank" rel="noopener noreferrer">
                           <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
                             <Download className="h-4 w-4" />
                           </Button>
@@ -809,7 +810,7 @@ export default function Documents() {
                         Este tipo de arquivo não possui visualização interna no momento.
                       </p>
                       {previewDocument.file_url && (
-                        <a href={previewDocument.file_url} target="_blank" rel="noopener noreferrer">
+                        <a href={sanitizeUrl(previewDocument.file_url)} target="_blank" rel="noopener noreferrer">
                           <Button className="gap-2">
                             <Download className="h-4 w-4" />
                             Baixar arquivo

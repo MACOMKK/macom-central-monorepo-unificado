@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Archive, BriefcaseBusiness, Building2, FileText, Home, Landmark, Laptop, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Sun, Users, X } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, FileText, Home, Landmark, Laptop, LogOut, Network, PanelLeftClose, PanelLeftOpen, Phone, Smartphone, Users, X } from 'lucide-react';
+import { ThemeToggleButton } from '@macom/ui';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -127,16 +128,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
         </nav>
 
         <div className="space-y-2 border-t border-border p-3">
-          <Button
-            variant="outline"
-            onClick={toggleTheme}
-            title={collapsed ? (theme === 'dark' ? 'Modo Claro' : 'Modo Escuro') : undefined}
-            aria-label={collapsed ? (theme === 'dark' ? 'Modo Claro' : 'Modo Escuro') : undefined}
-            className={`w-full gap-2 ${collapsed ? 'justify-center px-0' : ''}`}
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!collapsed ? <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span> : null}
-          </Button>
+          <ThemeToggleButton theme={theme} onToggle={toggleTheme} collapsed={collapsed} />
           <Button
             variant="outline"
             onClick={handleLogout}

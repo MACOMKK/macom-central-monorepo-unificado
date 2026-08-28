@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Download, Hash, LogOut, Plus, Search, X } from 'lucide-react';
-import { Avatar, AvatarFallback, Button } from '@macom/ui';
+import { Avatar, AvatarFallback, Button, ThemeToggleButton } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { useCanais } from '@/hooks/useCanais';
 import { useConversas } from '@/hooks/useConversas';
@@ -21,7 +21,7 @@ function getInitials(nome) {
     .join('');
 }
 
-export default function ChannelSidebar({ isOpen, onClose }) {
+export default function ChannelSidebar({ isOpen, onClose, theme, toggleTheme }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { data: canais = [], isLoading, joinCanal, isJoining } = useCanais();
@@ -234,6 +234,9 @@ export default function ChannelSidebar({ isOpen, onClose }) {
               <Download className="h-4 w-4" />
             </Button>
           ) : null}
+          <div className="[&>button]:h-9 [&>button]:w-9 [&>button]:border-0 [&>button]:p-0">
+            <ThemeToggleButton theme={theme} onToggle={toggleTheme} collapsed />
+          </div>
           <Button variant="ghost" size="icon" onClick={logout} aria-label="Sair">
             <LogOut className="h-4 w-4" />
           </Button>

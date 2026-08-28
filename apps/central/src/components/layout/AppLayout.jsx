@@ -1,11 +1,10 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { Spinner } from '@macom/ui';
+import { Spinner, applyTheme, getInitialTheme } from '@macom/ui';
 
 import Sidebar from '@/components/layout/Sidebar';
 import { Button } from '@/components/ui/button';
-import { applyTheme, getInitialTheme } from '@/lib/theme';
 
 function PageContentFallback() {
   return (

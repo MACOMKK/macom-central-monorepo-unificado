@@ -13,6 +13,7 @@
 // ser criada (supabase.auth.getUser()), validado contra o proprio Supabase Auth.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { loginTelemetryBodySchema } from '../_shared/validation.ts';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 
 function normalizeForwardedIp(value: string | null) {
@@ -68,8 +69,9 @@ Deno.serve(async (request) => {
     // Sem sessao valida = nao houve login bem-sucedido nenhum para registrar.
     if (!user?.email) return respondOk();
 
-    const body = await request.json().catch(() => ({}));
-    const sistemaSlug = typeof body?.sistema_slug === 'string' ? body.sistema_slug.trim().slice(0, 60) : '';
+    const rawBody = await request.json().catch(() => ({}));
+    const body = loginTelemetryBodySchema.parse(rawBody);
+    const sistemaSlug = typeof body.sistema_slug === 'string' ? body.sistema_slug.trim().slice(0, 60) : '';
     if (!sistemaSlug) return respondOk();
 
     sql = postgres(databaseUrl, { prepare: false, max: 2, idle_timeout: 5, connect_timeout: 10 });

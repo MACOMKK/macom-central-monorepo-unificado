@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
+import { applyTheme, getInitialTheme } from '@macom/ui';
 
 import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
@@ -9,11 +10,26 @@ import Sidebar from '@/components/layout/Sidebar';
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState('light');
 
   useEffect(() => {
     const saved = window.localStorage.getItem('servicos:sidebar-collapsed');
     setCollapsed(saved === 'true');
   }, []);
+
+  useEffect(() => {
+    const initial = getInitialTheme();
+    setTheme(initial);
+    applyTheme(initial);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      return next;
+    });
+  };
 
   const handleToggleSidebar = () => {
     setCollapsed((current) => {
@@ -30,6 +46,8 @@ export default function AppLayout() {
         onToggle={handleToggleSidebar}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       <BottomNav onOpenMore={() => setMobileOpen(true)} />

@@ -388,6 +388,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# intranet-api precisa aceitar o callback GET do OAuth do Google Calendar
+# (redirect direto do Google, sem Authorization header). A funcao valida
+# o JWT manualmente no proprio codigo para as demais rotas (POST).
+[functions.intranet-api]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { adminCreateUserBodySchema } from '../_shared/validation.ts';
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -320,7 +321,16 @@ Deno.serve(async (request) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const body = await request.json().catch(() => ({}));
+    const rawBody = await request.json().catch(() => ({}));
+    const parsedBody = adminCreateUserBodySchema.safeParse(rawBody);
+
+    if (!parsedBody.success) {
+      const issue = parsedBody.error.issues[0];
+      const field = issue?.path?.join('.') || 'payload';
+      return json({ error: `Campo invalido: ${field}.` }, 400);
+    }
+
+    const body = parsedBody.data;
     const action = String(body.action || 'create');
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Globe, Wrench, Building, MessageSquare, DollarSign, Users, Link2 } from 'lucide-react';
 import { appClient } from '@/api/client';
 import { Skeleton } from '@macom/ui';
+import { sanitizeUrl } from '@/lib/utils';
 
 const categoryConfig = {
   sistema: { icon: Globe, iconBg: 'bg-blue-100', iconColor: 'text-blue-500' },
@@ -99,7 +100,7 @@ export default function QuickAccessGrid() {
             return (
               <a
                 key={item.id}
-                href={item.url}
+                href={sanitizeUrl(item.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex min-h-[124px] flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/20 hover:shadow-md sm:min-h-0"

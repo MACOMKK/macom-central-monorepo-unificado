@@ -6,6 +6,7 @@ import { Share2 } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@macom/ui';
 
 import AnnouncementDocumentReference from './AnnouncementDocumentReference';
+import { sanitizeUrl } from '@/lib/utils';
 
 const categoryLabels = {
   geral: 'Geral',
@@ -97,7 +98,7 @@ export default function AnnouncementDetailsDialog({ announcement, open, onOpenCh
             <div className="flex flex-wrap gap-2">
               {announcement.links.map((link) => (
                 <Button key={link.id || link.url} asChild className="w-full sm:w-auto">
-                  <a href={link.url} target="_blank" rel="noopener noreferrer">
+                  <a href={sanitizeUrl(link.url)} target="_blank" rel="noopener noreferrer">
                     {link.label || 'Saiba mais'}
                   </a>
                 </Button>

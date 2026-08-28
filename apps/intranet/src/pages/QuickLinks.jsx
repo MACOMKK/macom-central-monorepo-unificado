@@ -18,6 +18,7 @@ import {
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Skeleton } from '@macom/ui';
 import QuickLinkForm from '../components/links/QuickLinkForm';
 import { usePermissions } from '@/lib/usePermissions';
+import { sanitizeUrl } from '@/lib/utils';
 import ConfirmDeleteDialog from '../components/ConfirmDeleteDialog';
 import Pagination, { usePaginatedItems } from '../components/Pagination';
 
@@ -392,7 +393,7 @@ export default function QuickLinks() {
                       </div>
                     </div>
 
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex flex-1 flex-col">
+                    <a href={sanitizeUrl(link.url)} target="_blank" rel="noopener noreferrer" className="flex flex-1 flex-col">
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="text-base font-semibold text-slate-800 transition-colors group-hover:text-[#0B1B3D]">
                           {link.name}
@@ -407,7 +408,7 @@ export default function QuickLinks() {
                   </div>
                 ) : (
                   <a
-                    href={link.url}
+                    href={sanitizeUrl(link.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex h-full w-full flex-col p-5"

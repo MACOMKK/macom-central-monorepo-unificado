@@ -6,6 +6,7 @@
 // Alimenta gestao_plataforma.logs_acesso (evento = 'login_falha'), consumido pelo cron
 // security-alerta-picos-login para detectar picos de tentativas.
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { loginTelemetryBodySchema } from '../_shared/validation.ts';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 
 function normalizeForwardedIp(value: string | null) {
@@ -51,9 +52,10 @@ Deno.serve(async (request) => {
 
   let sql;
   try {
-    const body = await request.json().catch(() => ({}));
-    const email = typeof body?.email === 'string' ? body.email.trim().slice(0, 320) : '';
-    const sistemaSlug = typeof body?.sistema_slug === 'string' ? body.sistema_slug.trim().slice(0, 60) : '';
+    const rawBody = await request.json().catch(() => ({}));
+    const body = loginTelemetryBodySchema.parse(rawBody);
+    const email = typeof body.email === 'string' ? body.email.trim().slice(0, 320) : '';
+    const sistemaSlug = typeof body.sistema_slug === 'string' ? body.sistema_slug.trim().slice(0, 60) : '';
     if (!email || !sistemaSlug) return respondOk();
 
     sql = postgres(databaseUrl, { prepare: false, max: 2, idle_timeout: 5, connect_timeout: 10 });

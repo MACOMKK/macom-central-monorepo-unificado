@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Lock, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-react';
 
-import { Button } from '@macom/ui';
+import { Button, ThemeToggleButton } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { appVersion } from '@/lib/buildInfo';
 import { servicosModules } from '@/lib/navigation';
@@ -106,7 +106,7 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
   );
 }
 
-export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen }) {
+export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen, theme, toggleTheme }) {
   const { user } = useAuth();
   const closeMobile = () => setMobileOpen(false);
 
@@ -178,6 +178,10 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
             </div>
           )}
         </nav>
+
+        <div className="border-t border-border p-3">
+          <ThemeToggleButton theme={theme} onToggle={toggleTheme} collapsed={collapsed} />
+        </div>
       </aside>
     </>
   );

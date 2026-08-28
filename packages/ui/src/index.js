@@ -23,6 +23,8 @@ export * from './switch';
 export * from './table';
 export * from './tabs';
 export * from './textarea';
+export * from './theme';
+export * from './theme-toggle-button';
 export * from './toast';
 export * from './toaster';
 export * from './tooltip';

@@ -2015,9 +2015,12 @@ async function getGoogleCalendarIntegration(collaboratorId: string | null) {
   if (!collaboratorId) return null;
   const rows = await runSql<Record<string, unknown>>(
     `
-      select id, colaborador_id, google_email, refresh_token, escopos, conectado_em, atualizado_em
-      from gestao_intranet.integracoes_google_calendar
-      where colaborador_id = $1::uuid
+      select
+        i.id, i.colaborador_id, i.google_email, i.escopos, i.conectado_em, i.atualizado_em,
+        s.decrypted_secret as refresh_token
+      from gestao_intranet.integracoes_google_calendar i
+      left join vault.decrypted_secrets s on s.id = i.refresh_token_secret_id
+      where i.colaborador_id = $1::uuid
       limit 1;
     `,
     [collaboratorId],
@@ -2143,18 +2146,46 @@ async function handleGoogleOAuthCallback(request: Request) {
     const googleEmail = accessToken ? await fetchGoogleUserEmail(accessToken) : null;
     const scopes = String(tokenPayload.scope || GOOGLE_CALENDAR_SCOPE).split(/\s+/).filter(Boolean);
 
+    const existingRows = await runSql<Record<string, unknown>>(
+      `
+        select refresh_token_secret_id
+        from gestao_intranet.integracoes_google_calendar
+        where colaborador_id = $1::uuid
+        limit 1;
+      `,
+      [stateRow.colaborador_id],
+    );
+    const existingSecretId = existingRows[0]?.refresh_token_secret_id as string | undefined;
+
+    let secretId: string;
+    if (existingSecretId) {
+      await runSql('select vault.update_secret($1::uuid, $2);', [existingSecretId, refreshToken]);
+      secretId = existingSecretId;
+    } else {
+      const secretRows = await runSql<Record<string, unknown>>(
+        `
+          select vault.create_secret(
+            $1,
+            'google_calendar_refresh_token:' || $2::text
+          ) as id;
+        `,
+        [refreshToken, stateRow.colaborador_id],
+      );
+      secretId = String(secretRows[0]?.id);
+    }
+
     await runSql(
       `
         insert into gestao_intranet.integracoes_google_calendar (
-          colaborador_id, google_email, refresh_token, escopos, conectado_em, atualizado_em
-        ) values ($1::uuid, $2, $3, $4::text[], now(), now())
+          colaborador_id, google_email, refresh_token_secret_id, escopos, conectado_em, atualizado_em
+        ) values ($1::uuid, $2, $3::uuid, $4::text[], now(), now())
         on conflict (colaborador_id) do update set
           google_email = excluded.google_email,
-          refresh_token = excluded.refresh_token,
+          refresh_token_secret_id = excluded.refresh_token_secret_id,
           escopos = excluded.escopos,
           atualizado_em = now();
       `,
-      [stateRow.colaborador_id, googleEmail, refreshToken, scopes],
+      [stateRow.colaborador_id, googleEmail, secretId, scopes],
     );
 
     return new Response(null, {
@@ -2171,10 +2202,20 @@ async function handleGoogleOAuthCallback(request: Request) {
 
 async function disconnectGoogleCalendar(collaboratorId: string | null) {
   if (!collaboratorId) throw new Error('Colaborador nao encontrado.');
-  await runSql(
-    'delete from gestao_intranet.integracoes_google_calendar where colaborador_id = $1::uuid;',
+
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      delete from gestao_intranet.integracoes_google_calendar
+      where colaborador_id = $1::uuid
+      returning refresh_token_secret_id;
+    `,
     [collaboratorId],
   );
+  const secretId = rows[0]?.refresh_token_secret_id as string | undefined;
+  if (secretId) {
+    await runSql('delete from vault.secrets where id = $1::uuid;', [secretId]);
+  }
+
   return { success: true };
 }
 
