@@ -425,6 +425,12 @@ export const marcarTesteBodySchema = z.object({
   eh_teste: z.boolean().nullish(),
 });
 
+export const setStatusBodySchema = z.object({
+  id: z.string().nullish(),
+  status: z.string().nullish(),
+  observacao_analise: z.string().nullish(),
+});
+
 export const entitySchemas = {
   colaboradores: colaboradorFullFieldsSchema,
   ativos: ativosFieldsSchema,

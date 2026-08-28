@@ -19,6 +19,7 @@ import {
   reenviarSolicitacaoBodySchema,
   deletarSolicitacaoBodySchema,
   marcarTesteBodySchema,
+  setStatusBodySchema,
 } from '../_shared/validation.ts';
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
@@ -1925,9 +1926,15 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'set_status') {
-      const id = String(body.id || '');
-      const status = String(body.status || '');
-      const observacao = body.observacao_analise ? String(body.observacao_analise) : null;
+      const parsedSetStatus = setStatusBodySchema.safeParse(body);
+      if (!parsedSetStatus.success) {
+        const issue = parsedSetStatus.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedSetStatus.data.id || '');
+      const status = String(parsedSetStatus.data.status || '');
+      const observacao = parsedSetStatus.data.observacao_analise ? String(parsedSetStatus.data.observacao_analise) : null;
 
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
       if (!['aprovado', 'reprovado', 'pago'].includes(status)) {

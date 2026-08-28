@@ -454,6 +454,29 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
           </SheetTitle>
         </SheetHeader>
 
+        {solicitacao && isDonoSolicitacao && user?.system_access_level === 'admin' && (
+          <div className="mt-4 flex items-center justify-between gap-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
+            <label
+              htmlFor="solicitacao-eh-teste"
+              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Checkbox
+                id="solicitacao-eh-teste"
+                checked={Boolean(solicitacao.eh_teste)}
+                onCheckedChange={(checked) => marcarTesteMutation.mutate(checked === true)}
+                disabled={marcarTesteMutation.isPending}
+              />
+              Solicitação de teste (pode ser excluída)
+            </label>
+            {solicitacao.eh_teste && (
+              <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
+              </Button>
+            )}
+          </div>
+        )}
+
         {solicitacao && (
           <div className="mt-4 flex-1 space-y-4">
             <Tabs defaultValue="detalhes">
@@ -867,29 +890,6 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                 )}
               </TabsContent>
             </Tabs>
-          </div>
-        )}
-
-        {solicitacao && isDonoSolicitacao && user?.system_access_level === 'admin' && (
-          <div className="mt-4 flex items-center justify-between gap-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
-            <label
-              htmlFor="solicitacao-eh-teste"
-              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-            >
-              <Checkbox
-                id="solicitacao-eh-teste"
-                checked={Boolean(solicitacao.eh_teste)}
-                onCheckedChange={(checked) => marcarTesteMutation.mutate(checked === true)}
-                disabled={marcarTesteMutation.isPending}
-              />
-              Solicitação de teste (pode ser excluída)
-            </label>
-            {solicitacao.eh_teste && (
-              <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Excluir
-              </Button>
-            )}
           </div>
         )}
 
