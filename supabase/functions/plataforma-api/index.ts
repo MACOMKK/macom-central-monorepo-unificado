@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { coreDispatcherBodySchema } from '../_shared/validation.ts';
 
 const databaseUrl = Deno.env.get('DATABASE_URL');
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -910,8 +911,17 @@ Deno.serve(async (request) => {
       email: user.email ?? null,
     });
 
-    const body = await request.json().catch(() => ({}));
-    const { action, entity } = body || {};
+    const rawBody = await request.json().catch(() => ({}));
+    const parsedBody = coreDispatcherBodySchema.safeParse(rawBody);
+
+    if (!parsedBody.success) {
+      const issue = parsedBody.error.issues[0];
+      const field = issue?.path?.join('.') || 'payload';
+      return json({ error: `Campo invalido: ${field}.` }, 400);
+    }
+
+    const body = parsedBody.data;
+    const { action, entity } = body;
 
     const centralAccessTier = await resolveCentralAccessTier(collaborator as Record<string, unknown> | null);
 
@@ -1021,7 +1031,7 @@ Deno.serve(async (request) => {
       );
     }
 
-    if (action !== 'list' || !(entity in ENTITY_CONFIG)) {
+    if (action !== 'list' || !entity || !(entity in ENTITY_CONFIG)) {
       return json({ error: 'Acao ou entidade invalida.' }, 400);
     }
 

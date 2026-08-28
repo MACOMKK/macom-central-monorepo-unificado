@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { coreDispatcherBodySchema, entitySchemas, colaboradorReportsFieldsSchema } from '../_shared/validation.ts';
 
 const ENTITY_CONFIG = {
   departamentos: {
@@ -1494,12 +1495,21 @@ Deno.serve(async (request) => {
       return json({ error: 'Nao autenticado.' }, 401);
     }
 
-    const body = await request.json().catch(() => ({}));
+    const rawBody = await request.json().catch(() => ({}));
+    const parsedBody = coreDispatcherBodySchema.safeParse(rawBody);
+
+    if (!parsedBody.success) {
+      const issue = parsedBody.error.issues[0];
+      const field = issue?.path?.join('.') || 'payload';
+      return json({ error: `Campo invalido: ${field}.` }, 400);
+    }
+
+    const body = parsedBody.data;
     const action = body.action;
     const entity = body.entity as keyof typeof ENTITY_CONFIG;
-    const id = body.id as string | undefined;
-    const payload = body.payload as Record<string, unknown> | undefined;
-    const filters = body.filters as Record<string, unknown> | undefined;
+    const id = body.id ?? undefined;
+    const payload = body.payload ?? undefined;
+    const filters = body.filters ?? undefined;
     const appContext = typeof body.app_context === 'string' ? body.app_context : '';
     const isCentralContext = appContext === 'central';
 
@@ -2201,6 +2211,11 @@ Deno.serve(async (request) => {
         const normalized = normalizeCollaboradoresPayload(restrictedPayload);
         validateColaboradoresDocumentFields(normalized);
         await validateColaboradoresUniqueFields(normalized, id);
+        const parsedReportsEntity = colaboradorReportsFieldsSchema.safeParse(normalized);
+        if (!parsedReportsEntity.success) {
+          const issue = parsedReportsEntity.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'colaboradores'}.` }, 400);
+        }
         const query = buildUpdateQuery('public', 'colaboradores', id, normalized);
         const rows = await sql.unsafe(query.text, query.values);
         return json({ row: rows[0] || null });
@@ -2396,17 +2411,42 @@ Deno.serve(async (request) => {
       if (!Object.keys(normalized).length) {
         return json({ error: 'Payload vazio.' }, 400);
       }
+      if (
+        !['colaboradores', 'ativos', 'linhas_corporativas', 'contatos'].includes(entity) &&
+        entity in entitySchemas
+      ) {
+        const parsedGeneric = entitySchemas[entity as keyof typeof entitySchemas].safeParse(normalized);
+        if (!parsedGeneric.success) {
+          const issue = parsedGeneric.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || entity}.` }, 400);
+        }
+      }
       if (entity === 'ativos') {
         validateAtivosPayload(normalized, true);
+        const parsedAtivos = entitySchemas.ativos.safeParse(normalized);
+        if (!parsedAtivos.success) {
+          const issue = parsedAtivos.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'ativos'}.` }, 400);
+        }
       }
       if (entity === 'infra_estrutura') {
         validateInfraEstruturaPayload(normalized, true);
       }
       if (entity === 'linhas_corporativas') {
         validateLinhasCorporativasPayload(normalized, true);
+        const parsedLinhas = entitySchemas.linhas_corporativas.safeParse(normalized);
+        if (!parsedLinhas.success) {
+          const issue = parsedLinhas.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'linhas_corporativas'}.` }, 400);
+        }
       }
       if (entity === 'contatos') {
         validateContatosPayload(normalized, true);
+        const parsedContatos = entitySchemas.contatos.safeParse(normalized);
+        if (!parsedContatos.success) {
+          const issue = parsedContatos.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'contatos'}.` }, 400);
+        }
       }
       if (entity === 'colaboradores') {
         if (!isGlobalAdmin && normalized.funcao && normalized.funcao !== 'usuario') {
@@ -2414,6 +2454,11 @@ Deno.serve(async (request) => {
         }
         validateColaboradoresDocumentFields(normalized);
         await validateColaboradoresUniqueFields(normalized);
+        const parsedEntity = entitySchemas.colaboradores.safeParse(normalized);
+        if (!parsedEntity.success) {
+          const issue = parsedEntity.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'colaboradores'}.` }, 400);
+        }
       }
       const query = buildInsertQuery(schema, table, normalized);
       const rows = await sql.unsafe(query.text, query.values);
@@ -2509,20 +2554,45 @@ Deno.serve(async (request) => {
       if (!Object.keys(normalized).length) {
         return json({ error: 'Nenhum campo para atualizar.' }, 400);
       }
+      if (
+        !['colaboradores', 'ativos', 'linhas_corporativas', 'contatos'].includes(entity) &&
+        entity in entitySchemas
+      ) {
+        const parsedGeneric = entitySchemas[entity as keyof typeof entitySchemas].safeParse(normalized);
+        if (!parsedGeneric.success) {
+          const issue = parsedGeneric.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || entity}.` }, 400);
+        }
+      }
       if (entity === 'acessos_usuario_sistema' && !isGlobalAdmin && normalized.nivel_acesso === 'admin') {
         return json({ error: 'Apenas administradores podem liberar acesso admin aos sistemas.' }, 403);
       }
       if (entity === 'ativos') {
         validateAtivosPayload(normalized);
+        const parsedAtivos = entitySchemas.ativos.safeParse(normalized);
+        if (!parsedAtivos.success) {
+          const issue = parsedAtivos.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'ativos'}.` }, 400);
+        }
       }
       if (entity === 'infra_estrutura') {
         validateInfraEstruturaPayload(normalized);
       }
       if (entity === 'linhas_corporativas') {
         validateLinhasCorporativasPayload(normalized);
+        const parsedLinhas = entitySchemas.linhas_corporativas.safeParse(normalized);
+        if (!parsedLinhas.success) {
+          const issue = parsedLinhas.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'linhas_corporativas'}.` }, 400);
+        }
       }
       if (entity === 'contatos') {
         validateContatosPayload(normalized);
+        const parsedContatos = entitySchemas.contatos.safeParse(normalized);
+        if (!parsedContatos.success) {
+          const issue = parsedContatos.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'contatos'}.` }, 400);
+        }
       }
       if (entity === 'colaboradores') {
         if (
@@ -2543,6 +2613,11 @@ Deno.serve(async (request) => {
         }
         validateColaboradoresDocumentFields(normalized);
         await validateColaboradoresUniqueFields(normalized, id);
+        const parsedEntity = entitySchemas.colaboradores.safeParse(normalized);
+        if (!parsedEntity.success) {
+          const issue = parsedEntity.error.issues[0];
+          return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'colaboradores'}.` }, 400);
+        }
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
       const rows = await sql.unsafe(query.text, query.values);

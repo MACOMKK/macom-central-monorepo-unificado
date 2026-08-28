@@ -2,6 +2,19 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { sendPushToColaborador } from '../_shared/push.ts';
+import {
+  criarFornecedorBodySchema,
+  atualizarFornecedorBodySchema,
+  criarCategoriaBodySchema,
+  atualizarCategoriaBodySchema,
+  setPermissaoBodySchema,
+  marcarPendenciaBodySchema,
+  liberarPendenciaBodySchema,
+  atualizarConfiguracaoModuloBodySchema,
+  registrarAnexoBodySchema,
+  criarParcelasBodySchema,
+  registrarPagamentoParcelaBodySchema,
+} from '../_shared/validation.ts';
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
 const SERVICOS_SYSTEM_SLUG = 'servicos';
@@ -832,7 +845,13 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro pode alterar configuracoes do modulo.'), { status: 403 });
       }
 
-      const restringir = Boolean(body.restringir_visibilidade_pagamento_dinheiro);
+      const parsedConfig = atualizarConfiguracaoModuloBodySchema.safeParse(body);
+      if (!parsedConfig.success) {
+        const issue = parsedConfig.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const restringir = Boolean(parsedConfig.data.restringir_visibilidade_pagamento_dinheiro);
       const rows = await sql.unsafe(
         `
           insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_por, atualizado_em)
@@ -896,9 +915,16 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
       }
 
-      const nome = String(body.nome || '').trim();
+      const parsedFornecedor = criarFornecedorBodySchema.safeParse(body);
+      if (!parsedFornecedor.success) {
+        const issue = parsedFornecedor.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const fornecedorBody = parsedFornecedor.data;
+
+      const nome = String(fornecedorBody.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
-      const dados = extrairDadosFornecedor(body);
+      const dados = extrairDadosFornecedor(fornecedorBody);
 
       const existing = await sql.unsafe(
         `select id, nome, ativo, criado_em, atualizado_em from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) limit 1;`,
@@ -929,13 +955,20 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
       }
 
-      const id = String(body.id || '');
+      const parsedFornecedor = atualizarFornecedorBodySchema.safeParse(body);
+      if (!parsedFornecedor.success) {
+        const issue = parsedFornecedor.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const fornecedorBody = parsedFornecedor.data;
+
+      const id = String(fornecedorBody.id || '');
       if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
 
-      const nome = String(body.nome || '').trim();
+      const nome = String(fornecedorBody.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome do fornecedor.'), { status: 400 });
-      const ativo = Boolean(body.ativo);
-      const dados = extrairDadosFornecedor(body);
+      const ativo = Boolean(fornecedorBody.ativo);
+      const dados = extrairDadosFornecedor(fornecedorBody);
 
       const duplicated = await sql.unsafe(
         `select id from ${SERVICOS_SCHEMA}.fornecedores where lower(nome) = lower($1) and id <> $2 limit 1;`,
@@ -1016,7 +1049,13 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro pode cadastrar categorias.'), { status: 403 });
       }
 
-      const nome = String(body.nome || '').trim();
+      const parsedCategoria = criarCategoriaBodySchema.safeParse(body);
+      if (!parsedCategoria.success) {
+        const issue = parsedCategoria.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const nome = String(parsedCategoria.data.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome da categoria.'), { status: 400 });
 
       const existing = await sql.unsafe(
@@ -1037,12 +1076,18 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro pode gerenciar categorias.'), { status: 403 });
       }
 
-      const id = String(body.id || '');
+      const parsedCategoria = atualizarCategoriaBodySchema.safeParse(body);
+      if (!parsedCategoria.success) {
+        const issue = parsedCategoria.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedCategoria.data.id || '');
       if (!id) throw Object.assign(new Error('ID obrigatorio.'), { status: 400 });
 
-      const nome = String(body.nome || '').trim();
+      const nome = String(parsedCategoria.data.nome || '').trim();
       if (!nome) throw Object.assign(new Error('Informe o nome da categoria.'), { status: 400 });
-      const ativo = Boolean(body.ativo);
+      const ativo = Boolean(parsedCategoria.data.ativo);
 
       const duplicated = await sql.unsafe(
         `select id from ${SERVICOS_SCHEMA}.categorias where lower(nome) = lower($1) and id <> $2 limit 1;`,
@@ -1171,9 +1216,15 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas administradores podem gerenciar permissoes.'), { status: 403 });
       }
 
-      const colaboradorId = String(body.colaborador_id || '');
-      const modulo = String(body.modulo || '');
-      const papel = String(body.papel || '');
+      const parsedPermissao = setPermissaoBodySchema.safeParse(body);
+      if (!parsedPermissao.success) {
+        const issue = parsedPermissao.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const colaboradorId = String(parsedPermissao.data.colaborador_id || '');
+      const modulo = String(parsedPermissao.data.modulo || '');
+      const papel = String(parsedPermissao.data.papel || '');
 
       if (!colaboradorId) return json({ error: 'colaborador_id obrigatorio.' }, 400);
       const moduloConfig = SERVICOS_MODULOS_CONFIG[modulo as keyof typeof SERVICOS_MODULOS_CONFIG];
@@ -1861,8 +1912,14 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'marcar_pendencia') {
-      const id = String(body.id || '');
-      const motivo = String(body.motivo || '').trim();
+      const parsedPendencia = marcarPendenciaBodySchema.safeParse(body);
+      if (!parsedPendencia.success) {
+        const issue = parsedPendencia.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedPendencia.data.id || '');
+      const motivo = String(parsedPendencia.data.motivo || '').trim();
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
       if (!motivo) return json({ error: 'Informe o motivo da pendencia.' }, 400);
       if (!isPagador(moduleRole)) {
@@ -1894,8 +1951,14 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'liberar_pendencia') {
-      const id = String(body.id || '');
-      const observacao = body.observacao ? String(body.observacao) : null;
+      const parsedLiberar = liberarPendenciaBodySchema.safeParse(body);
+      if (!parsedLiberar.success) {
+        const issue = parsedLiberar.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedLiberar.data.id || '');
+      const observacao = parsedLiberar.data.observacao ? String(parsedLiberar.data.observacao) : null;
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
       if (!isPagador(moduleRole)) {
         throw Object.assign(new Error('Apenas financeiro ou contas a pagar podem liberar pendencia.'), { status: 403 });
@@ -1955,14 +2018,21 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'registrar_anexo') {
-      const solicitacaoId = String(body.solicitacao_id || '');
-      const categoria = String(body.categoria || '');
-      const tipoDocumento = String(body.tipo_documento || '');
-      const nomeArquivo = String(body.nome_arquivo || '');
-      const tipoMime = String(body.tipo_mime || '');
-      const storagePath = String(body.storage_path || '');
-      const parcelaId = body.parcela_id ? String(body.parcela_id) : null;
-      const sigiloso = body.sigiloso === true;
+      const parsedAnexo = registrarAnexoBodySchema.safeParse(body);
+      if (!parsedAnexo.success) {
+        const issue = parsedAnexo.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const anexoBody = parsedAnexo.data;
+
+      const solicitacaoId = String(anexoBody.solicitacao_id || '');
+      const categoria = String(anexoBody.categoria || '');
+      const tipoDocumento = String(anexoBody.tipo_documento || '');
+      const nomeArquivo = String(anexoBody.nome_arquivo || '');
+      const tipoMime = String(anexoBody.tipo_mime || '');
+      const storagePath = String(anexoBody.storage_path || '');
+      const parcelaId = anexoBody.parcela_id ? String(anexoBody.parcela_id) : null;
+      const sigiloso = anexoBody.sigiloso === true;
 
       if (!solicitacaoId) return json({ error: 'solicitacao_id obrigatorio.' }, 400);
       if (!ANEXO_CATEGORIAS.includes(categoria as (typeof ANEXO_CATEGORIAS)[number])) {
@@ -1977,7 +2047,7 @@ Deno.serve(async (request) => {
       if (!nomeArquivo || !tipoMime || !storagePath) {
         return json({ error: 'Dados do anexo incompletos.' }, 400);
       }
-      validateComprovanteSize(body.tamanho_bytes);
+      validateComprovanteSize(anexoBody.tamanho_bytes);
 
       await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
       if (parcelaId) await ensureParcelaAccess(parcelaId, moduleRole, collaborator);
@@ -1989,7 +2059,7 @@ Deno.serve(async (request) => {
           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           returning *;
         `,
-        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(body.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso],
+        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(anexoBody.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso],
       );
 
       await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
@@ -2046,8 +2116,14 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro ou contas a pagar pode definir o plano de pagamento.'), { status: 403 });
       }
 
-      const solicitacaoId = String(body.solicitacao_id || '');
-      const parcelas = Array.isArray(body.parcelas) ? body.parcelas : [];
+      const parsedParcelas = criarParcelasBodySchema.safeParse(body);
+      if (!parsedParcelas.success) {
+        const issue = parsedParcelas.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const solicitacaoId = String(parsedParcelas.data.solicitacao_id || '');
+      const parcelas = Array.isArray(parsedParcelas.data.parcelas) ? parsedParcelas.data.parcelas : [];
       if (!solicitacaoId) return json({ error: 'solicitacao_id obrigatorio.' }, 400);
       if (!parcelas.length) return json({ error: 'Informe ao menos uma parcela.' }, 400);
 
@@ -2080,7 +2156,13 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Apenas o financeiro ou contas a pagar pode registrar pagamento de parcela.'), { status: 403 });
       }
 
-      const id = String(body.id || '');
+      const parsedPagamento = registrarPagamentoParcelaBodySchema.safeParse(body);
+      if (!parsedPagamento.success) {
+        const issue = parsedPagamento.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedPagamento.data.id || '');
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
       const parcela = await ensureParcelaAccess(id, moduleRole, collaborator);

@@ -41,3 +41,360 @@ export const adminCreateUserBodySchema = z.object({
   unidade_id: z.string().nullish(),
   empresa_id: z.string().nullish(),
 });
+
+// Body do dispatcher generico action+entity, compartilhado por plataforma-api, central-api e
+// relatorios-api (mesma "core" surface). `payload`/`filters` ficam como record generico aqui porque
+// cada handler ja faz sua propria sanitizacao campo a campo por tipo (sanitizeSystemAccessPayload,
+// sanitizeCollaboratorAccessPayload, sanitizePayload/ENTITY_CONFIG em central-api/relatorios-api) --
+// este schema so barra o formato geral do body (ex: payload/filters vindo como array ou string em vez
+// de objeto, ou action/entity/id vindo com tipo errado) antes de qualquer handler rodar. Em
+// central-api/relatorios-api isso substitui casts `as` sem checagem alguma em runtime (`entity as
+// keyof typeof ENTITY_CONFIG`, `payload as Record<string, unknown>`).
+export const coreDispatcherBodySchema = z.object({
+  action: z.string().nullish(),
+  entity: z.string().nullish(),
+  id: z.string().nullish(),
+  system_slug: z.string().nullish(),
+  app_context: z.string().nullish(),
+  password: z.string().nullish(),
+  email: z.string().nullish(),
+  reset_password: z.boolean().nullish(),
+  payload: z.record(z.unknown()).nullish(),
+  filters: z.record(z.unknown()).nullish(),
+  limit: z.union([z.number(), z.string()]).nullish(),
+  offset: z.union([z.number(), z.string()]).nullish(),
+});
+
+// Registry de schemas Zod por entidade (passo 3 parte 2 do item #14), usado nos fallbacks
+// genericos create/update de central-api/relatorios-api DEPOIS de sanitizePayload/ENTITY_CONFIG
+// (que ja filtra quais campos existem) -- aqui so valida o TIPO de cada campo restante antes do
+// insert/update, entidade por entidade, comecando por `colaboradores` (maior volume de escrita).
+// Reaproveita o mesmo shape de campos ja usado em adminCreateUserBodySchema (passo 2) via .pick(),
+// pra nao duplicar a definicao dos 12 campos de colaborador em dois lugares.
+export const colaboradorFullFieldsSchema = adminCreateUserBodySchema.pick({
+  nome: true,
+  email: true,
+  funcao: true,
+  cpf: true,
+  telefone: true,
+  departamento_id: true,
+  cargo_id: true,
+  cargo: true,
+  data_nascimento: true,
+  data_admissao: true,
+  status: true,
+  unidade_id: true,
+  empresa_id: true,
+});
+
+// Variante restrita usada no bloco reports-admin de relatorios-api/central-api (contexto de
+// gestao de relatorios, onde so nome/unidade_id do colaborador podem ser editados por ali).
+export const colaboradorReportsFieldsSchema = adminCreateUserBodySchema.pick({
+  nome: true,
+  unidade_id: true,
+});
+
+// `ativos` (ENTITY_CONFIG.allowedFields: nome, categoria, marca, modelo, numero_serie, patrimonio,
+// unidade_id, localizacao_interna, observacao, status, estado, usuario_id) -- todos string/uuid,
+// `status` e derivado server-side em normalizeAtivosPayload (nao vem do client), mas mantido aqui
+// pra nao rejeitar se algum caller antigo mandar.
+export const ativosFieldsSchema = z.object({
+  nome: z.string().nullish(),
+  categoria: z.string().nullish(),
+  marca: z.string().nullish(),
+  modelo: z.string().nullish(),
+  numero_serie: z.string().nullish(),
+  patrimonio: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+  localizacao_interna: z.string().nullish(),
+  observacao: z.string().nullish(),
+  status: z.string().nullish(),
+  estado: z.string().nullish(),
+  usuario_id: z.string().nullish(),
+});
+
+// `linhas_corporativas` (ENTITY_CONFIG.allowedFields: tipo, nome, numero, operadora, status,
+// unidade_id, colaborador_id, observacao) -- todos string/uuid.
+export const linhasCorporativasFieldsSchema = z.object({
+  tipo: z.string().nullish(),
+  nome: z.string().nullish(),
+  numero: z.string().nullish(),
+  operadora: z.string().nullish(),
+  status: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+  colaborador_id: z.string().nullish(),
+  observacao: z.string().nullish(),
+});
+
+// `contatos` (ENTITY_CONFIG.allowedFields: tipo, nome, identificador, nome_contato, telefone,
+// email, descricao, unidade_id) -- todos string/uuid.
+export const contatosFieldsSchema = z.object({
+  tipo: z.string().nullish(),
+  nome: z.string().nullish(),
+  identificador: z.string().nullish(),
+  nome_contato: z.string().nullish(),
+  telefone: z.string().nullish(),
+  email: z.string().nullish(),
+  descricao: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+});
+
+// Demais entidades do ENTITY_CONFIG (menor volume de escrita), tipos confirmados nas migrations
+// (supabase/migrations/) -- boolean/numeric/data onde a coluna real e boolean/integer/numeric/
+// timestamptz, nao string, pra nao rejeitar payload legitimo por tipo errado.
+export const unidadesFieldsSchema = z.object({
+  nome: z.string().nullish(),
+  cnpj: z.string().nullish(),
+  cidade: z.string().nullish(),
+  endereco: z.string().nullish(),
+  telefone: z.string().nullish(),
+  responsavel: z.string().nullish(),
+  ativo: z.boolean().nullish(),
+  empresa_id: z.string().nullish(),
+});
+
+export const infraEstruturaFieldsSchema = z.object({
+  tipo: z.string().nullish(),
+  nome: z.string().nullish(),
+  valor_identificador: z.string().nullish(),
+  descricao: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+});
+
+export const sistemasFieldsSchema = z.object({
+  slug: z.string().nullish(),
+  nome: z.string().nullish(),
+  descricao: z.string().nullish(),
+  ativo: z.boolean().nullish(),
+});
+
+export const contratosDocumentosFieldsSchema = z.object({
+  titulo: z.string().nullish(),
+  tipo: z.string().nullish(),
+  fornecedor: z.string().nullish(),
+  sistema_id: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+  data_inicio: z.string().nullish(),
+  data_vencimento: z.string().nullish(),
+  valor: z.number().nullish(),
+  status: z.string().nullish(),
+  responsavel_colaborador_id: z.string().nullish(),
+  observacoes: z.string().nullish(),
+  arquivo_path: z.string().nullish(),
+  arquivo_nome: z.string().nullish(),
+  arquivo_tipo: z.string().nullish(),
+  arquivo_tamanho: z.number().nullish(),
+  link_externo: z.string().nullish(),
+  criado_por: z.string().nullish(),
+});
+
+export const termosPosseFieldsSchema = z.object({
+  codigo: z.string().nullish(),
+  ativo_id: z.string().nullish(),
+  colaborador_id: z.string().nullish(),
+  status: z.string().nullish(),
+  conteudo: z.string().nullish(),
+  arquivo_path: z.string().nullish(),
+  arquivo_nome: z.string().nullish(),
+  arquivo_tipo: z.string().nullish(),
+  arquivo_tamanho: z.number().nullish(),
+  observacoes: z.string().nullish(),
+  assinado_em: z.string().nullish(),
+  devolvido_em: z.string().nullish(),
+});
+
+export const filaEmailsFieldsSchema = z.object({
+  tipo: z.string().nullish(),
+  destinatario: z.string().nullish(),
+  assunto: z.string().nullish(),
+  payload: z.unknown().nullish(),
+  status: z.string().nullish(),
+  tentativas: z.number().nullish(),
+  max_tentativas: z.number().nullish(),
+  agendado_em: z.string().nullish(),
+  erro: z.string().nullish(),
+  enviado_em: z.string().nullish(),
+  processado_em: z.string().nullish(),
+});
+
+export const relatoriosFieldsSchema = z.object({
+  id: z.string().nullish(),
+  titulo: z.string().nullish(),
+  descricao: z.string().nullish(),
+  embed_code: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+  todas_unidades: z.boolean().nullish(),
+  categoria: z.string().nullish(),
+  icone: z.string().nullish(),
+  ativo: z.boolean().nullish(),
+});
+
+export const relatoriosUnidadesFieldsSchema = z.object({
+  id: z.string().nullish(),
+  relatorio_id: z.string().nullish(),
+  unidade_id: z.string().nullish(),
+});
+
+export const permissoesRelatoriosFieldsSchema = z.object({
+  id: z.string().nullish(),
+  colaborador_id: z.string().nullish(),
+  relatorio_id: z.string().nullish(),
+});
+
+export const permissoesFuncoesRelatoriosFieldsSchema = z.object({
+  id: z.string().nullish(),
+  nivel_acesso: z.string().nullish(),
+  modulo: z.string().nullish(),
+  permissao: z.string().nullish(),
+});
+
+export const avisosRelatoriosFieldsSchema = z.object({
+  id: z.string().nullish(),
+  relatorio_id: z.string().nullish(),
+  titulo: z.string().nullish(),
+  mensagem: z.string().nullish(),
+  versao: z.number().nullish(),
+  obrigatorio: z.boolean().nullish(),
+  ativo: z.boolean().nullish(),
+  criado_por: z.string().nullish(),
+});
+
+export const avisosRelatoriosAceitesFieldsSchema = z.object({
+  id: z.string().nullish(),
+  aviso_id: z.string().nullish(),
+  relatorio_id: z.string().nullish(),
+  colaborador_id: z.string().nullish(),
+  versao_aceita: z.number().nullish(),
+  aceito_em: z.string().nullish(),
+});
+
+export const logsAuditoriaRelatoriosFieldsSchema = z.object({
+  entidade: z.string().nullish(),
+  acao: z.string().nullish(),
+  registro_id: z.string().nullish(),
+  actor_colaborador_id: z.string().nullish(),
+});
+
+export const logsAuditoriaFieldsSchema = z.object({
+  entidade: z.string().nullish(),
+  acao: z.string().nullish(),
+  registro_id: z.string().nullish(),
+  responsavel_colaborador_id: z.string().nullish(),
+});
+
+export const permissoesCentralFieldsSchema = z.object({
+  id: z.string().nullish(),
+  funcao: z.string().nullish(),
+  modulo: z.string().nullish(),
+  nivel_acesso: z.string().nullish(),
+});
+
+// servicos-api (modulo Financeiro) -- fornecedores/categorias. `extrairDadosFornecedor` no
+// arquivo ja normaliza/trunca tudo com String(valor ?? ''), entao o schema aqui so precisa barrar
+// tipos claramente errados (numero, array, objeto) chegando nesses campos -- nao remodela a
+// obrigatoriedade de `nome`/`id`, que continua sendo checada com as mensagens especificas atuais.
+export const fornecedorContatoFieldsSchema = z.object({
+  tipo_pessoa: z.string().nullish(),
+  documento: z.string().nullish(),
+  inscricao_estadual: z.string().nullish(),
+  email: z.string().nullish(),
+  telefone: z.string().nullish(),
+  endereco: z.string().nullish(),
+  cidade: z.string().nullish(),
+  uf: z.string().nullish(),
+  cep: z.string().nullish(),
+});
+
+export const criarFornecedorBodySchema = fornecedorContatoFieldsSchema.extend({
+  nome: z.string().nullish(),
+});
+
+export const atualizarFornecedorBodySchema = fornecedorContatoFieldsSchema.extend({
+  id: z.string().nullish(),
+  nome: z.string().nullish(),
+  ativo: z.boolean().nullish(),
+});
+
+export const criarCategoriaBodySchema = z.object({
+  nome: z.string().nullish(),
+});
+
+export const atualizarCategoriaBodySchema = z.object({
+  id: z.string().nullish(),
+  nome: z.string().nullish(),
+  ativo: z.boolean().nullish(),
+});
+
+// servicos-api -- set_permissao/marcar_pendencia/liberar_pendencia/atualizar_configuracao_modulo.
+// `modulo`/`papel` continuam validados contra SERVICOS_MODULOS_CONFIG no handler (enum dinamico,
+// nao fixo o bastante pra travar aqui em z.enum) -- o schema so garante que sao strings.
+export const setPermissaoBodySchema = z.object({
+  colaborador_id: z.string().nullish(),
+  modulo: z.string().nullish(),
+  papel: z.string().nullish(),
+});
+
+export const marcarPendenciaBodySchema = z.object({
+  id: z.string().nullish(),
+  motivo: z.string().nullish(),
+});
+
+export const liberarPendenciaBodySchema = z.object({
+  id: z.string().nullish(),
+  observacao: z.string().nullish(),
+});
+
+export const atualizarConfiguracaoModuloBodySchema = z.object({
+  restringir_visibilidade_pagamento_dinheiro: z.boolean().nullish(),
+});
+
+// servicos-api -- registrar_anexo/criar_parcelas/registrar_pagamento_parcela. Enums de anexo
+// (categoria/tipo_documento e a combinacao entre eles) continuam validados no handler contra
+// ANEXO_CATEGORIAS/ANEXO_TIPOS_DOCUMENTO_POR_CATEGORIA -- o schema so garante tipo string.
+export const registrarAnexoBodySchema = z.object({
+  solicitacao_id: z.string().nullish(),
+  categoria: z.string().nullish(),
+  tipo_documento: z.string().nullish(),
+  nome_arquivo: z.string().nullish(),
+  tipo_mime: z.string().nullish(),
+  storage_path: z.string().nullish(),
+  parcela_id: z.string().nullish(),
+  sigiloso: z.boolean().nullish(),
+  tamanho_bytes: z.number().nullish(),
+});
+
+export const parcelaItemSchema = z.object({
+  valor: z.number().nullish(),
+  data_vencimento: z.string().nullish(),
+});
+
+export const criarParcelasBodySchema = z.object({
+  solicitacao_id: z.string().nullish(),
+  parcelas: z.array(parcelaItemSchema).nullish(),
+});
+
+export const registrarPagamentoParcelaBodySchema = z.object({
+  id: z.string().nullish(),
+});
+
+export const entitySchemas = {
+  colaboradores: colaboradorFullFieldsSchema,
+  ativos: ativosFieldsSchema,
+  linhas_corporativas: linhasCorporativasFieldsSchema,
+  contatos: contatosFieldsSchema,
+  unidades: unidadesFieldsSchema,
+  infra_estrutura: infraEstruturaFieldsSchema,
+  sistemas: sistemasFieldsSchema,
+  contratos_documentos: contratosDocumentosFieldsSchema,
+  termos_posse: termosPosseFieldsSchema,
+  fila_emails: filaEmailsFieldsSchema,
+  relatorios: relatoriosFieldsSchema,
+  relatorios_unidades: relatoriosUnidadesFieldsSchema,
+  permissoes_relatorios: permissoesRelatoriosFieldsSchema,
+  permissoes_funcoes_relatorios: permissoesFuncoesRelatoriosFieldsSchema,
+  avisos_relatorios: avisosRelatoriosFieldsSchema,
+  avisos_relatorios_aceites: avisosRelatoriosAceitesFieldsSchema,
+  logs_auditoria_relatorios: logsAuditoriaRelatoriosFieldsSchema,
+  logs_auditoria: logsAuditoriaFieldsSchema,
+  permissoes_central: permissoesCentralFieldsSchema,
+};
