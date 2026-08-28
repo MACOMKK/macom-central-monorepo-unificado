@@ -430,6 +430,20 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          {!isEdicao && !isReenvio && user?.system_access_level === 'admin' && (
+            <label
+              htmlFor="ehTeste"
+              className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Checkbox
+                id="ehTeste"
+                checked={form.ehTeste}
+                onCheckedChange={(checked) => setField('ehTeste')(checked === true)}
+              />
+              Marcar como solicitação de teste (pode ser excluída depois)
+            </label>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="titulo">
               Título <span className="text-destructive">*</span>
@@ -723,20 +737,6 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
               </ul>
             )}
           </div>
-
-          {!isEdicao && !isReenvio && user?.system_access_level === 'admin' && (
-            <label
-              htmlFor="ehTeste"
-              className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground"
-            >
-              <Checkbox
-                id="ehTeste"
-                checked={form.ehTeste}
-                onCheckedChange={(checked) => setField('ehTeste')(checked === true)}
-              />
-              Marcar como solicitação de teste (pode ser excluída depois)
-            </label>
-          )}
 
           <Button type="submit" className="w-full" disabled={submitMutation.isPending}>
             {submitMutation.isPending ? (
