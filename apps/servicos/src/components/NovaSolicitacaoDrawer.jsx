@@ -60,6 +60,7 @@ const EMPTY_FORM = {
   empresaId: '',
   departamentoId: '',
   aprovadorDestinoId: '',
+  ehTeste: false,
 };
 
 export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao = null }) {
@@ -406,6 +407,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         departamento_id: form.departamentoId || null,
         aprovador_destino_id: form.aprovadorDestinoId,
         ...(parcelasPayload ? { parcelas: parcelasPayload } : {}),
+        ...(!isEdicao && !isReenvio && user?.system_access_level === 'admin' && form.ehTeste
+          ? { eh_teste: true }
+          : {}),
       },
     });
   };
@@ -719,6 +723,20 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
               </ul>
             )}
           </div>
+
+          {!isEdicao && !isReenvio && user?.system_access_level === 'admin' && (
+            <label
+              htmlFor="ehTeste"
+              className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Checkbox
+                id="ehTeste"
+                checked={form.ehTeste}
+                onCheckedChange={(checked) => setField('ehTeste')(checked === true)}
+              />
+              Marcar como solicitação de teste (pode ser excluída depois)
+            </label>
+          )}
 
           <Button type="submit" className="w-full" disabled={submitMutation.isPending}>
             {submitMutation.isPending ? (

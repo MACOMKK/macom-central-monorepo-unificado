@@ -437,6 +437,11 @@ export default function MinhasSolicitacoes() {
                             Pago parcial ({row.parcelas_pagas}/{row.parcelas_total})
                           </Badge>
                         )}
+                        {row.eh_teste && (
+                          <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
+                            Teste
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -461,6 +466,11 @@ export default function MinhasSolicitacoes() {
                     {row.status === 'aprovado' && isParcialmentePago(row) && (
                       <Badge variant="outline">
                         Pago parcial ({row.parcelas_pagas}/{row.parcelas_total})
+                      </Badge>
+                    )}
+                    {row.eh_teste && (
+                      <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
+                        Teste
                       </Badge>
                     )}
                   </>

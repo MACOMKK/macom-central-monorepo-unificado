@@ -14,6 +14,11 @@ import {
   registrarAnexoBodySchema,
   criarParcelasBodySchema,
   registrarPagamentoParcelaBodySchema,
+  criarSolicitacaoBodySchema,
+  atualizarSolicitacaoBodySchema,
+  reenviarSolicitacaoBodySchema,
+  deletarSolicitacaoBodySchema,
+  marcarTesteBodySchema,
 } from '../_shared/validation.ts';
 
 const SERVICOS_SCHEMA = 'gestao_servicos';
@@ -1551,14 +1556,21 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'create') {
-      const payload = sanitizePayload(CREATE_FIELDS, body.payload || {});
+      const parsedCreate = criarSolicitacaoBodySchema.safeParse(body);
+      if (!parsedCreate.success) {
+        const issue = parsedCreate.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const createBody = parsedCreate.data;
+
+      const payload = sanitizePayload(CREATE_FIELDS, createBody.payload || {});
       validateCreatePayload(payload);
-      validateComprovanteSize(body.payload?.comprovante_file_size);
+      validateComprovanteSize(createBody.payload?.comprovante_file_size);
 
       // Parcelamento e opcional: o solicitante pode propor um plano de pagamento ja na
       // criacao (fica sujeito a revisao do financeiro/contas a pagar depois de aprovado,
       // via criar_parcelas). Sem esse campo, a solicitacao nasce a vista, igual antes.
-      const parcelasPropostas = Array.isArray(body.payload?.parcelas) ? body.payload.parcelas : [];
+      const parcelasPropostas = Array.isArray(createBody.payload?.parcelas) ? createBody.payload.parcelas : [];
       if (parcelasPropostas.length) {
         validateParcelasSum(parcelasPropostas, Number(payload.valor));
       }
@@ -1593,6 +1605,12 @@ Deno.serve(async (request) => {
       payload.solicitante_id = collaborator!.id;
       payload.criado_por = collaborator!.id;
 
+      // eh_teste nao faz parte de CREATE_FIELDS/sanitizePayload (evita que qualquer solicitante
+      // marque a propria solicitacao como teste) -- so honrado se quem criou for admin.
+      if (createBody.payload?.eh_teste === true && getAccessLevel(access) === 'admin') {
+        payload.eh_teste = true;
+      }
+
       const fields = Object.keys(payload);
       const columns = fields.map(quoteIdentifier).join(', ');
       const placeholders = fields.map((_, index) => `$${index + 1}`).join(', ');
@@ -1614,7 +1632,14 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'update') {
-      const id = String(body.id || '');
+      const parsedUpdate = atualizarSolicitacaoBodySchema.safeParse(body);
+      if (!parsedUpdate.success) {
+        const issue = parsedUpdate.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const updateBody = parsedUpdate.data;
+
+      const id = String(updateBody.id || '');
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
       const existing = await ensureRowAccess(id, moduleRole, collaborator);
@@ -1625,16 +1650,16 @@ Deno.serve(async (request) => {
 
       // Chave 'parcelas' presente no payload = usuario mexeu no parcelamento (array vazio =
       // voltar a ser a vista); ausente = nao altera o plano de parcelas existente.
-      const parcelasPropostas = Array.isArray(body.payload?.parcelas)
-        ? (body.payload.parcelas as Array<Record<string, unknown>>)
+      const parcelasPropostas = Array.isArray(updateBody.payload?.parcelas)
+        ? (updateBody.payload.parcelas as Array<Record<string, unknown>>)
         : null;
 
-      const payload = sanitizePayload(UPDATE_FIELDS, body.payload || {});
+      const payload = sanitizePayload(UPDATE_FIELDS, updateBody.payload || {});
       if (!Object.keys(payload).length && parcelasPropostas === null) {
         return json({ error: 'Nenhum campo para atualizar.' }, 400);
       }
-      if ('comprovante_path' in body.payload) {
-        validateComprovanteSize(body.payload?.comprovante_file_size);
+      if ('comprovante_path' in (updateBody.payload || {})) {
+        validateComprovanteSize(updateBody.payload?.comprovante_file_size);
       }
 
       if (payload.fornecedor_id) {
@@ -1739,8 +1764,96 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
+    if (action === 'marcar_teste') {
+      // Flag independente do status, so pra admin: marca/desmarca uma solicitacao como dado de
+      // teste, o que libera a exclusao definitiva (deletar_solicitacao) em qualquer fase da
+      // maquina de estados -- nao precisa estar reprovada, cancelada, etc. Restrito a
+      // solicitacoes abertas pelo proprio admin (nao vale marcar solicitacao de outro
+      // colaborador como teste, mesmo sendo admin).
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem marcar solicitacoes de teste.'), { status: 403 });
+      }
+
+      const parsedMarcarTeste = marcarTesteBodySchema.safeParse(body);
+      if (!parsedMarcarTeste.success) {
+        const issue = parsedMarcarTeste.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedMarcarTeste.data.id || '');
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const existingParaTeste = await ensureRowAccess(id, moduleRole, collaborator);
+      if (String(existingParaTeste.solicitante_id) !== String(collaborator!.id)) {
+        throw Object.assign(
+          new Error('Você só pode marcar como teste solicitações que você mesmo abriu.'),
+          { status: 403 },
+        );
+      }
+
+      const ehTeste = parsedMarcarTeste.data.eh_teste === true;
+      const rows = await sql.unsafe(
+        `update ${SERVICOS_SCHEMA}.solicitacoes_pagamento set eh_teste = $2 where id = $1 returning *;`,
+        [id, ehTeste],
+      );
+
+      return json({ row: rows[0] || null });
+    }
+
+    if (action === 'deletar_solicitacao') {
+      // Exclusao definitiva, diferente de cancelar_solicitacao (que so muda o status). Restrita
+      // a admin e a solicitacoes marcadas como teste (eh_teste, ver action marcar_teste) --
+      // serve pra limpar solicitacao de teste/engano sem deixar rastro no fluxo real, em
+      // qualquer fase (pendente/aprovado/reprovado/pago/cancelado).
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem excluir solicitacoes.'), { status: 403 });
+      }
+
+      const parsedDeletar = deletarSolicitacaoBodySchema.safeParse(body);
+      if (!parsedDeletar.success) {
+        const issue = parsedDeletar.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const id = String(parsedDeletar.data.id || '');
+      if (!id) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const existing = await ensureRowAccess(id, moduleRole, collaborator);
+      if (existing.eh_teste !== true) {
+        throw Object.assign(
+          new Error('Somente solicitacoes marcadas como teste podem ser excluidas.'),
+          { status: 400 },
+        );
+      }
+
+      const anexos = await sql.unsafe(
+        `select storage_path from ${SERVICOS_SCHEMA}.anexos_solicitacao where solicitacao_id = $1 and storage_path is not null;`,
+        [id],
+      );
+
+      // parcelas_pagamento/anexos_solicitacao/historico_solicitacao tem "on delete cascade" pra
+      // solicitacao_id (migration 20260805150000) -- deletar a solicitacao ja limpa as 3 tabelas.
+      await sql.unsafe(`delete from ${SERVICOS_SCHEMA}.solicitacoes_pagamento where id = $1;`, [id]);
+
+      const storageClient = createStorageAdminClient();
+      if (storageClient && anexos.length > 0) {
+        const paths = anexos.map((a: { storage_path: unknown }) => String(a.storage_path));
+        const { error } = await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove(paths);
+        if (error) console.error('Falha ao remover anexos do storage:', { paths, message: error.message });
+      }
+
+      return json({ ok: true });
+    }
+
     if (action === 'reenviar_solicitacao') {
-      const id = String(body.id || '');
+      const parsedReenviar = reenviarSolicitacaoBodySchema.safeParse(body);
+      if (!parsedReenviar.success) {
+        const issue = parsedReenviar.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const reenviarBody = parsedReenviar.data;
+
+      const id = String(reenviarBody.id || '');
       if (!id) return json({ error: 'ID obrigatorio.' }, 400);
 
       const existing = await ensureRowAccess(id, moduleRole, collaborator);
@@ -1751,13 +1864,13 @@ Deno.serve(async (request) => {
         throw Object.assign(new Error('Somente solicitacoes reprovadas podem ser reenviadas.'), { status: 400 });
       }
 
-      const parcelasPropostas = Array.isArray(body.payload?.parcelas)
-        ? (body.payload.parcelas as Array<Record<string, unknown>>)
+      const parcelasPropostas = Array.isArray(reenviarBody.payload?.parcelas)
+        ? (reenviarBody.payload.parcelas as Array<Record<string, unknown>>)
         : null;
 
-      const payload = sanitizePayload(UPDATE_FIELDS, body.payload || {});
-      if ('comprovante_path' in body.payload) {
-        validateComprovanteSize(body.payload?.comprovante_file_size);
+      const payload = sanitizePayload(UPDATE_FIELDS, reenviarBody.payload || {});
+      if ('comprovante_path' in (reenviarBody.payload || {})) {
+        validateComprovanteSize(reenviarBody.payload?.comprovante_file_size);
       }
 
       if (payload.fornecedor_id) {

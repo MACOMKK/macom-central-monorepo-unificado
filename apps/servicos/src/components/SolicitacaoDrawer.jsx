@@ -164,6 +164,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [baixandoAnexoId, setBaixandoAnexoId] = useState(null);
   const [previewAnexo, setPreviewAnexo] = useState(null);
   const [gerandoPdfUnico, setGerandoPdfUnico] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
 
@@ -308,6 +309,35 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     removerAnexoMutation.mutate(removerTarget.id);
   }
 
+  // Flag "solicitacao de teste" + exclusao definitiva, so pra admin (Camada 1) e so na propria
+  // solicitacao (nao vale marcar a de outro colaborador como teste, mesmo sendo admin -- ver
+  // isDonoSolicitacao no gate do bloco renderizado mais abaixo e a mesma checagem no backend).
+  // Diferente de cancelar_solicitacao (que so muda o status): deletar_solicitacao remove o
+  // registro de vez, liberado em qualquer fase quando eh_teste = true. Centralizado aqui (nao em
+  // cada pagina que abre o drawer) pra funcionar igual em MinhasSolicitacoes/Pagamentos.
+  const marcarTesteMutation = useMutation({
+    mutationFn: (ehTeste) => financeiroApi.solicitacoes.marcarTeste(solicitacaoId, ehTeste),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+    },
+    onError: (error) => {
+      toast({ title: 'Não foi possível atualizar a solicitação', description: getFriendlyErrorMessage(error) });
+    },
+  });
+
+  const deletarSolicitacaoMutation = useMutation({
+    mutationFn: () => financeiroApi.solicitacoes.deletar(solicitacaoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      setDeleteConfirmOpen(false);
+      toast({ title: 'Solicitação excluída' });
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      toast({ title: 'Não foi possível excluir a solicitação', description: getFriendlyErrorMessage(error) });
+    },
+  });
+
   async function baixarAnexo(anexo) {
     const response = await fetch(anexo.url);
     if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
@@ -400,6 +430,11 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               {solicitacao && (
                 <Badge variant={STATUS_VARIANT[solicitacao.status]}>
                   {STATUS_LABEL[solicitacao.status] || solicitacao.status}
+                </Badge>
+              )}
+              {solicitacao?.eh_teste && (
+                <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
+                  Teste
                 </Badge>
               )}
               {solicitacao && isBloqueadaPorPendencia(solicitacao) && (
@@ -834,6 +869,40 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
             </Tabs>
           </div>
         )}
+
+        {solicitacao && isDonoSolicitacao && user?.system_access_level === 'admin' && (
+          <div className="mt-4 flex items-center justify-between gap-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
+            <label
+              htmlFor="solicitacao-eh-teste"
+              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Checkbox
+                id="solicitacao-eh-teste"
+                checked={Boolean(solicitacao.eh_teste)}
+                onCheckedChange={(checked) => marcarTesteMutation.mutate(checked === true)}
+                disabled={marcarTesteMutation.isPending}
+              />
+              Solicitação de teste (pode ser excluída)
+            </label>
+            {solicitacao.eh_teste && (
+              <Button variant="destructive" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
+              </Button>
+            )}
+          </div>
+        )}
+
+        <ConfirmDeleteDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          onConfirm={() => deletarSolicitacaoMutation.mutate()}
+          isLoading={deletarSolicitacaoMutation.isPending}
+          title="Excluir solicitação"
+          description="Isso remove a solicitação, seus anexos, parcelas e histórico permanentemente. Essa ação não pode ser desfeita."
+          confirmLabel="Excluir solicitação"
+          loadingLabel="Excluindo..."
+        />
 
         {footer && <div className="mt-6 border-t border-border pt-4">{footer}</div>}
       </SheetContent>

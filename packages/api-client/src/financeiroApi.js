@@ -230,6 +230,13 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'reenviar_solicitacao', id, payload });
       return result.row || null;
     },
+    async deletar(id) {
+      await invokeServicos({ action: 'deletar_solicitacao', id });
+    },
+    async marcarTeste(id, ehTeste) {
+      const result = await invokeServicos({ action: 'marcar_teste', id, eh_teste: Boolean(ehTeste) });
+      return result.row || null;
+    },
     async getSignedUrl(id) {
       const result = await invokeServicos({ action: 'signed_url', id });
       return result.url || null;

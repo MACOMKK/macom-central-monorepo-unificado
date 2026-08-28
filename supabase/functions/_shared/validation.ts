@@ -377,6 +377,54 @@ export const registrarPagamentoParcelaBodySchema = z.object({
   id: z.string().nullish(),
 });
 
+// servicos-api -- create/update/reenviar_solicitacao (trio principal do modulo Financeiro,
+// grava solicitacoes_pagamento). Os campos batem com CREATE_FIELDS/UPDATE_FIELDS do arquivo;
+// `sanitizePayload` la continua sendo quem decide qual campo e aceito por acao (create vs update
+// aceitam os mesmos campos, so a obrigatoriedade muda) -- o schema aqui so tipa. `forma_pagamento`
+// continua validado contra FORMAS_PAGAMENTO em validateCreatePayload (enum fica no handler, mesmo
+// padrao das outras actions). `comprovante_file_size` e `parcelas` sao lidos direto de
+// body.payload (nao passam por sanitizePayload), por isso entram no schema tambem.
+export const solicitacaoPagamentoPayloadFieldsSchema = z.object({
+  titulo: z.string().nullish(),
+  fornecedor_id: z.string().nullish(),
+  descricao: z.string().nullish(),
+  valor: z.number().nullish(),
+  categoria_id: z.string().nullish(),
+  comprovante_path: z.string().nullish(),
+  comprovante_file_size: z.number().nullish(),
+  data_vencimento: z.string().nullish(),
+  forma_pagamento: z.string().nullish(),
+  empresa_id: z.string().nullish(),
+  departamento_id: z.string().nullish(),
+  observacao: z.string().nullish(),
+  aprovador_destino_id: z.string().nullish(),
+  parcelas: z.array(parcelaItemSchema).nullish(),
+  // Só usado em `create`, e só honrado se quem chama for admin (checado no handler) -- não faz
+  // parte de CREATE_FIELDS/sanitizePayload, por isso precisa entrar aqui explicitamente, mesmo
+  // padrão de comprovante_file_size/parcelas acima.
+  eh_teste: z.boolean().nullish(),
+});
+
+export const criarSolicitacaoBodySchema = z.object({
+  payload: solicitacaoPagamentoPayloadFieldsSchema.nullish(),
+});
+
+export const atualizarSolicitacaoBodySchema = z.object({
+  id: z.string().nullish(),
+  payload: solicitacaoPagamentoPayloadFieldsSchema.nullish(),
+});
+
+export const reenviarSolicitacaoBodySchema = atualizarSolicitacaoBodySchema;
+
+export const deletarSolicitacaoBodySchema = z.object({
+  id: z.string().nullish(),
+});
+
+export const marcarTesteBodySchema = z.object({
+  id: z.string().nullish(),
+  eh_teste: z.boolean().nullish(),
+});
+
 export const entitySchemas = {
   colaboradores: colaboradorFullFieldsSchema,
   ativos: ativosFieldsSchema,

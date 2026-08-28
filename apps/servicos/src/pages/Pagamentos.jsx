@@ -753,6 +753,11 @@ export default function Pagamentos() {
                       ) : (
                         <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
                       )}
+                      {row.eh_teste && (
+                        <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
+                          Teste
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -844,6 +849,11 @@ export default function Pagamentos() {
                       row.status !== 'aprovado' && (
                         <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status] || row.status}</Badge>
                       )
+                    )}
+                    {row.eh_teste && (
+                      <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
+                        Teste
+                      </Badge>
                     )}
                     <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>
                   </>
