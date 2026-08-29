@@ -48,6 +48,7 @@ const CREATE_FIELDS = [
   'data_vencimento',
   'forma_pagamento',
   'empresa_id',
+  'unidade_id',
   'departamento_id',
   'observacao',
   'aprovador_destino_id',
@@ -63,6 +64,7 @@ const UPDATE_FIELD_LABELS: Record<(typeof CREATE_FIELDS)[number], string> = {
   data_vencimento: 'Vencimento',
   forma_pagamento: 'Forma de pagamento',
   empresa_id: 'Empresa',
+  unidade_id: 'Unidade',
   departamento_id: 'Departamento',
   observacao: 'Observacao',
   aprovador_destino_id: 'Aprovador responsavel',
@@ -1173,6 +1175,7 @@ Deno.serve(async (request) => {
     // 5 queries concorrentes esgotavam o pool e travavam a invocacao indefinidamente.
     if (action === 'list_catalogos_solicitacao') {
       const empresas = await sql.unsafe(`select id, nome from public.empresas order by nome;`);
+      const unidades = await sql.unsafe(`select id, nome, empresa_id from public.unidades order by nome;`);
       const departamentos = await sql.unsafe(`select id, nome from public.departamentos order by nome;`);
       const fornecedores = await sql.unsafe(
         `select id, nome from ${SERVICOS_SCHEMA}.fornecedores where ativo = true order by nome;`,
@@ -1194,7 +1197,7 @@ Deno.serve(async (request) => {
         [SERVICOS_SYSTEM_SLUG],
       );
 
-      return json({ empresas, departamentos, fornecedores, categorias, aprovadores });
+      return json({ empresas, unidades, departamentos, fornecedores, categorias, aprovadores });
     }
 
     if (action === 'list_permissoes') {
@@ -1394,6 +1397,7 @@ Deno.serve(async (request) => {
             ac.nome as aprovador_destino_nome,
             pc.nome as pendencia_aberta_por_nome,
             e.nome as empresa_nome,
+            u.nome as unidade_nome,
             d.nome as departamento_nome,
             coalesce(pp.parcelas_total, 0) as parcelas_total,
             coalesce(pp.parcelas_pagas, 0) as parcelas_pagas,
@@ -1407,6 +1411,7 @@ Deno.serve(async (request) => {
           left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
           left join public.colaboradores pc on pc.id = sp.pendencia_aberta_por
           left join public.empresas e on e.id = sp.empresa_id
+          left join public.unidades u on u.id = sp.unidade_id
           left join public.departamentos d on d.id = sp.departamento_id
           left join lateral (
             select
@@ -1608,11 +1613,12 @@ Deno.serve(async (request) => {
       payload.categoria = categoriaRows[0].nome;
       payload.aprovador_destino_id = aprovadorDestinoId;
 
-      // empresa_id/departamento_id sao snapshot do colaborador no momento da criacao
-      // (nao join ao vivo) - preserva o setor/empresa corretos historicamente mesmo
-      // que o colaborador mude de area depois. O solicitante pode ajustar empresa_id
-      // se atuar em mais de uma empresa do grupo.
+      // empresa_id/unidade_id/departamento_id sao snapshot do colaborador no momento da criacao
+      // (nao join ao vivo) - preserva o setor/empresa/unidade corretos historicamente mesmo
+      // que o colaborador mude de area depois. O solicitante pode ajustar esses campos
+      // se atuar em mais de uma empresa/unidade do grupo.
       if (!payload.empresa_id) payload.empresa_id = collaborator!.empresa_id ?? null;
+      if (!payload.unidade_id) payload.unidade_id = collaborator!.unidade_id ?? null;
       if (!payload.departamento_id) payload.departamento_id = collaborator!.departamento_id ?? null;
       payload.solicitante_id = collaborator!.id;
       payload.criado_por = collaborator!.id;

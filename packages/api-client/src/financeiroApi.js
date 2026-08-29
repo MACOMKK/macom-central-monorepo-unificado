@@ -167,6 +167,7 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'list_catalogos_solicitacao' });
       return {
         empresas: result.empresas || [],
+        unidades: result.unidades || [],
         departamentos: result.departamentos || [],
         fornecedores: result.fornecedores || [],
         categorias: result.categorias || [],

@@ -59,6 +59,7 @@ const EMPTY_FORM = {
   formaPagamento: '',
   observacao: '',
   empresaId: '',
+  unidadeId: '',
   departamentoId: '',
   aprovadorDestinoId: '',
   ehTeste: false,
@@ -178,11 +179,16 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   } = useCatalogosSolicitacao({ enabled: visible });
   const {
     empresas = [],
+    unidades = [],
     departamentos = [],
     fornecedores = [],
     categorias = [],
     aprovadores = [],
   } = catalogos || {};
+
+  const unidadesDaEmpresa = form.empresaId
+    ? unidades.filter((item) => item.empresa_id === form.empresaId)
+    : unidades;
 
   const { data: parcelasExistentes = EMPTY_PARCELAS, isLoading: parcelasLoading } = useQuery({
     queryKey: ['servicos', 'parcelas', solicitacao?.id],
@@ -210,6 +216,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         formaPagamento: solicitacao.forma_pagamento || '',
         observacao: solicitacao.observacao || '',
         empresaId: solicitacao.empresa_id || '',
+        unidadeId: solicitacao.unidade_id || '',
         departamentoId: solicitacao.departamento_id || '',
         aprovadorDestinoId: solicitacao.aprovador_destino_id || '',
       };
@@ -232,6 +239,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         const loadedForm = {
           ...current,
           empresaId: user?.collaborator?.empresa_id || '',
+          unidadeId: user?.collaborator?.unidade_id || '',
           departamentoId: user?.collaborator?.departamento_id || '',
         };
         initialFormRef.current = loadedForm;
@@ -318,6 +326,15 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   }
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
+
+  function handleEmpresaChange(value) {
+    setForm((current) => {
+      const unidadeAindaValida = unidades.some(
+        (item) => item.id === current.unidadeId && item.empresa_id === value,
+      );
+      return { ...current, empresaId: value, unidadeId: unidadeAindaValida ? current.unidadeId : '' };
+    });
+  }
 
   const hasUnsavedChanges = () =>
     anexos.length > 0 || JSON.stringify(form) !== JSON.stringify(initialFormRef.current);
@@ -428,6 +445,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         forma_pagamento: form.formaPagamento,
         observacao: form.observacao || null,
         empresa_id: form.empresaId || null,
+        unidade_id: form.unidadeId || null,
         departamento_id: form.departamentoId || null,
         aprovador_destino_id: form.aprovadorDestinoId,
         ...(parcelasPayload ? { parcelas: parcelasPayload } : {}),
@@ -645,12 +663,30 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
               <Label htmlFor="empresa">
                 Empresa <span className="text-destructive">*</span>
               </Label>
-              <Select value={form.empresaId} onValueChange={setField('empresaId')}>
+              <Select value={form.empresaId} onValueChange={handleEmpresaChange}>
                 <SelectTrigger id="empresa">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
                   {empresas.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {unidades.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="unidade">Unidade</Label>
+              <Select value={form.unidadeId} onValueChange={setField('unidadeId')}>
+                <SelectTrigger id="unidade">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {unidadesDaEmpresa.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.nome}
                     </SelectItem>

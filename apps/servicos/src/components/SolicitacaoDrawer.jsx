@@ -16,6 +16,7 @@ import {
   Hash,
   Landmark,
   Lock,
+  MapPin,
   Paperclip,
   Pencil,
   RefreshCw,
@@ -545,6 +546,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                       value={FORMA_PAGAMENTO_LABEL[solicitacao.forma_pagamento] || solicitacao.forma_pagamento}
                     />
                     <CampoDetalhe icon={Landmark} label="Empresa" value={solicitacao.empresa_nome} />
+                    <CampoDetalhe icon={MapPin} label="Unidade" value={solicitacao.unidade_nome} />
                     <CampoDetalhe icon={Building2} label="Departamento" value={solicitacao.departamento_nome} />
                     <CampoDetalhe icon={Clock} label="Criado em" value={formatData(solicitacao.criado_em)} />
                   </div>
