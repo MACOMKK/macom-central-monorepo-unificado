@@ -51,7 +51,9 @@ const EMPTY_PARCELAS = [];
 
 const EMPTY_FORM = {
   titulo: '',
+  tipoBeneficiario: 'fornecedor',
   fornecedorId: '',
+  colaboradorBeneficiarioId: '',
   descricao: '',
   valor: '',
   categoriaId: '',
@@ -118,7 +120,10 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       const previous = queryClient.getQueryData(minhasSolicitacoesKey);
       const anexosSnapshot = anexos;
       const formSnapshot = form;
-      const fornecedorNome = fornecedores.find((item) => item.id === payload.fornecedor_id)?.nome || '';
+      const fornecedorNome =
+        payload.tipo_beneficiario === 'colaborador'
+          ? colaboradores.find((item) => item.id === payload.colaborador_beneficiario_id)?.nome || ''
+          : fornecedores.find((item) => item.id === payload.fornecedor_id)?.nome || '';
       const isExistente = isReenvio || isEdicao;
       const optimisticId = isExistente ? solicitacao.id : tempId;
       const optimisticRow = {
@@ -184,6 +189,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     fornecedores = [],
     categorias = [],
     aprovadores = [],
+    colaboradores = [],
   } = catalogos || {};
 
   const unidadesDaEmpresa = form.empresaId
@@ -195,6 +201,14 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     queryFn: () => financeiroApi.parcelas.list(solicitacao.id),
     enabled: visible && (isEdicao || isReenvio) && Boolean(solicitacao?.id),
   });
+
+  const { data: configuracaoModulo } = useQuery({
+    queryKey: ['servicos', 'configuracao-modulo'],
+    queryFn: () => financeiroApi.configuracaoModulo.get(),
+    enabled: visible,
+  });
+  const aprovadorDispensado =
+    form.tipoBeneficiario === 'colaborador' && Boolean(configuracaoModulo?.suprimento_caixa_sem_aprovador);
 
   useEffect(() => {
     if (skipNextResetRef.current) {
@@ -208,7 +222,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     if (visible && (isReenvio || isEdicao)) {
       const loadedForm = {
         titulo: solicitacao.titulo || '',
+        tipoBeneficiario: solicitacao.tipo_beneficiario || 'fornecedor',
         fornecedorId: solicitacao.fornecedor_id || '',
+        colaboradorBeneficiarioId: solicitacao.colaborador_beneficiario_id || '',
         descricao: solicitacao.descricao || '',
         valor: solicitacao.valor != null ? String(solicitacao.valor) : '',
         categoriaId: solicitacao.categoria_id || '',
@@ -327,6 +343,15 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
   const setField = (field) => (value) => setForm((current) => ({ ...current, [field]: value }));
 
+  function handleTipoBeneficiarioChange(value) {
+    setForm((current) => ({
+      ...current,
+      tipoBeneficiario: value,
+      fornecedorId: value === 'fornecedor' ? current.fornecedorId : '',
+      colaboradorBeneficiarioId: value === 'colaborador' ? current.colaboradorBeneficiarioId : '',
+    }));
+  }
+
   function handleEmpresaChange(value) {
     setForm((current) => {
       const unidadeAindaValida = unidades.some(
@@ -398,16 +423,22 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     event.preventDefault();
     if (submitMutation.isPending) return;
 
+    const beneficiarioFaltando =
+      form.tipoBeneficiario === 'colaborador' ? !form.colaboradorBeneficiarioId : !form.fornecedorId;
+
     if (
-      !form.fornecedorId ||
-      !form.aprovadorDestinoId ||
+      beneficiarioFaltando ||
+      (!aprovadorDispensado && !form.aprovadorDestinoId) ||
       !form.categoriaId ||
       !form.formaPagamento ||
       (empresas.length > 0 && !form.empresaId)
     ) {
       toast({
         title: 'Campos obrigatórios faltando',
-        description: 'Selecione empresa, fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
+        description:
+          form.tipoBeneficiario === 'colaborador'
+            ? 'Selecione empresa, colaborador, aprovador, categoria e forma de pagamento antes de enviar.'
+            : 'Selecione empresa, fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
       });
       return;
     }
@@ -437,7 +468,9 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
       tempId: `optimistic-${crypto.randomUUID()}`,
       payload: {
         titulo: form.titulo,
-        fornecedor_id: form.fornecedorId,
+        tipo_beneficiario: form.tipoBeneficiario,
+        fornecedor_id: form.tipoBeneficiario === 'fornecedor' ? form.fornecedorId : null,
+        colaborador_beneficiario_id: form.tipoBeneficiario === 'colaborador' ? form.colaboradorBeneficiarioId : null,
         descricao: form.descricao,
         valor: Number(form.valor),
         categoria_id: form.categoriaId,
@@ -447,7 +480,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         empresa_id: form.empresaId || null,
         unidade_id: form.unidadeId || null,
         departamento_id: form.departamentoId || null,
-        aprovador_destino_id: form.aprovadorDestinoId,
+        aprovador_destino_id: aprovadorDispensado ? null : form.aprovadorDestinoId,
         ...(parcelasPayload ? { parcelas: parcelasPayload } : {}),
         ...(!isEdicao && !isReenvio && user?.system_access_level === 'admin' && form.ehTeste
           ? { eh_teste: true }
@@ -486,51 +519,104 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="fornecedor">
-              Fornecedor <span className="text-destructive">*</span>
-            </Label>
+            <Label>Tipo de solicitação</Label>
             <div className="flex gap-2">
-              <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
-                <SelectTrigger id="fornecedor" className="flex-1">
-                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
+              <Button
+                type="button"
+                variant={form.tipoBeneficiario === 'fornecedor' ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => handleTipoBeneficiarioChange('fornecedor')}
+              >
+                Fornecedor
+              </Button>
+              <Button
+                type="button"
+                variant={form.tipoBeneficiario === 'colaborador' ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => handleTipoBeneficiarioChange('colaborador')}
+              >
+                Suprimento de caixa
+              </Button>
+            </div>
+          </div>
+
+          {form.tipoBeneficiario === 'colaborador' ? (
+            <div className="space-y-2">
+              <Label htmlFor="colaboradorBeneficiario">
+                Colaborador <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={form.colaboradorBeneficiarioId}
+                onValueChange={setField('colaboradorBeneficiarioId')}
+                disabled={catalogosLoading}
+              >
+                <SelectTrigger id="colaboradorBeneficiario">
+                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o colaborador'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {fornecedores.map((item) => (
+                  {colaboradores.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                title="Cadastrar novo fornecedor"
-                onClick={() => setNovoFornecedorOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="fornecedor">
+                Fornecedor <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex gap-2">
+                <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
+                  <SelectTrigger id="fornecedor" className="flex-1">
+                    <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fornecedores.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Cadastrar novo fornecedor"
+                  onClick={() => setNovoFornecedorOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="aprovadorDestino">
-              Aprovador responsável <span className="text-destructive">*</span>
-            </Label>
-            <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')} disabled={catalogosLoading}>
-              <SelectTrigger id="aprovadorDestino">
-                <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione quem vai aprovar'} />
-              </SelectTrigger>
-              <SelectContent>
-                {aprovadores.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {aprovadorDispensado ? (
+            <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+              Suprimento de caixa não exige aprovador — a solicitação é aprovada e paga
+              diretamente pelo financeiro (Gerente).
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="aprovadorDestino">
+                Aprovador responsável <span className="text-destructive">*</span>
+              </Label>
+              <Select value={form.aprovadorDestinoId} onValueChange={setField('aprovadorDestinoId')} disabled={catalogosLoading}>
+                <SelectTrigger id="aprovadorDestino">
+                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione quem vai aprovar'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {aprovadores.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="descricao">

@@ -530,12 +530,16 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                       }
                     />
                     <CampoDetalhe icon={User} label="Solicitante" value={solicitacao.solicitante_nome} />
-                    <CampoDetalhe
-                      icon={Building2}
-                      label="Fornecedor"
-                      value={solicitacao.fornecedor}
-                      onClick={user?.isFinanceiro && solicitacao.fornecedor ? handleAbrirFornecedor : undefined}
-                    />
+                    {solicitacao.tipo_beneficiario === 'colaborador' ? (
+                      <CampoDetalhe icon={User} label="Colaborador (suprimento de caixa)" value={solicitacao.fornecedor} />
+                    ) : (
+                      <CampoDetalhe
+                        icon={Building2}
+                        label="Fornecedor"
+                        value={solicitacao.fornecedor}
+                        onClick={user?.isFinanceiro && solicitacao.fornecedor ? handleAbrirFornecedor : undefined}
+                      />
+                    )}
                     <CampoDetalhe icon={UserCheck} label="Aprovador responsável" value={solicitacao.aprovador_destino_nome} />
                     <CampoDetalhe icon={Wallet} label="Valor" value={formatValor(solicitacao.valor)} />
                     <CampoDetalhe icon={Tag} label="Categoria" value={solicitacao.categoria} />

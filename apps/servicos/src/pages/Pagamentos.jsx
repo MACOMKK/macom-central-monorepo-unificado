@@ -15,7 +15,10 @@ import {
   Input,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
   Spinner,
@@ -67,6 +70,7 @@ const CLASSIFICACAO_PARCIAL = 'parcial';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
 const FORNECEDOR_FILTRO_TODOS = 'todos';
+const FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA = 'suprimento_caixa';
 const APROVADOR_FILTRO_TODOS = 'todos';
 const FORMA_PAGAMENTO_FILTRO_TODAS = 'todas';
 
@@ -186,6 +190,16 @@ export default function Pagamentos() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const colaboradoresBeneficiarios = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.tipo_beneficiario === 'colaborador' && row.colaborador_beneficiario_id && !porId.has(row.colaborador_beneficiario_id)) {
+        porId.set(row.colaborador_beneficiario_id, row.fornecedor);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const aprovadores = useMemo(() => {
     const porId = new Map();
     rows.forEach((row) => {
@@ -215,8 +229,12 @@ export default function Pagamentos() {
         (row) => getVencimentoInfo(row.vencimento_efetivo).key === vencimentoStatusFiltro,
       );
     }
-    if (fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS) {
-      classificadas = classificadas.filter((row) => String(row.fornecedor_id) === fornecedorFiltro);
+    if (fornecedorFiltro === FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA) {
+      classificadas = classificadas.filter((row) => row.tipo_beneficiario === 'colaborador');
+    } else if (fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS) {
+      classificadas = classificadas.filter(
+        (row) => String(row.fornecedor_id) === fornecedorFiltro || String(row.colaborador_beneficiario_id) === fornecedorFiltro,
+      );
     }
     if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS) {
       classificadas = classificadas.filter((row) => String(row.aprovador_destino_id) === aprovadorFiltro);
@@ -646,12 +664,30 @@ export default function Pagamentos() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={FORNECEDOR_FILTRO_TODOS}>Todos os fornecedores</SelectItem>
-              {fornecedores.map((item) => (
-                <SelectItem key={item.id} value={String(item.id)}>
-                  {item.nome}
-                </SelectItem>
-              ))}
+              <SelectItem value={FORNECEDOR_FILTRO_TODOS}>Todos os beneficiários</SelectItem>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Suprimento de caixa</SelectLabel>
+                <SelectItem value={FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA}>Todos (suprimento de caixa)</SelectItem>
+                {colaboradoresBeneficiarios.map((item) => (
+                  <SelectItem key={item.id} value={String(item.id)}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {fornecedores.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel>Fornecedores</SelectLabel>
+                    {fornecedores.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </>
+              )}
             </SelectContent>
           </Select>
 
@@ -708,7 +744,7 @@ export default function Pagamentos() {
               <TableHead>Vencimento</TableHead>
               <TableHead>Forma de pagamento</TableHead>
               <TableHead>Categoria</TableHead>
-              <TableHead>Fornecedor</TableHead>
+              <TableHead>Beneficiário</TableHead>
               <TableHead>Aprovador</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead className="text-right">Acoes</TableHead>
@@ -769,7 +805,17 @@ export default function Pagamentos() {
                   <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                   <TableCell>{row.categoria || '-'}</TableCell>
                   <TableCell className="font-medium">{row.fornecedor}</TableCell>
-                  <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
+                  <TableCell>
+                    {row.aprovador_destino_nome || (
+                      row.tipo_beneficiario === 'colaborador' ? (
+                        <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-600">
+                          Auto-aprovado
+                        </Badge>
+                      ) : (
+                        '-'
+                      )
+                    )}
+                  </TableCell>
                   <TableCell>{formatValor(row.valor)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -853,6 +899,11 @@ export default function Pagamentos() {
                     {row.eh_teste && (
                       <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
                         Teste
+                      </Badge>
+                    )}
+                    {!row.aprovador_destino_nome && row.tipo_beneficiario === 'colaborador' && (
+                      <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-600">
+                        Auto-aprovado
                       </Badge>
                     )}
                     <Badge variant={vencimentoInfo.variant}>{vencimentoInfo.label}</Badge>

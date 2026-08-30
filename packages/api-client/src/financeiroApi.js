@@ -131,10 +131,10 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'get_configuracao_modulo' });
       return result.row || null;
     },
-    async atualizar(restringirVisibilidadePagamentoDinheiro) {
+    async atualizar(campos) {
       const result = await invokeServicos({
         action: 'atualizar_configuracao_modulo',
-        restringir_visibilidade_pagamento_dinheiro: restringirVisibilidadePagamentoDinheiro,
+        ...campos,
       });
       return result.row || null;
     },
@@ -172,6 +172,7 @@ export const financeiroApi = {
         fornecedores: result.fornecedores || [],
         categorias: result.categorias || [],
         aprovadores: result.aprovadores || [],
+        colaboradores: result.colaboradores || [],
       };
     },
   },

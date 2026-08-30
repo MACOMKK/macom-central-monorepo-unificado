@@ -16,7 +16,8 @@ function buildWhatsAppUrl(solicitacao) {
   const linhas = [
     `*Solicitação de Pagamento${titulo ? ` — ${titulo}` : ''}*`,
     '',
-    solicitacao.fornecedor && `*Fornecedor:* ${solicitacao.fornecedor}`,
+    solicitacao.fornecedor &&
+      `*${solicitacao.tipo_beneficiario === 'colaborador' ? 'Beneficiário (suprimento de caixa)' : 'Fornecedor'}:* ${solicitacao.fornecedor}`,
     `*Valor:* ${formatValor(solicitacao.valor)}`,
     solicitacao.categoria && `*Categoria:* ${solicitacao.categoria}`,
     solicitacao.vencimento_efetivo && `*Vencimento:* ${formatDataVencimento(solicitacao.vencimento_efetivo)}`,

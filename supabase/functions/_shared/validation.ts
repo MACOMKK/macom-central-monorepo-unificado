@@ -346,6 +346,8 @@ export const liberarPendenciaBodySchema = z.object({
 
 export const atualizarConfiguracaoModuloBodySchema = z.object({
   restringir_visibilidade_pagamento_dinheiro: z.boolean().nullish(),
+  suprimento_caixa_sem_aprovador: z.boolean().nullish(),
+  suprimento_caixa_auto_aprovar: z.boolean().nullish(),
 });
 
 // servicos-api -- registrar_anexo/criar_parcelas/registrar_pagamento_parcela. Enums de anexo
@@ -386,7 +388,9 @@ export const registrarPagamentoParcelaBodySchema = z.object({
 // body.payload (nao passam por sanitizePayload), por isso entram no schema tambem.
 export const solicitacaoPagamentoPayloadFieldsSchema = z.object({
   titulo: z.string().nullish(),
+  tipo_beneficiario: z.enum(['fornecedor', 'colaborador']).nullish(),
   fornecedor_id: z.string().nullish(),
+  colaborador_beneficiario_id: z.string().nullish(),
   descricao: z.string().nullish(),
   valor: z.number().nullish(),
   categoria_id: z.string().nullish(),
@@ -395,6 +399,7 @@ export const solicitacaoPagamentoPayloadFieldsSchema = z.object({
   data_vencimento: z.string().nullish(),
   forma_pagamento: z.string().nullish(),
   empresa_id: z.string().nullish(),
+  unidade_id: z.string().nullish(),
   departamento_id: z.string().nullish(),
   observacao: z.string().nullish(),
   aprovador_destino_id: z.string().nullish(),

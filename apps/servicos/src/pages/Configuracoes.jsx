@@ -165,7 +165,7 @@ function FinanceiroTab() {
   });
 
   const atualizarMutation = useMutation({
-    mutationFn: (valor) => financeiroApi.configuracaoModulo.atualizar(valor),
+    mutationFn: (campos) => financeiroApi.configuracaoModulo.atualizar(campos),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'configuracao-modulo'] });
       toast({ title: 'Configuração atualizada' });
@@ -174,6 +174,8 @@ function FinanceiroTab() {
   });
 
   const restringir = configQuery.data?.restringir_visibilidade_pagamento_dinheiro ?? true;
+  const suprimentoCaixaSemAprovador = configQuery.data?.suprimento_caixa_sem_aprovador ?? false;
+  const suprimentoCaixaAutoAprovar = configQuery.data?.suprimento_caixa_auto_aprovar ?? false;
 
   return (
     <div className="space-y-4">
@@ -200,7 +202,42 @@ function FinanceiroTab() {
           </div>
           <Switch
             checked={restringir}
-            onCheckedChange={(checked) => atualizarMutation.mutate(checked)}
+            onCheckedChange={(checked) => atualizarMutation.mutate({ restringir_visibilidade_pagamento_dinheiro: checked })}
+            disabled={atualizarMutation.isPending}
+          />
+        </div>
+      )}
+
+      {!configQuery.isLoading && (
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+          <div>
+            <p className="font-medium">Suprimento de caixa sem aprovador</p>
+            <p className="text-sm text-muted-foreground">
+              Quando ativo, solicitações de suprimento de caixa não exigem escolher um aprovador —
+              o financeiro (Gerente) aprova e paga diretamente.
+            </p>
+          </div>
+          <Switch
+            checked={suprimentoCaixaSemAprovador}
+            onCheckedChange={(checked) => atualizarMutation.mutate({ suprimento_caixa_sem_aprovador: checked })}
+            disabled={atualizarMutation.isPending}
+          />
+        </div>
+      )}
+
+      {!configQuery.isLoading && suprimentoCaixaSemAprovador && (
+        <div className="ml-4 flex items-start justify-between gap-4 rounded-lg border border-dashed border-border p-4">
+          <div>
+            <p className="font-medium">Aprovar automaticamente</p>
+            <p className="text-sm text-muted-foreground">
+              Quando ativo, a solicitação já nasce aprovada e cai direto na fila de pagamento.
+              Quando desativado, ela ainda passa por Aprovações — o financeiro (Gerente) aprova
+              manualmente antes de pagar.
+            </p>
+          </div>
+          <Switch
+            checked={suprimentoCaixaAutoAprovar}
+            onCheckedChange={(checked) => atualizarMutation.mutate({ suprimento_caixa_auto_aprovar: checked })}
             disabled={atualizarMutation.isPending}
           />
         </div>

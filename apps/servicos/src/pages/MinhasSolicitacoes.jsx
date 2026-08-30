@@ -9,7 +9,10 @@ import {
   Button,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
   Spinner,
@@ -41,6 +44,7 @@ import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import FiltersDrawer from '@/components/FiltersDrawer';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
+import ValorRangeFilter from '@/components/ValorRangeFilter';
 import VencimentoRangeFilter from '@/components/VencimentoRangeFilter';
 import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
@@ -51,6 +55,9 @@ const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const APROVADOR_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
+const FORNECEDOR_FILTRO_TODOS = 'todos';
+const FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA = 'suprimento_caixa';
+const FORMA_PAGAMENTO_FILTRO_TODAS = 'todas';
 
 export default function MinhasSolicitacoes() {
   const { user } = useAuth();
@@ -73,6 +80,10 @@ export default function MinhasSolicitacoes() {
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
   const [aprovadorFiltro, setAprovadorFiltro] = useState(APROVADOR_FILTRO_TODOS);
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
+  const [fornecedorFiltro, setFornecedorFiltro] = useState(FORNECEDOR_FILTRO_TODOS);
+  const [formaPagamentoFiltro, setFormaPagamentoFiltro] = useState(FORMA_PAGAMENTO_FILTRO_TODAS);
+  const [valorFiltro, setValorFiltro] = useState(null);
+  const [valorResetToken, setValorResetToken] = useState(0);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
 
@@ -130,12 +141,48 @@ export default function MinhasSolicitacoes() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const fornecedores = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.fornecedor_id && !porId.has(row.fornecedor_id)) {
+        porId.set(row.fornecedor_id, row.fornecedor);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
+  const colaboradoresBeneficiarios = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.tipo_beneficiario === 'colaborador' && row.colaborador_beneficiario_id && !porId.has(row.colaborador_beneficiario_id)) {
+        porId.set(row.colaborador_beneficiario_id, row.fornecedor);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const filteredRows = rows.filter((row) => {
     if (statusFiltro !== STATUS_FILTRO_TODOS && row.status !== statusFiltro) return false;
     if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS && row.categoria_id !== categoriaFiltro) return false;
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
     if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS && String(row.aprovador_destino_id) !== aprovadorFiltro) return false;
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
+    if (fornecedorFiltro === FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA) {
+      if (row.tipo_beneficiario !== 'colaborador') return false;
+    } else if (
+      fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS &&
+      String(row.fornecedor_id) !== fornecedorFiltro &&
+      String(row.colaborador_beneficiario_id) !== fornecedorFiltro
+    ) {
+      return false;
+    }
+    if (formaPagamentoFiltro !== FORMA_PAGAMENTO_FILTRO_TODAS && row.forma_pagamento !== formaPagamentoFiltro) {
+      return false;
+    }
+    if (valorFiltro) {
+      const valor = Number(row.valor || 0);
+      if (valor < valorFiltro.min || valor > valorFiltro.max) return false;
+    }
     if (vencimentoFiltro) {
       const dia = toDateOnly(row.vencimento_efetivo);
       if (!dia || dia < vencimentoFiltro.from || dia > vencimentoFiltro.to) return false;
@@ -214,6 +261,9 @@ export default function MinhasSolicitacoes() {
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
     aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
     empresaFiltro !== EMPRESA_FILTRO_TODAS,
+    fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS,
+    formaPagamentoFiltro !== FORMA_PAGAMENTO_FILTRO_TODAS,
+    Boolean(valorFiltro),
     Boolean(vencimentoFiltro),
   ].filter(Boolean).length;
 
@@ -223,6 +273,10 @@ export default function MinhasSolicitacoes() {
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
     setAprovadorFiltro(APROVADOR_FILTRO_TODOS);
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
+    setFornecedorFiltro(FORNECEDOR_FILTRO_TODOS);
+    setFormaPagamentoFiltro(FORMA_PAGAMENTO_FILTRO_TODAS);
+    setValorFiltro(null);
+    setValorResetToken((current) => current + 1);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
   }
@@ -370,7 +424,55 @@ export default function MinhasSolicitacoes() {
             </Select>
           )}
 
+          <Select value={fornecedorFiltro} onValueChange={setFornecedorFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FORNECEDOR_FILTRO_TODOS}>Todos os beneficiários</SelectItem>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel>Suprimento de caixa</SelectLabel>
+                <SelectItem value={FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA}>Todos (suprimento de caixa)</SelectItem>
+                {colaboradoresBeneficiarios.map((item) => (
+                  <SelectItem key={item.id} value={String(item.id)}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              {fornecedores.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel>Fornecedores</SelectLabel>
+                    {fornecedores.map((item) => (
+                      <SelectItem key={item.id} value={String(item.id)}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+
+          <Select value={formaPagamentoFiltro} onValueChange={setFormaPagamentoFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FORMA_PAGAMENTO_FILTRO_TODAS}>Todas as formas de pagamento</SelectItem>
+              {Object.entries(FORMA_PAGAMENTO_LABEL).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <VencimentoRangeFilter onChange={setVencimentoFiltro} resetToken={vencimentoResetToken} />
+
+          <ValorRangeFilter onChange={setValorFiltro} resetToken={valorResetToken} />
         </FiltersDrawer>
       </div>
 
@@ -393,7 +495,7 @@ export default function MinhasSolicitacoes() {
                   <TableHead>Vencimento</TableHead>
                   <TableHead>Forma de pagamento</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead>Fornecedor</TableHead>
+                  <TableHead>Beneficiário</TableHead>
                   <TableHead>Aprovador</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
@@ -427,7 +529,17 @@ export default function MinhasSolicitacoes() {
                     <TableCell>{FORMA_PAGAMENTO_LABEL[row.forma_pagamento] || '-'}</TableCell>
                     <TableCell>{row.categoria || '-'}</TableCell>
                     <TableCell className="font-medium">{row.fornecedor}</TableCell>
-                    <TableCell>{row.aprovador_destino_nome || '-'}</TableCell>
+                    <TableCell>
+                      {row.aprovador_destino_nome || (
+                        row.tipo_beneficiario === 'colaborador' ? (
+                          <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-600">
+                            Auto-aprovado
+                          </Badge>
+                        ) : (
+                          '-'
+                        )
+                      )}
+                    </TableCell>
                     <TableCell>{formatValor(row.valor)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
@@ -471,6 +583,11 @@ export default function MinhasSolicitacoes() {
                     {row.eh_teste && (
                       <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600">
                         Teste
+                      </Badge>
+                    )}
+                    {!row.aprovador_destino_nome && row.tipo_beneficiario === 'colaborador' && (
+                      <Badge variant="outline" className="border-sky-500/50 bg-sky-500/10 text-sky-600">
+                        Auto-aprovado
                       </Badge>
                     )}
                   </>

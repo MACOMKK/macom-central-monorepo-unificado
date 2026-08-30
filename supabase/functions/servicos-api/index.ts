@@ -40,7 +40,9 @@ const MAX_COMPROVANTE_FILE_SIZE = 5 * 1024 * 1024;
 
 const CREATE_FIELDS = [
   'titulo',
+  'tipo_beneficiario',
   'fornecedor_id',
+  'colaborador_beneficiario_id',
   'descricao',
   'valor',
   'categoria_id',
@@ -56,7 +58,9 @@ const CREATE_FIELDS = [
 const UPDATE_FIELDS = CREATE_FIELDS;
 const UPDATE_FIELD_LABELS: Record<(typeof CREATE_FIELDS)[number], string> = {
   titulo: 'Titulo',
+  tipo_beneficiario: 'Tipo de beneficiario',
   fornecedor_id: 'Fornecedor',
+  colaborador_beneficiario_id: 'Beneficiario (colaborador)',
   descricao: 'Descricao',
   valor: 'Valor',
   categoria_id: 'Categoria',
@@ -210,6 +214,46 @@ async function getRestringeVisibilidadeDinheiro(): Promise<boolean> {
   // public.servicos_restringe_visibilidade_dinheiro() no banco.
   const value = rows[0] ? Boolean(rows[0].restringir_visibilidade_pagamento_dinheiro) : true;
   restringeVisibilidadeDinheiroCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
+  return value;
+}
+
+// Flag configuravel que dispensa aprovador em solicitacoes de suprimento de caixa
+// (tipo_beneficiario = 'colaborador') -- o financeiro (label "Gerente") aprova/paga direto.
+// Fail-safe false (exige aprovador) se a linha de config nao existir -- mais conservador.
+let suprimentoCaixaSemAprovadorCache: { expiresAt: number; value: boolean } | null = null;
+
+async function getSuprimentoCaixaSemAprovador(): Promise<boolean> {
+  if (suprimentoCaixaSemAprovadorCache && suprimentoCaixaSemAprovadorCache.expiresAt > Date.now()) {
+    return suprimentoCaixaSemAprovadorCache.value;
+  }
+  if (!sql) return false;
+  const rows = await sql.unsafe(
+    `select suprimento_caixa_sem_aprovador from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+    ['financeiro'],
+  );
+  const value = rows[0] ? Boolean(rows[0].suprimento_caixa_sem_aprovador) : false;
+  suprimentoCaixaSemAprovadorCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
+  return value;
+}
+
+// Sub-opcao de suprimento_caixa_sem_aprovador: quando ativa, a solicitacao de suprimento de
+// caixa ja nasce 'aprovado' na criacao (fila direto pra Pagamentos); quando inativa, ela cai
+// 'pendente' em Aprovacoes e o financeiro aprova manualmente. So tem efeito quando o flag
+// mestre (suprimento_caixa_sem_aprovador) tambem esta ativo. Fail-safe false (comportamento
+// atual: aprovacao manual).
+let suprimentoCaixaAutoAprovarCache: { expiresAt: number; value: boolean } | null = null;
+
+async function getSuprimentoCaixaAutoAprovar(): Promise<boolean> {
+  if (suprimentoCaixaAutoAprovarCache && suprimentoCaixaAutoAprovarCache.expiresAt > Date.now()) {
+    return suprimentoCaixaAutoAprovarCache.value;
+  }
+  if (!sql) return false;
+  const rows = await sql.unsafe(
+    `select suprimento_caixa_auto_aprovar from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+    ['financeiro'],
+  );
+  const value = rows[0] ? Boolean(rows[0].suprimento_caixa_auto_aprovar) : false;
+  suprimentoCaixaAutoAprovarCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
   return value;
 }
 
@@ -473,13 +517,32 @@ function ensureHasAccess(access: Record<string, unknown> | null) {
 
 function validateCreatePayload(payload: Record<string, unknown>) {
   const titulo = String(payload.titulo || '').trim();
-  const fornecedorId = String(payload.fornecedor_id || '').trim();
   const descricao = String(payload.descricao || '').trim();
   const valor = Number(payload.valor);
   const categoriaId = String(payload.categoria_id || '').trim();
 
   if (!titulo) throw Object.assign(new Error('Informe o titulo.'), { status: 400 });
-  if (!fornecedorId) throw Object.assign(new Error('Informe o fornecedor.'), { status: 400 });
+
+  // Beneficiario e polimorfico: fornecedor externo (padrao) ou colaborador (suprimento de
+  // caixa) -- default 'fornecedor' preserva o comportamento de clients antigos que nao mandam
+  // tipo_beneficiario.
+  const tipoBeneficiario = String(payload.tipo_beneficiario || 'fornecedor').trim();
+  if (!['fornecedor', 'colaborador'].includes(tipoBeneficiario)) {
+    throw Object.assign(new Error('Tipo de beneficiario invalido.'), { status: 400 });
+  }
+  payload.tipo_beneficiario = tipoBeneficiario;
+  if (tipoBeneficiario === 'fornecedor') {
+    if (!String(payload.fornecedor_id || '').trim()) {
+      throw Object.assign(new Error('Informe o fornecedor.'), { status: 400 });
+    }
+    payload.colaborador_beneficiario_id = null;
+  } else {
+    if (!String(payload.colaborador_beneficiario_id || '').trim()) {
+      throw Object.assign(new Error('Informe o colaborador beneficiario.'), { status: 400 });
+    }
+    payload.fornecedor_id = null;
+  }
+
   if (!descricao) throw Object.assign(new Error('Informe a descricao.'), { status: 400 });
   if (!Number.isFinite(valor) || valor <= 0) {
     throw Object.assign(new Error('Informe um valor valido.'), { status: 400 });
@@ -853,10 +916,17 @@ Deno.serve(async (request) => {
 
     if (action === 'get_configuracao_modulo') {
       const rows = await sql.unsafe(
-        `select modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        `select modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
         ['financeiro'],
       );
-      return json({ row: rows[0] || { modulo: 'financeiro', restringir_visibilidade_pagamento_dinheiro: true } });
+      return json({
+        row: rows[0] || {
+          modulo: 'financeiro',
+          restringir_visibilidade_pagamento_dinheiro: true,
+          suprimento_caixa_sem_aprovador: false,
+          suprimento_caixa_auto_aprovar: false,
+        },
+      });
     }
 
     if (action === 'atualizar_configuracao_modulo') {
@@ -870,21 +940,42 @@ Deno.serve(async (request) => {
         return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
       }
 
-      const restringir = Boolean(parsedConfig.data.restringir_visibilidade_pagamento_dinheiro);
+      // Atualizacao parcial: so mexe nas colunas cujo campo veio no body, preserva o resto da
+      // linha (evita que atualizar um flag reset o outro pro default).
+      const existingRows = await sql.unsafe(
+        `select restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        ['financeiro'],
+      );
+      const existing = existingRows[0] || {
+        restringir_visibilidade_pagamento_dinheiro: true,
+        suprimento_caixa_sem_aprovador: false,
+        suprimento_caixa_auto_aprovar: false,
+      };
+      const restringir =
+        parsedConfig.data.restringir_visibilidade_pagamento_dinheiro ?? Boolean(existing.restringir_visibilidade_pagamento_dinheiro);
+      const suprimentoCaixaSemAprovador =
+        parsedConfig.data.suprimento_caixa_sem_aprovador ?? Boolean(existing.suprimento_caixa_sem_aprovador);
+      const suprimentoCaixaAutoAprovar =
+        parsedConfig.data.suprimento_caixa_auto_aprovar ?? Boolean(existing.suprimento_caixa_auto_aprovar);
+
       const rows = await sql.unsafe(
         `
-          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_por, atualizado_em)
-          values ($1, $2, $3, now())
+          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_por, atualizado_em)
+          values ($1, $2, $3, $4, $5, now())
           on conflict (modulo) do update
             set restringir_visibilidade_pagamento_dinheiro = excluded.restringir_visibilidade_pagamento_dinheiro,
+              suprimento_caixa_sem_aprovador = excluded.suprimento_caixa_sem_aprovador,
+              suprimento_caixa_auto_aprovar = excluded.suprimento_caixa_auto_aprovar,
               atualizado_por = excluded.atualizado_por,
               atualizado_em = now()
-          returning modulo, restringir_visibilidade_pagamento_dinheiro, atualizado_em;
+          returning modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_em;
         `,
-        ['financeiro', restringir, collaborator!.id],
+        ['financeiro', restringir, suprimentoCaixaSemAprovador, suprimentoCaixaAutoAprovar, collaborator!.id],
       );
-      // Invalida o cache em memoria pra a mudanca valer imediatamente nesta instancia da function.
+      // Invalida os caches em memoria pra a mudanca valer imediatamente nesta instancia da function.
       restringeVisibilidadeDinheiroCache = null;
+      suprimentoCaixaSemAprovadorCache = null;
+      suprimentoCaixaAutoAprovarCache = null;
       return json({ row: rows[0] });
     }
 
@@ -1196,8 +1287,13 @@ Deno.serve(async (request) => {
         `,
         [SERVICOS_SYSTEM_SLUG],
       );
+      // Beneficiario do tipo "colaborador" (suprimento de caixa) pode ser qualquer colaborador
+      // ativo da empresa, nao so quem tem acesso ao modulo Financeiro.
+      const colaboradores = await sql.unsafe(
+        `select id, nome from public.colaboradores where status = 'ativo' order by nome;`,
+      );
 
-      return json({ empresas, unidades, departamentos, fornecedores, categorias, aprovadores });
+      return json({ empresas, unidades, departamentos, fornecedores, categorias, aprovadores, colaboradores });
     }
 
     if (action === 'list_permissoes') {
@@ -1594,24 +1690,41 @@ Deno.serve(async (request) => {
 
       // Todo solicitacao precisa de um aprovador especifico: so ele (ou o financeiro,
       // que sobrepoe qualquer aprovador) pode decidir sobre ela — ver canAccessSolicitacao.
+      // Excecao: suprimento de caixa pode dispensar aprovador quando o flag configuravel
+      // suprimento_caixa_sem_aprovador esta ativo -- o financeiro (label "Gerente") ja tem
+      // despacho total sobre qualquer solicitacao pendente independente de aprovador_destino_id.
       const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
-      if (!aprovadorDestinoId) {
+      const aprovadorDispensado =
+        payload.tipo_beneficiario === 'colaborador' && (await getSuprimentoCaixaSemAprovador());
+      if (!aprovadorDestinoId && !aprovadorDispensado) {
         throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
       }
 
-      // fornecedor/categoria sao snapshot do nome no momento da solicitacao (mesmo padrao
+      // beneficiario/categoria sao snapshot do nome no momento da solicitacao (mesmo padrao
       // de empresa_id/departamento_id abaixo); essas 3 validacoes sao independentes entre si,
       // entao rodam em paralelo em vez de sequencial pra reduzir a latencia do create.
-      const [fornecedorRows, categoriaRows] = await Promise.all([
-        sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]),
+      // beneficiario e polimorfico (fornecedor externo ou colaborador, ver validateCreatePayload) --
+      // sempre resolve o nome pro mesmo campo de snapshot `fornecedor`, mantendo o restante do
+      // sistema (cards, listas, notificacoes) agnostico ao tipo.
+      const beneficiarioQuery =
+        payload.tipo_beneficiario === 'colaborador'
+          ? sql.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [payload.colaborador_beneficiario_id])
+          : sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]);
+      const [beneficiarioRows, categoriaRows] = await Promise.all([
+        beneficiarioQuery,
         sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`, [payload.categoria_id]),
-        validateAprovadorDestino(aprovadorDestinoId),
+        aprovadorDestinoId ? validateAprovadorDestino(aprovadorDestinoId) : Promise.resolve(),
       ]);
-      if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
-      payload.fornecedor = fornecedorRows[0].nome;
+      if (!beneficiarioRows[0]) {
+        throw Object.assign(
+          new Error(payload.tipo_beneficiario === 'colaborador' ? 'Colaborador beneficiario invalido.' : 'Fornecedor invalido.'),
+          { status: 400 },
+        );
+      }
+      payload.fornecedor = beneficiarioRows[0].nome;
       if (!categoriaRows[0]) throw Object.assign(new Error('Categoria invalida.'), { status: 400 });
       payload.categoria = categoriaRows[0].nome;
-      payload.aprovador_destino_id = aprovadorDestinoId;
+      payload.aprovador_destino_id = aprovadorDestinoId || null;
 
       // empresa_id/unidade_id/departamento_id sao snapshot do colaborador no momento da criacao
       // (nao join ao vivo) - preserva o setor/empresa/unidade corretos historicamente mesmo
@@ -1637,14 +1750,37 @@ Deno.serve(async (request) => {
         fields.map((field) => payload[field]),
       );
 
-      const row = rows[0] || null;
+      let row = rows[0] || null;
       if (row) {
         await insertHistorico(String(row.id), 'criada', collaborator!.id as string);
         if (parcelasPropostas.length) {
           await inserirPlanoParcelas(String(row.id), parcelasPropostas);
           await insertHistorico(String(row.id), 'parcela_criada', collaborator!.id as string, `${parcelasPropostas.length} parcela(s) proposta(s) pelo solicitante.`);
         }
-        await notifyAprovadorNovaSolicitacao(row, 'Nova solicitação para aprovar', collaborator!.id as string);
+
+        // Sub-opcao do suprimento de caixa sem aprovador: em vez de esperar aprovacao manual do
+        // financeiro em Aprovacoes, a solicitacao ja nasce 'aprovado' e vai direto pra fila de
+        // pagamento -- reaproveita exatamente o mesmo efeito do branch 'aprovado' de set_status.
+        const autoAprovar = aprovadorDispensado && (await getSuprimentoCaixaAutoAprovar());
+        if (autoAprovar) {
+          const observacaoAutoAprovacao = 'Aprovação automática (suprimento de caixa sem aprovador).';
+          const aprovadoRows = await sql.unsafe(
+            `
+              update ${SERVICOS_SCHEMA}.solicitacoes_pagamento
+              set status = 'aprovado', observacao_analise = $2, analisado_por = $3, analisado_em = now()
+              where id = $1
+              returning *;
+            `,
+            [row.id, observacaoAutoAprovacao, collaborator!.id],
+          );
+          row = aprovadoRows[0] || row;
+          await insertHistorico(String(row.id), 'aprovada', collaborator!.id as string, observacaoAutoAprovacao);
+          await enqueueStatusEmail(row, 'aprovado');
+          await notifySolicitanteStatusChange(row, 'aprovado', collaborator!.id as string);
+          await notifyFinanceirosSolicitacaoAprovada(row, collaborator!.id as string);
+        } else {
+          await notifyAprovadorNovaSolicitacao(row, 'Nova solicitação para aprovar', collaborator!.id as string);
+        }
       }
       return json({ row });
     }
@@ -1680,13 +1816,31 @@ Deno.serve(async (request) => {
         validateComprovanteSize(updateBody.payload?.comprovante_file_size);
       }
 
-      if (payload.fornecedor_id) {
-        const fornecedorRows = await sql.unsafe(
-          `select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`,
-          [payload.fornecedor_id],
-        );
-        if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
-        payload.fornecedor = fornecedorRows[0].nome;
+      if ('tipo_beneficiario' in payload) {
+        const tipoBeneficiario = String(payload.tipo_beneficiario || '').trim();
+        if (!['fornecedor', 'colaborador'].includes(tipoBeneficiario)) {
+          throw Object.assign(new Error('Tipo de beneficiario invalido.'), { status: 400 });
+        }
+        payload.tipo_beneficiario = tipoBeneficiario;
+      }
+      const tipoBeneficiarioEfetivo = String(payload.tipo_beneficiario || existing.tipo_beneficiario || 'fornecedor');
+
+      if (payload.fornecedor_id || payload.colaborador_beneficiario_id) {
+        const beneficiarioRows =
+          tipoBeneficiarioEfetivo === 'colaborador'
+            ? await sql.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [payload.colaborador_beneficiario_id])
+            : await sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]);
+        if (!beneficiarioRows[0]) {
+          throw Object.assign(
+            new Error(tipoBeneficiarioEfetivo === 'colaborador' ? 'Colaborador beneficiario invalido.' : 'Fornecedor invalido.'),
+            { status: 400 },
+          );
+        }
+        payload.fornecedor = beneficiarioRows[0].nome;
+        // zera o lado nao usado pra nao violar chk_servicos_solicitacoes_beneficiario quando o
+        // solicitante troca o tipo de beneficiario na edicao.
+        if (tipoBeneficiarioEfetivo === 'colaborador') payload.fornecedor_id = null;
+        else payload.colaborador_beneficiario_id = null;
       }
 
       if (payload.categoria_id) {
@@ -1700,11 +1854,13 @@ Deno.serve(async (request) => {
 
       if ('aprovador_destino_id' in payload) {
         const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
-        if (!aprovadorDestinoId) {
+        const aprovadorDispensado =
+          tipoBeneficiarioEfetivo === 'colaborador' && (await getSuprimentoCaixaSemAprovador());
+        if (!aprovadorDestinoId && !aprovadorDispensado) {
           throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
         }
-        await validateAprovadorDestino(aprovadorDestinoId);
-        payload.aprovador_destino_id = aprovadorDestinoId;
+        if (aprovadorDestinoId) await validateAprovadorDestino(aprovadorDestinoId);
+        payload.aprovador_destino_id = aprovadorDestinoId || null;
       }
 
       if (payload.data_vencimento) {
@@ -1898,13 +2054,29 @@ Deno.serve(async (request) => {
         validateComprovanteSize(reenviarBody.payload?.comprovante_file_size);
       }
 
-      if (payload.fornecedor_id) {
-        const fornecedorRows = await sql.unsafe(
-          `select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`,
-          [payload.fornecedor_id],
-        );
-        if (!fornecedorRows[0]) throw Object.assign(new Error('Fornecedor invalido.'), { status: 400 });
-        payload.fornecedor = fornecedorRows[0].nome;
+      if ('tipo_beneficiario' in payload) {
+        const tipoBeneficiario = String(payload.tipo_beneficiario || '').trim();
+        if (!['fornecedor', 'colaborador'].includes(tipoBeneficiario)) {
+          throw Object.assign(new Error('Tipo de beneficiario invalido.'), { status: 400 });
+        }
+        payload.tipo_beneficiario = tipoBeneficiario;
+      }
+      const tipoBeneficiarioEfetivo = String(payload.tipo_beneficiario || existing.tipo_beneficiario || 'fornecedor');
+
+      if (payload.fornecedor_id || payload.colaborador_beneficiario_id) {
+        const beneficiarioRows =
+          tipoBeneficiarioEfetivo === 'colaborador'
+            ? await sql.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [payload.colaborador_beneficiario_id])
+            : await sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]);
+        if (!beneficiarioRows[0]) {
+          throw Object.assign(
+            new Error(tipoBeneficiarioEfetivo === 'colaborador' ? 'Colaborador beneficiario invalido.' : 'Fornecedor invalido.'),
+            { status: 400 },
+          );
+        }
+        payload.fornecedor = beneficiarioRows[0].nome;
+        if (tipoBeneficiarioEfetivo === 'colaborador') payload.fornecedor_id = null;
+        else payload.colaborador_beneficiario_id = null;
       }
 
       if (payload.categoria_id) {
@@ -1918,11 +2090,13 @@ Deno.serve(async (request) => {
 
       if ('aprovador_destino_id' in payload) {
         const aprovadorDestinoId = String(payload.aprovador_destino_id || '').trim();
-        if (!aprovadorDestinoId) {
+        const aprovadorDispensado =
+          tipoBeneficiarioEfetivo === 'colaborador' && (await getSuprimentoCaixaSemAprovador());
+        if (!aprovadorDestinoId && !aprovadorDispensado) {
           throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
         }
-        await validateAprovadorDestino(aprovadorDestinoId);
-        payload.aprovador_destino_id = aprovadorDestinoId;
+        if (aprovadorDestinoId) await validateAprovadorDestino(aprovadorDestinoId);
+        payload.aprovador_destino_id = aprovadorDestinoId || null;
       }
 
       if (payload.data_vencimento) {
