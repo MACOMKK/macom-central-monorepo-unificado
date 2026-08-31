@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Button,
+  Checkbox,
   Switch,
   Table,
   TableBody,
@@ -164,6 +165,12 @@ function FinanceiroTab() {
     queryFn: () => financeiroApi.configuracaoModulo.get(),
   });
 
+  const departamentosQuery = useQuery({
+    queryKey: ['servicos', 'departamentos'],
+    queryFn: () => financeiroApi.departamentos.list(),
+  });
+  const departamentos = departamentosQuery.data || [];
+
   const atualizarMutation = useMutation({
     mutationFn: (campos) => financeiroApi.configuracaoModulo.atualizar(campos),
     onSuccess: () => {
@@ -176,6 +183,14 @@ function FinanceiroTab() {
   const restringir = configQuery.data?.restringir_visibilidade_pagamento_dinheiro ?? true;
   const suprimentoCaixaSemAprovador = configQuery.data?.suprimento_caixa_sem_aprovador ?? false;
   const suprimentoCaixaAutoAprovar = configQuery.data?.suprimento_caixa_auto_aprovar ?? false;
+  const suprimentoCaixaDepartamentosPermitidos = configQuery.data?.suprimento_caixa_departamentos_permitidos || [];
+
+  function toggleDepartamentoPermitido(departamentoId, checked) {
+    const proximaLista = checked
+      ? [...suprimentoCaixaDepartamentosPermitidos, departamentoId]
+      : suprimentoCaixaDepartamentosPermitidos.filter((id) => id !== departamentoId);
+    atualizarMutation.mutate({ suprimento_caixa_departamentos_permitidos: proximaLista });
+  }
 
   return (
     <div className="space-y-4">
@@ -240,6 +255,36 @@ function FinanceiroTab() {
             onCheckedChange={(checked) => atualizarMutation.mutate({ suprimento_caixa_auto_aprovar: checked })}
             disabled={atualizarMutation.isPending}
           />
+        </div>
+      )}
+
+      {!configQuery.isLoading && (
+        <div className="rounded-lg border border-border p-4">
+          <p className="font-medium">Departamentos autorizados a abrir suprimento de caixa</p>
+          <p className="text-sm text-muted-foreground">
+            Quando um ou mais departamentos forem selecionados, só colaboradores desses setores
+            podem criar uma solicitação de suprimento de caixa. Vazio = qualquer colaborador com
+            acesso ao Financeiro pode abrir. Não afeta quem pode ver solicitações já existentes.
+          </p>
+          {departamentosQuery.isLoading ? (
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size="sm" />
+              Carregando...
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {departamentos.map((departamento) => (
+                <label key={departamento.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={suprimentoCaixaDepartamentosPermitidos.includes(departamento.id)}
+                    onCheckedChange={(checked) => toggleDepartamentoPermitido(departamento.id, checked === true)}
+                    disabled={atualizarMutation.isPending}
+                  />
+                  {departamento.nome}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

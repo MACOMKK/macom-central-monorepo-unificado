@@ -257,6 +257,31 @@ async function getSuprimentoCaixaAutoAprovar(): Promise<boolean> {
   return value;
 }
 
+// Lista configuravel de departamentos autorizados a abrir suprimento de caixa -- controla so a
+// criacao (acao create), nao afeta canAccessSolicitacao/visibilidade. Vazio/null = sem restricao
+// (qualquer colaborador com acesso ao modulo pode abrir), fail-safe permissivo pra nao trancar
+// ninguem fora se a linha de config nao existir.
+let suprimentoCaixaDepartamentosPermitidosCache: { expiresAt: number; value: string[] } | null = null;
+
+async function getSuprimentoCaixaDepartamentosPermitidos(): Promise<string[]> {
+  if (
+    suprimentoCaixaDepartamentosPermitidosCache &&
+    suprimentoCaixaDepartamentosPermitidosCache.expiresAt > Date.now()
+  ) {
+    return suprimentoCaixaDepartamentosPermitidosCache.value;
+  }
+  if (!sql) return [];
+  const rows = await sql.unsafe(
+    `select suprimento_caixa_departamentos_permitidos from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+    ['financeiro'],
+  );
+  const value = Array.isArray(rows[0]?.suprimento_caixa_departamentos_permitidos)
+    ? (rows[0].suprimento_caixa_departamentos_permitidos as string[])
+    : [];
+  suprimentoCaixaDepartamentosPermitidosCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
+  return value;
+}
+
 // Usado tanto na criacao da solicitacao (solicitante propondo parcelamento) quanto em
 // criar_parcelas (financeiro/contas_a_pagar revisando o plano depois de aprovado) — a soma
 // precisa bater com o valor total da solicitacao pra evitar plano de pagamento inconsistente.
@@ -916,7 +941,7 @@ Deno.serve(async (request) => {
 
     if (action === 'get_configuracao_modulo') {
       const rows = await sql.unsafe(
-        `select modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        `select modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
         ['financeiro'],
       );
       return json({
@@ -925,6 +950,7 @@ Deno.serve(async (request) => {
           restringir_visibilidade_pagamento_dinheiro: true,
           suprimento_caixa_sem_aprovador: false,
           suprimento_caixa_auto_aprovar: false,
+          suprimento_caixa_departamentos_permitidos: [],
         },
       });
     }
@@ -943,13 +969,14 @@ Deno.serve(async (request) => {
       // Atualizacao parcial: so mexe nas colunas cujo campo veio no body, preserva o resto da
       // linha (evita que atualizar um flag reset o outro pro default).
       const existingRows = await sql.unsafe(
-        `select restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        `select restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
         ['financeiro'],
       );
       const existing = existingRows[0] || {
         restringir_visibilidade_pagamento_dinheiro: true,
         suprimento_caixa_sem_aprovador: false,
         suprimento_caixa_auto_aprovar: false,
+        suprimento_caixa_departamentos_permitidos: [],
       };
       const restringir =
         parsedConfig.data.restringir_visibilidade_pagamento_dinheiro ?? Boolean(existing.restringir_visibilidade_pagamento_dinheiro);
@@ -957,25 +984,31 @@ Deno.serve(async (request) => {
         parsedConfig.data.suprimento_caixa_sem_aprovador ?? Boolean(existing.suprimento_caixa_sem_aprovador);
       const suprimentoCaixaAutoAprovar =
         parsedConfig.data.suprimento_caixa_auto_aprovar ?? Boolean(existing.suprimento_caixa_auto_aprovar);
+      const suprimentoCaixaDepartamentosPermitidos =
+        parsedConfig.data.suprimento_caixa_departamentos_permitidos ??
+        (existing.suprimento_caixa_departamentos_permitidos as string[] | null) ??
+        [];
 
       const rows = await sql.unsafe(
         `
-          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_por, atualizado_em)
-          values ($1, $2, $3, $4, $5, now())
+          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_por, atualizado_em)
+          values ($1, $2, $3, $4, $5::uuid[], $6, now())
           on conflict (modulo) do update
             set restringir_visibilidade_pagamento_dinheiro = excluded.restringir_visibilidade_pagamento_dinheiro,
               suprimento_caixa_sem_aprovador = excluded.suprimento_caixa_sem_aprovador,
               suprimento_caixa_auto_aprovar = excluded.suprimento_caixa_auto_aprovar,
+              suprimento_caixa_departamentos_permitidos = excluded.suprimento_caixa_departamentos_permitidos,
               atualizado_por = excluded.atualizado_por,
               atualizado_em = now()
-          returning modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, atualizado_em;
+          returning modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_em;
         `,
-        ['financeiro', restringir, suprimentoCaixaSemAprovador, suprimentoCaixaAutoAprovar, collaborator!.id],
+        ['financeiro', restringir, suprimentoCaixaSemAprovador, suprimentoCaixaAutoAprovar, suprimentoCaixaDepartamentosPermitidos, collaborator!.id],
       );
       // Invalida os caches em memoria pra a mudanca valer imediatamente nesta instancia da function.
       restringeVisibilidadeDinheiroCache = null;
       suprimentoCaixaSemAprovadorCache = null;
       suprimentoCaixaAutoAprovarCache = null;
+      suprimentoCaixaDepartamentosPermitidosCache = null;
       return json({ row: rows[0] });
     }
 
@@ -1698,6 +1731,21 @@ Deno.serve(async (request) => {
         payload.tipo_beneficiario === 'colaborador' && (await getSuprimentoCaixaSemAprovador());
       if (!aprovadorDestinoId && !aprovadorDispensado) {
         throw Object.assign(new Error('Selecione o aprovador responsavel pela solicitacao.'), { status: 400 });
+      }
+
+      // Lista configuravel de departamentos autorizados a abrir suprimento de caixa -- vazia =
+      // sem restricao. So vale pra criacao de solicitacao nova, nao pra update/reenvio.
+      if (payload.tipo_beneficiario === 'colaborador') {
+        const departamentosPermitidos = await getSuprimentoCaixaDepartamentosPermitidos();
+        if (
+          departamentosPermitidos.length > 0 &&
+          !departamentosPermitidos.includes(String(collaborator!.departamento_id || ''))
+        ) {
+          throw Object.assign(
+            new Error('Seu departamento nao tem permissao para abrir suprimento de caixa.'),
+            { status: 403 },
+          );
+        }
       }
 
       // beneficiario/categoria sao snapshot do nome no momento da solicitacao (mesmo padrao

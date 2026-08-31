@@ -210,6 +210,23 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const aprovadorDispensado =
     form.tipoBeneficiario === 'colaborador' && Boolean(configuracaoModulo?.suprimento_caixa_sem_aprovador);
 
+  // Lista configuravel de departamentos autorizados a abrir suprimento de caixa (ver
+  // Configuracoes.jsx) -- vazia = sem restricao. So barra a criacao de solicitacao nova; se o
+  // form ja estiver carregado com tipoBeneficiario 'colaborador' (edicao/reenvio de algo criado
+  // antes da restricao existir ou por outro colaborador), nao esconde o campo.
+  const departamentosPermitidosSuprimentoCaixa = configuracaoModulo?.suprimento_caixa_departamentos_permitidos || [];
+  const podeAbrirSuprimentoCaixa =
+    isReenvio ||
+    isEdicao ||
+    departamentosPermitidosSuprimentoCaixa.length === 0 ||
+    departamentosPermitidosSuprimentoCaixa.includes(user?.collaborator?.departamento_id);
+
+  useEffect(() => {
+    if (!podeAbrirSuprimentoCaixa && form.tipoBeneficiario === 'colaborador') {
+      handleTipoBeneficiarioChange('fornecedor');
+    }
+  }, [podeAbrirSuprimentoCaixa, form.tipoBeneficiario]);
+
   useEffect(() => {
     if (skipNextResetRef.current) {
       skipNextResetRef.current = false;
@@ -518,27 +535,29 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Tipo de solicitação</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={form.tipoBeneficiario === 'fornecedor' ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => handleTipoBeneficiarioChange('fornecedor')}
-              >
-                Fornecedor
-              </Button>
-              <Button
-                type="button"
-                variant={form.tipoBeneficiario === 'colaborador' ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => handleTipoBeneficiarioChange('colaborador')}
-              >
-                Suprimento de caixa
-              </Button>
+          {podeAbrirSuprimentoCaixa && (
+            <div className="space-y-2">
+              <Label>Tipo de solicitação</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={form.tipoBeneficiario === 'fornecedor' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => handleTipoBeneficiarioChange('fornecedor')}
+                >
+                  Fornecedor
+                </Button>
+                <Button
+                  type="button"
+                  variant={form.tipoBeneficiario === 'colaborador' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => handleTipoBeneficiarioChange('colaborador')}
+                >
+                  Suprimento de caixa
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {form.tipoBeneficiario === 'colaborador' ? (
             <div className="space-y-2">

@@ -348,6 +348,7 @@ export const atualizarConfiguracaoModuloBodySchema = z.object({
   restringir_visibilidade_pagamento_dinheiro: z.boolean().nullish(),
   suprimento_caixa_sem_aprovador: z.boolean().nullish(),
   suprimento_caixa_auto_aprovar: z.boolean().nullish(),
+  suprimento_caixa_departamentos_permitidos: z.array(z.string().uuid()).nullish(),
 });
 
 // servicos-api -- registrar_anexo/criar_parcelas/registrar_pagamento_parcela. Enums de anexo
