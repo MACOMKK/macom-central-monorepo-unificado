@@ -50,52 +50,52 @@ export function ProfileView({ profile, loading, error }) {
   const interests = Array.isArray(profile.interests) ? profile.interests : [];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
+    <div className="min-w-0 space-y-5">
+      <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-16 w-16 shrink-0">
           {profile.photo_url ? <AvatarImage src={profile.photo_url} alt="" /> : null}
           <AvatarFallback className="text-lg font-bold uppercase">{getInitials(profile.name)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold">{profile.name}</p>
-          {cargoLinha ? <p className="truncate text-sm text-muted-foreground">{cargoLinha}</p> : null}
+          <p className="break-words text-base font-semibold">{profile.name}</p>
+          {cargoLinha ? <p className="break-words text-sm text-muted-foreground">{cargoLinha}</p> : null}
         </div>
       </div>
 
       {profile.status_message ? (
-        <p className="rounded-md bg-muted px-3 py-2 text-sm italic text-muted-foreground">
+        <p className="break-words rounded-md bg-muted px-3 py-2 text-sm italic text-muted-foreground">
           &quot;{profile.status_message}&quot;
         </p>
       ) : null}
 
-      {profile.bio ? <p className="text-sm text-foreground">{profile.bio}</p> : null}
+      {profile.bio ? <p className="break-words text-sm text-foreground">{profile.bio}</p> : null}
 
       <div className="space-y-1.5 text-sm text-muted-foreground">
         {profile.email ? (
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 shrink-0" />
-            <span className="truncate">{profile.email}</span>
+          <div className="flex min-w-0 items-start gap-2">
+            <Mail className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words">{profile.email}</span>
           </div>
         ) : null}
         {profile.phone ? (
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 shrink-0" />
-            <span className="truncate">{profile.phone}</span>
+          <div className="flex min-w-0 items-start gap-2">
+            <Phone className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words">{profile.phone}</span>
           </div>
         ) : null}
         {profile.office_location ? (
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 shrink-0" />
-            <span className="truncate">{profile.office_location}</span>
+          <div className="flex min-w-0 items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words">{profile.office_location}</span>
           </div>
         ) : null}
         {profile.function_role ? (
-          <div className="flex items-center gap-2">
-            <Briefcase className="h-4 w-4 shrink-0" />
-            <span className="truncate">{profile.function_role}</span>
+          <div className="flex min-w-0 items-start gap-2">
+            <Briefcase className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words">{profile.function_role}</span>
           </div>
         ) : null}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {profile.has_signature ? (
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           ) : (
