@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronDown, Lock, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-react';
+import { ChevronDown, Lock, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 
 import { Button, ThemeToggleButton } from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
@@ -168,15 +168,6 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, setMobileOpen
               <ModuleNavItem key={mod.key} mod={mod} user={user} collapsed={collapsed} onNavigate={closeMobile} />
             ))}
           </div>
-
-          {user?.system_access_level === 'admin' && (
-            <div className="flex flex-col gap-1 border-t border-border pt-4">
-              {!collapsed ? (
-                <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Administração</p>
-              ) : null}
-              <NavItem to="/configuracoes" icon={Settings} label="Configurações" collapsed={collapsed} onNavigate={closeMobile} />
-            </div>
-          )}
         </nav>
 
         <div className="border-t border-border p-3">

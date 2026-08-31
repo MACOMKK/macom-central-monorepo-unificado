@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BellRing, Download, Menu, UserRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BellRing, Download, Menu, Settings, UserRound } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { AccountMenu, AccountMenuItem, Button, ProfileViewDialog, useToast } from '@macom/ui';
@@ -17,6 +18,7 @@ const ROLE_LABEL = {
 
 export default function Header({ onOpenMobileMenu }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { canInstall, promptInstall } = useInstallPrompt();
   const { canShowBanner: canShowPushButton, permission, loading, error: pushError, subscribe } = usePushBanner();
   const { toast } = useToast();
@@ -99,6 +101,11 @@ export default function Header({ onOpenMobileMenu }) {
           <AccountMenuItem icon={UserRound} onSelect={() => setShowProfile(true)}>
             Ver perfil
           </AccountMenuItem>
+          {user?.system_access_level === 'admin' ? (
+            <AccountMenuItem icon={Settings} onSelect={() => navigate('/configuracoes')}>
+              Configurações
+            </AccountMenuItem>
+          ) : null}
         </AccountMenu>
 
         <ProfileViewDialog
