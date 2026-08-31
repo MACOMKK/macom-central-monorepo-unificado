@@ -562,9 +562,7 @@ function validateCreatePayload(payload: Record<string, unknown>) {
     }
     payload.colaborador_beneficiario_id = null;
   } else {
-    if (!String(payload.colaborador_beneficiario_id || '').trim()) {
-      throw Object.assign(new Error('Informe o colaborador beneficiario.'), { status: 400 });
-    }
+    payload.colaborador_beneficiario_id = String(payload.colaborador_beneficiario_id || '').trim() || null;
     payload.fornecedor_id = null;
   }
 
@@ -1754,10 +1752,15 @@ Deno.serve(async (request) => {
       // beneficiario e polimorfico (fornecedor externo ou colaborador, ver validateCreatePayload) --
       // sempre resolve o nome pro mesmo campo de snapshot `fornecedor`, mantendo o restante do
       // sistema (cards, listas, notificacoes) agnostico ao tipo.
+      // Suprimento de caixa pode nao mencionar um colaborador especifico (ex.: reforco de caixa
+      // geral do setor) -- so resolve/exige o nome quando um id foi de fato informado.
+      const beneficiarioColaboradorId = String(payload.colaborador_beneficiario_id || '').trim();
       const beneficiarioQuery =
-        payload.tipo_beneficiario === 'colaborador'
-          ? sql.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [payload.colaborador_beneficiario_id])
-          : sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]);
+        payload.tipo_beneficiario === 'colaborador' && beneficiarioColaboradorId
+          ? sql.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [beneficiarioColaboradorId])
+          : payload.tipo_beneficiario === 'colaborador'
+            ? Promise.resolve([{ nome: 'Suprimento de caixa' }])
+            : sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.fornecedores where id = $1 limit 1;`, [payload.fornecedor_id]);
       const [beneficiarioRows, categoriaRows] = await Promise.all([
         beneficiarioQuery,
         sql.unsafe(`select nome from ${SERVICOS_SCHEMA}.categorias where id = $1 limit 1;`, [payload.categoria_id]),

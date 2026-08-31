@@ -440,8 +440,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     event.preventDefault();
     if (submitMutation.isPending) return;
 
-    const beneficiarioFaltando =
-      form.tipoBeneficiario === 'colaborador' ? !form.colaboradorBeneficiarioId : !form.fornecedorId;
+    const beneficiarioFaltando = form.tipoBeneficiario === 'fornecedor' && !form.fornecedorId;
 
     if (
       beneficiarioFaltando ||
@@ -454,7 +453,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
         title: 'Campos obrigatórios faltando',
         description:
           form.tipoBeneficiario === 'colaborador'
-            ? 'Selecione empresa, colaborador, aprovador, categoria e forma de pagamento antes de enviar.'
+            ? 'Selecione empresa, aprovador, categoria e forma de pagamento antes de enviar.'
             : 'Selecione empresa, fornecedor, aprovador, categoria e forma de pagamento antes de enviar.',
       });
       return;
@@ -561,16 +560,14 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
           {form.tipoBeneficiario === 'colaborador' ? (
             <div className="space-y-2">
-              <Label htmlFor="colaboradorBeneficiario">
-                Colaborador <span className="text-destructive">*</span>
-              </Label>
+              <Label htmlFor="colaboradorBeneficiario">Colaborador</Label>
               <Select
                 value={form.colaboradorBeneficiarioId}
                 onValueChange={setField('colaboradorBeneficiarioId')}
                 disabled={catalogosLoading}
               >
                 <SelectTrigger id="colaboradorBeneficiario">
-                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o colaborador'} />
+                  <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o colaborador (opcional)'} />
                 </SelectTrigger>
                 <SelectContent>
                   {colaboradores.map((item) => (

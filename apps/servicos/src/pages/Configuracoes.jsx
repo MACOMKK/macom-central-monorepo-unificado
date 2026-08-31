@@ -156,9 +156,19 @@ function NotificacoesPushTab() {
   );
 }
 
+function configParaRascunho(config) {
+  return {
+    restringir_visibilidade_pagamento_dinheiro: config?.restringir_visibilidade_pagamento_dinheiro ?? true,
+    suprimento_caixa_sem_aprovador: config?.suprimento_caixa_sem_aprovador ?? false,
+    suprimento_caixa_auto_aprovar: config?.suprimento_caixa_auto_aprovar ?? false,
+    suprimento_caixa_departamentos_permitidos: config?.suprimento_caixa_departamentos_permitidos || [],
+  };
+}
+
 function FinanceiroTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [rascunho, setRascunho] = useState(null);
 
   const configQuery = useQuery({
     queryKey: ['servicos', 'configuracao-modulo'],
@@ -171,25 +181,41 @@ function FinanceiroTab() {
   });
   const departamentos = departamentosQuery.data || [];
 
-  const atualizarMutation = useMutation({
-    mutationFn: (campos) => financeiroApi.configuracaoModulo.atualizar(campos),
-    onSuccess: () => {
+  if (configQuery.data && rascunho === null) {
+    setRascunho(configParaRascunho(configQuery.data));
+  }
+
+  const salvo = useMemo(() => configParaRascunho(configQuery.data), [configQuery.data]);
+  const isDirty = rascunho !== null && JSON.stringify(rascunho) !== JSON.stringify(salvo);
+
+  const salvarMutation = useMutation({
+    mutationFn: () => financeiroApi.configuracaoModulo.atualizar(rascunho),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'configuracao-modulo'] });
-      toast({ title: 'Configuração atualizada' });
+      setRascunho(configParaRascunho(data));
+      toast({ title: 'Configurações salvas' });
     },
-    onError: (error) => toast({ title: 'Não foi possível atualizar', description: error.message }),
+    onError: (error) => toast({ title: 'Não foi possível salvar', description: error.message }),
   });
 
-  const restringir = configQuery.data?.restringir_visibilidade_pagamento_dinheiro ?? true;
-  const suprimentoCaixaSemAprovador = configQuery.data?.suprimento_caixa_sem_aprovador ?? false;
-  const suprimentoCaixaAutoAprovar = configQuery.data?.suprimento_caixa_auto_aprovar ?? false;
-  const suprimentoCaixaDepartamentosPermitidos = configQuery.data?.suprimento_caixa_departamentos_permitidos || [];
+  function setCampo(campo, valor) {
+    setRascunho((atual) => ({ ...atual, [campo]: valor }));
+  }
+
+  function descartarAlteracoes() {
+    setRascunho(salvo);
+  }
+
+  const restringir = rascunho?.restringir_visibilidade_pagamento_dinheiro ?? true;
+  const suprimentoCaixaSemAprovador = rascunho?.suprimento_caixa_sem_aprovador ?? false;
+  const suprimentoCaixaAutoAprovar = rascunho?.suprimento_caixa_auto_aprovar ?? false;
+  const suprimentoCaixaDepartamentosPermitidos = rascunho?.suprimento_caixa_departamentos_permitidos || [];
 
   function toggleDepartamentoPermitido(departamentoId, checked) {
     const proximaLista = checked
       ? [...suprimentoCaixaDepartamentosPermitidos, departamentoId]
       : suprimentoCaixaDepartamentosPermitidos.filter((id) => id !== departamentoId);
-    atualizarMutation.mutate({ suprimento_caixa_departamentos_permitidos: proximaLista });
+    setCampo('suprimento_caixa_departamentos_permitidos', proximaLista);
   }
 
   return (
@@ -217,8 +243,8 @@ function FinanceiroTab() {
           </div>
           <Switch
             checked={restringir}
-            onCheckedChange={(checked) => atualizarMutation.mutate({ restringir_visibilidade_pagamento_dinheiro: checked })}
-            disabled={atualizarMutation.isPending}
+            onCheckedChange={(checked) => setCampo('restringir_visibilidade_pagamento_dinheiro', checked)}
+            disabled={salvarMutation.isPending}
           />
         </div>
       )}
@@ -234,8 +260,8 @@ function FinanceiroTab() {
           </div>
           <Switch
             checked={suprimentoCaixaSemAprovador}
-            onCheckedChange={(checked) => atualizarMutation.mutate({ suprimento_caixa_sem_aprovador: checked })}
-            disabled={atualizarMutation.isPending}
+            onCheckedChange={(checked) => setCampo('suprimento_caixa_sem_aprovador', checked)}
+            disabled={salvarMutation.isPending}
           />
         </div>
       )}
@@ -252,8 +278,8 @@ function FinanceiroTab() {
           </div>
           <Switch
             checked={suprimentoCaixaAutoAprovar}
-            onCheckedChange={(checked) => atualizarMutation.mutate({ suprimento_caixa_auto_aprovar: checked })}
-            disabled={atualizarMutation.isPending}
+            onCheckedChange={(checked) => setCampo('suprimento_caixa_auto_aprovar', checked)}
+            disabled={!suprimentoCaixaSemAprovador || salvarMutation.isPending}
           />
         </div>
       )}
@@ -278,13 +304,26 @@ function FinanceiroTab() {
                   <Checkbox
                     checked={suprimentoCaixaDepartamentosPermitidos.includes(departamento.id)}
                     onCheckedChange={(checked) => toggleDepartamentoPermitido(departamento.id, checked === true)}
-                    disabled={atualizarMutation.isPending}
+                    disabled={salvarMutation.isPending}
                   />
                   {departamento.nome}
                 </label>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {!configQuery.isLoading && (
+        <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-border bg-background py-3">
+          {isDirty && (
+            <Button type="button" variant="ghost" onClick={descartarAlteracoes} disabled={salvarMutation.isPending}>
+              Descartar alterações
+            </Button>
+          )}
+          <Button type="button" onClick={() => salvarMutation.mutate()} disabled={!isDirty || salvarMutation.isPending}>
+            {salvarMutation.isPending ? 'Salvando...' : 'Salvar alterações'}
+          </Button>
         </div>
       )}
     </div>
