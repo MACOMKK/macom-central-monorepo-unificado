@@ -22,7 +22,7 @@ async function handleAuthError(error) {
 	}
 
 	if (!signingOutPromise) {
-		signingOutPromise = supabase.auth.signOut()
+		signingOutPromise = supabase.auth.signOut({ scope: 'local' })
 			.catch(() => null)
 			.finally(() => {
 				signingOutPromise = null;

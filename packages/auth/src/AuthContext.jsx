@@ -258,6 +258,8 @@ export function AuthProvider({
       systemSlug,
       authFunctionName,
       async login(email, password, captchaToken) {
+        // `remember` ja foi persistido pelo AuthLoginCard (@macom/ui) antes de chamar login();
+        // aqui so recebemos email/senha/captcha, o storage customizado do supabase ja sabe onde gravar.
         const lock = await checkLoginLock(email, systemSlug);
         if (lock.locked) throw new Error(lock.message);
 

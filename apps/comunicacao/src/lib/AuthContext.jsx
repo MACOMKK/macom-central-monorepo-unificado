@@ -191,7 +191,7 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     }
     clearAuthState();
   }

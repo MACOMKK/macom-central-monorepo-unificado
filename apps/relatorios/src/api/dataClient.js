@@ -909,7 +909,7 @@ export const dataClient = {
       const profile = normalizeCentralCollaborator(collaborator, authUser);
 
       if (!profile.active) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         const inactiveError = new Error('Usuario inativo. Procure um administrador.');
         inactiveError.status = 403;
         inactiveError.code = 'user_inactive';
@@ -919,7 +919,7 @@ export const dataClient = {
       return ensureReportsSystemAccess(profile, session.access_token, authPayload?.access || null);
     },
     logout: async (redirectTo = '/entrar') => {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) throw toError(error, 'Unable to logout');
       navigateWithoutReload(redirectTo, { replace: true });
     },

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react';
+import { getRememberedEmail, getRememberPreference, setRememberedEmail, setRememberPreference } from '@macom/api-client/supabaseClient';
 
 import { Alert, AlertDescription } from './alert';
 import { Button } from './button';
+import { Checkbox } from './checkbox';
 import { Input } from './input';
 import { Label } from './label';
 import { Spinner } from './spinner';
@@ -94,9 +96,10 @@ export function AuthLoginCard({
   footer,
   extraAction,
 }) {
-  const [email, setEmail] = useState(defaultEmail);
+  const [email, setEmail] = useState(defaultEmail || getRememberedEmail());
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(getRememberPreference());
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState('');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -117,8 +120,11 @@ export function AuthLoginCard({
 
     setLocalError('');
     setSubmitting(true);
+    const trimmedEmail = email.trim();
+    setRememberPreference(remember);
+    setRememberedEmail(remember ? trimmedEmail : '');
     try {
-      await (captchaToken ? onSubmit(email.trim(), password, captchaToken) : onSubmit(email.trim(), password));
+      await onSubmit(trimmedEmail, password, captchaToken || undefined, remember);
     } catch (submitError) {
       setLocalError(submitError.message || 'Falha ao entrar.');
       setCaptchaToken('');
@@ -204,6 +210,19 @@ export function AuthLoginCard({
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-me"
+                checked={remember}
+                onCheckedChange={(checked) => setRemember(checked === true)}
+                disabled={isBusy}
+                className="border-white/65"
+              />
+              <Label htmlFor="remember-me" className="cursor-pointer text-sm font-normal text-white/90">
+                Lembrar meu acesso
+              </Label>
             </div>
 
             {captchaRequired ? (

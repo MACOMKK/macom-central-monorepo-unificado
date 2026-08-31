@@ -281,7 +281,7 @@ export const appClient = {
 
     async logout(redirectTo) {
       assertSupabaseConfigured();
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error && !isMissingSessionError(error)) {
         throw normalizeFunctionError(error, 'Falha ao encerrar sessão.');
       }
@@ -292,7 +292,7 @@ export const appClient = {
 
     async clearSession() {
       assertSupabaseConfigured();
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error && !isMissingSessionError(error)) {
         throw normalizeFunctionError(error, 'Falha ao limpar sessão.');
       }

@@ -202,7 +202,7 @@ export function AuthProvider({ children }) {
 
   async function logout(redirectTo = '/entrar') {
     if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     }
     clearAuthState();
     if (redirectTo && typeof window !== 'undefined') {

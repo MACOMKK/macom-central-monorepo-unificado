@@ -5,7 +5,87 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const REMEMBER_STORAGE_KEY = 'macom.rememberMe';
+const EMAIL_STORAGE_KEY = 'macom.rememberedEmail';
+
+// "Lembrar meu acesso": controla em qual storage o token de sessao e gravado.
+// Nasce true (mesmo comportamento de hoje, sessao sempre persistente) para nao mudar nada para
+// quem ja usa o sistema -- desmarcar o checkbox e uma opcao nova, nao uma migracao de default.
+export function getRememberPreference() {
+  try {
+    const value = window.localStorage.getItem(REMEMBER_STORAGE_KEY);
+    return value === null ? true : value === '1';
+  } catch {
+    return true;
+  }
+}
+
+export function setRememberPreference(remember) {
+  try {
+    window.localStorage.setItem(REMEMBER_STORAGE_KEY, remember ? '1' : '0');
+  } catch {
+    // Best effort -- modo privado ou storage bloqueado nao deve quebrar o login.
+  }
+}
+
+export function getRememberedEmail() {
+  try {
+    return window.localStorage.getItem(EMAIL_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setRememberedEmail(email) {
+  try {
+    if (email) {
+      window.localStorage.setItem(EMAIL_STORAGE_KEY, email);
+    } else {
+      window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+    }
+  } catch {
+    // Best effort, idem acima.
+  }
+}
+
+// Storage customizado do supabase-js: decide em runtime se o token de sessao vai para
+// localStorage (sobrevive ao fechar o navegador) ou sessionStorage (dura so a aba atual),
+// conforme a preferencia "lembrar meu acesso" no momento em que o token e gravado. getItem
+// procura nos dois para continuar enxergando sessoes ja gravadas antes desta mudanca.
+const dualStorage = {
+  getItem(key) {
+    try {
+      return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      const remember = getRememberPreference();
+      const target = remember ? window.localStorage : window.sessionStorage;
+      const other = remember ? window.sessionStorage : window.localStorage;
+      target.setItem(key, value);
+      other.removeItem(key);
+    } catch {
+      // Best effort, idem acima.
+    }
+  },
+  removeItem(key) {
+    try {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Best effort, idem acima.
+    }
+  },
+};
+
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { storage: dualStorage, persistSession: true, autoRefreshToken: true },
+    })
+  : null;
 
 export function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) {

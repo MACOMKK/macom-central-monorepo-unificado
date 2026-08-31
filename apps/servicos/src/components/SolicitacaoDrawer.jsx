@@ -183,7 +183,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const podeAdicionarAnexo = Boolean(user?.isFinanceiro) || isDonoSolicitacao;
   const dentroDaJanelaRemocao = solicitacao?.status === 'pendente' || solicitacao?.pendencia_bloqueio === true;
   const podeRemoverAnexo = (Boolean(user?.isFinanceiro) || isDonoSolicitacao) && dentroDaJanelaRemocao;
-  const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino;
+  const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino || isDonoSolicitacao;
 
   const solicitacaoId = solicitacao?.id;
 

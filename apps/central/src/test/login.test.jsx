@@ -7,6 +7,8 @@ describe('Login page', () => {
   beforeEach(() => {
     // Testes nao devem depender do captcha real configurado no .env.local do dev
     vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '');
+    // "Lembrar meu acesso" persiste preferencia/email em localStorage -- isolar entre testes.
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -29,7 +31,23 @@ describe('Login page', () => {
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('admin@macom.com', 'Segredo123');
+      expect(onSubmit).toHaveBeenCalledWith('admin@macom.com', 'Segredo123', undefined, true);
+    });
+  });
+
+  it('envia remember=false quando o checkbox "Lembrar meu acesso" e desmarcado', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(<Login onSubmit={onSubmit} loading={false} />);
+
+    await user.type(screen.getByLabelText('E-mail'), 'admin@macom.com');
+    await user.type(screen.getByLabelText('Senha'), 'Segredo123');
+    await user.click(screen.getByLabelText('Lembrar meu acesso'));
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('admin@macom.com', 'Segredo123', undefined, false);
     });
   });
 
