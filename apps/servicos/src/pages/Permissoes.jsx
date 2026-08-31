@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
+  ProfileViewDialog,
   Select,
   SelectContent,
   SelectItem,
@@ -43,6 +44,7 @@ export default function Permissoes() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState('');
   const [papelFiltro, setPapelFiltro] = useState(PAPEL_FILTRO_TODOS);
+  const [perfilColaboradorId, setPerfilColaboradorId] = useState(null);
 
   const permissoesQuery = useQuery({
     queryKey: ['servicos', 'permissoes'],
@@ -91,6 +93,12 @@ export default function Permissoes() {
     alterarMutation.variables?.modulo === modulo;
 
   const modulosEmBreve = useMemo(() => MODULOS_PERMISSAO.filter((modulo) => !modulo.ativo), []);
+
+  const perfilQuery = useQuery({
+    queryKey: ['servicos', 'colaborador-profile', perfilColaboradorId],
+    queryFn: () => financeiroApi.colaboradores.getProfile(perfilColaboradorId),
+    enabled: Boolean(perfilColaboradorId),
+  });
 
   return (
     <div className="space-y-4">
@@ -154,7 +162,13 @@ export default function Permissoes() {
                 return (
                   <TableRow key={colaborador.colaborador_id}>
                     <TableCell>
-                      <div className="font-medium">{colaborador.nome}</div>
+                      <button
+                        type="button"
+                        className="font-medium hover:underline"
+                        onClick={() => setPerfilColaboradorId(colaborador.colaborador_id)}
+                      >
+                        {colaborador.nome}
+                      </button>
                       <div className="text-xs text-muted-foreground">{colaborador.email}</div>
                     </TableCell>
                     <TableCell className="capitalize">{colaborador.system_access_level}</TableCell>
@@ -198,6 +212,14 @@ export default function Permissoes() {
       {filteredColaboradores.length > 0 && (
         <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="colaborador(es)" />
       )}
+
+      <ProfileViewDialog
+        open={Boolean(perfilColaboradorId)}
+        onOpenChange={(open) => !open && setPerfilColaboradorId(null)}
+        profile={perfilQuery.data}
+        loading={perfilQuery.isLoading}
+        error={perfilQuery.error}
+      />
     </div>
   );
 }

@@ -126,6 +126,12 @@ export const financeiroApi = {
       return result.rows || [];
     },
   },
+  colaboradores: {
+    async getProfile(colaboradorId) {
+      const result = await invokeServicos({ action: 'get_colaborador_profile', colaboradorId });
+      return result.row || null;
+    },
+  },
   configuracaoModulo: {
     async get() {
       const result = await invokeServicos({ action: 'get_configuracao_modulo' });

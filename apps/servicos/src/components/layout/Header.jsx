@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
-import { BellRing, Download, Menu } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { BellRing, Download, Menu, UserRound } from 'lucide-react';
 
-import { AccountMenu, Button, useToast } from '@macom/ui';
+import { financeiroApi } from '@macom/api-client/financeiroApi';
+import { AccountMenu, AccountMenuItem, Button, ProfileViewDialog, useToast } from '@macom/ui';
 import NotificationsBell from '@/components/NotificationsBell';
 import { useAuth } from '@/lib/AuthContext';
 import { useInstallPrompt } from '@/lib/useInstallPrompt';
@@ -18,10 +20,17 @@ export default function Header({ onOpenMobileMenu }) {
   const { canInstall, promptInstall } = useInstallPrompt();
   const { canShowBanner: canShowPushButton, permission, loading, error: pushError, subscribe } = usePushBanner();
   const { toast } = useToast();
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     if (pushError) toast({ title: 'Erro', description: pushError.message, variant: 'destructive' });
   }, [pushError, toast]);
+
+  const profileQuery = useQuery({
+    queryKey: ['servicos', 'colaborador-profile', user?.id],
+    queryFn: () => financeiroApi.colaboradores.getProfile(user.id),
+    enabled: showProfile && Boolean(user?.id),
+  });
 
   const showPushButton = canShowPushButton && permission !== 'denied';
 
@@ -86,6 +95,18 @@ export default function Header({ onOpenMobileMenu }) {
           subtitle={ROLE_LABEL[user?.role] || user?.role}
           photoUrl={user?.photoUrl}
           onLogout={() => logout()}
+        >
+          <AccountMenuItem icon={UserRound} onSelect={() => setShowProfile(true)}>
+            Ver perfil
+          </AccountMenuItem>
+        </AccountMenu>
+
+        <ProfileViewDialog
+          open={showProfile}
+          onOpenChange={setShowProfile}
+          profile={profileQuery.data}
+          loading={profileQuery.isLoading}
+          error={profileQuery.error}
         />
       </div>
     </header>

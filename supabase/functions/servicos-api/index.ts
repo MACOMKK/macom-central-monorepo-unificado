@@ -1290,6 +1290,67 @@ Deno.serve(async (request) => {
       return json({ rows });
     }
 
+    if (action === 'get_colaborador_profile') {
+      const colaboradorId = String(body.colaboradorId || '');
+      if (!colaboradorId) throw Object.assign(new Error('colaboradorId obrigatorio.'), { status: 400 });
+
+      const rows = await sql.unsafe(
+        `
+          select
+            c.id,
+            c.nome,
+            c.email,
+            c.telefone,
+            c.cargo,
+            c.funcao,
+            c.foto_url,
+            c.assinatura_url,
+            d.nome as departamento_nome,
+            u.nome as unidade_nome,
+            u.cidade as unidade_cidade,
+            p.bio,
+            p.frase_status,
+            p.linkedin_url,
+            p.whatsapp_url,
+            p.localizacao_interna,
+            p.habilidades,
+            p.interesses
+          from public.colaboradores c
+          left join gestao_intranet.perfis_colaboradores p on p.colaborador_id = c.id
+          left join public.departamentos d on d.id = c.departamento_id
+          left join public.unidades u on u.id = c.unidade_id
+          where c.id = $1
+          limit 1;
+        `,
+        [colaboradorId],
+      );
+
+      const row = rows[0];
+      if (!row) throw Object.assign(new Error('Colaborador nao encontrado.'), { status: 404 });
+
+      return json({
+        row: {
+          id: row.id,
+          name: row.nome,
+          email: row.email,
+          phone: row.telefone,
+          position: row.cargo,
+          function_role: row.funcao,
+          photo_url: row.foto_url || '',
+          has_signature: Boolean(row.assinatura_url),
+          department_name: row.departamento_nome || null,
+          unit_name: row.unidade_cidade || row.unidade_nome || null,
+          bio: row.bio || '',
+          status_message: row.frase_status || '',
+          linkedin_url: row.linkedin_url || '',
+          whatsapp_url: row.whatsapp_url || '',
+          office_location: row.localizacao_interna || '',
+          skills: Array.isArray(row.habilidades) ? row.habilidades : [],
+          interests: Array.isArray(row.interesses) ? row.interesses : [],
+        },
+      });
+    }
+
     // Combina os catalogos usados pelo formulario de nova solicitacao (empresas,
     // departamentos, fornecedores, categorias, aprovadores) em uma unica invocacao,
     // no lugar de 5 chamadas separadas pagando o overhead de auth cada uma. As queries
