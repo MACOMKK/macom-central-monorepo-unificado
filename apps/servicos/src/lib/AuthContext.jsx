@@ -31,6 +31,8 @@ function normalizeServicosUser(authUser, authPayload = {}) {
       authUser?.user_metadata?.name ||
       authUser?.email?.split('@')[0] ||
       'Usuario',
+    photoUrl: collaborator?.foto_url || null,
+    signatureUrl: collaborator?.assinatura_url || null,
     role,
     isAprovador: role === 'aprovador' || role === 'financeiro',
     isFinanceiro: role === 'financeiro',

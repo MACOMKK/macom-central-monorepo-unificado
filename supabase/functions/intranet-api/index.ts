@@ -25,6 +25,7 @@ const INTRANET_SYSTEM_SLUG = 'intranet';
 const ANNOUNCEMENT_IMAGES_STORAGE_BUCKET = 'avisos';
 const DOCUMENTS_STORAGE_BUCKET = 'documentos';
 const AVATARS_STORAGE_BUCKET = 'avatares';
+const SIGNATURES_STORAGE_BUCKET = 'assinaturas';
 const ANNOUNCEMENT_IMAGE_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const DOCUMENT_SIGNED_URL_TTL_SECONDS = 10 * 60;
 const MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE = 2 * 1024 * 1024;
@@ -2619,8 +2620,10 @@ async function getCurrentProfile(user: Record<string, unknown>) {
         c.status,
         c.criado_em,
         c.atualizado_em as colaborador_atualizado_em,
-        p.foto_url,
-        p.foto_path,
+        c.foto_url,
+        c.foto_path,
+        c.assinatura_url,
+        c.assinatura_path,
         p.bio,
         p.frase_status,
         p.linkedin_url,
@@ -2695,6 +2698,8 @@ async function getCurrentProfile(user: Record<string, unknown>) {
     collaborator_updated_date: row.colaborador_atualizado_em || null,
     photo_url: row.foto_url || '',
     photo_path: row.foto_path || '',
+    signature_url: row.assinatura_url || '',
+    signature_path: row.assinatura_path || '',
     bio: row.bio || '',
     status_message: row.frase_status || '',
     linkedin_url: row.linkedin_url || '',
@@ -2757,8 +2762,8 @@ async function updateCurrentAvatar(user: Record<string, unknown>, payload: Recor
   const previousRows = await runSql<Record<string, unknown>>(
     `
       select foto_path
-      from gestao_intranet.perfis_colaboradores
-      where colaborador_id = $1
+      from public.colaboradores
+      where id = $1
       limit 1;
     `,
     [collaboratorId],
@@ -2766,22 +2771,72 @@ async function updateCurrentAvatar(user: Record<string, unknown>, payload: Recor
 
   await runSql(
     `
-      insert into gestao_intranet.perfis_colaboradores (
-        colaborador_id,
-        foto_url,
-        foto_path,
-        atualizado_em
-      )
-      values ($1,$2,$3,now())
-      on conflict (colaborador_id) do update
-      set foto_url = excluded.foto_url,
-          foto_path = excluded.foto_path,
-          atualizado_em = now();
+      update public.colaboradores
+      set foto_url = $2,
+          foto_path = $3,
+          atualizado_em = now()
+      where id = $1;
     `,
     [collaboratorId, photoUrl, photoPath],
   );
 
   await deletePreviousAvatar(previousRows[0]?.foto_path, photoPath);
+
+  return getCurrentProfile(user);
+}
+
+async function deletePreviousSignature(previousPath: unknown, nextPath: unknown) {
+  const oldPath = typeof previousPath === 'string' ? previousPath.trim() : '';
+  const newPath = typeof nextPath === 'string' ? nextPath.trim() : '';
+  if (!oldPath || oldPath === newPath) return;
+
+  try {
+    const storageClient = createStorageAdminClient();
+    if (!storageClient) return;
+    const { error } = await storageClient.storage.from(SIGNATURES_STORAGE_BUCKET).remove([oldPath]);
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to delete previous signature:', {
+      path: oldPath,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function updateCurrentSignature(user: Record<string, unknown>, payload: Record<string, unknown>) {
+  const collaboratorId = String(user.collaborator_id || user.id || '');
+  if (!collaboratorId) {
+    throw new Error('Colaborador nao encontrado.');
+  }
+
+  const signatureUrl = normalizeOptionalText(payload.signature_url);
+  const signaturePath = normalizeOptionalText(payload.signature_path);
+  if (!signatureUrl || !signaturePath) {
+    throw new Error('Assinatura obrigatoria.');
+  }
+
+  const previousRows = await runSql<Record<string, unknown>>(
+    `
+      select assinatura_path
+      from public.colaboradores
+      where id = $1
+      limit 1;
+    `,
+    [collaboratorId],
+  );
+
+  await runSql(
+    `
+      update public.colaboradores
+      set assinatura_url = $2,
+          assinatura_path = $3,
+          atualizado_em = now()
+      where id = $1;
+    `,
+    [collaboratorId, signatureUrl, signaturePath],
+  );
+
+  await deletePreviousSignature(previousRows[0]?.assinatura_path, signaturePath);
 
   return getCurrentProfile(user);
 }
@@ -2965,8 +3020,6 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
     `
       insert into gestao_intranet.perfis_colaboradores (
         colaborador_id,
-        foto_url,
-        foto_path,
         bio,
         frase_status,
         linkedin_url,
@@ -2976,11 +3029,9 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
         interesses,
         atualizado_em
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+      values ($1,$2,$3,$4,$5,$6,$7,$8,now())
       on conflict (colaborador_id) do update
-      set foto_url = excluded.foto_url,
-          foto_path = excluded.foto_path,
-          bio = excluded.bio,
+      set bio = excluded.bio,
           frase_status = excluded.frase_status,
           linkedin_url = excluded.linkedin_url,
           whatsapp_url = excluded.whatsapp_url,
@@ -2991,8 +3042,6 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
     `,
     [
       collaboratorId,
-      payload.photo_url || null,
-      payload.photo_path || null,
       payload.bio || null,
       payload.status_message || null,
       payload.linkedin_url || null,
@@ -3001,6 +3050,17 @@ async function updateCurrentProfile(user: Record<string, unknown>, payload: Reco
       normalizeListInput(payload.skills),
       normalizeListInput(payload.interests),
     ],
+  );
+
+  await runSql(
+    `
+      update public.colaboradores
+      set foto_url = $2,
+          foto_path = $3,
+          atualizado_em = now()
+      where id = $1;
+    `,
+    [collaboratorId, payload.photo_url || null, payload.photo_path || null],
   );
 
   return getCurrentProfile(user);
@@ -3031,8 +3091,8 @@ async function listEmployees() {
     ),
     runSql<Record<string, unknown>>(
       `
-        select colaborador_id, foto_url
-        from gestao_intranet.perfis_colaboradores;
+        select id as colaborador_id, foto_url
+        from public.colaboradores;
       `,
     ),
     listDepartments(),
@@ -3074,10 +3134,9 @@ async function listEmployeeBirthdays(limit?: number) {
         c.departamento_id,
         d.nome as departamento_nome,
         d.descricao as departamento_descricao,
-        p.foto_url
+        c.foto_url
       from public.colaboradores c
       left join public.departamentos d on d.id = c.departamento_id
-      left join gestao_intranet.perfis_colaboradores p on p.colaborador_id = c.id
       where c.status = 'ativo'
         and c.data_nascimento is not null
       order by c.nome asc
@@ -3969,6 +4028,7 @@ async function updateEmployee(id: string, payload: Record<string, unknown>) {
   if ('function_role' in payload) assign('funcao', payload.function_role || null);
   if ('unit' in payload || 'unit_id' in payload) assign('unidade_id', unit?.id || null);
   if ('birth_date' in payload) assign('data_nascimento', payload.birth_date || null);
+  if ('photo_url' in payload) assign('foto_url', payload.photo_url || null);
   assign('atualizado_em', new Date().toISOString());
 
   const employeeRows = await runSql<Record<string, unknown>>(
@@ -3979,25 +4039,12 @@ async function updateEmployee(id: string, payload: Record<string, unknown>) {
     values,
   );
 
-  if ('photo_url' in payload) {
-    await runSql(
-      `
-        insert into gestao_intranet.perfis_colaboradores (colaborador_id, foto_url, atualizado_em)
-        values ($1,$2,now())
-        on conflict (colaborador_id) do update
-        set foto_url = excluded.foto_url,
-            atualizado_em = now();
-      `,
-      [id, payload.photo_url || null],
-    );
-  }
-
   const [profiles, departments, units, intranetSystem] = await Promise.all([
     runSql<Record<string, unknown>>(
       `
-        select colaborador_id, foto_url
-        from gestao_intranet.perfis_colaboradores
-        where colaborador_id = $1
+        select id as colaborador_id, foto_url
+        from public.colaboradores
+        where id = $1
         limit 1;
       `,
       [id],
@@ -4437,6 +4484,7 @@ function getEntityModule(entity: string) {
       return 'documentos';
     case 'Profile':
     case 'ProfileAvatar':
+    case 'ProfileSignature':
       return null;
     case 'ProfileChangeRequest':
       return 'admin';
@@ -4528,6 +4576,8 @@ async function updateEntity(
       return updateCurrentProfile(user, payload);
     case 'ProfileAvatar':
       return updateCurrentAvatar(user, payload);
+    case 'ProfileSignature':
+      return updateCurrentSignature(user, payload);
     case 'ProfileChangeRequest':
       return updateProfileChangeRequest(user, collaboratorId, id, payload);
     case 'Employee':

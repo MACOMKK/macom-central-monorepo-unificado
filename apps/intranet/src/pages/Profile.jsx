@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronDown, Mail, MapPin, Phone, Save, UserRound } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronDown, Mail, MapPin, PenLine, Phone, Save, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { FeedbackToast, Skeleton } from '@macom/ui';
 
@@ -30,6 +30,9 @@ const DEFAULT_CROP = {
   x: 50,
   y: 50,
 };
+
+const SIGNATURE_CANVAS_WIDTH = 600;
+const SIGNATURE_CANVAS_HEIGHT = 220;
 
 function formatDate(value) {
   if (!value) return '-';
@@ -269,6 +272,137 @@ function AvatarCropModal({
   );
 }
 
+function SignaturePadModal({ open, onCancel, onConfirm, isProcessing }) {
+  const canvasRef = useRef(null);
+  const drawingRef = useRef(false);
+  const lastPointRef = useRef(null);
+  const [isEmpty, setIsEmpty] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineWidth = 2.5;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#0f172a';
+    setIsEmpty(true);
+  }, [open]);
+
+  if (!open) return null;
+
+  const getPoint = (event) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handlePointerDown = (event) => {
+    event.preventDefault();
+    canvasRef.current?.setPointerCapture(event.pointerId);
+    drawingRef.current = true;
+    lastPointRef.current = getPoint(event);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!drawingRef.current) return;
+    event.preventDefault();
+    const context = canvasRef.current?.getContext('2d');
+    if (!context) return;
+    const point = getPoint(event);
+    context.beginPath();
+    context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    lastPointRef.current = point;
+    setIsEmpty(false);
+  };
+
+  const handlePointerUp = (event) => {
+    drawingRef.current = false;
+    lastPointRef.current = null;
+    if (canvasRef.current?.hasPointerCapture?.(event.pointerId)) {
+      canvasRef.current.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleClear = () => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    setIsEmpty(true);
+  };
+
+  const handleSave = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      onConfirm(new File([blob], 'assinatura.png', { type: 'image/png' }));
+    }, 'image/png');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 p-4">
+      <div className="absolute inset-0" onClick={onCancel} />
+      <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-slate-950">Desenhar assinatura</h2>
+          <p className="mt-1 text-sm text-slate-500">Use o mouse ou o dedo (em telas touch) para desenhar sua assinatura.</p>
+        </div>
+
+        <canvas
+          ref={canvasRef}
+          width={SIGNATURE_CANVAS_WIDTH}
+          height={SIGNATURE_CANVAS_HEIGHT}
+          className="w-full touch-none rounded-xl border border-dashed border-slate-300 bg-white"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        />
+
+        <div className="mt-5 flex justify-between gap-2">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+            disabled={isProcessing}
+          >
+            Limpar
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-10 rounded-xl px-4 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-50"
+              disabled={isProcessing}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              className="h-10 rounded-xl bg-[#E30613] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#c80510] disabled:opacity-70"
+              disabled={isEmpty || isProcessing}
+            >
+              {isProcessing ? 'Enviando...' : 'Salvar assinatura'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -277,6 +411,8 @@ export default function Profile() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarCropImage, setAvatarCropImage] = useState(null);
   const [avatarCrop, setAvatarCrop] = useState(DEFAULT_CROP);
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
+  const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ['current-profile'],
@@ -437,6 +573,34 @@ export default function Profile() {
     document.getElementById('profile-avatar-input')?.click();
   };
 
+  const openSignaturePad = () => setIsSignaturePadOpen(true);
+
+  const handleCancelSignaturePad = () => setIsSignaturePadOpen(false);
+
+  const handleConfirmSignature = async (file) => {
+    setIsUploadingSignature(true);
+    let uploadedSignaturePath = '';
+    try {
+      const result = await appClient.storage.uploadSignature(file, profile?.id);
+      uploadedSignaturePath = result.signature_path;
+      const updatedProfile = await appClient.entities.ProfileSignature.update('me', {
+        signature_url: result.signature_url,
+        signature_path: result.signature_path,
+      });
+      queryClient.setQueryData(['current-profile'], updatedProfile);
+      setForm(buildProfileForm(updatedProfile));
+      setFeedback({ type: 'success', message: 'Assinatura atualizada.' });
+      setIsSignaturePadOpen(false);
+    } catch (error) {
+      if (uploadedSignaturePath) {
+        await appClient.storage.deleteSignature(uploadedSignaturePath).catch(() => null);
+      }
+      setFeedback({ type: 'error', message: error?.message || 'Nao foi possivel salvar a assinatura.' });
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
+
   if (profileQuery.isLoading) {
     return (
       <div className="space-y-6">
@@ -548,6 +712,31 @@ export default function Profile() {
               <ReadOnlyField label="Nascimento" value={formatDate(profile?.birth_date)} />
               <ReadOnlyField label="Atualizado em" value={formatDate(profile?.collaborator_updated_date)} />
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <PenLine className="h-4 w-4 text-[#E30613]" />
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Minha assinatura</h2>
+            </div>
+            <p className="text-xs text-slate-500">
+              Usada para estampar sua assinatura em PDFs, como comprovantes do modulo Financeiro.
+            </p>
+            <div className="mt-4 flex h-24 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+              {profile?.signature_url ? (
+                <img src={profile.signature_url} alt="Assinatura" className="h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-sm text-slate-400">Nenhuma assinatura cadastrada</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={openSignaturePad}
+              className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <PenLine className="h-4 w-4" />
+              {profile?.signature_url ? 'Alterar assinatura' : 'Desenhar assinatura'}
+            </button>
           </div>
         </aside>
 
@@ -798,6 +987,12 @@ export default function Profile() {
         onCancel={handleCancelAvatarCrop}
         onConfirm={handleConfirmAvatarCrop}
         isProcessing={isUploadingAvatar}
+      />
+      <SignaturePadModal
+        open={isSignaturePadOpen}
+        onCancel={handleCancelSignaturePad}
+        onConfirm={handleConfirmSignature}
+        isProcessing={isUploadingSignature}
       />
     </div>
   );

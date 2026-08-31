@@ -90,10 +90,8 @@ Itens restantes (fora do lote 1), organizados por risco de quebra crescente:
 1. **`intranet-api` — IDOR ao remover reação de aviso** (LOW, ~4499-4532): checar `criado_por` além
    de `avisos:view` antes de remover a reação de outro usuário. Mudança isolada, sem impacto em
    fluxo legítimo.
-2. **`servicos-api` — `limpar_dados_teste_financeiro`** (MEDIUM, ~1166-1193): restringir o `DELETE`
-   para não apagar a tabela inteira sem filtro — já restrito a admin, só falta tornar seletivo
-   (ex.: exigir filtro explícito ou remover a ação se não for mais necessária). Baixo risco, ação
-   já é admin-only; só precisa confirmar se a rotina ainda é usada.
+2. **[FEITO]** **`servicos-api` — `limpar_dados_teste_financeiro`**: ação removida do sistema
+   (frontend, API client e edge function) agora que o módulo Financeiro está em produção.
 3. **`processa-fila-email`/`servicos-lembrete-aprovacoes` — sem secret de invocação** (LOW):
    adicionar secret compartilhado (env var) validado no início da function. Baixo risco de quebra,
    mas exige configurar a secret no Dashboard e no cron que chama a function antes do deploy.

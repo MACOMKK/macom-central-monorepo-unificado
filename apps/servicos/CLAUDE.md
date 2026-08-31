@@ -231,6 +231,53 @@ reais (só adicionar coluna `mod_<novo>` na tabela, seguindo o mesmo padrão).
   da oficina); RH corporativo completo continua sendo escopo do app `rh` (hoje placeholder) —
   não duplicar funcionalidade quando `rh` sair do placeholder.
 
+## Header — menu de conta (`AccountMenu`)
+
+O dropdown de avatar/perfil no canto superior direito (`src/components/layout/Header.jsx`) usa o
+componente `AccountMenu` de `@macom/ui` (`packages/ui/src/account-menu.jsx`), em vez de um
+dropdown feito na mão — `servicos` foi o primeiro app a adotar esse padrão, pensado pra ser
+reaproveitado pelos demais (a intranet, que hoje tem seu próprio dropdown em
+`src/components/layout/Header.jsx`, deve migrar pra esse mesmo componente numa próxima rodada).
+
+**Visual é fixo e vem da intranet, não do tema de cada app**: card escuro (`bg-[#242529]`),
+vermelho da marca (`#E30613`) no avatar e nos destaques, tipografia uppercase/tracking largo —
+copiado 1:1 do dropdown original da intranet e decidido como o padrão único pra todos os apps
+(decisão do usuário: a base é a intranet, os demais é que se adaptam a ela, não o contrário).
+`servicos` já está com essa cara agora, mesmo antes de ganhar as próprias telas de Perfil/senha.
+
+`AccountMenu` é presentational (recebe `name`/`subtitle`/`photoUrl`/`onLogout` via props, sem
+depender de `useAuth`/router de nenhum app) e aceita `children` pra itens extras — usar
+`AccountMenuItem` (mesmo arquivo) pro estilo dos links ficar igual ao "Perfil"/"Configurações" da
+intranet. Aqui em `servicos` não é passado nenhum `children` ainda, só `name`/`subtitle` (papel do
+módulo Financeiro) e `onLogout`.
+
+Foto **é** real (não só visual/estrutura): `foto_url`/`foto_path` viraram colunas de
+`public.colaboradores` (migration `20260831113817_move_foto_colaborador_to_public.sql`), saindo de
+`gestao_intranet.perfis_colaboradores` — foto é dado de identidade da pessoa (mesmo nível de
+nome/e-mail), não algo exclusivo da intranet. Como `servicos-api`/`financeiroApi.auth.me` já fazem
+`select * from public.colaboradores`, a coluna nova chega de graça no `collaborator`/`row`; só foi
+preciso mapear `photoUrl: collaborator?.foto_url` em `normalizeServicosUser`
+(`src/lib/AuthContext.jsx`) e passar `photoUrl={user?.photoUrl}` pro `AccountMenu` no `Header.jsx`.
+Continua sem página "Perfil"/troca de senha nem upload próprio em `servicos` — quem edita a foto
+por enquanto é só a tela de Perfil da `intranet`; aqui só se **lê** o que já foi cadastrado lá. Se
+um dia `servicos` ganhar essas telas, plugar via `children`/`AccountMenuItem` em vez de reabrir o
+dropdown manual.
+
+## Assinatura digital no PDF único (módulo Financeiro)
+
+Mesma lógica da foto: `assinatura_url`/`assinatura_path` são colunas de `public.colaboradores`
+(migration `20260831120000_add_assinatura_colaborador.sql`), dado de identidade compartilhado —
+criado desenhando num canvas na tela de Perfil da `intranet`, `servicos` só **lê**
+(`signatureUrl: collaborator?.assinatura_url` em `normalizeServicosUser`,
+`src/lib/AuthContext.jsx`). Não há tela de criar/editar assinatura em `servicos`.
+
+Consumida em `SolicitacaoDrawer.jsx` → `handleGerarPdfUnico()` (o botão "Juntar PDFs" que já
+existia pra concatenar os PDFs de anexo via `pdf-lib`, client-side): se o usuário tem
+`user.signatureUrl` e marca o checkbox "Incluir minha assinatura", a imagem é baixada
+(`fetch` + `embedPng`) e estampada com `drawImage` no canto inferior direito da última página,
+antes do `save()`. O checkbox só aparece pra quem já tem assinatura cadastrada. O PDF final
+continua só sendo baixado (não é re-enviado como anexo automaticamente).
+
 ## Shell mobile (Capacitor/Android)
 
 Este é o único app do monorepo empacotado como app nativo hoje — os demais continuam só web.

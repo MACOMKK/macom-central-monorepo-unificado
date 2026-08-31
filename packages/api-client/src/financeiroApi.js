@@ -288,11 +288,6 @@ export const financeiroApi = {
       return result.rows || [];
     },
   },
-  admin: {
-    async limparDadosTeste() {
-      return invokeServicos({ action: 'limpar_dados_teste_financeiro' });
-    },
-  },
   pushSubscriptions: {
     async list() {
       const result = await invokeServicos({ action: 'list_push_subscriptions' });

@@ -68,10 +68,6 @@
 
 ## 🟡 Baixa prioridade (sem urgência agora)
 
-- `limpar_dados_teste_financeiro` (`servicos-api`): delete não seletivo de toda a tabela de
-  pagamentos, mas confirmado que só é usado em teste (sistema ainda não lançado). Revisar antes do
-  lançamento em produção.
-
 ## 🔲 Falta implementar
 
 Nenhum item de código restante. Falta apenas o deploy da Edge Function `intranet-api` (item 4) e o

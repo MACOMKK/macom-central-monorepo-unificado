@@ -71,6 +71,7 @@ import {
   getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
+import PosicionarAssinaturaModal from '@/components/PosicionarAssinaturaModal';
 import WhatsAppShareButton from '@/components/WhatsAppShareButton';
 
 function SectionLabel({ children }) {
@@ -165,6 +166,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [baixandoAnexoId, setBaixandoAnexoId] = useState(null);
   const [previewAnexo, setPreviewAnexo] = useState(null);
   const [gerandoPdfUnico, setGerandoPdfUnico] = useState(false);
+  const [incluirAssinatura, setIncluirAssinatura] = useState(false);
+  const [assinaturaPendente, setAssinaturaPendente] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
@@ -380,6 +383,18 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     }
   }
 
+  async function downloadPdfFinal(pdfFinal) {
+    const pdfBytes = await pdfFinal.save();
+    const blobUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `anexos-${solicitacao?.numero || solicitacaoId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+  }
+
   async function handleGerarPdfUnico() {
     const pdfs = anexos.filter((anexo) => anexo.url && getPreviewType(anexo) === 'pdf');
     if (pdfs.length === 0) return;
@@ -396,19 +411,40 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         paginas.forEach((pagina) => pdfFinal.addPage(pagina));
       }
 
-      const pdfBytes = await pdfFinal.save();
-      const blobUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `anexos-${solicitacao?.numero || solicitacaoId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(blobUrl);
+      if (incluirAssinatura && user?.signatureUrl) {
+        const pdfBytes = await pdfFinal.save();
+        setAssinaturaPendente({ pdfFinal, pdfBytes, totalPaginas: pdfFinal.getPageCount() });
+        return;
+      }
+
+      await downloadPdfFinal(pdfFinal);
     } catch (error) {
       toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
     } finally {
       setGerandoPdfUnico(false);
+    }
+  }
+
+  async function handleConfirmarPosicaoAssinatura({ pageIndex, xFrac, yFrac, widthFrac, heightFrac }) {
+    const { pdfFinal } = assinaturaPendente;
+    try {
+      const assinaturaResponse = await fetch(user.signatureUrl);
+      if (!assinaturaResponse.ok) throw new Error('Falha ao carregar assinatura.');
+      const assinaturaBytes = await assinaturaResponse.arrayBuffer();
+      const assinaturaImage = await pdfFinal.embedPng(assinaturaBytes);
+      const pagina = pdfFinal.getPages()[pageIndex];
+      const pageWidthPt = pagina.getWidth();
+      const pageHeightPt = pagina.getHeight();
+      pagina.drawImage(assinaturaImage, {
+        x: xFrac * pageWidthPt,
+        y: pageHeightPt - (yFrac + heightFrac) * pageHeightPt,
+        width: widthFrac * pageWidthPt,
+        height: heightFrac * pageHeightPt,
+      });
+      await downloadPdfFinal(pdfFinal);
+      setAssinaturaPendente(null);
+    } catch (error) {
+      toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
     }
   }
 
@@ -595,16 +631,31 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   {podeBaixarTodosAnexos && anexos.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       {anexos.some((anexo) => anexo.url && getPreviewType(anexo) === 'pdf') && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={gerandoPdfUnico}
-                          onClick={handleGerarPdfUnico}
-                        >
-                          {gerandoPdfUnico ? <Spinner size="sm" /> : <FileStack className="h-4 w-4" />}
-                          Juntar PDFs
-                        </Button>
+                        <>
+                          {user?.signatureUrl && (
+                            <label
+                              htmlFor="incluir-assinatura-pdf"
+                              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                            >
+                              <Checkbox
+                                id="incluir-assinatura-pdf"
+                                checked={incluirAssinatura}
+                                onCheckedChange={(checked) => setIncluirAssinatura(checked === true)}
+                              />
+                              Incluir minha assinatura
+                            </label>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={gerandoPdfUnico}
+                            onClick={handleGerarPdfUnico}
+                          >
+                            {gerandoPdfUnico ? <Spinner size="sm" /> : <FileStack className="h-4 w-4" />}
+                            Juntar PDFs
+                          </Button>
+                        </>
                       )}
                       <Button
                         type="button"
@@ -815,6 +866,16 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                     )}
                   </DialogContent>
                 </Dialog>
+
+                <PosicionarAssinaturaModal
+                  open={Boolean(assinaturaPendente)}
+                  onOpenChange={(open) => !open && setAssinaturaPendente(null)}
+                  pdfBytes={assinaturaPendente?.pdfBytes}
+                  totalPaginas={assinaturaPendente?.totalPaginas || 0}
+                  signatureUrl={user?.signatureUrl}
+                  userId={user?.id}
+                  onConfirm={handleConfirmarPosicaoAssinatura}
+                />
               </TabsContent>
 
               <TabsContent value="parcelas" className="space-y-4">

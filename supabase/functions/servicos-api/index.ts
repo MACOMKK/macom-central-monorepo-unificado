@@ -1427,35 +1427,6 @@ Deno.serve(async (request) => {
       return json({ ok: true });
     }
 
-    if (action === 'limpar_dados_teste_financeiro') {
-      if (getAccessLevel(access) !== 'admin') {
-        throw Object.assign(new Error('Apenas administradores podem limpar os dados de teste.'), { status: 403 });
-      }
-
-      const anexos = await sql.unsafe(
-        `select storage_path from ${SERVICOS_SCHEMA}.anexos_solicitacao where storage_path is not null;`,
-      );
-
-      const [{ count: solicitacoesRemovidas }] = await sql.begin(async (tx) => {
-        const solicitacoes = await tx.unsafe(`delete from ${SERVICOS_SCHEMA}.solicitacoes_pagamento returning id;`);
-        return [{ count: solicitacoes.length }];
-      });
-
-      const storageClient = createStorageAdminClient();
-      let anexosRemovidosStorage = 0;
-      if (storageClient && anexos.length > 0) {
-        const paths = anexos.map((a) => String(a.storage_path));
-        for (let i = 0; i < paths.length; i += 100) {
-          const chunk = paths.slice(i, i + 100);
-          const { error } = await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove(chunk);
-          if (!error) anexosRemovidosStorage += chunk.length;
-          else console.error('Falha ao remover anexos do storage:', { chunk, message: error.message });
-        }
-      }
-
-      return json({ solicitacoes_removidas: solicitacoesRemovidas, anexos_removidos_storage: anexosRemovidosStorage });
-    }
-
     if (action === 'list') {
       const filters = typeof body.filters === 'object' && body.filters ? body.filters : {};
       const status = typeof filters.status === 'string' ? filters.status : '';

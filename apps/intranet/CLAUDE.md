@@ -50,6 +50,31 @@ permissão correspondente — não assumir que acesso ao sistema implica acesso 
   - Tabelas: `perfis_colaboradores`, `avisos`, `comentarios_avisos`, `reacoes_avisos`,
     `eventos_calendario`, `documentos`, `links_uteis`, `base_conhecimento`, `feedback`,
     `permissoes_usuario`
+  - `perfis_colaboradores` guarda só o que é genuinamente social/intranet (`bio`, `frase_status`,
+    `linkedin_url`, `whatsapp_url`, `localizacao_interna`, `habilidades`, `interesses`,
+    `preferencias`, `data_nascimento`). **Foto de perfil não mora mais aqui** — `foto_url`/
+    `foto_path` foram movidas para `public.colaboradores` (migration
+    `20260831113817_move_foto_colaborador_to_public.sql`), porque é dado de identidade da pessoa
+    compartilhado por todos os apps (mesmo nível de `nome`/`email`), não algo exclusivo da
+    intranet — outros apps (`servicos`, e futuramente os que adotarem o `AccountMenu` de
+    `@macom/ui`) já leem essa coluna sem precisar de join nenhum, porque todos já fazem
+    `select * from public.colaboradores` no próprio `auth/me`. Upload/edição continua só na tela
+    de Perfil da intranet (`src/pages/Profile.jsx` + `appClient.storage.uploadAvatar`); os demais
+    apps só leem.
+  - Bucket `avatares`: as policies de storage deixaram de exigir
+    `public.has_system_access('intranet')` — qualquer colaborador autenticado dono da pasta
+    (`colaboradores/<seu id>/...`) pode ler/gravar, independente do sistema que está acessando
+    (mesma migration acima).
+  - **Assinatura digital** segue o mesmo raciocínio da foto (dado de identidade compartilhado):
+    `assinatura_url`/`assinatura_path` em `public.colaboradores`, bucket próprio `assinaturas`
+    (`public: true`, só `image/png`, 512KB) com as mesmas 4 policies de dono de pasta (migration
+    `20260831120000_add_assinatura_colaborador.sql`). Criação é feita desenhando num `<canvas>`
+    (Pointer Events puros, sem lib externa, mesmo espírito do crop de avatar) em
+    `src/pages/Profile.jsx` (`SignaturePadModal`); upload via `appClient.storage.uploadSignature`
+    (`src/api/client.js`) e persistência via entidade `ProfileSignature`
+    (`updateCurrentSignature` em `intranet-api`). Primeiro consumidor fora da intranet é o
+    `servicos` (financeiro), que estampa a assinatura no PDF único gerado em
+    `SolicitacaoDrawer.jsx`.
 
 ## Convenções
 

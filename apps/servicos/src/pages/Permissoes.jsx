@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
-  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -19,7 +18,6 @@ import {
   useToast,
 } from '@macom/ui';
 
-import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import Pagination from '@/components/Pagination';
 import SearchInput from '@/components/SearchInput';
 import { usePagination } from '@/hooks/usePagination';
@@ -43,7 +41,6 @@ const PAPEL_FILTRO_TODOS = 'todos';
 export default function Permissoes() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [limpezaDialogOpen, setLimpezaDialogOpen] = useState(false);
   const [busca, setBusca] = useState('');
   const [papelFiltro, setPapelFiltro] = useState(PAPEL_FILTRO_TODOS);
 
@@ -82,22 +79,6 @@ export default function Permissoes() {
       toast({ title: 'Permissão atualizada' });
     },
     onError: (error) => toast({ title: 'Não foi possível atualizar a permissão', description: error.message }),
-  });
-
-  const limparDadosMutation = useMutation({
-    mutationFn: () => financeiroApi.admin.limparDadosTeste(),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
-      queryClient.invalidateQueries({ queryKey: ['servicos', 'fornecedores'] });
-      queryClient.invalidateQueries({ queryKey: ['servicos', 'categorias'] });
-      queryClient.invalidateQueries({ queryKey: ['servicos', 'catalogos-solicitacao'] });
-      toast({
-        title: 'Dados de teste removidos',
-        description: `${result.solicitacoes_removidas || 0} solicitação(ões) e ${result.anexos_removidos_storage || 0} anexo(s) do storage foram apagados.`,
-      });
-      setLimpezaDialogOpen(false);
-    },
-    onError: (error) => toast({ title: 'Não foi possível limpar os dados de teste', description: error.message }),
   });
 
   function handleChange(colaboradorId, modulo, papel) {
@@ -151,7 +132,7 @@ export default function Permissoes() {
             : 'Nenhum colaborador corresponde à pesquisa/filtro.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -217,33 +198,6 @@ export default function Permissoes() {
       {filteredColaboradores.length > 0 && (
         <Pagination page={page} pageSize={10} total={total} onPageChange={setPage} itemLabel="colaborador(es)" />
       )}
-
-      <div className="mt-8 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-        <h3 className="text-sm font-bold text-destructive">Zona de risco</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Apaga todas as solicitações de pagamento, parcelas, histórico e anexos (incluindo os
-          arquivos no storage) do módulo Financeiro. Fornecedores, categorias e as permissões por
-          módulo não são afetados. Use apenas para limpar dados de teste.
-        </p>
-        <Button
-          type="button"
-          variant="destructive"
-          className="mt-3"
-          onClick={() => setLimpezaDialogOpen(true)}
-        >
-          Limpar dados de teste
-        </Button>
-      </div>
-
-      <ConfirmDeleteDialog
-        open={limpezaDialogOpen}
-        onOpenChange={setLimpezaDialogOpen}
-        onConfirm={() => limparDadosMutation.mutate()}
-        isLoading={limparDadosMutation.isPending}
-        title="Limpar dados de teste do Financeiro"
-        description="Isso vai apagar permanentemente todas as solicitações de pagamento, parcelas, histórico e anexos (tabelas e arquivos no storage). Fornecedores, categorias e as permissões por módulo não são afetados. Essa ação não pode ser desfeita."
-        confirmLabel="Limpar dados"
-      />
     </div>
   );
 }

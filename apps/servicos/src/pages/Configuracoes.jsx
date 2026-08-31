@@ -108,7 +108,7 @@ function NotificacoesPushTab() {
       ) : subscricoes.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum colaborador ativou notificações push ainda.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>

@@ -734,7 +734,7 @@ export default function Pagamentos() {
         <p className="text-sm text-muted-foreground">Nenhuma solicitação aguardando pagamento.</p>
       ) : (
         <>
-        <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+        <div className="hidden overflow-x-auto rounded-lg border border-border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow>
