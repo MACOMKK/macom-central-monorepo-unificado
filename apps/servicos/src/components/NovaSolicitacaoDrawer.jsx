@@ -509,7 +509,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     <Sheet open={visible} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
-        className="sm:max-w-xl overflow-y-auto"
+        className="w-full sm:max-w-xl overflow-y-auto"
         onPointerDownOutside={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => event.preventDefault()}
