@@ -6,6 +6,7 @@ import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
 import InstallPromptBanner from '@/components/layout/InstallPromptBanner';
 import Sidebar from '@/components/layout/Sidebar';
+import SupportButton from '@/components/layout/SupportButton';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -51,6 +52,8 @@ export default function AppLayout() {
       />
 
       <BottomNav onOpenMore={() => setMobileOpen(true)} />
+
+      <SupportButton />
 
       <div className="pointer-events-none fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col-reverse items-stretch gap-3 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[360px]">
         <InstallPromptBanner />
