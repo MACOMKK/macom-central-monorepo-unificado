@@ -191,7 +191,16 @@ export default function MinhasSolicitacoes() {
     if (!termo) return true;
     return normalize(buildSolicitacaoSearchText(row)).includes(termo);
   });
-  const { page, setPage, pageItems, total } = usePagination(filteredRows, 15);
+  const sortedRows = filteredRows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const aPago = a.row.status === 'pago' ? 1 : 0;
+      const bPago = b.row.status === 'pago' ? 1 : 0;
+      if (aPago !== bPago) return aPago - bPago;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+  const { page, setPage, pageItems, total } = usePagination(sortedRows, 15);
 
   const minhasSolicitacoesKey = ['servicos', 'solicitacoes', 'minhas'];
 
