@@ -170,9 +170,9 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const [novaCategoria, setNovaCategoria] = useState(ANEXO_CATEGORIA_OPCOES[0]?.value || '');
+  const [novaCategoria, setNovaCategoria] = useState('');
   const [numeroCopiado, setNumeroCopiado] = useState(false);
-  const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
+  const [novoTipoDocumento, setNovoTipoDocumento] = useState('');
   const [novoSigiloso, setNovoSigiloso] = useState(false);
   const [novoExigirDuasAssinaturas, setNovoExigirDuasAssinaturas] = useState(false);
   const [removerTarget, setRemoverTarget] = useState(null);
@@ -193,8 +193,9 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
 
   useEffect(() => {
+    if (!novaCategoria) return;
     if (!tiposDocumentoOpcoes.some((item) => item.value === novoTipoDocumento)) {
-      setNovoTipoDocumento(tiposDocumentoOpcoes[0]?.value || 'outros');
+      setNovoTipoDocumento('');
     }
   }, [novaCategoria]);
 
@@ -300,6 +301,10 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     }
     if (!isAllowedAnexoMimeType(file)) {
       toast({ title: 'Tipo de arquivo não suportado', description: `"${file.name}" deve ser PDF, JPEG, PNG ou WebP.` });
+      return;
+    }
+    if (!novaCategoria || !novoTipoDocumento) {
+      toast({ title: 'Classifique o anexo', description: 'Selecione a categoria e o tipo de documento antes de anexar o arquivo.' });
       return;
     }
 
@@ -839,7 +844,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                     <div className="flex flex-wrap items-center gap-2">
                       <Select value={novaCategoria} onValueChange={setNovaCategoria}>
                         <SelectTrigger className="h-8 w-48">
-                          <SelectValue />
+                          <SelectValue placeholder="Categoria" />
                         </SelectTrigger>
                         <SelectContent>
                           {ANEXO_CATEGORIA_OPCOES.map((item) => (
@@ -851,7 +856,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                       </Select>
                       <Select value={novoTipoDocumento} onValueChange={setNovoTipoDocumento}>
                         <SelectTrigger className="h-8 w-40">
-                          <SelectValue />
+                          <SelectValue placeholder="Tipo de documento" />
                         </SelectTrigger>
                         <SelectContent>
                           {tiposDocumentoOpcoes.map((item) => (

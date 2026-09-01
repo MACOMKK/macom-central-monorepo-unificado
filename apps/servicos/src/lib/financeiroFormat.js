@@ -65,6 +65,26 @@ export function getTiposDocumentoPorCategoria(categoria) {
   return TIPOS_DOCUMENTO.filter((item) => permitidos.includes(item.value));
 }
 
+// Heuristica por nome de arquivo para pre-selecionar categoria/tipo de documento do anexo --
+// so ajuda a acertar o caso comum (usuario nomeia o arquivo com base no que ele e), o
+// select continua livre para o usuario corrigir. Ordem importa: regras mais especificas
+// (boleto, nota fiscal) antes das mais genericas (comprovante), pra "boleto_nf_123.pdf" nao
+// cair em "comprovante" por engano.
+const REGRAS_CLASSIFICACAO_ANEXO = [
+  { termos: ['boleto'], categoria: 'nf_boleto', tipoDocumento: 'boleto' },
+  { termos: ['nfe', 'nf-e', 'nota_fiscal', 'notafiscal', 'nota fiscal', 'danfe'], categoria: 'nf_boleto', tipoDocumento: 'nota_fiscal' },
+  { termos: ['pix'], categoria: 'comprovante_solicitacao', tipoDocumento: 'comprovante_pix' },
+  { termos: ['orcamento', 'orçamento', 'cotacao', 'cotação'], categoria: 'comprovante_solicitacao', tipoDocumento: 'orcamento' },
+  { termos: ['recibo'], categoria: 'comprovante_solicitacao', tipoDocumento: 'recibo' },
+];
+
+export function inferirClassificacaoAnexo(nomeArquivo) {
+  const nome = (nomeArquivo || '').toLowerCase();
+  const regra = REGRAS_CLASSIFICACAO_ANEXO.find(({ termos }) => termos.some((termo) => nome.includes(termo)));
+  if (!regra) return null;
+  return { categoria: regra.categoria, tipoDocumento: regra.tipoDocumento };
+}
+
 // Solicitacao com plano de parcelas onde algumas ja foram pagas mas nao todas -- status da
 // solicitacao continua 'aprovado' ate a ultima parcela ser quitada (so ai vira 'pago').
 export function isParcialmentePago(row) {
