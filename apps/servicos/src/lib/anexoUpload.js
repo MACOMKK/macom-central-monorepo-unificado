@@ -9,7 +9,15 @@ export function isAllowedAnexoMimeType(file) {
   return ALLOWED_ANEXO_MIME_TYPES.includes(file.type);
 }
 
-export async function uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento = 'outros', parcelaId = null, sigiloso = false }) {
+export async function uploadAnexo({
+  file,
+  solicitacaoId,
+  categoria,
+  tipoDocumento = 'outros',
+  parcelaId = null,
+  sigiloso = false,
+  assinaturasNecessarias = 1,
+}) {
   const extension = file.name.split('.').pop();
   const path = `${solicitacaoId}/${categoria}/${crypto.randomUUID()}.${extension}`;
   const { error: uploadError } = await supabase.storage
@@ -27,5 +35,6 @@ export async function uploadAnexo({ file, solicitacaoId, categoria, tipoDocument
     tamanhoBytes: file.size,
     storagePath: path,
     sigiloso,
+    assinaturasNecessarias,
   });
 }

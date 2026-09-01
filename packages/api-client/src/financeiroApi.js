@@ -255,7 +255,7 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'list_anexos', solicitacao_id: solicitacaoId });
       return result.rows || [];
     },
-    async registrar({ solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, tamanhoBytes, storagePath, sigiloso }) {
+    async registrar({ solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, tamanhoBytes, storagePath, sigiloso, assinaturasNecessarias }) {
       const result = await invokeServicos({
         action: 'registrar_anexo',
         solicitacao_id: solicitacaoId,
@@ -267,11 +267,23 @@ export const financeiroApi = {
         tamanho_bytes: tamanhoBytes,
         storage_path: storagePath,
         sigiloso: Boolean(sigiloso),
+        assinaturas_necessarias: assinaturasNecessarias === 2 ? 2 : 1,
       });
       return result.row || null;
     },
     async remover(id) {
       await invokeServicos({ action: 'remover_anexo', id });
+    },
+    async assinar({ id, storagePath, nomeArquivo, tamanhoBytes, posicao }) {
+      const result = await invokeServicos({
+        action: 'assinar_anexo',
+        id,
+        storage_path: storagePath,
+        nome_arquivo: nomeArquivo,
+        tamanho_bytes: tamanhoBytes,
+        posicao,
+      });
+      return result.row || null;
     },
   },
   parcelas: {

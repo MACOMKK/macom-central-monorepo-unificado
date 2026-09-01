@@ -14,7 +14,6 @@ import {
   SelectValue,
   Spinner,
 } from '@macom/ui';
-import { loadAssinaturaPreference, saveAssinaturaPreference } from '@/lib/assinaturaPdfPreferences';
 
 let pdfjsLibPromise = null;
 
@@ -57,14 +56,15 @@ function defaultBox(pageWidthPt, pageHeightPt, imageAspectRatio) {
   };
 }
 
-export default function PosicionarAssinaturaModal({
+export default function PositionSignatureModal({
   open,
   onOpenChange,
   pdfBytes,
   totalPaginas,
   signatureUrl,
-  userId,
   onConfirm,
+  onLoadPreference,
+  onSavePreference,
 }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -94,14 +94,14 @@ export default function PosicionarAssinaturaModal({
         if (!cancelled) setPdfDoc(null);
       });
 
-    preferenceRef.current = loadAssinaturaPreference(userId, totalPaginas);
+    preferenceRef.current = onLoadPreference ? onLoadPreference(totalPaginas) : null;
     setPageIndex(preferenceRef.current?.pageIndex ?? Math.max(0, totalPaginas - 1));
     setBox(null);
 
     return () => {
       cancelled = true;
     };
-  }, [open, pdfBytes, userId, totalPaginas]);
+  }, [open, pdfBytes, totalPaginas, onLoadPreference]);
 
   useEffect(() => {
     if (!open || !signatureUrl) return;
@@ -248,7 +248,7 @@ export default function PosicionarAssinaturaModal({
     setIsConfirming(true);
     try {
       await onConfirm({ pageIndex, ...box });
-      saveAssinaturaPreference(userId, { pageIndex, totalPaginas, ...box });
+      onSavePreference?.({ pageIndex, totalPaginas, ...box });
     } finally {
       setIsConfirming(false);
     }

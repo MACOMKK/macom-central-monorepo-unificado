@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PDFDocument } from 'pdf-lib';
 import {
   Bell,
   Building2,
@@ -29,7 +28,16 @@ import {
   X,
 } from 'lucide-react';
 
+import { PDFDocument } from 'pdf-lib';
 import { financeiroApi } from '@macom/api-client/financeiroApi';
+import {
+  createLocalSignaturePreferenceStore,
+  downloadPdf,
+  embedSignatureImage,
+  mergePdfs,
+  PositionSignatureModal,
+  stampSignature,
+} from '@macom/pdf-signature';
 import {
   Badge,
   Button,
@@ -71,8 +79,11 @@ import {
   getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
-import PosicionarAssinaturaModal from '@/components/PosicionarAssinaturaModal';
 import WhatsAppShareButton from '@/components/WhatsAppShareButton';
+import { signAnexo } from '@/lib/anexoSignature';
+
+const signaturePreferenceStore = createLocalSignaturePreferenceStore('servicos');
+const anexoSignaturePreferenceStore = createLocalSignaturePreferenceStore('servicos-anexos');
 
 function SectionLabel({ children }) {
   return <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</p>;
@@ -133,6 +144,7 @@ const EVENTO_META = {
   pago: { label: 'Marcada como paga', icon: Wallet, className: 'text-emerald-600 bg-emerald-500/20' },
   anexo_adicionado: { label: 'Anexo incluído', icon: Paperclip, className: 'text-muted-foreground bg-muted' },
   anexo_removido: { label: 'Anexo removido', icon: Trash2, className: 'text-destructive bg-destructive/20' },
+  anexo_assinado: { label: 'Anexo assinado', icon: UserCheck, className: 'text-emerald-600 bg-emerald-500/20' },
   notificacao_enviada: { label: 'Notificação enviada', icon: Bell, className: 'text-muted-foreground bg-muted' },
   pendencia_aberta: { label: 'Pendência sinalizada', icon: Lock, className: 'text-destructive bg-destructive/20' },
   pendencia_liberada: { label: 'Pendência liberada', icon: Unlock, className: 'text-emerald-600 bg-emerald-500/20' },
@@ -160,6 +172,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [numeroCopiado, setNumeroCopiado] = useState(false);
   const [novoTipoDocumento, setNovoTipoDocumento] = useState('outros');
   const [novoSigiloso, setNovoSigiloso] = useState(false);
+  const [novoExigirDuasAssinaturas, setNovoExigirDuasAssinaturas] = useState(false);
   const [removerTarget, setRemoverTarget] = useState(null);
   const [anexosPendentes, setAnexosPendentes] = useState([]);
   const [baixandoTodos, setBaixandoTodos] = useState(false);
@@ -168,6 +181,11 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const [gerandoPdfUnico, setGerandoPdfUnico] = useState(false);
   const [incluirAssinatura, setIncluirAssinatura] = useState(false);
   const [assinaturaPendente, setAssinaturaPendente] = useState(null);
+  const [anexoParaAssinar, setAnexoParaAssinar] = useState(null);
+  const [abrindoAssinaturaAnexoId, setAbrindoAssinaturaAnexoId] = useState(null);
+  const [assinaturaLotePendente, setAssinaturaLotePendente] = useState(null);
+  const [abrindoAssinarTodos, setAbrindoAssinarTodos] = useState(false);
+  const [assinandoLote, setAssinandoLote] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const tiposDocumentoOpcoes = getTiposDocumentoPorCategoria(novaCategoria);
@@ -184,6 +202,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   const dentroDaJanelaRemocao = solicitacao?.status === 'pendente' || solicitacao?.pendencia_bloqueio === true;
   const podeRemoverAnexo = (Boolean(user?.isFinanceiro) || isDonoSolicitacao) && dentroDaJanelaRemocao;
   const podeBaixarTodosAnexos = Boolean(user?.isPagador) || isAprovadorDestino || isDonoSolicitacao;
+  const podeAssinarAnexo = Boolean(user?.signatureUrl) && (isDonoSolicitacao || isAprovadorDestino);
 
   const solicitacaoId = solicitacao?.id;
 
@@ -253,8 +272,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   }
 
   const uploadAnexoMutation = useMutation({
-    mutationFn: ({ file, categoria, tipoDocumento, sigiloso }) =>
-      uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso }),
+    mutationFn: ({ file, categoria, tipoDocumento, sigiloso, assinaturasNecessarias }) =>
+      uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso, assinaturasNecessarias }),
     onSuccess: (row, variables) => {
       setAnexosPendentes((current) => current.filter((item) => item.tempId !== variables.tempId));
       queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), row]);
@@ -287,7 +306,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       ...current,
       { tempId, nomeArquivo: file.name, categoria: novaCategoria, erro: false },
     ]);
-    uploadAnexoMutation.mutate({ file, categoria: novaCategoria, tipoDocumento: novoTipoDocumento, sigiloso: novoSigiloso, tempId });
+    uploadAnexoMutation.mutate({
+      file,
+      categoria: novaCategoria,
+      tipoDocumento: novoTipoDocumento,
+      sigiloso: novoSigiloso,
+      assinaturasNecessarias: novoExigirDuasAssinaturas ? 2 : 1,
+      tempId,
+    });
   }
 
   function removerAnexoPendente(tempId) {
@@ -383,33 +409,13 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     }
   }
 
-  async function downloadPdfFinal(pdfFinal) {
-    const pdfBytes = await pdfFinal.save();
-    const blobUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = `anexos-${solicitacao?.numero || solicitacaoId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(blobUrl);
-  }
-
   async function handleGerarPdfUnico() {
     const pdfs = anexos.filter((anexo) => anexo.url && getPreviewType(anexo) === 'pdf');
     if (pdfs.length === 0) return;
 
     setGerandoPdfUnico(true);
     try {
-      const pdfFinal = await PDFDocument.create();
-      for (const anexo of pdfs) {
-        const response = await fetch(anexo.url);
-        if (!response.ok) throw new Error(`Falha ao baixar "${anexo.nome_arquivo}".`);
-        const bytes = await response.arrayBuffer();
-        const pdfOrigem = await PDFDocument.load(bytes, { ignoreEncryption: true });
-        const paginas = await pdfFinal.copyPages(pdfOrigem, pdfOrigem.getPageIndices());
-        paginas.forEach((pagina) => pdfFinal.addPage(pagina));
-      }
+      const pdfFinal = await mergePdfs(pdfs.map((anexo) => anexo.url));
 
       if (incluirAssinatura && user?.signatureUrl) {
         const pdfBytes = await pdfFinal.save();
@@ -417,7 +423,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
         return;
       }
 
-      await downloadPdfFinal(pdfFinal);
+      await downloadPdf(pdfFinal, `anexos-${solicitacao?.numero || solicitacaoId}.pdf`);
     } catch (error) {
       toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
     } finally {
@@ -428,23 +434,122 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   async function handleConfirmarPosicaoAssinatura({ pageIndex, xFrac, yFrac, widthFrac, heightFrac }) {
     const { pdfFinal } = assinaturaPendente;
     try {
-      const assinaturaResponse = await fetch(user.signatureUrl);
-      if (!assinaturaResponse.ok) throw new Error('Falha ao carregar assinatura.');
-      const assinaturaBytes = await assinaturaResponse.arrayBuffer();
-      const assinaturaImage = await pdfFinal.embedPng(assinaturaBytes);
-      const pagina = pdfFinal.getPages()[pageIndex];
-      const pageWidthPt = pagina.getWidth();
-      const pageHeightPt = pagina.getHeight();
-      pagina.drawImage(assinaturaImage, {
-        x: xFrac * pageWidthPt,
-        y: pageHeightPt - (yFrac + heightFrac) * pageHeightPt,
-        width: widthFrac * pageWidthPt,
-        height: heightFrac * pageHeightPt,
-      });
-      await downloadPdfFinal(pdfFinal);
+      const signatureImage = await embedSignatureImage(pdfFinal, user.signatureUrl);
+      stampSignature(pdfFinal, { pageIndex, xFrac, yFrac, widthFrac, heightFrac, signatureImage });
+      await downloadPdf(pdfFinal, `anexos-${solicitacao?.numero || solicitacaoId}.pdf`);
       setAssinaturaPendente(null);
     } catch (error) {
       toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
+    }
+  }
+
+  const userId = user?.id;
+  const handleLoadSignaturePreference = useCallback(
+    (totalPaginas) => signaturePreferenceStore.load(userId, totalPaginas),
+    [userId],
+  );
+  const handleSaveSignaturePreference = useCallback(
+    (data) => signaturePreferenceStore.save(userId, data),
+    [userId],
+  );
+  const handleLoadAnexoSignaturePreference = useCallback(
+    (totalPaginas) => anexoSignaturePreferenceStore.load(userId, totalPaginas),
+    [userId],
+  );
+  const handleSaveAnexoSignaturePreference = useCallback(
+    (data) => anexoSignaturePreferenceStore.save(userId, data),
+    [userId],
+  );
+
+  async function handleAbrirAssinaturaAnexo(anexo) {
+    setAbrindoAssinaturaAnexoId(anexo.id);
+    try {
+      const response = await fetch(anexo.url);
+      if (!response.ok) throw new Error(`Falha ao carregar "${anexo.nome_arquivo}".`);
+      const bytes = await response.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      setAnexoParaAssinar({ anexo, pdfBytes: bytes, totalPaginas: pdfDoc.getPageCount() });
+    } catch (error) {
+      toast({ title: 'Não foi possível abrir o anexo para assinatura', description: getFriendlyErrorMessage(error) });
+    } finally {
+      setAbrindoAssinaturaAnexoId(null);
+    }
+  }
+
+  const assinarAnexoMutation = useMutation({
+    mutationFn: ({ anexo, posicao }) => signAnexo({ anexo, signatureUrl: user?.signatureUrl, posicao }),
+    onSuccess: (row) => {
+      queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) =>
+        (old || []).map((item) => (item.id === row.id ? row : item)),
+      );
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'historico', solicitacaoId] });
+      setAnexoParaAssinar(null);
+      toast({ title: 'Anexo assinado' });
+    },
+    onError: (error) => {
+      toast({ title: 'Não foi possível assinar o anexo', description: getFriendlyErrorMessage(error) });
+    },
+  });
+
+  function handleConfirmarAssinaturaAnexo(posicao) {
+    if (!anexoParaAssinar) return;
+    assinarAnexoMutation.mutate({ anexo: anexoParaAssinar.anexo, posicao });
+  }
+
+  function anexoJaAssinadoPeloUsuario(anexo) {
+    return (anexo.assinaturas || []).some((assinatura) => String(assinatura.colaborador_id) === String(user?.id));
+  }
+
+  const anexosElegiveisParaAssinar = anexos.filter(
+    (anexo) => anexo.url && getPreviewType(anexo) === 'pdf' && !anexoJaAssinadoPeloUsuario(anexo),
+  );
+
+  async function handleAbrirAssinarTodosAnexos() {
+    if (anexosElegiveisParaAssinar.length === 0) return;
+    setAbrindoAssinarTodos(true);
+    try {
+      const primeiro = anexosElegiveisParaAssinar[0];
+      const response = await fetch(primeiro.url);
+      if (!response.ok) throw new Error(`Falha ao carregar "${primeiro.nome_arquivo}".`);
+      const bytes = await response.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      setAssinaturaLotePendente({
+        anexos: anexosElegiveisParaAssinar,
+        pdfBytes: bytes,
+        totalPaginas: pdfDoc.getPageCount(),
+      });
+    } catch (error) {
+      toast({ title: 'Não foi possível abrir os anexos para assinatura', description: getFriendlyErrorMessage(error) });
+    } finally {
+      setAbrindoAssinarTodos(false);
+    }
+  }
+
+  async function handleConfirmarAssinaturaLote(posicao) {
+    if (!assinaturaLotePendente) return;
+    const { anexos: fila } = assinaturaLotePendente;
+    setAssinaturaLotePendente(null);
+    setAssinandoLote({ atual: 0, total: fila.length });
+
+    let sucesso = 0;
+    for (let i = 0; i < fila.length; i += 1) {
+      const anexo = fila[i];
+      setAssinandoLote({ atual: i + 1, total: fila.length });
+      try {
+        const row = await signAnexo({ anexo, signatureUrl: user?.signatureUrl, posicao });
+        queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) =>
+          (old || []).map((item) => (item.id === row.id ? row : item)),
+        );
+        sucesso += 1;
+      } catch (error) {
+        toast({ title: `Falha ao assinar "${anexo.nome_arquivo}"`, description: getFriendlyErrorMessage(error) });
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['servicos', 'historico', solicitacaoId] });
+    setAssinandoLote(null);
+    if (sucesso > 0) {
+      toast({ title: `${sucesso} de ${fila.length} anexo(s) assinado(s)` });
     }
   }
 
@@ -628,45 +733,62 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               <TabsContent value="anexos" className="space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-semibold">Anexos</p>
-                  {podeBaixarTodosAnexos && anexos.length > 0 && (
+                  {((podeBaixarTodosAnexos && anexos.length > 0) ||
+                    (podeAssinarAnexo && anexosElegiveisParaAssinar.length > 0)) && (
                     <div className="flex flex-wrap items-center gap-2">
-                      {anexos.some((anexo) => anexo.url && getPreviewType(anexo) === 'pdf') && (
+                      {podeBaixarTodosAnexos && anexos.length > 0 && (
                         <>
-                          {user?.signatureUrl && (
-                            <label
-                              htmlFor="incluir-assinatura-pdf"
-                              className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-                            >
-                              <Checkbox
-                                id="incluir-assinatura-pdf"
-                                checked={incluirAssinatura}
-                                onCheckedChange={(checked) => setIncluirAssinatura(checked === true)}
-                              />
-                              Incluir minha assinatura
-                            </label>
+                          {anexos.some((anexo) => anexo.url && getPreviewType(anexo) === 'pdf') && (
+                            <>
+                              {user?.signatureUrl && (
+                                <label
+                                  htmlFor="incluir-assinatura-pdf"
+                                  className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                                >
+                                  <Checkbox
+                                    id="incluir-assinatura-pdf"
+                                    checked={incluirAssinatura}
+                                    onCheckedChange={(checked) => setIncluirAssinatura(checked === true)}
+                                  />
+                                  Incluir minha assinatura
+                                </label>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={gerandoPdfUnico}
+                                onClick={handleGerarPdfUnico}
+                              >
+                                {gerandoPdfUnico ? <Spinner size="sm" /> : <FileStack className="h-4 w-4" />}
+                                Juntar PDFs
+                              </Button>
+                            </>
                           )}
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={gerandoPdfUnico}
-                            onClick={handleGerarPdfUnico}
+                            disabled={baixandoTodos}
+                            onClick={handleBaixarTodosAnexos}
                           >
-                            {gerandoPdfUnico ? <Spinner size="sm" /> : <FileStack className="h-4 w-4" />}
-                            Juntar PDFs
+                            {baixandoTodos ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                            Baixar todos
                           </Button>
                         </>
                       )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={baixandoTodos}
-                        onClick={handleBaixarTodosAnexos}
-                      >
-                        {baixandoTodos ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
-                        Baixar todos
-                      </Button>
+                      {podeAssinarAnexo && anexosElegiveisParaAssinar.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={abrindoAssinarTodos || Boolean(assinandoLote)}
+                          onClick={handleAbrirAssinarTodosAnexos}
+                        >
+                          {abrindoAssinarTodos || assinandoLote ? <Spinner size="sm" /> : <UserCheck className="h-4 w-4" />}
+                          {assinandoLote ? `Assinando ${assinandoLote.atual}/${assinandoLote.total}...` : 'Assinar todos'}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -714,6 +836,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                           onCheckedChange={(checked) => setNovoSigiloso(checked === true)}
                         />
                         Sigiloso
+                      </label>
+                      <label htmlFor="anexo-drawer-duas-assinaturas" className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          id="anexo-drawer-duas-assinaturas"
+                          checked={novoExigirDuasAssinaturas}
+                          onCheckedChange={(checked) => setNovoExigirDuasAssinaturas(checked === true)}
+                        />
+                        Exigir assinatura dos dois responsáveis
                       </label>
                     </div>
                     {anexosPendentes.length > 0 && (
@@ -772,6 +902,24 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                                     Sigiloso
                                   </Badge>
                                 )}
+                                {(anexo.assinaturas || []).length > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    title={anexo.assinaturas
+                                      .map((assinatura) => `${assinatura.nome} (${assinatura.papel}) em ${formatDataHora(assinatura.assinado_em)}`)
+                                      .join('\n')}
+                                    className={`shrink-0 gap-1 ${
+                                      anexo.assinaturas.length >= (anexo.assinaturas_necessarias || 1)
+                                        ? 'border-emerald-500/40 text-emerald-600'
+                                        : 'border-amber-500/40 text-amber-600'
+                                    }`}
+                                  >
+                                    <UserCheck className="h-3 w-3" />
+                                    {anexo.assinaturas.length >= (anexo.assinaturas_necessarias || 1)
+                                      ? 'Assinado'
+                                      : `Assinado (${anexo.assinaturas.length}/${anexo.assinaturas_necessarias || 1})`}
+                                  </Badge>
+                                )}
                               </span>
                               <span className="flex shrink-0 items-center gap-1">
                                 {anexo.url && (
@@ -793,6 +941,17 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                                     className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
                                   >
                                     {baixandoAnexoId === anexo.id ? <Spinner size="sm" /> : <Download className="h-4 w-4" />}
+                                  </button>
+                                )}
+                                {podeAssinarAnexo && anexo.url && getPreviewType(anexo) === 'pdf' && !anexoJaAssinadoPeloUsuario(anexo) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAbrirAssinaturaAnexo(anexo)}
+                                    disabled={abrindoAssinaturaAnexoId === anexo.id}
+                                    title="Assinar"
+                                    className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                                  >
+                                    {abrindoAssinaturaAnexoId === anexo.id ? <Spinner size="sm" /> : <UserCheck className="h-4 w-4" />}
                                   </button>
                                 )}
                                 {podeRemoverAnexo && (
@@ -867,14 +1026,37 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                   </DialogContent>
                 </Dialog>
 
-                <PosicionarAssinaturaModal
+                <PositionSignatureModal
                   open={Boolean(assinaturaPendente)}
                   onOpenChange={(open) => !open && setAssinaturaPendente(null)}
                   pdfBytes={assinaturaPendente?.pdfBytes}
                   totalPaginas={assinaturaPendente?.totalPaginas || 0}
                   signatureUrl={user?.signatureUrl}
-                  userId={user?.id}
                   onConfirm={handleConfirmarPosicaoAssinatura}
+                  onLoadPreference={handleLoadSignaturePreference}
+                  onSavePreference={handleSaveSignaturePreference}
+                />
+
+                <PositionSignatureModal
+                  open={Boolean(anexoParaAssinar)}
+                  onOpenChange={(open) => !open && setAnexoParaAssinar(null)}
+                  pdfBytes={anexoParaAssinar?.pdfBytes}
+                  totalPaginas={anexoParaAssinar?.totalPaginas || 0}
+                  signatureUrl={user?.signatureUrl}
+                  onConfirm={handleConfirmarAssinaturaAnexo}
+                  onLoadPreference={handleLoadAnexoSignaturePreference}
+                  onSavePreference={handleSaveAnexoSignaturePreference}
+                />
+
+                <PositionSignatureModal
+                  open={Boolean(assinaturaLotePendente)}
+                  onOpenChange={(open) => !open && setAssinaturaLotePendente(null)}
+                  pdfBytes={assinaturaLotePendente?.pdfBytes}
+                  totalPaginas={assinaturaLotePendente?.totalPaginas || 0}
+                  signatureUrl={user?.signatureUrl}
+                  onConfirm={handleConfirmarAssinaturaLote}
+                  onLoadPreference={handleLoadAnexoSignaturePreference}
+                  onSavePreference={handleSaveAnexoSignaturePreference}
                 />
               </TabsContent>
 

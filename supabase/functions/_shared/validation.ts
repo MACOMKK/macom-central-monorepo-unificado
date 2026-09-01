@@ -364,6 +364,25 @@ export const registrarAnexoBodySchema = z.object({
   parcela_id: z.string().nullish(),
   sigiloso: z.boolean().nullish(),
   tamanho_bytes: z.number().nullish(),
+  assinaturas_necessarias: z.number().int().min(1).max(2).nullish(),
+});
+
+// servicos-api -- assinar_anexo. `posicao` guarda as coordenadas fracionarias usadas no
+// carimbo (mesmo formato de stampSignature em @macom/pdf-signature), so pra auditoria/replay.
+export const assinarAnexoBodySchema = z.object({
+  id: z.string().nullish(),
+  storage_path: z.string().nullish(),
+  nome_arquivo: z.string().nullish(),
+  tamanho_bytes: z.number().nullish(),
+  posicao: z
+    .object({
+      pageIndex: z.number(),
+      xFrac: z.number(),
+      yFrac: z.number(),
+      widthFrac: z.number(),
+      heightFrac: z.number(),
+    })
+    .nullish(),
 });
 
 export const parcelaItemSchema = z.object({

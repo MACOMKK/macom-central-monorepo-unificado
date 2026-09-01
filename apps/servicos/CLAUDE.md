@@ -272,11 +272,45 @@ criado desenhando num canvas na tela de Perfil da `intranet`, `servicos` só **l
 `src/lib/AuthContext.jsx`). Não há tela de criar/editar assinatura em `servicos`.
 
 Consumida em `SolicitacaoDrawer.jsx` → `handleGerarPdfUnico()` (o botão "Juntar PDFs" que já
-existia pra concatenar os PDFs de anexo via `pdf-lib`, client-side): se o usuário tem
-`user.signatureUrl` e marca o checkbox "Incluir minha assinatura", a imagem é baixada
-(`fetch` + `embedPng`) e estampada com `drawImage` no canto inferior direito da última página,
-antes do `save()`. O checkbox só aparece pra quem já tem assinatura cadastrada. O PDF final
-continua só sendo baixado (não é re-enviado como anexo automaticamente).
+existia pra concatenar os PDFs de anexo, client-side): se o usuário tem `user.signatureUrl` e
+marca o checkbox "Incluir minha assinatura", abre `PositionSignatureModal` pra escolher página e
+posição, e o carimbo final é feito com `embedSignatureImage`/`stampSignature`. O checkbox só
+aparece pra quem já tem assinatura cadastrada. O PDF final continua só sendo baixado (não é
+re-enviado como anexo automaticamente).
+
+Toda a lógica de `pdf-lib`/`pdfjs-dist` (merge de PDFs, modal de posicionar assinatura, download,
+preferência de posição por usuário) foi extraída para o pacote compartilhado
+`packages/pdf-signature` (`@macom/pdf-signature`) — `servicos` foi o primeiro consumidor, mas o
+pacote é genérico (recebe URL da assinatura e coordenadas fracionárias, não sabe nada de
+Financeiro/solicitações) pra ser reaproveitado por outro fluxo de assinatura no futuro (ex.: termo
+de recebimento de equipamento). `pdf-lib`/`pdfjs-dist` continuam declarados só em
+`apps/servicos/package.json` (único app que os usa hoje) — funcionam pra qualquer pacote via
+hoisting do npm workspaces, mesmo padrão que os demais pacotes `@macom/*` já seguem (não declaram
+suas próprias deps de runtime).
+
+## Assinatura de anexos individuais (substitui o arquivo, com histórico)
+
+Distinto do "PDF único" acima: aqui cada **anexo PDF** pode ser assinado individualmente e o
+arquivo original é **substituído** pela versão carimbada (não é só download). Só o `solicitante_id`
+ou o `aprovador_destino_id` da solicitação podem assinar um anexo (`podeAssinarAnexo` em
+`SolicitacaoDrawer.jsx`); botão "Assinar" some depois que o colaborador logado já assinou aquele
+anexo (`anexoJaAssinadoPeloUsuario`).
+
+Fluxo (`handleAbrirAssinaturaAnexo` → `PositionSignatureModal` com namespace de preferência
+`'servicos-anexos'`, separado do `'servicos'` do PDF único → `handleConfirmarAssinaturaAnexo` →
+`src/lib/anexoSignature.js#signAnexo`): baixa o PDF do anexo, carimba com
+`embedSignatureImage`/`stampSignature` (`@macom/pdf-signature`), sobe o resultado pro Storage
+(mesmo bucket/padrão de path de `anexoUpload.js`) e chama a ação `assinar_anexo` da `servicos-api`,
+que atualiza `storage_path`/`nome_arquivo`/`tamanho_bytes` **na mesma linha** de
+`anexos_solicitacao` (apaga o arquivo antigo do Storage), insere em
+`gestao_servicos.assinaturas_anexo` (migration `20260831130000_add_servicos_anexo_assinatura.sql`)
+e grava `anexo_assinado` em `historico_solicitacao`.
+
+`anexos_solicitacao.assinaturas_necessarias` (1 ou 2, hoje sempre 1 — "mão dupla" com 2 ainda não
+tem UI pra configurar) define quando o anexo é considerado totalmente assinado; `list_anexos`
+retorna `assinaturas: [{ colaborador_id, nome, papel, assinado_em }]` por anexo, usado pro badge
+"Assinado"/"Assinado (1/2)" na lista. Mão dupla completa (checkbox pra exigir os dois responsáveis
++ "assinar todos" em lote) é evolução futura, não implementada ainda.
 
 ## Shell mobile (Capacitor/Android)
 

@@ -13,6 +13,7 @@ import {
   liberarPendenciaBodySchema,
   atualizarConfiguracaoModuloBodySchema,
   registrarAnexoBodySchema,
+  assinarAnexoBodySchema,
   criarParcelasBodySchema,
   registrarPagamentoParcelaBodySchema,
   criarSolicitacaoBodySchema,
@@ -2415,10 +2416,36 @@ Deno.serve(async (request) => {
         departamentoIdAnexos,
       );
       const visiveis = rows.filter((anexo: Record<string, unknown>) => !anexo.sigiloso || podeVerSigiloso);
+
+      const assinaturasRows = visiveis.length
+        ? await sql.unsafe(
+            `
+              select sa.anexo_id, sa.colaborador_id, sa.papel, sa.assinado_em, c.nome
+              from ${SERVICOS_SCHEMA}.assinaturas_anexo sa
+              join public.colaboradores c on c.id = sa.colaborador_id
+              where sa.anexo_id = any($1::uuid[])
+              order by sa.assinado_em asc;
+            `,
+            [visiveis.map((anexo: Record<string, unknown>) => anexo.id)],
+          )
+        : [];
+      const assinaturasPorAnexo = new Map<string, Record<string, unknown>[]>();
+      for (const assinatura of assinaturasRows) {
+        const key = String(assinatura.anexo_id);
+        if (!assinaturasPorAnexo.has(key)) assinaturasPorAnexo.set(key, []);
+        assinaturasPorAnexo.get(key)!.push({
+          colaborador_id: assinatura.colaborador_id,
+          nome: assinatura.nome,
+          papel: assinatura.papel,
+          assinado_em: assinatura.assinado_em,
+        });
+      }
+
       const withUrls = await Promise.all(
         visiveis.map(async (anexo: Record<string, unknown>) => ({
           ...anexo,
           url: await createSignedUrlForPath(String(anexo.storage_path)),
+          assinaturas: assinaturasPorAnexo.get(String(anexo.id)) || [],
         })),
       );
 
@@ -2441,6 +2468,7 @@ Deno.serve(async (request) => {
       const storagePath = String(anexoBody.storage_path || '');
       const parcelaId = anexoBody.parcela_id ? String(anexoBody.parcela_id) : null;
       const sigiloso = anexoBody.sigiloso === true;
+      const assinaturasNecessarias = anexoBody.assinaturas_necessarias === 2 ? 2 : 1;
 
       if (!solicitacaoId) return json({ error: 'solicitacao_id obrigatorio.' }, 400);
       if (!ANEXO_CATEGORIAS.includes(categoria as (typeof ANEXO_CATEGORIAS)[number])) {
@@ -2463,11 +2491,11 @@ Deno.serve(async (request) => {
       const rows = await sql.unsafe(
         `
           insert into ${SERVICOS_SCHEMA}.anexos_solicitacao
-            (solicitacao_id, parcela_id, categoria, tipo_documento, nome_arquivo, tipo_mime, tamanho_bytes, storage_path, criado_por, sigiloso)
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            (solicitacao_id, parcela_id, categoria, tipo_documento, nome_arquivo, tipo_mime, tamanho_bytes, storage_path, criado_por, sigiloso, assinaturas_necessarias)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           returning *;
         `,
-        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(anexoBody.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso],
+        [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(anexoBody.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso, assinaturasNecessarias],
       );
 
       await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
@@ -2516,6 +2544,111 @@ Deno.serve(async (request) => {
       );
 
       return json({ ok: true });
+    }
+
+    if (action === 'assinar_anexo') {
+      const parsedAssinatura = assinarAnexoBodySchema.safeParse(body);
+      if (!parsedAssinatura.success) {
+        const issue = parsedAssinatura.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+      const assinaturaBody = parsedAssinatura.data;
+
+      const id = String(assinaturaBody.id || '');
+      const storagePath = String(assinaturaBody.storage_path || '');
+      const nomeArquivo = String(assinaturaBody.nome_arquivo || '');
+      const posicao = assinaturaBody.posicao;
+      if (!id || !storagePath || !nomeArquivo || !posicao) {
+        return json({ error: 'Dados da assinatura incompletos.' }, 400);
+      }
+      validateComprovanteSize(assinaturaBody.tamanho_bytes);
+
+      const rows = await sql.unsafe(
+        `
+          select an.*, sp.solicitante_id, sp.aprovador_destino_id
+          from ${SERVICOS_SCHEMA}.anexos_solicitacao an
+          join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = an.solicitacao_id
+          where an.id = $1
+          limit 1;
+        `,
+        [id],
+      );
+      const anexo = rows[0];
+      if (!anexo) return json({ error: 'Anexo nao encontrado.' }, 404);
+
+      const colaboradorId = collaborator!.id as string;
+      const papel =
+        String(anexo.solicitante_id) === colaboradorId
+          ? 'solicitante'
+          : String(anexo.aprovador_destino_id) === colaboradorId
+            ? 'aprovador'
+            : null;
+      if (!papel) {
+        throw Object.assign(
+          new Error('Somente o solicitante ou o aprovador responsavel podem assinar este anexo.'),
+          { status: 403 },
+        );
+      }
+
+      const jaAssinouRows = await sql.unsafe(
+        `select 1 from ${SERVICOS_SCHEMA}.assinaturas_anexo where anexo_id = $1 and colaborador_id = $2 limit 1;`,
+        [id, colaboradorId],
+      );
+      if (jaAssinouRows[0]) {
+        throw Object.assign(new Error('Voce ja assinou este anexo.'), { status: 409 });
+      }
+
+      const storagePathAnterior = String(anexo.storage_path);
+      const tamanhoBytes = Number(assinaturaBody.tamanho_bytes) || 0;
+
+      const atualizadoRows = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.anexos_solicitacao
+          set storage_path = $2, nome_arquivo = $3, tamanho_bytes = $4
+          where id = $1
+          returning *;
+        `,
+        [id, storagePath, nomeArquivo, tamanhoBytes],
+      );
+
+      const storageClient = createStorageAdminClient();
+      if (storageClient && storagePathAnterior !== storagePath) {
+        await storageClient.storage.from(COMPROVANTES_STORAGE_BUCKET).remove([storagePathAnterior]);
+      }
+
+      await sql.unsafe(
+        `
+          insert into ${SERVICOS_SCHEMA}.assinaturas_anexo (anexo_id, colaborador_id, papel, posicao)
+          values ($1, $2, $3, $4::jsonb);
+        `,
+        [id, colaboradorId, papel, JSON.stringify(posicao)],
+      );
+
+      await insertHistorico(
+        String(anexo.solicitacao_id),
+        'anexo_assinado',
+        colaboradorId,
+        `${nomeArquivo} (assinado como ${papel === 'solicitante' ? 'solicitante' : 'aprovador'})`,
+      );
+
+      const assinaturasRows = await sql.unsafe(
+        `
+          select sa.colaborador_id, sa.papel, sa.assinado_em, c.nome
+          from ${SERVICOS_SCHEMA}.assinaturas_anexo sa
+          join public.colaboradores c on c.id = sa.colaborador_id
+          where sa.anexo_id = $1
+          order by sa.assinado_em asc;
+        `,
+        [id],
+      );
+
+      return json({
+        row: {
+          ...atualizadoRows[0],
+          url: await createSignedUrlForPath(storagePath),
+          assinaturas: assinaturasRows,
+        },
+      });
     }
 
     if (action === 'criar_parcelas') {
