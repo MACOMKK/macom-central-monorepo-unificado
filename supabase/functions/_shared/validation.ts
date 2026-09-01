@@ -351,9 +351,23 @@ export const atualizarConfiguracaoModuloBodySchema = z.object({
   suprimento_caixa_departamentos_permitidos: z.array(z.string().uuid()).nullish(),
 });
 
+// Coordenadas fracionarias do carimbo de assinatura (mesmo formato de stampSignature em
+// @macom/pdf-signature), usadas tanto em assinar_anexo quanto no `assinatura` opcional de
+// registrar_anexo (PDF unico ja gerado com o carimbo embutido).
+const posicaoAssinaturaSchema = z.object({
+  pageIndex: z.number(),
+  xFrac: z.number(),
+  yFrac: z.number(),
+  widthFrac: z.number(),
+  heightFrac: z.number(),
+});
+
 // servicos-api -- registrar_anexo/criar_parcelas/registrar_pagamento_parcela. Enums de anexo
 // (categoria/tipo_documento e a combinacao entre eles) continuam validados no handler contra
 // ANEXO_CATEGORIAS/ANEXO_TIPOS_DOCUMENTO_POR_CATEGORIA -- o schema so garante tipo string.
+// `assinatura` e opcional: usado quando o arquivo enviado (ex. PDF unico) ja foi carimbado no
+// client antes do upload, pra tambem gravar o evento de assinatura (assinaturas_anexo) no mesmo
+// request que cria o anexo.
 export const registrarAnexoBodySchema = z.object({
   solicitacao_id: z.string().nullish(),
   categoria: z.string().nullish(),
@@ -365,6 +379,7 @@ export const registrarAnexoBodySchema = z.object({
   sigiloso: z.boolean().nullish(),
   tamanho_bytes: z.number().nullish(),
   assinaturas_necessarias: z.number().int().min(1).max(2).nullish(),
+  assinatura: posicaoAssinaturaSchema.nullish(),
 });
 
 // servicos-api -- assinar_anexo. `posicao` guarda as coordenadas fracionarias usadas no
@@ -374,15 +389,7 @@ export const assinarAnexoBodySchema = z.object({
   storage_path: z.string().nullish(),
   nome_arquivo: z.string().nullish(),
   tamanho_bytes: z.number().nullish(),
-  posicao: z
-    .object({
-      pageIndex: z.number(),
-      xFrac: z.number(),
-      yFrac: z.number(),
-      widthFrac: z.number(),
-      heightFrac: z.number(),
-    })
-    .nullish(),
+  posicao: posicaoAssinaturaSchema.nullish(),
 });
 
 export const parcelaItemSchema = z.object({

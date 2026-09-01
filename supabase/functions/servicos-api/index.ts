@@ -2484,8 +2484,24 @@ Deno.serve(async (request) => {
       }
       validateComprovanteSize(anexoBody.tamanho_bytes);
 
-      await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
+      const solicitacaoRow = await ensureRowAccess(solicitacaoId, moduleRole, collaborator);
       if (parcelaId) await ensureParcelaAccess(parcelaId, moduleRole, collaborator);
+
+      // `assinatura` so vem preenchido quando o arquivo ja chega carimbado (ex.: PDF unico
+      // assinado em handleConfirmarPosicaoAssinatura) -- valida quem pode assinar antes de criar
+      // o anexo, mesma regra de papel do assinar_anexo, so que "financeiro" tambem conta aqui
+      // porque o PDF unico pode ser gerado por isPagador (nao so solicitante/aprovador).
+      const posicaoAssinatura = anexoBody.assinatura || null;
+      let papelAssinatura: string | null = null;
+      if (posicaoAssinatura) {
+        const colaboradorId = collaborator!.id as string;
+        if (String(solicitacaoRow.solicitante_id) === colaboradorId) papelAssinatura = 'solicitante';
+        else if (String(solicitacaoRow.aprovador_destino_id) === colaboradorId) papelAssinatura = 'aprovador';
+        else if (isPagador(moduleRole)) papelAssinatura = 'financeiro';
+        if (!papelAssinatura) {
+          throw Object.assign(new Error('Voce nao tem permissao para assinar este documento.'), { status: 403 });
+        }
+      }
 
       const rows = await sql.unsafe(
         `
@@ -2496,10 +2512,26 @@ Deno.serve(async (request) => {
         `,
         [solicitacaoId, parcelaId, categoria, tipoDocumento, nomeArquivo, tipoMime, Number(anexoBody.tamanho_bytes) || 0, storagePath, collaborator!.id, sigiloso, assinaturasNecessarias],
       );
+      const anexoCriado = rows[0] || null;
 
-      await insertHistorico(solicitacaoId, 'anexo_adicionado', collaborator!.id as string, nomeArquivo);
+      if (posicaoAssinatura && anexoCriado) {
+        await sql.unsafe(
+          `
+            insert into ${SERVICOS_SCHEMA}.assinaturas_anexo (anexo_id, colaborador_id, papel, posicao)
+            values ($1, $2, $3, $4::jsonb);
+          `,
+          [anexoCriado.id, collaborator!.id, papelAssinatura, JSON.stringify(posicaoAssinatura)],
+        );
+      }
 
-      return json({ row: rows[0] || null });
+      await insertHistorico(
+        solicitacaoId,
+        posicaoAssinatura ? 'anexo_assinado' : 'anexo_adicionado',
+        collaborator!.id as string,
+        posicaoAssinatura ? `${nomeArquivo} (assinado como ${papelAssinatura})` : nomeArquivo,
+      );
+
+      return json({ row: anexoCriado });
     }
 
     if (action === 'remover_anexo') {

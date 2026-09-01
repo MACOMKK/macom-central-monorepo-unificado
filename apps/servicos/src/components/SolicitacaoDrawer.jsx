@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Banknote,
   Bell,
   Building2,
   Calendar,
@@ -81,7 +82,7 @@ import {
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import WhatsAppShareButton from '@/components/WhatsAppShareButton';
-import { signAnexo } from '@/lib/anexoSignature';
+import { signAnexo, persistPdfUnicoAssinado } from '@/lib/anexoSignature';
 
 const signaturePreferenceStore = createLocalSignaturePreferenceStore('servicos');
 const anexoSignaturePreferenceStore = createLocalSignaturePreferenceStore('servicos-anexos');
@@ -434,10 +435,30 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
   async function handleConfirmarPosicaoAssinatura({ pageIndex, xFrac, yFrac, widthFrac, heightFrac }) {
     const { pdfFinal } = assinaturaPendente;
+    const posicao = { pageIndex, xFrac, yFrac, widthFrac, heightFrac };
     try {
       const signatureImage = await embedSignatureImage(pdfFinal, user.signatureUrl);
-      stampSignature(pdfFinal, { pageIndex, xFrac, yFrac, widthFrac, heightFrac, signatureImage });
+      await stampSignature(pdfFinal, {
+        ...posicao,
+        signatureImage,
+        signerName: user?.name,
+        empresaNome: solicitacao?.empresa_nome,
+      });
       await downloadPdf(pdfFinal, `anexos-${solicitacao?.numero || solicitacaoId}.pdf`);
+      // O carimbo ja esta embutido no PDF baixado -- persiste esse mesmo arquivo como anexo
+      // (categoria pdf_unificado) pra ficar arquivado/auditavel na solicitacao, nao so no
+      // download local do usuario.
+      const anexoRow = await persistPdfUnicoAssinado({
+        solicitacaoId,
+        pdfDoc: pdfFinal,
+        numero: solicitacao?.numero,
+        posicao,
+      });
+      if (anexoRow) {
+        queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) => [...(old || []), anexoRow]);
+        loadHistorico();
+        toast({ title: 'PDF único assinado e arquivado na solicitação' });
+      }
       setAssinaturaPendente(null);
     } catch (error) {
       toast({ title: 'Não foi possível gerar o PDF único', description: getFriendlyErrorMessage(error) });
@@ -478,7 +499,14 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
   }
 
   const assinarAnexoMutation = useMutation({
-    mutationFn: ({ anexo, posicao }) => signAnexo({ anexo, signatureUrl: user?.signatureUrl, posicao }),
+    mutationFn: ({ anexo, posicao }) =>
+      signAnexo({
+        anexo,
+        signatureUrl: user?.signatureUrl,
+        signerName: user?.name,
+        posicao,
+        empresaNome: solicitacao?.empresa_nome,
+      }),
     onSuccess: (row) => {
       queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) =>
         (old || []).map((item) => (item.id === row.id ? row : item)),
@@ -537,7 +565,13 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
       const anexo = fila[i];
       setAssinandoLote({ atual: i + 1, total: fila.length });
       try {
-        const row = await signAnexo({ anexo, signatureUrl: user?.signatureUrl, posicao });
+        const row = await signAnexo({
+          anexo,
+          signatureUrl: user?.signatureUrl,
+          signerName: user?.name,
+          posicao,
+          empresaNome: solicitacao?.empresa_nome,
+        });
         queryClient.setQueryData(['servicos', 'anexos', solicitacaoId], (old) =>
           (old || []).map((item) => (item.id === row.id ? row : item)),
         );
@@ -572,6 +606,12 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               {solicitacao && (
                 <Badge variant={STATUS_VARIANT[solicitacao.status]}>
                   {STATUS_LABEL[solicitacao.status] || solicitacao.status}
+                </Badge>
+              )}
+              {solicitacao?.tipo_beneficiario === 'colaborador' && (
+                <Badge variant="outline" className="gap-1 border-blue-500/50 bg-blue-500/10 text-blue-600">
+                  <Banknote className="h-3 w-3" />
+                  Suprimento de caixa
                 </Badge>
               )}
               {solicitacao?.eh_teste && (
