@@ -13,6 +13,7 @@ export default function SupportButton() {
       href={SUPPORT_LINK}
       target="_blank"
       rel="noopener noreferrer"
+      title="Pedir ajuda ao suporte"
       className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.75rem)] right-4 z-50 flex h-11 w-11 items-center justify-center gap-2 rounded-full bg-[#25D366] text-white shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 sm:bottom-6 sm:right-6 sm:h-auto sm:w-auto sm:px-4 sm:py-3"
     >
       <Headset className="h-5 w-5 shrink-0" />
