@@ -1053,10 +1053,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'criar_fornecedor') {
-      if (!isFinanceiro(moduleRole)) {
-        throw Object.assign(new Error('Apenas o financeiro pode gerenciar fornecedores.'), { status: 403 });
-      }
-
+      // Qualquer usuario com acesso ao modulo (ja garantido por ensureHasAccess acima) pode
+      // cadastrar fornecedor: alem da tela de gestao (financeiro), o solicitante tambem cadastra
+      // um fornecedor novo direto de dentro do formulario de solicitacao.
       const parsedFornecedor = criarFornecedorBodySchema.safeParse(body);
       if (!parsedFornecedor.success) {
         const issue = parsedFornecedor.error.issues[0];
