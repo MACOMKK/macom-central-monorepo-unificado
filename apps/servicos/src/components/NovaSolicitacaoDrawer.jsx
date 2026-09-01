@@ -93,8 +93,8 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     if (anexosParaEnviar.length === 0) return;
 
     Promise.allSettled(
-      anexosParaEnviar.map(({ file, categoria, tipoDocumento, sigiloso }) =>
-        uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso }),
+      anexosParaEnviar.map(({ file, categoria, tipoDocumento, sigiloso, assinaturasNecessarias }) =>
+        uploadAnexo({ file, solicitacaoId, categoria, tipoDocumento, sigiloso, assinaturasNecessarias }),
       ),
     ).then((results) => {
       queryClient.invalidateQueries({ queryKey: ['servicos', 'anexos', solicitacaoId] });
@@ -406,7 +406,13 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     }
     setAnexos((current) => [
       ...current,
-      ...files.map((file) => ({ file, categoria: 'comprovante_solicitacao', tipoDocumento: 'outros', sigiloso: false })),
+      ...files.map((file) => ({
+        file,
+        categoria: 'comprovante_solicitacao',
+        tipoDocumento: 'outros',
+        sigiloso: false,
+        assinaturasNecessarias: 1,
+      })),
     ]);
     event.target.value = '';
   };
@@ -434,6 +440,12 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
 
   const setAnexoSigiloso = (index) => (checked) => {
     setAnexos((current) => current.map((item, i) => (i === index ? { ...item, sigiloso: checked === true } : item)));
+  };
+
+  const setAnexoAssinaturasNecessarias = (index) => (checked) => {
+    setAnexos((current) =>
+      current.map((item, i) => (i === index ? { ...item, assinaturasNecessarias: checked === true ? 2 : 1 } : item)),
+    );
   };
 
   const handleSubmit = (event) => {
@@ -838,7 +850,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
             <input id="anexos" type="file" multiple className="hidden" onChange={handleFileChange} />
             {anexos.length > 0 && (
               <ul className="space-y-2">
-                {anexos.map(({ file, categoria, tipoDocumento, sigiloso }, index) => (
+                {anexos.map(({ file, categoria, tipoDocumento, sigiloso, assinaturasNecessarias }, index) => (
                   <li key={`${file.name}-${index}`} className="space-y-2 rounded-md bg-muted px-3 py-2 text-sm">
                     <div className="flex items-center gap-2">
                       <span className="flex-1 truncate">{file.name}</span>
@@ -872,14 +884,27 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                         </SelectContent>
                       </Select>
                     </div>
-                    <label htmlFor={`anexo-sigiloso-${index}`} className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        id={`anexo-sigiloso-${index}`}
-                        checked={sigiloso}
-                        onCheckedChange={setAnexoSigiloso(index)}
-                      />
-                      Documento sigiloso
-                    </label>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <label htmlFor={`anexo-sigiloso-${index}`} className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox
+                          id={`anexo-sigiloso-${index}`}
+                          checked={sigiloso}
+                          onCheckedChange={setAnexoSigiloso(index)}
+                        />
+                        Documento sigiloso
+                      </label>
+                      <label
+                        htmlFor={`anexo-duas-assinaturas-${index}`}
+                        className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                      >
+                        <Checkbox
+                          id={`anexo-duas-assinaturas-${index}`}
+                          checked={assinaturasNecessarias === 2}
+                          onCheckedChange={setAnexoAssinaturasNecessarias(index)}
+                        />
+                        Exigir assinatura dos dois responsáveis
+                      </label>
+                    </div>
                   </li>
                 ))}
               </ul>
