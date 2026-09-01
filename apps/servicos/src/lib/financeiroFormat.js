@@ -45,6 +45,10 @@ export const TIPOS_DOCUMENTO = [
   { value: 'outros', label: 'Outros' },
 ];
 
+export const TIPO_DOCUMENTO_LABEL = Object.fromEntries(
+  TIPOS_DOCUMENTO.map((item) => [item.value, item.label]),
+);
+
 // Tipos de documento aceitos por categoria de anexo - mantem os dados consistentes
 // para relatorios futuros por tipo de documento.
 export const TIPOS_DOCUMENTO_POR_CATEGORIA = {

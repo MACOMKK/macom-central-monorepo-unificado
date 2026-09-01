@@ -76,6 +76,7 @@ import {
   isBloqueadaPorPendencia,
   STATUS_LABEL,
   STATUS_VARIANT,
+  TIPO_DOCUMENTO_LABEL,
   getTiposDocumentoPorCategoria,
 } from '@/lib/financeiroFormat';
 import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
@@ -731,8 +732,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
               </TabsContent>
 
               <TabsContent value="anexos" className="space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">Anexos</p>
+                <div className="flex items-center justify-end gap-2">
                   {((podeBaixarTodosAnexos && anexos.length > 0) ||
                     (podeAssinarAnexo && anexosElegiveisParaAssinar.length > 0)) && (
                     <div className="flex flex-wrap items-center gap-2">
@@ -896,6 +896,11 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
                               <span className="flex min-w-0 items-center gap-2">
                                 <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                                 <span className="truncate">{anexo.nome_arquivo}</span>
+                                {anexo.tipo_documento && (
+                                  <Badge variant="outline" className="shrink-0">
+                                    {TIPO_DOCUMENTO_LABEL[anexo.tipo_documento] || anexo.tipo_documento}
+                                  </Badge>
+                                )}
                                 {anexo.sigiloso && (
                                   <Badge variant="outline" className="shrink-0 gap-1">
                                     <Lock className="h-3 w-3" />
