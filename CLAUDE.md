@@ -83,6 +83,51 @@ Não há CI configurado (`.github/`) — validar localmente antes de subir.
 - Nova Edge Function: seguir o padrão `supabase/functions/<dominio>-api`.
 - Preferir consumir/estender os pacotes `@macom/*` a criar lógica local
   duplicada entre apps.
+- **Autenticação — apps que usam `@macom/auth` vs. `AuthContext` local:**
+  - `central` e `admin` usam o pacote compartilhado `@macom/auth`
+    (`packages/auth/src/AuthContext.jsx` + `ProtectedRoute.jsx`).
+  - `crm`, `intranet`, `relatorios`, `servicos` e `comunicacao` **não** usam
+    `@macom/auth` — cada um tem seu próprio `AuthContext.jsx` local
+    (`apps/<app>/src/lib/AuthContext.jsx`), com normalização de usuário e
+    fluxo de sessão duplicados independentemente. Migrá-los para o pacote
+    compartilhado é uma mudança de alto risco (mexe em login/sessão já
+    funcionando) e foi deliberadamente adiada — replicar o padrão do app é
+    preferível a migrar o auth.
+  - **App novo criado a partir de `@macom/auth`** já herda de graça qualquer
+    comportamento de sessão implementado no pacote (ex.: troca de senha
+    obrigatória no primeiro login, veja abaixo) — é o caminho recomendado
+    para apps novos.
+  - **App novo que optar por `AuthContext` local** (replicando o padrão de
+    `crm`/`servicos`/`relatorios`/`comunicacao`) **precisa reimplementar
+    manualmente** qualquer comportamento de sessão centralizado em
+    `@macom/auth`, incluindo o gate de troca de senha obrigatória — nada
+    disso é herdado automaticamente.
+  - **Débito técnico registrado (não priorizado):** migrar `crm`, `intranet`,
+    `relatorios`, `servicos` e `comunicacao` para `@macom/auth` eliminaria a
+    duplicação de lógica de sessão entre apps, mas exigiria reescrever
+    login/sessão de sistemas já em produção — mudança de alto risco sem
+    urgência hoje. Decisão (2026-09-01): não migrar proativamente só por
+    elegância de código; migrar um app específico apenas se ele já for mexer
+    em auth por outro motivo (bug ou nova feature de sessão) e for
+    conveniente aproveitar a mudança para trocar naquele momento. Se isso
+    mudar, seria feito 1 app por vez (sequencial, nunca em lote), já que cada
+    um tem client e particularidades próprias (ex.: cache de auth em
+    `servicos`, rota pública `/definir-senha` em `relatorios`).
+- **Troca de senha obrigatória no primeiro login** (`precisa_trocar_senha` em
+  `public.colaboradores`, setado por `plataforma-api` ao criar/resetar senha
+  de um usuário): todo app deve bloquear as rotas autenticadas até o usuário
+  trocar a senha, usando o padrão:
+  - Backend: a action `me` de cada `*-api` retorna `must_change_password`
+    (via helper `mapMustChangePassword` de `supabase/functions/_shared/auth.ts`),
+    e existe uma action `clear_password_change_required` que zera o flag —
+    **sempre** escopada ao colaborador resolvido a partir do JWT da
+    requisição, nunca a um id recebido no payload.
+  - Frontend: o `AuthContext` (compartilhado ou local) expõe
+    `mustChangePassword` + `changePassword(newPassword)`; o shell de rotas
+    do app renderiza `PasswordChangeForm` (de `@macom/ui`) em vez do
+    conteúdo normal enquanto `mustChangePassword` for `true`.
+  - Nova Edge Function com action `me`: sempre implementar também
+    `clear_password_change_required` seguindo esse padrão.
 - Regras de negócio muito específicas de um app (modelo de permissões, entidades
   de domínio, particularidades de backend) vivem no `CLAUDE.md` próprio do app —
   já existe para `central`, `crm`, `intranet`, `relatorios` e `servicos`. `admin`

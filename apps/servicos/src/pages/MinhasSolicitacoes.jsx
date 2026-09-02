@@ -7,6 +7,10 @@ import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
   Select,
   SelectContent,
   SelectGroup,
@@ -50,7 +54,6 @@ import { useCategorias, useEmpresas } from '@/hooks/useCatalogos';
 import { usePagination } from '@/hooks/usePagination';
 import { normalize } from '@/lib/normalize';
 
-const STATUS_FILTRO_TODOS = 'todos';
 const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const APROVADOR_FILTRO_TODOS = 'todos';
@@ -75,7 +78,7 @@ export default function MinhasSolicitacoes() {
   const [reprovarTarget, setReprovarTarget] = useState(null);
   const [reprovarMotivo, setReprovarMotivo] = useState('');
   const [busca, setBusca] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState(STATUS_FILTRO_TODOS);
+  const [statusFiltro, setStatusFiltro] = useState([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState(CATEGORIA_FILTRO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
   const [aprovadorFiltro, setAprovadorFiltro] = useState(APROVADOR_FILTRO_TODOS);
@@ -162,7 +165,7 @@ export default function MinhasSolicitacoes() {
   }, [rows]);
 
   const filteredRows = rows.filter((row) => {
-    if (statusFiltro !== STATUS_FILTRO_TODOS && row.status !== statusFiltro) return false;
+    if (statusFiltro.length > 0 && !statusFiltro.includes(row.status)) return false;
     if (categoriaFiltro !== CATEGORIA_FILTRO_TODAS && row.categoria_id !== categoriaFiltro) return false;
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
     if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS && String(row.aprovador_destino_id) !== aprovadorFiltro) return false;
@@ -265,7 +268,7 @@ export default function MinhasSolicitacoes() {
     user?.isAprovador && String(row.aprovador_destino_id) === String(user?.collaborator?.id);
 
   const activeFilterCount = [
-    statusFiltro !== STATUS_FILTRO_TODOS,
+    statusFiltro.length > 0,
     categoriaFiltro !== CATEGORIA_FILTRO_TODAS,
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
     aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
@@ -277,7 +280,7 @@ export default function MinhasSolicitacoes() {
   ].filter(Boolean).length;
 
   function handleClearFiltros() {
-    setStatusFiltro(STATUS_FILTRO_TODOS);
+    setStatusFiltro([]);
     setCategoriaFiltro(CATEGORIA_FILTRO_TODAS);
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
     setAprovadorFiltro(APROVADOR_FILTRO_TODOS);
@@ -357,19 +360,33 @@ export default function MinhasSolicitacoes() {
         </div>
 
         <div className="w-48 space-y-1">
-          <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={STATUS_FILTRO_TODOS}>Todos os status</SelectItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full justify-start font-normal">
+                {statusFiltro.length === 0
+                  ? 'Todos os status'
+                  : statusFiltro.length === 1
+                    ? STATUS_LABEL[statusFiltro[0]] || statusFiltro[0]
+                    : `${statusFiltro.length} status selecionados`}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-48">
               {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
+                <DropdownMenuCheckboxItem
+                  key={value}
+                  checked={statusFiltro.includes(value)}
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) =>
+                    setStatusFiltro((current) =>
+                      checked ? [...current, value] : current.filter((item) => item !== value),
+                    )
+                  }
+                >
                   {label}
-                </SelectItem>
+                </DropdownMenuCheckboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <FiltersDrawer activeCount={activeFilterCount} onClear={handleClearFiltros}>
