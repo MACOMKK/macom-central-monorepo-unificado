@@ -602,7 +602,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
 
   return (
     <Sheet open={Boolean(solicitacao)} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-xl">
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-xl">
         <SheetHeader>
           <SheetTitle className="flex items-center justify-between gap-2 pr-6">
             <span className="truncate">{solicitacao?.titulo || solicitacao?.fornecedor}</span>
@@ -641,6 +641,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
           </SheetTitle>
         </SheetHeader>
 
+        <div className="-mx-6 flex-1 space-y-4 overflow-y-auto px-6">
         {solicitacao && isDonoSolicitacao && user?.system_access_level === 'admin' && (
           <div className="mt-4 flex items-center justify-between gap-2 rounded-md border border-dashed border-muted-foreground/40 p-3">
             <label
@@ -1190,6 +1191,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
             </Tabs>
           </div>
         )}
+        </div>
 
         <ConfirmDeleteDialog
           open={deleteConfirmOpen}
@@ -1202,7 +1204,7 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
           loadingLabel="Excluindo..."
         />
 
-        {footer && <div className="mt-6 border-t border-border pt-4">{footer}</div>}
+        {footer && <div className="shrink-0 border-t border-border pt-4">{footer}</div>}
       </SheetContent>
     </Sheet>
   );
