@@ -113,8 +113,8 @@ async function createCroppedAvatarFile({ imageUrl, fileName, fileType, crop }) {
     AVATAR_OUTPUT_SIZE,
   );
 
-  const outputType = fileType === 'image/png' ? 'image/png' : 'image/webp';
-  const extension = outputType === 'image/png' ? 'png' : 'webp';
+  const outputType = fileType === 'image/png' ? 'image/png' : 'image/jpeg';
+  const extension = outputType === 'image/png' ? 'png' : 'jpg';
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, 0.9));
 
   if (!blob) {

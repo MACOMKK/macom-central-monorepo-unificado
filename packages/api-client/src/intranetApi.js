@@ -246,6 +246,23 @@ export const intranetApi = {
       };
     },
   },
+  employeeNotifications: {
+    async list({ email, limit = 20, offset = 0 } = {}) {
+      const result = await invokeIntranet({
+        resource: 'employeeNotifications',
+        action: 'list',
+        email,
+        limit,
+        offset,
+      });
+      return {
+        rows: result.rows || [],
+        total: result.total ?? (result.rows || []).length,
+        limit: result.limit ?? limit,
+        offset: result.offset ?? offset,
+      };
+    },
+  },
   entities: new Proxy(
     {},
     {

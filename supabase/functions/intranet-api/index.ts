@@ -888,6 +888,38 @@ async function registrarAcessoIntranet(collaboratorId: string | null, request: R
   }
 }
 
+async function listEmployeeNotifications(email: string, limit: number, offset: number) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+
+  const totalRows = await runSql<{ total: number }>(
+    `
+      select count(*)::int as total
+      from notificacoes.fila_emails
+      where destinatario = $1;
+    `,
+    [email],
+  );
+
+  const rows = await runSql(
+    `
+      select id, tipo, assunto, status, tentativas, erro, enviado_em, criado_em
+      from notificacoes.fila_emails
+      where destinatario = $1
+      order by criado_em desc
+      limit $2 offset $3;
+    `,
+    [email, safeLimit, safeOffset],
+  );
+
+  return {
+    rows,
+    total: totalRows[0]?.total ?? rows.length,
+    limit: safeLimit,
+    offset: safeOffset,
+  };
+}
+
 async function listAccessLogsIntranet(limit: number, offset: number) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -4738,6 +4770,18 @@ Deno.serve(async (request) => {
         return json(await listAccessLogsIntranet(limit || 25, offset));
       }
       return json({ error: 'Acao de log de acesso invalida.' }, 400);
+    }
+
+    if (resource === 'employeeNotifications') {
+      assertModuleEdit(context.user as Record<string, unknown>, 'colaboradores');
+      if (action === 'list') {
+        const email = typeof body.email === 'string' ? body.email.trim() : '';
+        if (!email) {
+          return json({ error: 'E-mail do colaborador e obrigatorio.' }, 400);
+        }
+        return json(await listEmployeeNotifications(email, limit || 20, offset));
+      }
+      return json({ error: 'Acao de notificacoes de colaborador invalida.' }, 400);
     }
 
     if (action === 'catalog') {

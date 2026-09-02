@@ -373,6 +373,12 @@ export const appClient = {
     },
   },
 
+  employeeNotifications: {
+    list(options) {
+      return intranetApi.employeeNotifications.list(options);
+    },
+  },
+
   entities: new Proxy(
     {},
     {

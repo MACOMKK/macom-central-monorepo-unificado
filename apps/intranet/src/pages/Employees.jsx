@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Mail, MapPin, Users, Pencil, Building } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Skeleton } from '@macom/ui';
 import EmployeeForm from '../components/employees/EmployeeForm';
+import EmployeeNotifications from '../components/employees/EmployeeNotifications';
 import { usePermissions } from '@/lib/usePermissions';
 import { toast } from 'sonner';
 import Pagination, { usePaginatedItems } from '../components/Pagination';
@@ -272,6 +273,9 @@ export default function Employees() {
             isLoading={updateMutation.isPending}
             mode="edit"
           />
+          {editingEmployee?.email ? (
+            <EmployeeNotifications email={editingEmployee.email} />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
