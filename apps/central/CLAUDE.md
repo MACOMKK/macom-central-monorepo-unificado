@@ -31,7 +31,9 @@ acesso avulsa. Não tratar isso como pendência de migração para o Console.
   colaboradores, contatos, ativos, infra_estrutura, linhas_corporativas, contratos_documentos,
   termos_posse, fila_emails)
 - Schema: `gestao_ativos` — tabelas: `ativos`, `infra_estrutura`, `linhas_corporativas`,
-  `termos_posse`, `fila_emails`, `contatos_documentos`, `permissoes_central`
+  `termos_posse`, `contatos_documentos`, `permissoes_central`. `fila_emails` **não** é mais deste
+  schema — vive em `notificacoes.fila_emails` (schema transversal, ver CLAUDE.md raiz, seção
+  "Notificação por e-mail"); `central-api` só expõe essa tabela para listagem administrativa.
 - A tabela `logs_auditoria` continua sendo escrita pela `central-api` (trilha das ações do
   próprio app), mas não tem mais página de consulta no Central — a leitura de auditoria é
   centralizada no Console (`apps/admin`, `AuditOverview.jsx`).

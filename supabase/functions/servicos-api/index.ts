@@ -4,6 +4,7 @@ import { buildCorsHeaders } from '../_shared/cors.ts';
 import { sendPushToColaborador } from '../_shared/push.ts';
 import { proximaDataUtil } from '../_shared/diasUteis.ts';
 import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
+import { enqueueEmail } from '../_shared/email.ts';
 import {
   criarFornecedorBodySchema,
   atualizarFornecedorBodySchema,
@@ -658,7 +659,13 @@ function validateComprovanteSize(fileSize: unknown) {
   }
 }
 
+// TEMPORARIAMENTE DESATIVADO (2026-09-02) -- notificacao por e-mail do servicos suspensa a
+// pedido do usuario enquanto a credencial Gmail e' revalidada. Reverter removendo este guard
+// (ver EMAIL_NOTIFICACOES_STATUS.md).
+const EMAIL_NOTIFICATIONS_ENABLED = false;
+
 async function enqueueStatusEmail(row: Record<string, unknown>, status: string) {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) return;
   if (!sql) return;
 
   const rows = await sql.unsafe(
@@ -666,7 +673,10 @@ async function enqueueStatusEmail(row: Record<string, unknown>, status: string) 
     [row.solicitante_id],
   );
   const solicitante = rows[0];
-  if (!solicitante?.email) return;
+  if (!solicitante?.email) {
+    console.error(`enqueueStatusEmail: solicitante ${row.solicitante_id} sem e-mail cadastrado, notificacao de status "${status}" da solicitacao ${row.id} nao foi enfileirada.`);
+    return;
+  }
 
   const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const statusLabel: Record<string, string> = {
@@ -679,18 +689,7 @@ async function enqueueStatusEmail(row: Record<string, unknown>, status: string) 
   const assunto = `Sua solicitacao de pagamento foi ${label}`;
   const bodyText = `Ola ${solicitante.nome},\n\nSua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi ${label}.\n\nMACOM Servicos - Financeiro`;
 
-  await sql.unsafe(
-    `
-      insert into notificacoes.fila_emails (tipo, destinatario, assunto, payload)
-      values ($1, $2, $3, $4::jsonb);
-    `,
-    [
-      tipo,
-      solicitante.email,
-      assunto,
-      JSON.stringify({ to: solicitante.email, subject: assunto, body_text: bodyText }),
-    ],
-  );
+  await enqueueEmail(sql, { tipo, destinatario: solicitante.email, assunto, bodyText });
 }
 
 async function insertHistorico(solicitacaoId: string, evento: string, autorId: string | null, observacao: string | null = null) {
@@ -779,25 +778,28 @@ async function notifySolicitantePendencia(row: Record<string, unknown>, ativa: b
     'solicitante',
   );
 
+  // TEMPORARIAMENTE DESATIVADO (2026-09-02) -- ver EMAIL_NOTIFICACOES_STATUS.md. O aviso in-app
+  // (insertNotificacao acima) continua funcionando normalmente, so o e-mail fica suspenso.
+  if (!EMAIL_NOTIFICATIONS_ENABLED) return;
   if (!sql) return;
   const rows = await sql.unsafe(`select nome, email from public.colaboradores where id = $1 limit 1;`, [row.solicitante_id]);
   const solicitante = rows[0];
-  if (!solicitante?.email) return;
+  if (!solicitante?.email) {
+    console.error(`notifySolicitantePendencia: solicitante ${row.solicitante_id} sem e-mail cadastrado, notificacao de pendencia (${ativa ? 'aberta' : 'liberada'}) da solicitacao ${row.id} nao foi enfileirada.`);
+    return;
+  }
 
   const assunto = ativa ? 'Pendência aberta em sua solicitação de pagamento' : 'Pendência liberada em sua solicitação de pagamento';
   const bodyText = ativa
     ? `Ola ${solicitante.nome},\n\nSua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} teve uma pendencia sinalizada pelo contas a pagar:\n\n${row.pendencia_motivo}\n\nO pagamento fica bloqueado ate a pendencia ser resolvida e liberada.\n\nMACOM Servicos - Financeiro`
     : `Ola ${solicitante.nome},\n\nA pendencia da sua solicitacao de pagamento para "${row.fornecedor}" no valor de ${valorFormatado} foi liberada. O pagamento segue normalmente.\n\nMACOM Servicos - Financeiro`;
 
-  await sql.unsafe(
-    `insert into notificacoes.fila_emails (tipo, destinatario, assunto, payload) values ($1, $2, $3, $4::jsonb);`,
-    [
-      ativa ? 'pendencia_aberta' : 'pendencia_liberada',
-      solicitante.email,
-      assunto,
-      JSON.stringify({ to: solicitante.email, subject: assunto, body_text: bodyText }),
-    ],
-  );
+  await enqueueEmail(sql, {
+    tipo: ativa ? 'pendencia_aberta' : 'pendencia_liberada',
+    destinatario: solicitante.email,
+    assunto,
+    bodyText,
+  });
 }
 
 // Avisa quem abriu a pendencia que o solicitante corrigiu algo (dados ou anexo) enquanto ela

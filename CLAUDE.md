@@ -128,6 +128,14 @@ Não há CI configurado (`.github/`) — validar localmente antes de subir.
     conteúdo normal enquanto `mustChangePassword` for `true`.
   - Nova Edge Function com action `me`: sempre implementar também
     `clear_password_change_required` seguindo esse padrão.
+- **Notificação por e-mail** (fila `notificacoes.fila_emails`, transporte via Gmail API): schema
+  transversal, sem app dono, pensado para qualquer domínio usar. Enfileirar sempre com
+  `enqueueEmail(sql, { tipo, destinatario, assunto, bodyText, bodyHtml? })`, de
+  `supabase/functions/_shared/email.ts` — nunca montar o `insert into notificacoes.fila_emails` na
+  mão. O envio de fato é assíncrono via cron (`processa-fila-email`, a cada minuto, com backoff em
+  erro) usando `sendGmail` do mesmo `_shared/email.ts`; o Termo de Posse (`enviar-termo-gmail`) é a
+  única exceção síncrona, e também usa o `sendGmail` compartilhado. Detalhes, causa raiz de falhas
+  conhecidas e status da generalização entre apps: ver `EMAIL_NOTIFICACOES_STATUS.md` (raiz).
 - Regras de negócio muito específicas de um app (modelo de permissões, entidades
   de domínio, particularidades de backend) vivem no `CLAUDE.md` próprio do app —
   já existe para `central`, `crm`, `intranet`, `relatorios` e `servicos`. `admin`
