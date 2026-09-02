@@ -85,7 +85,11 @@ export const comunicacaoApi = {
       return {
         row: result.row || null,
         access: result.access || null,
+        mustChangePassword: Boolean(result.must_change_password),
       };
+    },
+    async clearPasswordChangeRequired() {
+      return invokeComunicacao({ action: 'clear_password_change_required' });
     },
   },
   canais: {

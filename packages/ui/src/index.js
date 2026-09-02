@@ -13,6 +13,7 @@ export { default as FeedbackToast } from './feedback-toast';
 export * from './input';
 export * from './label';
 export * from './not-found-page';
+export * from './password-change-form';
 export * from './profile-view';
 export * from './scroll-area';
 export * from './select';

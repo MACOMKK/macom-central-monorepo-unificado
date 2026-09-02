@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const validatedTokenRef = useRef(null);
   const userRef = useRef(null);
   const inFlightValidationRef = useRef(null);
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     setAuthError(null);
+    setMustChangePassword(false);
     setIsLoadingAuth(false);
     setIsLoadingPublicSettings(false);
     setAuthChecked(true);
@@ -71,6 +73,7 @@ export const AuthProvider = ({ children }) => {
       setUser(currentUser);
       setIsAuthenticated(true);
       setAuthError(null);
+      setMustChangePassword(Boolean(currentUser?.must_change_password));
       return currentUser;
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -79,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsAuthenticated(false);
       setAuthError(mapAuthError(error));
+      setMustChangePassword(false);
       throw error;
     } finally {
       setIsLoadingPublicSettings(false);
@@ -170,6 +174,11 @@ export const AuthProvider = ({ children }) => {
     await dataClient.auth.logout(shouldRedirect ? '/entrar' : null);
   };
 
+  const changePassword = async (newPassword) => {
+    await dataClient.auth.changePassword(newPassword);
+    setMustChangePassword(false);
+  };
+
   const navigateToLogin = () => {
     dataClient.auth.redirectToLogin(window.location.href);
   };
@@ -185,10 +194,12 @@ export const AuthProvider = ({ children }) => {
       authError,
       appPublicSettings,
       authChecked,
+      mustChangePassword,
       logout,
       navigateToLogin,
       checkUserAuth,
       checkAppState,
+      changePassword,
     }),
     [
       appPublicSettings,
@@ -197,6 +208,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       isLoadingAuth,
       isLoadingPublicSettings,
+      mustChangePassword,
       user,
     ],
   );

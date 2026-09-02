@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { BrandLoader } from '@macom/ui';
+import { BrandLoader, PasswordChangeForm } from '@macom/ui';
 import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 import Layout from '@/components/Layout';
@@ -49,7 +49,7 @@ const LoginRoute = () => {
 };
 
 const CrmRoutes = () => {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, mustChangePassword, changePassword } = useAuth();
   const location = useLocation();
 
   if (isLoadingAuth) {
@@ -59,6 +59,14 @@ const CrmRoutes = () => {
   if (!isAuthenticated) {
     const from = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate replace to={`/entrar?from=${from}`} />;
+  }
+
+  if (mustChangePassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <PasswordChangeForm required onSubmit={changePassword} />
+      </div>
+    );
   }
 
   return (

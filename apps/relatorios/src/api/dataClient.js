@@ -452,6 +452,7 @@ const normalizeCentralCollaborator = (collaborator, authUser, access = null) => 
   access_id: access?.id || null,
   system_access_level: access?.nivel_acesso || null,
   system_access_active: access?.ativo ?? null,
+  must_change_password: Boolean(collaborator?.precisa_trocar_senha),
   collaborator,
 });
 
@@ -917,6 +918,11 @@ export const dataClient = {
       }
 
       return ensureReportsSystemAccess(profile, session.access_token, authPayload?.access || null);
+    },
+    changePassword: async (newPassword) => {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw toError(error, 'Nao foi possivel atualizar a senha.');
+      await reportsApi.auth.clearPasswordChangeRequired();
     },
     logout: async (redirectTo = '/entrar') => {
       const { error } = await supabase.auth.signOut({ scope: 'local' });

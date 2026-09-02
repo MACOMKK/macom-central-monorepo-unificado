@@ -155,7 +155,11 @@ export const crmApi = {
       return {
         row: result.row || null,
         access: result.access || null,
+        mustChangePassword: Boolean(result.must_change_password),
       };
+    },
+    async clearPasswordChangeRequired() {
+      return invokeCrm({ action: 'clear_password_change_required' });
     },
   },
   responsaveis: {

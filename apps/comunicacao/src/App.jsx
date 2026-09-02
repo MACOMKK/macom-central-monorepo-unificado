@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { NotFoundPage, Spinner, Toaster } from '@macom/ui';
+import { NotFoundPage, PasswordChangeForm, Spinner, Toaster } from '@macom/ui';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { queryClient } from '@/lib/query-client';
 import { useComunicacaoRealtime } from '@/hooks/useComunicacaoRealtime';
@@ -16,7 +16,7 @@ const FullScreenLoader = () => (
 );
 
 function ProtectedShell() {
-  const { isAuthenticated, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLoadingAuth, mustChangePassword, changePassword } = useAuth();
   useComunicacaoRealtime(isAuthenticated);
 
   if (isLoadingAuth) {
@@ -25,6 +25,14 @@ function ProtectedShell() {
 
   if (!isAuthenticated) {
     return <Navigate to="/entrar" replace />;
+  }
+
+  if (mustChangePassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <PasswordChangeForm required onSubmit={changePassword} />
+      </div>
+    );
   }
 
   return <Outlet />;

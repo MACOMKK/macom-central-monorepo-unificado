@@ -39,7 +39,11 @@ export const reportsApi = {
         row: result.row || null,
         access: result.access || null,
         permissions: result.permissions || [],
+        mustChangePassword: Boolean(result.must_change_password),
       };
+    },
+    async clearPasswordChangeRequired() {
+      return invokeReportsApi('clear_password_change_required', { entity: 'colaboradores', system_slug: 'relatorios' });
     },
   },
   relatorios: buildReportEntity('relatorios'),

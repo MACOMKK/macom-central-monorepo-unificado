@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { coreDispatcherBodySchema, entitySchemas, colaboradorReportsFieldsSchema } from '../_shared/validation.ts';
+import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
 
 const ENTITY_CONFIG = {
   departamentos: {
@@ -1545,6 +1546,7 @@ Deno.serve(async (request) => {
         return json({
           row: authenticatedCollaborator || null,
           permissions: centralPermissions,
+          must_change_password: mapMustChangePassword(authenticatedCollaborator),
         });
       }
 
@@ -1567,7 +1569,13 @@ Deno.serve(async (request) => {
         row: authenticatedCollaborator || null,
         access: rows[0] || null,
         permissions: centralPermissions,
+        must_change_password: mapMustChangePassword(authenticatedCollaborator),
       });
+    }
+
+    if (action === 'clear_password_change_required') {
+      await sql.unsafe(CLEAR_MUST_CHANGE_PASSWORD_SQL, [authenticatedCollaboratorId]);
+      return json({ success: true });
     }
 
     if (action === 'access_check' && entity === 'acessos_usuario_sistema') {

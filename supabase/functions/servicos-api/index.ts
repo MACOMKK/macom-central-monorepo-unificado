@@ -3,6 +3,7 @@ import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { sendPushToColaborador } from '../_shared/push.ts';
 import { proximaDataUtil } from '../_shared/diasUteis.ts';
+import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
 import {
   criarFornecedorBodySchema,
   atualizarFornecedorBodySchema,
@@ -933,7 +934,17 @@ Deno.serve(async (request) => {
 
     if (action === 'me') {
       ensureHasAccess(access);
-      return json({ row: collaborator, access, role: moduleRole });
+      return json({ row: collaborator, access, role: moduleRole, must_change_password: mapMustChangePassword(collaborator) });
+    }
+
+    if (action === 'clear_password_change_required') {
+      if (!collaborator?.id) {
+        return json({ error: 'Nao autenticado.', code: 'auth_required' }, 401);
+      }
+      await sql.unsafe(CLEAR_MUST_CHANGE_PASSWORD_SQL, [collaborator.id]);
+      const token = getBearerToken(request);
+      if (token) authContextCache.delete(token);
+      return json({ success: true });
     }
 
     ensureHasAccess(access);

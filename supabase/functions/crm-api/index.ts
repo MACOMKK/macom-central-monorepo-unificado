@@ -10,6 +10,7 @@ import {
 } from './access-scope.ts';
 import type { EntityName } from './access-scope.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
 
 const CRM_SYSTEM_SLUG = 'crm';
 
@@ -702,7 +703,15 @@ Deno.serve(async (request) => {
     const action = String(body.action || 'list');
 
     if (action === 'me') {
-      return json({ row: collaborator, access });
+      return json({ row: collaborator, access, must_change_password: mapMustChangePassword(collaborator) });
+    }
+
+    if (action === 'clear_password_change_required') {
+      if (!collaborator?.id) {
+        return json({ error: 'Nao autenticado.', code: 'auth_required' }, 401);
+      }
+      await sql.unsafe(CLEAR_MUST_CHANGE_PASSWORD_SQL, [collaborator.id]);
+      return json({ success: true });
     }
 
     if (action === 'list_responsaveis') {

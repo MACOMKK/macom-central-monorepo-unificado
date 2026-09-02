@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BrandLoader, Toaster } from '@macom/ui';
+import { BrandLoader, PasswordChangeForm, Toaster } from '@macom/ui';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { queryClientInstance } from '@/lib/query-client';
@@ -45,7 +45,7 @@ const LoginRoute = () => {
 };
 
 const ServicosRoutes = () => {
-  const { isAuthenticated, isLoadingAuth, user } = useAuth();
+  const { isAuthenticated, isLoadingAuth, user, mustChangePassword, changePassword } = useAuth();
   const location = useLocation();
 
   if (isLoadingAuth) {
@@ -55,6 +55,14 @@ const ServicosRoutes = () => {
   if (!isAuthenticated) {
     const from = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate replace to={`/entrar?from=${from}`} />;
+  }
+
+  if (mustChangePassword) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <PasswordChangeForm required onSubmit={changePassword} />
+      </div>
+    );
   }
 
   return (

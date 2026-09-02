@@ -4,6 +4,7 @@ import { comunicacaoApi } from '@macom/api-client/comunicacaoApi';
 import {
   assertSupabaseConfigured,
   checkLoginLock,
+  getAuthErrorMessage,
   isSupabaseConfigured,
   reportFailedLogin,
   reportLoginSuccess,
@@ -31,6 +32,7 @@ function normalizeUser(authUser, authPayload = {}) {
     accessLevel: access?.nivel_acesso || null,
     collaborator,
     access,
+    mustChangePassword: Boolean(authPayload.mustChangePassword),
   };
 }
 
@@ -68,6 +70,7 @@ export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const validatedTokenRef = useRef(null);
   const userRef = useRef(null);
   const inFlightValidationRef = useRef(null);
@@ -79,6 +82,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setIsAuthenticated(false);
     setAuthError(null);
+    setMustChangePassword(false);
     setIsLoadingAuth(false);
   }
 
@@ -110,6 +114,7 @@ export function AuthProvider({ children }) {
       setUser(currentUser);
       setIsAuthenticated(true);
       setAuthError(null);
+      setMustChangePassword(Boolean(currentUser.mustChangePassword));
       return currentUser;
     } catch (error) {
       validatedTokenRef.current = null;
@@ -118,6 +123,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       setIsAuthenticated(false);
       setAuthError(mapAuthError(error));
+      setMustChangePassword(false);
       throw error;
     } finally {
       setIsLoadingAuth(false);
@@ -189,6 +195,16 @@ export function AuthProvider({ children }) {
     return checkUserAuth(data?.session || null, { force: true });
   }
 
+  async function changePassword(newPassword) {
+    assertSupabaseConfigured();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new Error(getAuthErrorMessage(error) ?? 'Nao foi possivel atualizar a senha.');
+    }
+    await comunicacaoApi.auth.clearPasswordChangeRequired();
+    setMustChangePassword(false);
+  }
+
   async function logout() {
     if (isSupabaseConfigured) {
       await supabase.auth.signOut({ scope: 'local' });
@@ -236,11 +252,13 @@ export function AuthProvider({ children }) {
       isAuthenticated,
       isLoadingAuth,
       authError,
+      mustChangePassword,
       login,
       logout,
       checkUserAuth,
+      changePassword,
     }),
-    [authError, isAuthenticated, isLoadingAuth, session, user],
+    [authError, isAuthenticated, isLoadingAuth, mustChangePassword, session, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

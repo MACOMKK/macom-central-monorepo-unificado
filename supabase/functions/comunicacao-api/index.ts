@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import postgres from 'https://deno.land/x/postgresjs@v3.4.5/mod.js';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
 
 const SCHEMA = 'gestao_comunicacao';
 const SYSTEM_SLUG = 'comunicacao';
@@ -252,7 +253,15 @@ Deno.serve(async (request) => {
     const action = String(body.action || '');
 
     if (action === 'me') {
-      return json({ row: collaborator, access });
+      return json({ row: collaborator, access, must_change_password: mapMustChangePassword(collaborator) });
+    }
+
+    if (action === 'clear_password_change_required') {
+      if (!collaborator?.id) {
+        return json({ error: 'Nao autenticado.', code: 'auth_required' }, 401);
+      }
+      await sql.unsafe(CLEAR_MUST_CHANGE_PASSWORD_SQL, [collaborator.id]);
+      return json({ success: true });
     }
 
     ensureHasAccess(access);

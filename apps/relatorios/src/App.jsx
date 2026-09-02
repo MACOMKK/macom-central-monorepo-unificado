@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrandLoader, Spinner, Toaster } from '@macom/ui';
+import { BrandLoader, PasswordChangeForm, Spinner, Toaster } from '@macom/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClientInstance } from '@/lib/query-client';
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -64,7 +64,8 @@ const PublicRoutes = () => (
 );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, mustChangePassword, changePassword } =
+    useAuth();
   const location = useLocation();
   const isPublicPath = PUBLIC_PATHS.has(location.pathname);
 
@@ -98,6 +99,14 @@ VITE_SUPABASE_ANON_KEY=SUA_CHAVE_ANON`}
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     }
+  }
+
+  if (isAuthenticated && mustChangePassword && !isPublicPath) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <PasswordChangeForm required onSubmit={changePassword} />
+      </div>
+    );
   }
 
   return (

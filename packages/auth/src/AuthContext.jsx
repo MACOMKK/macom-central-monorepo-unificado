@@ -95,7 +95,30 @@ async function getAuthProfile(accessToken, systemSlug, authFunctionName = DEFAUL
     row: result.row || null,
     access: result.access || null,
     permissions: result.permissions || [],
+    mustChangePassword: Boolean(result.must_change_password),
   };
+}
+
+async function clearMustChangePassword(accessToken, systemSlug, authFunctionName = DEFAULT_AUTH_FUNCTION_NAME) {
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${authFunctionName}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      action: 'clear_password_change_required',
+      entity: 'colaboradores',
+      system_slug: systemSlug,
+    }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw toAuthApiError(result?.error || 'Falha ao atualizar senha.', response.status, result?.code);
+  }
 }
 
 export function AuthProvider({
@@ -110,6 +133,7 @@ export function AuthProvider({
   const [profile, setProfile] = useState(null);
   const [access, setAccess] = useState(null);
   const [permissions, setPermissions] = useState([]);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const inFlightValidationRef = useRef(null);
   const validatedTokenRef = useRef(null);
@@ -126,6 +150,7 @@ export function AuthProvider({
     setProfile(null);
     setAccess(null);
     setPermissions([]);
+    setMustChangePassword(false);
     setLoading(false);
   }
 
@@ -164,6 +189,7 @@ export function AuthProvider({
       setProfile(collaborator);
       setAccess(nextAccess);
       setPermissions(nextPermissions);
+      setMustChangePassword(Boolean(authPayload?.mustChangePassword));
       setLoading(false);
     } catch (error) {
       clearAuthState();
@@ -255,8 +281,20 @@ export function AuthProvider({
       user: session?.user || null,
       isAuthenticated: Boolean(session?.user && canAccessSystem(profile, access, accessRoles, allowFunctionFallback)),
       loading,
+      mustChangePassword,
       systemSlug,
       authFunctionName,
+      async changePassword(newPassword) {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) {
+          throw new Error(getAuthErrorMessage(error) ?? 'Nao foi possivel atualizar a senha.');
+        }
+        const accessToken = session?.access_token;
+        if (accessToken) {
+          await clearMustChangePassword(accessToken, systemSlug, authFunctionName);
+        }
+        setMustChangePassword(false);
+      },
       async login(email, password, captchaToken) {
         // `remember` ja foi persistido pelo AuthLoginCard (@macom/ui) antes de chamar login();
         // aqui so recebemos email/senha/captcha, o storage customizado do supabase ja sabe onde gravar.
@@ -281,6 +319,7 @@ export function AuthProvider({
         setProfile(null);
         setAccess(null);
         setPermissions([]);
+        setMustChangePassword(false);
       },
       permissions,
       canAccessModule(moduleKey, requiredLevel = PERMISSION_LEVELS.view) {
@@ -291,7 +330,7 @@ export function AuthProvider({
         return hasPermission(profile, access, permissions, moduleKey, requiredLevel);
       },
     }),
-    [access, accessRoles, allowFunctionFallback, authFunctionName, loading, permissions, profile, session, systemSlug]
+    [access, accessRoles, allowFunctionFallback, authFunctionName, loading, mustChangePassword, permissions, profile, session, systemSlug]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -60,7 +60,11 @@ export const financeiroApi = {
         row: result.row || null,
         access: result.access || null,
         role: result.role || null,
+        mustChangePassword: Boolean(result.must_change_password),
       };
+    },
+    async clearPasswordChangeRequired() {
+      return invokeServicos({ action: 'clear_password_change_required' });
     },
   },
   storage: {
