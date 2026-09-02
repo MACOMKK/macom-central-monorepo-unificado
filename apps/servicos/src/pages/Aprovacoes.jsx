@@ -415,7 +415,36 @@ export default function Aprovacoes() {
 
           <div className="space-y-3 md:hidden">
             {pageItems.map((row) => (
-              <SolicitacaoCard key={row.id} row={row} onClick={() => setSelectedId(row.id)} showSolicitante showAprovador />
+              <SolicitacaoCard
+                key={row.id}
+                row={row}
+                onClick={() => setSelectedId(row.id)}
+                showSolicitante
+                showAprovador
+                actions={
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Reprovar"
+                      aria-label="Reprovar"
+                      disabled={decisaoMutation.isPending}
+                      onClick={() => handleDecision(row.id, 'reprovado')}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      title="Aprovar"
+                      aria-label="Aprovar"
+                      disabled={decisaoMutation.isPending}
+                      onClick={() => handleDecision(row.id, 'aprovado')}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </>
+                }
+              />
             ))}
           </div>
 
