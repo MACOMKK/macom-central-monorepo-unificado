@@ -69,6 +69,7 @@ const STATUS_PAGAMENTO_FILTRO_OPCOES = [
 const CLASSIFICACAO_PARCIAL = 'parcial';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
+const UNIDADE_FILTRO_TODAS = 'todas';
 const FORNECEDOR_FILTRO_TODOS = 'todos';
 const FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA = 'suprimento_caixa';
 const APROVADOR_FILTRO_TODOS = 'todos';
@@ -95,6 +96,7 @@ export default function Pagamentos() {
   const [classificacaoFiltro, setClassificacaoFiltro] = useState(CLASSIFICACAO_TODAS);
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
+  const [unidadeFiltro, setUnidadeFiltro] = useState(UNIDADE_FILTRO_TODAS);
   const [vencimentoFiltro, setVencimentoFiltro] = useState(null);
   const [vencimentoResetToken, setVencimentoResetToken] = useState(0);
   const [vencimentoStatusFiltro, setVencimentoStatusFiltro] = useState(VENCIMENTO_STATUS_FILTRO_TODOS);
@@ -200,6 +202,16 @@ export default function Pagamentos() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const unidades = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.unidade_id && !porId.has(row.unidade_id)) {
+        porId.set(row.unidade_id, row.unidade_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const aprovadores = useMemo(() => {
     const porId = new Map();
     rows.forEach((row) => {
@@ -217,6 +229,9 @@ export default function Pagamentos() {
     }
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS) {
       classificadas = classificadas.filter((row) => String(row.empresa_id) === empresaFiltro);
+    }
+    if (unidadeFiltro !== UNIDADE_FILTRO_TODAS) {
+      classificadas = classificadas.filter((row) => String(row.unidade_id) === unidadeFiltro);
     }
     if (vencimentoFiltro) {
       classificadas = classificadas.filter((row) => {
@@ -256,6 +271,7 @@ export default function Pagamentos() {
     classificacaoFiltro,
     solicitanteFiltro,
     empresaFiltro,
+    unidadeFiltro,
     vencimentoFiltro,
     vencimentoStatusFiltro,
     fornecedorFiltro,
@@ -528,6 +544,7 @@ export default function Pagamentos() {
     classificacaoFiltro !== CLASSIFICACAO_TODAS,
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
     empresaFiltro !== EMPRESA_FILTRO_TODAS,
+    unidadeFiltro !== UNIDADE_FILTRO_TODAS,
     Boolean(vencimentoFiltro),
     fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS,
     aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
@@ -540,6 +557,7 @@ export default function Pagamentos() {
     setClassificacaoFiltro(CLASSIFICACAO_TODAS);
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
+    setUnidadeFiltro(UNIDADE_FILTRO_TODAS);
     setVencimentoFiltro(null);
     setVencimentoResetToken((current) => current + 1);
     setFornecedorFiltro(FORNECEDOR_FILTRO_TODOS);
@@ -612,6 +630,20 @@ export default function Pagamentos() {
               <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas as empresas</SelectItem>
               {empresas.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={unidadeFiltro} onValueChange={setUnidadeFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIDADE_FILTRO_TODAS}>Todas as unidades</SelectItem>
+              {unidades.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
                 </SelectItem>
               ))}

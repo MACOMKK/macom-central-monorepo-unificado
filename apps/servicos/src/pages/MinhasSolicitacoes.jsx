@@ -58,6 +58,7 @@ const CATEGORIA_FILTRO_TODAS = 'todas';
 const SOLICITANTE_FILTRO_TODOS = 'todos';
 const APROVADOR_FILTRO_TODOS = 'todos';
 const EMPRESA_FILTRO_TODAS = 'todas';
+const UNIDADE_FILTRO_TODAS = 'todas';
 const FORNECEDOR_FILTRO_TODOS = 'todos';
 const FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA = 'suprimento_caixa';
 const FORMA_PAGAMENTO_FILTRO_TODAS = 'todas';
@@ -83,6 +84,7 @@ export default function MinhasSolicitacoes() {
   const [solicitanteFiltro, setSolicitanteFiltro] = useState(SOLICITANTE_FILTRO_TODOS);
   const [aprovadorFiltro, setAprovadorFiltro] = useState(APROVADOR_FILTRO_TODOS);
   const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
+  const [unidadeFiltro, setUnidadeFiltro] = useState(UNIDADE_FILTRO_TODAS);
   const [fornecedorFiltro, setFornecedorFiltro] = useState(FORNECEDOR_FILTRO_TODOS);
   const [formaPagamentoFiltro, setFormaPagamentoFiltro] = useState(FORMA_PAGAMENTO_FILTRO_TODAS);
   const [valorFiltro, setValorFiltro] = useState(null);
@@ -154,6 +156,16 @@ export default function MinhasSolicitacoes() {
     return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [rows]);
 
+  const unidades = useMemo(() => {
+    const porId = new Map();
+    rows.forEach((row) => {
+      if (row.unidade_id && !porId.has(row.unidade_id)) {
+        porId.set(row.unidade_id, row.unidade_nome);
+      }
+    });
+    return Array.from(porId, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [rows]);
+
   const colaboradoresBeneficiarios = useMemo(() => {
     const porId = new Map();
     rows.forEach((row) => {
@@ -170,6 +182,7 @@ export default function MinhasSolicitacoes() {
     if (solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS && String(row.solicitante_id) !== solicitanteFiltro) return false;
     if (aprovadorFiltro !== APROVADOR_FILTRO_TODOS && String(row.aprovador_destino_id) !== aprovadorFiltro) return false;
     if (empresaFiltro !== EMPRESA_FILTRO_TODAS && String(row.empresa_id) !== empresaFiltro) return false;
+    if (unidadeFiltro !== UNIDADE_FILTRO_TODAS && String(row.unidade_id) !== unidadeFiltro) return false;
     if (fornecedorFiltro === FORNECEDOR_FILTRO_SUPRIMENTO_CAIXA) {
       if (row.tipo_beneficiario !== 'colaborador') return false;
     } else if (
@@ -273,6 +286,7 @@ export default function MinhasSolicitacoes() {
     solicitanteFiltro !== SOLICITANTE_FILTRO_TODOS,
     aprovadorFiltro !== APROVADOR_FILTRO_TODOS,
     empresaFiltro !== EMPRESA_FILTRO_TODAS,
+    unidadeFiltro !== UNIDADE_FILTRO_TODAS,
     fornecedorFiltro !== FORNECEDOR_FILTRO_TODOS,
     formaPagamentoFiltro !== FORMA_PAGAMENTO_FILTRO_TODAS,
     Boolean(valorFiltro),
@@ -285,6 +299,7 @@ export default function MinhasSolicitacoes() {
     setSolicitanteFiltro(SOLICITANTE_FILTRO_TODOS);
     setAprovadorFiltro(APROVADOR_FILTRO_TODOS);
     setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
+    setUnidadeFiltro(UNIDADE_FILTRO_TODAS);
     setFornecedorFiltro(FORNECEDOR_FILTRO_TODOS);
     setFormaPagamentoFiltro(FORMA_PAGAMENTO_FILTRO_TODAS);
     setValorFiltro(null);
@@ -398,6 +413,20 @@ export default function MinhasSolicitacoes() {
               <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas as empresas</SelectItem>
               {empresas.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
+                  {item.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={unidadeFiltro} onValueChange={setUnidadeFiltro}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNIDADE_FILTRO_TODAS}>Todas as unidades</SelectItem>
+              {unidades.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>
                   {item.nome}
                 </SelectItem>
               ))}
