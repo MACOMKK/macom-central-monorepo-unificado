@@ -25,6 +25,18 @@ notificar por e-mail teria que reimplementar tudo do zero.
 | 3 | Documentação do padrão | ✅ FEITO (2026-09-02) | Seção "Notificação por e-mail" no `CLAUDE.md` raiz; referência desatualizada de `fila_emails`/`gestao_ativos` corrigida em `apps/central/CLAUDE.md`. Exemplo opcional de uso em um app novo (crm/intranet) **não** foi implementado — ninguém pediu um caso de uso real ainda, fica para quando surgir necessidade. |
 | 4 | Hardening (secret do cron, log de falha silenciosa) | ⚠️ PARCIAL (2026-09-02) | Log da falha silenciosa: **feito** — `enqueueStatusEmail`/`notifySolicitantePendencia` agora chamam `console.error` com o id do solicitante/solicitação quando o colaborador não tem e-mail cadastrado, em vez de sair em silêncio. Rotação do `INTERNAL_INVOKE_SECRET` (hardcoded em texto puro na migration `20260826160000_add_invoke_secret_header_cron_jobs.sql`, versionado no git): **adiada por decisão do usuário** (2026-09-02) — precisa de uma migration nova pro `pg_cron` coordenada com `supabase secrets set`, e um descompasso derruba `processa-fila-email`/`servicos-lembrete-aprovacoes` em produção. Retomar só quando o usuário quiser fazer essa coordenação. |
 
+## Credenciais Gmail migradas para o schema `integracoes` (2026-09-02)
+
+As credenciais do Gmail (`client_id`, `client_secret`, `refresh_token`, `sender`) saíram das
+env vars `GMAIL_*` do Supabase e passaram a ser geridas pela tela **Integrações** do Console
+(`apps/admin`), gravadas em `integracoes.integracoes`/`integracoes.integracoes_secrets` (segredos
+no Supabase Vault). `_shared/email.ts` (`sendGmail`) lê essas credenciais via
+`integracoes.get_credenciais('gmail_notificacoes')` — **não há mais fallback para as env vars**,
+elas foram removidas do código e desativadas via `supabase secrets unset` (única fonte agora é a
+tabela). Se o Termo de Posse ou o `processa-fila-email` pararem de enviar, o primeiro lugar a
+checar é a integração `gmail_notificacoes` na tela Integrações (ativa? credenciais completas?) e o
+schema `integracoes` estar exposto em Settings > API > Data API.
+
 ## ⚠️ Notificação por e-mail do `servicos` temporariamente DESATIVADA
 
 A pedido do usuário (2026-09-02), o envio de e-mail do `servicos-api` foi suspenso enquanto a

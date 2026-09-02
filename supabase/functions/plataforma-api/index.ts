@@ -946,7 +946,7 @@ async function saveIntegracao({
         atualizado_por = excluded.atualizado_por
       returning id;
     `,
-    [chave, provider, descricao, ativo, JSON.stringify(config), collaboratorId],
+    [chave, provider, descricao, ativo, config, collaboratorId],
   );
   const integracaoId = rows[0]?.id as string;
 

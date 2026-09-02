@@ -5,11 +5,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-// Credenciais do Gmail: prioridade e' a tabela `integracoes.integracoes` (chave
-// "gmail_notificacoes", configuravel via tela no Console), com fallback pras env vars
-// GMAIL_* atuais caso a integracao ainda nao tenha sido cadastrada ali. Isso permite
-// migrar sem quebrar producao — a integracao so passa a valer quando alguem preenche a
-// tela do Console; ate la o comportamento e' identico ao de hoje.
+// Credenciais do Gmail: unica fonte e' a tabela `integracoes.integracoes` (chave
+// "gmail_notificacoes", configuravel via tela no Console). Nao ha mais fallback pras
+// env vars GMAIL_* — migradas e removidas em 2026-09-02.
 export interface IntegracaoCredenciaisContext {
   supabaseUrl?: string | null;
   serviceRoleKey?: string | null;
@@ -65,12 +63,12 @@ function wrapBase64(input: string) {
 }
 
 async function getGmailAccessToken(credenciais: Record<string, unknown> | null) {
-  const gmailClientId = (credenciais?.client_id as string) || Deno.env.get('GMAIL_CLIENT_ID');
-  const gmailClientSecret = (credenciais?.client_secret as string) || Deno.env.get('GMAIL_CLIENT_SECRET');
-  const gmailRefreshToken = (credenciais?.refresh_token as string) || Deno.env.get('GMAIL_REFRESH_TOKEN');
+  const gmailClientId = credenciais?.client_id as string;
+  const gmailClientSecret = credenciais?.client_secret as string;
+  const gmailRefreshToken = credenciais?.refresh_token as string;
 
   if (!gmailClientId || !gmailClientSecret || !gmailRefreshToken) {
-    throw new Error('Variaveis Gmail nao configuradas na Edge Function.');
+    throw new Error('Integracao "gmail_notificacoes" nao configurada ou incompleta (Console > Integracoes).');
   }
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -98,9 +96,9 @@ async function getGmailAccessToken(credenciais: Record<string, unknown> | null) 
 
 export async function sendGmail(payload: Record<string, unknown>, ctx: IntegracaoCredenciaisContext = {}) {
   const credenciais = await loadIntegracaoCredenciais('gmail_notificacoes', ctx);
-  const gmailSender = (credenciais?.sender as string) || Deno.env.get('GMAIL_SENDER');
+  const gmailSender = credenciais?.sender as string;
   if (!gmailSender) {
-    throw new Error('Variaveis Gmail nao configuradas na Edge Function.');
+    throw new Error('Integracao "gmail_notificacoes" nao configurada ou incompleta (Console > Integracoes).');
   }
 
   const to = typeof payload.to === 'string' ? payload.to : '';
@@ -206,10 +204,17 @@ export interface EnqueueEmailInput {
   maxTentativas?: number;
 }
 
-// `sql` é o cliente postgres.js já usado pelas *-api (ex.: `sql` de servicos-api).
+// `sql` é o cliente postgres.js já usado pelas *-api (ex.: `sql` de servicos-api). Precisa expor
+// `sql.json()` (helper nativo do postgres.js) para o payload ser gravado como jsonb de verdade --
+// passar uma string pre-serializada com `::jsonb` gravou um jsonb escalar (string dentro de string)
+// em vez de objeto, quebrando o parse em sendGmail (ver EMAIL_NOTIFICACOES_STATUS.md).
+type SqlTag = ((strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>) & {
+  json?: (value: unknown) => unknown;
+};
+
 // Mantém o mesmo formato de payload que `sendGmail`/`processa-fila-email` já esperam.
 export async function enqueueEmail(
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>,
+  sql: SqlTag,
   input: EnqueueEmailInput,
 ) {
   const payload = {
@@ -225,7 +230,7 @@ export async function enqueueEmail(
       ${input.tipo},
       ${input.destinatario},
       ${input.assunto},
-      ${JSON.stringify(payload)}::jsonb,
+      ${sql.json!(payload)},
       coalesce(${input.agendadoEm ?? null}::timestamptz, now()),
       coalesce(${input.maxTentativas ?? null}, 5)
     );
