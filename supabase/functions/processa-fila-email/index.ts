@@ -81,7 +81,10 @@ serve(async (req) => {
       }
 
       try {
-        const gmailId = await sendGmail(job.payload || {});
+        const gmailId = await sendGmail(job.payload || {}, {
+          supabaseUrl: SUPABASE_URL,
+          serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+        });
 
         const { error: sentError } = await supabase
           .schema('notificacoes')

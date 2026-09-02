@@ -5,6 +5,7 @@ import { sendGmail } from '../_shared/email.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 async function getAuthenticatedUser(request: Request) {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -54,7 +55,10 @@ serve(async (req) => {
     await getAuthenticatedUser(req);
 
     const payload = await req.json().catch(() => ({}));
-    const gmailId = await sendGmail(payload);
+    const gmailId = await sendGmail(payload, {
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceRoleKey,
+    });
 
     return new Response(JSON.stringify({ success: true, gmail_id: gmailId }), {
       status: 200,

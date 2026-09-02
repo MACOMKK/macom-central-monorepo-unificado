@@ -3,6 +3,35 @@
 // para gravar na fila `notificacoes.fila_emails` em vez de duplicar SQL de insert.
 // O envio de fato é feito de forma assíncrona pelo worker `processa-fila-email` (cron).
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+
+// Credenciais do Gmail: prioridade e' a tabela `integracoes.integracoes` (chave
+// "gmail_notificacoes", configuravel via tela no Console), com fallback pras env vars
+// GMAIL_* atuais caso a integracao ainda nao tenha sido cadastrada ali. Isso permite
+// migrar sem quebrar producao — a integracao so passa a valer quando alguem preenche a
+// tela do Console; ate la o comportamento e' identico ao de hoje.
+export interface IntegracaoCredenciaisContext {
+  supabaseUrl?: string | null;
+  serviceRoleKey?: string | null;
+}
+
+async function loadIntegracaoCredenciais(chave: string, ctx: IntegracaoCredenciaisContext) {
+  if (!ctx.supabaseUrl || !ctx.serviceRoleKey) return null;
+
+  try {
+    const client = createClient(ctx.supabaseUrl, ctx.serviceRoleKey);
+    const { data, error } = await client.schema('integracoes').rpc('get_credenciais', { p_chave: chave });
+    if (error) {
+      console.error(`Falha ao carregar credenciais da integracao "${chave}": ${error.message}`);
+      return null;
+    }
+    return (data as Record<string, unknown> | null) || null;
+  } catch (error) {
+    console.error(`Erro ao carregar credenciais da integracao "${chave}":`, error);
+    return null;
+  }
+}
+
 function toBase64Utf8(input: string) {
   const bytes = new TextEncoder().encode(input);
   let binary = '';
@@ -35,10 +64,10 @@ function wrapBase64(input: string) {
   return String(input || '').replace(/(.{1,76})/g, '$1\r\n').trim();
 }
 
-async function getGmailAccessToken() {
-  const gmailClientId = Deno.env.get('GMAIL_CLIENT_ID');
-  const gmailClientSecret = Deno.env.get('GMAIL_CLIENT_SECRET');
-  const gmailRefreshToken = Deno.env.get('GMAIL_REFRESH_TOKEN');
+async function getGmailAccessToken(credenciais: Record<string, unknown> | null) {
+  const gmailClientId = (credenciais?.client_id as string) || Deno.env.get('GMAIL_CLIENT_ID');
+  const gmailClientSecret = (credenciais?.client_secret as string) || Deno.env.get('GMAIL_CLIENT_SECRET');
+  const gmailRefreshToken = (credenciais?.refresh_token as string) || Deno.env.get('GMAIL_REFRESH_TOKEN');
 
   if (!gmailClientId || !gmailClientSecret || !gmailRefreshToken) {
     throw new Error('Variaveis Gmail nao configuradas na Edge Function.');
@@ -67,8 +96,9 @@ async function getGmailAccessToken() {
   return tokenData.access_token as string;
 }
 
-export async function sendGmail(payload: Record<string, unknown>) {
-  const gmailSender = Deno.env.get('GMAIL_SENDER');
+export async function sendGmail(payload: Record<string, unknown>, ctx: IntegracaoCredenciaisContext = {}) {
+  const credenciais = await loadIntegracaoCredenciais('gmail_notificacoes', ctx);
+  const gmailSender = (credenciais?.sender as string) || Deno.env.get('GMAIL_SENDER');
   if (!gmailSender) {
     throw new Error('Variaveis Gmail nao configuradas na Edge Function.');
   }
@@ -88,7 +118,7 @@ export async function sendGmail(payload: Record<string, unknown>) {
   }
 
   const hasAttachment = Boolean(filename && pdfBase64);
-  const accessToken = await getGmailAccessToken();
+  const accessToken = await getGmailAccessToken(credenciais);
 
   const boundary = 'boundary_macom_termo';
   const altBoundary = 'boundary_macom_alt';

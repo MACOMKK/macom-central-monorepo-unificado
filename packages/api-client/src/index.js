@@ -3,6 +3,7 @@ export * from './crmApi';
 export * from './intranetApi';
 export * from './financeiroApi';
 export * from './platformAuditApi';
+export * from './platformIntegrationsApi';
 export * from './platformPermissionsApi';
 export * from './platformUsersApi';
 export * from './supabaseClient';

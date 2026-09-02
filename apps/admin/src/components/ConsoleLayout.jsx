@@ -8,6 +8,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  Plug,
   Settings2,
   ShieldCheck,
   UsersRound,
@@ -29,6 +30,7 @@ const navItems = [
   { path: '/usuarios', label: 'Usuarios', icon: UsersRound },
   { path: '/auditoria', label: 'Auditoria', icon: Activity },
   { path: '/logs-acesso', label: 'Logs de acesso', icon: History },
+  { path: '/integracoes', label: 'Integracoes', icon: Plug },
   { path: '/guia', label: 'Guia', icon: BookOpen },
   { path: '/configuracoes', label: 'Configuracoes', icon: Settings2 },
 ];

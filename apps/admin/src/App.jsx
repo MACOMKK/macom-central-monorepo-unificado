@@ -11,6 +11,7 @@ import Login from './Login';
 const ConsoleDashboard = lazy(() => import('@/pages/ConsoleDashboard'));
 const AccessLogOverview = lazy(() => import('@/pages/AccessLogOverview'));
 const AuditOverview = lazy(() => import('@/pages/AuditOverview'));
+const IntegrationsOverview = lazy(() => import('@/pages/IntegrationsOverview'));
 const PlaceholderPage = lazy(() => import('@/pages/PlaceholderPage'));
 const PlatformGuide = lazy(() => import('@/pages/PlatformGuide'));
 const SystemAccessManagement = lazy(() => import('@/pages/SystemAccessManagement'));
@@ -44,6 +45,7 @@ export default function App() {
                 <Route path="/usuarios" element={<UsersOverview />} />
                 <Route path="/auditoria" element={<AuditOverview />} />
                 <Route path="/logs-acesso" element={<AccessLogOverview />} />
+                <Route path="/integracoes" element={<IntegrationsOverview />} />
                 <Route path="/guia" element={<PlatformGuide />} />
                 <Route
                   path="/configuracoes"

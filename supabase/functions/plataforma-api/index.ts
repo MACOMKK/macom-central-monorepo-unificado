@@ -891,6 +891,111 @@ async function listAccessLogs({
   };
 }
 
+// Integracoes externas (schema `integracoes`): config nao sensivel fica em
+// `integracoes.integracoes.config`, valores sensiveis (client_secret, refresh_token, etc.)
+// ficam no Vault e sao referenciados em `integracoes.integracoes_secrets`. Os valores
+// decifrados NUNCA sao retornados pra essas listagens/edicoes — so o nome do campo e
+// quando foi atualizado, pra a tela do Console indicar "configurado" sem expor o segredo.
+async function listIntegracoes() {
+  const rows = await sql!.unsafe(`
+    select id, chave, provider, descricao, ativo, config, criado_em, atualizado_em
+    from integracoes.integracoes
+    order by chave asc;
+  `);
+
+  const secretRows = await sql!.unsafe(`
+    select integracao_id, chave, atualizado_em
+    from integracoes.integracoes_secrets
+    order by chave asc;
+  `);
+
+  return rows.map((row: Record<string, unknown>) => ({
+    ...row,
+    secrets: secretRows
+      .filter((secret: Record<string, unknown>) => secret.integracao_id === row.id)
+      .map((secret: Record<string, unknown>) => ({ chave: secret.chave, atualizado_em: secret.atualizado_em })),
+  }));
+}
+
+async function saveIntegracao({
+  payload,
+  collaboratorId,
+}: {
+  payload: Record<string, unknown>;
+  collaboratorId: string;
+}) {
+  const chave = typeof payload.chave === 'string' ? payload.chave.trim() : '';
+  const provider = typeof payload.provider === 'string' ? payload.provider.trim() : '';
+  if (!chave || !provider) {
+    throw new Error('Informe chave e provider da integracao.');
+  }
+
+  const descricao = typeof payload.descricao === 'string' ? payload.descricao.trim() || null : null;
+  const ativo = payload.ativo !== false;
+  const config = payload.config && typeof payload.config === 'object' ? payload.config : {};
+
+  const rows = await sql!.unsafe(
+    `
+      insert into integracoes.integracoes (chave, provider, descricao, ativo, config, atualizado_por)
+      values ($1, $2, $3, $4, $5::jsonb, $6::uuid)
+      on conflict (chave) do update set
+        provider = excluded.provider,
+        descricao = excluded.descricao,
+        ativo = excluded.ativo,
+        config = excluded.config,
+        atualizado_por = excluded.atualizado_por
+      returning id;
+    `,
+    [chave, provider, descricao, ativo, JSON.stringify(config), collaboratorId],
+  );
+  const integracaoId = rows[0]?.id as string;
+
+  const secrets = payload.secrets && typeof payload.secrets === 'object'
+    ? (payload.secrets as Record<string, unknown>)
+    : {};
+
+  for (const [secretKey, secretValue] of Object.entries(secrets)) {
+    if (typeof secretValue !== 'string' || !secretValue.trim()) continue;
+
+    const existingRows = await sql!.unsafe(
+      `
+        select secret_id from integracoes.integracoes_secrets
+        where integracao_id = $1::uuid and chave = $2
+        limit 1;
+      `,
+      [integracaoId, secretKey],
+    );
+    const existingSecretId = existingRows[0]?.secret_id as string | undefined;
+
+    if (existingSecretId) {
+      await sql!.unsafe('select vault.update_secret($1::uuid, $2);', [existingSecretId, secretValue]);
+      await sql!.unsafe(
+        `
+          update integracoes.integracoes_secrets
+          set atualizado_em = now()
+          where integracao_id = $1::uuid and chave = $2;
+        `,
+        [integracaoId, secretKey],
+      );
+    } else {
+      const secretRows = await sql!.unsafe(
+        `select vault.create_secret($1, $2) as id;`,
+        [secretValue, `integracoes:${chave}:${secretKey}`],
+      );
+      const secretId = secretRows[0]?.id as string;
+      await sql!.unsafe(
+        `
+          insert into integracoes.integracoes_secrets (integracao_id, chave, secret_id)
+          values ($1::uuid, $2, $3::uuid);
+        `,
+        [integracaoId, secretKey, secretId],
+      );
+    }
+  }
+
+  return { id: integracaoId };
+}
+
 Deno.serve(async (request) => {
   const corsHeaders = buildCorsHeaders(request);
   const json = (payload: unknown, status = 200) => jsonResponse(payload, status, corsHeaders);
@@ -1042,6 +1147,24 @@ Deno.serve(async (request) => {
           offset: Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0,
         }),
       );
+    }
+
+    if (action === 'list_integracoes') {
+      if (!isGlobalAdmin(centralAccessTier)) {
+        return json({ error: 'Apenas administradores podem ver integracoes.' }, 403);
+      }
+      return json({ rows: await listIntegracoes() });
+    }
+
+    if (action === 'save_integracao') {
+      if (!isGlobalAdmin(centralAccessTier)) {
+        return json({ error: 'Apenas administradores podem alterar integracoes.' }, 403);
+      }
+      const result = await saveIntegracao({
+        payload: (body.payload as Record<string, unknown>) || {},
+        collaboratorId: activeCollaborator.id as string,
+      });
+      return json(result);
     }
 
     if (action !== 'list' || !entity || !(entity in ENTITY_CONFIG)) {
