@@ -304,6 +304,10 @@ export const financeiroApi = {
       const result = await invokeServicos({ action: 'registrar_pagamento_parcela', id });
       return result.row || null;
     },
+    async cancelar(id, motivo) {
+      const result = await invokeServicos({ action: 'cancelar_parcela', id, motivo });
+      return result.row || null;
+    },
   },
   historico: {
     async list(solicitacaoId) {

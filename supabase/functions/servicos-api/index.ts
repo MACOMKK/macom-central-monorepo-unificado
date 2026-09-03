@@ -361,7 +361,10 @@ async function substituirPlanoParcelas(
 // proprio solicitante sempre ve a sua; um aprovador so acessa a solicitacao endereçada
 // a ele (aprovador_destino_id), nao qualquer solicitacao pendente; e qualquer papel ve as
 // solicitacoes de colegas do mesmo setor (departamento_id atual do colaborador logado
-// comparado ao snapshot de departamento_id da solicitacao).
+// comparado ao snapshot de departamento_id da solicitacao) E da mesma unidade (unidade_id atual
+// do colaborador logado comparado ao snapshot de unidade_id da solicitacao/aprovador) -- unidade
+// e' um AND adicional sobre a regra de departamento, so aplicado quando os dois lados sao
+// conhecidos; se qualquer lado for null a regra de departamento vale sozinha (nao nega acesso).
 async function canAccessSolicitacao(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
@@ -370,12 +373,15 @@ async function canAccessSolicitacao(
     aprovador_destino_id?: unknown;
     departamento_id?: unknown;
     aprovador_destino_departamento_id?: unknown;
+    unidade_id?: unknown;
+    aprovador_destino_unidade_id?: unknown;
     forma_pagamento?: unknown;
   },
   departamentoId?: string | null,
+  unidadeId?: string | null,
 ) {
   // Dinheiro: visibilidade restrita a solicitante/aprovador-destino/financeiro, ignorando
-  // isPagador (exclui contas_a_pagar) e a ampliacao por setor -- espelha
+  // isPagador (exclui contas_a_pagar) e a ampliacao por setor/unidade -- espelha
   // public.servicos_can_access_solicitacao() no banco. Configuravel via
   // gestao_servicos.configuracoes_modulo (getRestringeVisibilidadeDinheiro).
   if (row.forma_pagamento === 'dinheiro' && (await getRestringeVisibilidadeDinheiro())) {
@@ -390,27 +396,44 @@ async function canAccessSolicitacao(
     return true;
   }
   if (!departamentoId) return false;
-  if (String(row.departamento_id || '') === String(departamentoId)) return true;
+
+  // Unidade e' um AND adicional sobre o match de departamento: so restringe quando os dois lados
+  // (unidade do colaborador logado e unidade snapshot da linha) sao conhecidos.
+  const mesmoUnidade = (rowUnidadeId: unknown) =>
+    !unidadeId || !rowUnidadeId || String(rowUnidadeId) === String(unidadeId);
+
+  if (String(row.departamento_id || '') === String(departamentoId) && mesmoUnidade(row.unidade_id)) {
+    return true;
+  }
   // Aprovadores do mesmo departamento entre si acompanham a fila uns dos outros, mesmo quando o
   // solicitante e de outro setor -- departamento_id da linha e so o snapshot do solicitante, por
-  // isso essa checagem separada olha pro departamento do proprio aprovador designado.
+  // isso essa checagem separada olha pro departamento (e agora tambem a unidade) do proprio
+  // aprovador designado.
   return (
     moduleRole === 'aprovador' &&
     Boolean(row.aprovador_destino_departamento_id) &&
-    String(row.aprovador_destino_departamento_id) === String(departamentoId)
+    String(row.aprovador_destino_departamento_id) === String(departamentoId) &&
+    mesmoUnidade(row.aprovador_destino_unidade_id)
   );
 }
 
 // Anexo sigiloso e mais restrito que acesso normal a solicitacao: contas_a_pagar tem acesso a
 // linha (pode ver/pagar a solicitacao) mas nunca ve anexo marcado sigiloso. Quem ve: financeiro,
-// o proprio solicitante, o aprovador designado, e colegas do mesmo setor da solicitacao (mesma
-// regra de setor usada em canAccessSolicitacao) -- exceto em dinheiro, onde a ampliacao por setor
-// tambem nao se aplica aqui.
+// o proprio solicitante, o aprovador designado, e colegas do mesmo setor E mesma unidade da
+// solicitacao (mesma regra de setor/unidade usada em canAccessSolicitacao) -- exceto em dinheiro,
+// onde a ampliacao por setor/unidade tambem nao se aplica aqui.
 async function canViewAnexoSigiloso(
   moduleRole: string | null,
   collaboradorId: string | null | undefined,
-  row: { solicitante_id: unknown; aprovador_destino_id?: unknown; departamento_id?: unknown; forma_pagamento?: unknown },
+  row: {
+    solicitante_id: unknown;
+    aprovador_destino_id?: unknown;
+    departamento_id?: unknown;
+    unidade_id?: unknown;
+    forma_pagamento?: unknown;
+  },
   departamentoId?: string | null,
+  unidadeId?: string | null,
 ) {
   if (isFinanceiro(moduleRole)) return true;
   if (String(row.solicitante_id) === String(collaboradorId || '')) return true;
@@ -418,7 +441,8 @@ async function canViewAnexoSigiloso(
     return true;
   }
   if (row.forma_pagamento === 'dinheiro' && (await getRestringeVisibilidadeDinheiro())) return false;
-  return Boolean(departamentoId) && String(row.departamento_id || '') === String(departamentoId);
+  if (!departamentoId || String(row.departamento_id || '') !== String(departamentoId)) return false;
+  return !unidadeId || !row.unidade_id || String(row.unidade_id) === String(unidadeId);
 }
 
 function getBearerToken(request: Request) {
@@ -607,7 +631,8 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   const rows = await sql!.unsafe(
     `
       select sp.*, c.nome as solicitante_nome, ac.nome as aprovador_destino_nome,
-        ac.departamento_id as aprovador_destino_departamento_id, pc.nome as pendencia_aberta_por_nome
+        ac.departamento_id as aprovador_destino_departamento_id,
+        ac.unidade_id as aprovador_destino_unidade_id, pc.nome as pendencia_aberta_por_nome
       from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
       join public.colaboradores c on c.id = sp.solicitante_id
       left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
@@ -621,7 +646,10 @@ async function ensureRowAccess(id: string, moduleRole: string | null, collaborat
   if (!row) throw Object.assign(new Error('Solicitacao nao encontrada.'), { status: 404 });
 
   const departamentoId = collaborator?.departamento_id as string | null | undefined;
-  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
+  const unidadeId = collaborator?.unidade_id as string | null | undefined;
+  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId, unidadeId)) {
+    return row;
+  }
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta solicitacao.'), { status: 403 });
 }
@@ -897,8 +925,10 @@ async function createSignedUrlForPath(path: string | null) {
 async function ensureParcelaAccess(id: string, moduleRole: string | null, collaborator: Record<string, unknown> | null) {
   const rows = await sql!.unsafe(
     `
-      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.status as solicitacao_status,
-        sp.pendencia_bloqueio, ac.departamento_id as aprovador_destino_departamento_id
+      select pp.*, sp.solicitante_id, sp.aprovador_destino_id, sp.departamento_id, sp.unidade_id,
+        sp.status as solicitacao_status, sp.pendencia_bloqueio,
+        ac.departamento_id as aprovador_destino_departamento_id,
+        ac.unidade_id as aprovador_destino_unidade_id
       from ${SERVICOS_SCHEMA}.parcelas_pagamento pp
       join ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp on sp.id = pp.solicitacao_id
       left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
@@ -911,7 +941,10 @@ async function ensureParcelaAccess(id: string, moduleRole: string | null, collab
   if (!row) throw Object.assign(new Error('Parcela nao encontrada.'), { status: 404 });
 
   const departamentoId = collaborator?.departamento_id as string | null | undefined;
-  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId)) return row;
+  const unidadeId = collaborator?.unidade_id as string | null | undefined;
+  if (await canAccessSolicitacao(moduleRole, collaborator?.id as string | undefined, row, departamentoId, unidadeId)) {
+    return row;
+  }
 
   throw Object.assign(new Error('Voce nao tem permissao para acessar esta parcela.'), { status: 403 });
 }
@@ -1510,10 +1543,14 @@ Deno.serve(async (request) => {
       const values: unknown[] = [];
 
       // financeiro/contas_a_pagar veem tudo; aprovador ve as proprias + as endereçadas a ele +
-      // as do mesmo setor; usuario ve as proprias + as do mesmo setor (departamento_id atual do
-      // colaborador logado comparado ao snapshot de departamento_id da solicitacao). Solicitacao
-      // em dinheiro (com o flag ligado) e mais restrita: nunca amplia por setor, e contas_a_pagar
-      // (isPagador mas nao financeiro) fica de fora -- espelha canAccessSolicitacao/RLS.
+      // as do mesmo setor+unidade; usuario ve as proprias + as do mesmo setor+unidade
+      // (departamento_id/unidade_id atuais do colaborador logado comparados ao snapshot da
+      // solicitacao). Unidade e' um AND adicional sobre o match de departamento, so aplicado
+      // quando os dois lados (unidade do colaborador logado e unidade da linha/aprovador) sao
+      // conhecidos -- se qualquer lado for null a regra de departamento vale sozinha. Solicitacao
+      // em dinheiro (com o flag ligado) e mais restrita: nunca amplia por setor/unidade, e
+      // contas_a_pagar (isPagador mas nao financeiro) fica de fora -- espelha
+      // canAccessSolicitacao/RLS.
       const restringeDinheiro = await getRestringeVisibilidadeDinheiro();
 
       if (isPagador(moduleRole)) {
@@ -1529,16 +1566,32 @@ Deno.serve(async (request) => {
             : `sp.solicitante_id = $${collaboradorIdParam}`;
 
         const departamentoId = collaborator!.departamento_id as string | null | undefined;
+        const unidadeId = collaborator!.unidade_id as string | null | undefined;
         let acessoClause = pessoaisClause;
         if (departamentoId) {
           values.push(departamentoId);
+          const departamentoIdParam = values.length;
+
+          // Unidade e' um AND adicional: so entra na clausula quando a unidade do colaborador
+          // logado e' conhecida; o lado da linha (sp.unidade_id/ac.unidade_id) pode ser null sem
+          // negar acesso (fallback embutido no "is null or").
+          let unidadeSql = '';
+          if (unidadeId) {
+            values.push(unidadeId);
+            const unidadeIdParam = values.length;
+            unidadeSql =
+              moduleRole === 'aprovador'
+                ? ` and (sp.unidade_id is null or ac.unidade_id is null or sp.unidade_id = $${unidadeIdParam} or ac.unidade_id = $${unidadeIdParam})`
+                : ` and (sp.unidade_id is null or sp.unidade_id = $${unidadeIdParam})`;
+          }
+
           // Aprovadores do mesmo departamento entre si tambem veem a fila uns dos outros (ac e o
           // join com o colaborador do aprovador_destino_id, ja usado pra aprovador_destino_nome
           // logo abaixo no SELECT) -- sp.departamento_id sozinho e so o snapshot do solicitante.
           const departamentoClause =
             moduleRole === 'aprovador'
-              ? `(sp.departamento_id = $${values.length} or ac.departamento_id = $${values.length})`
-              : `sp.departamento_id = $${values.length}`;
+              ? `((sp.departamento_id = $${departamentoIdParam} or ac.departamento_id = $${departamentoIdParam})${unidadeSql})`
+              : `(sp.departamento_id = $${departamentoIdParam}${unidadeSql})`;
           acessoClause = `(${pessoaisClause} or ${departamentoClause})`;
         }
 
@@ -2419,6 +2472,7 @@ Deno.serve(async (request) => {
       // contas_a_pagar tem acesso a linha (ve/paga a solicitacao) mas nunca ve anexo sigiloso --
       // por isso usa canViewAnexoSigiloso aqui, nao canAccessSolicitacao.
       const departamentoIdAnexos = collaborator?.departamento_id as string | null | undefined;
+      const unidadeIdAnexos = collaborator?.unidade_id as string | null | undefined;
       // solicitacaoRow e a mesma pra todos os anexos da lista -- o resultado nao muda por anexo,
       // entao calcula uma vez em vez de repetir o await dentro do filter.
       const podeVerSigiloso = await canViewAnexoSigiloso(
@@ -2426,6 +2480,7 @@ Deno.serve(async (request) => {
         collaborator?.id as string | undefined,
         solicitacaoRow,
         departamentoIdAnexos,
+        unidadeIdAnexos,
       );
       const visiveis = rows.filter((anexo: Record<string, unknown>) => !anexo.sigiloso || podeVerSigiloso);
 
@@ -2791,6 +2846,53 @@ Deno.serve(async (request) => {
       }
 
       return json({ row: parcelaAtualizada, solicitacao });
+    }
+
+    if (action === 'cancelar_parcela') {
+      // Parcela ainda pendente que nao sera mais paga (ex. renegociacao, cancelamento parcial)
+      // -- diferente de cancelar_solicitacao, que cancela a solicitacao inteira. So faz sentido
+      // pra parcela 'pendente'; parcela ja 'pago' segue o fluxo de cancelar_solicitacao (com
+      // motivo obrigatorio, restrito ao financeiro).
+      if (!isPagador(moduleRole)) {
+        throw Object.assign(new Error('Apenas o financeiro ou contas a pagar pode cancelar parcela.'), { status: 403 });
+      }
+
+      const parsedCancelarParcela = registrarPagamentoParcelaBodySchema.safeParse(body);
+      if (!parsedCancelarParcela.success) {
+        const issue = parsedCancelarParcela.error.issues[0];
+        return json({ error: `Campo invalido: ${issue?.path?.join('.') || 'payload'}.` }, 400);
+      }
+
+      const idCancelarParcela = String(parsedCancelarParcela.data.id || '');
+      if (!idCancelarParcela) return json({ error: 'ID obrigatorio.' }, 400);
+
+      const parcelaParaCancelar = await ensureParcelaAccess(idCancelarParcela, moduleRole, collaborator);
+      if (parcelaParaCancelar.status !== 'pendente') {
+        throw Object.assign(new Error('Somente parcelas pendentes podem ser canceladas.'), { status: 400 });
+      }
+
+      const motivoCancelarParcela: string | null = body.motivo ? String(body.motivo).trim() : null;
+
+      const rowsCancelarParcela = await sql.unsafe(
+        `
+          update ${SERVICOS_SCHEMA}.parcelas_pagamento
+          set status = 'cancelado'
+          where id = $1
+          returning *;
+        `,
+        [idCancelarParcela],
+      );
+
+      await insertHistorico(
+        String(parcelaParaCancelar.solicitacao_id),
+        'parcela_cancelada',
+        collaborator!.id as string,
+        motivoCancelarParcela
+          ? `Parcela ${parcelaParaCancelar.numero} cancelada: ${motivoCancelarParcela}`
+          : `Parcela ${parcelaParaCancelar.numero} cancelada.`,
+      );
+
+      return json({ row: rowsCancelarParcela[0] || null });
     }
 
     if (action === 'list_parcelas') {

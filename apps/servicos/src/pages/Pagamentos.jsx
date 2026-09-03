@@ -31,6 +31,7 @@ import {
   Textarea,
   useToast,
 } from '@macom/ui';
+import ConfirmDeleteDialog from '@/components/ConfirmDeleteDialog';
 import PaymentSuccessOverlay from '@/components/PaymentSuccessOverlay';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import SolicitacaoCard from '@/components/SolicitacaoCard';
@@ -518,6 +519,37 @@ export default function Pagamentos() {
 
   function removeDraftParcela(index) {
     setDraftParcelas((current) => current.filter((_, i) => i !== index));
+  }
+
+  const [cancelarParcelaTarget, setCancelarParcelaTarget] = useState(null);
+  const [motivoCancelarParcela, setMotivoCancelarParcela] = useState('');
+
+  const cancelarParcelaMutation = useMutation({
+    mutationFn: ({ parcelaId, motivo }) => financeiroApi.parcelas.cancelar(parcelaId, motivo),
+    onSuccess: (_row, { solicitacaoId }) => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'parcelas', solicitacaoId] });
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+      toast({ title: 'Parcela cancelada' });
+      setCancelarParcelaTarget(null);
+      setMotivoCancelarParcela('');
+    },
+    onError: (error) => {
+      toast({ title: 'Não foi possível cancelar a parcela', description: getFriendlyErrorMessage(error) });
+    },
+  });
+
+  function handleCancelarParcela(solicitacaoId, parcela) {
+    setCancelarParcelaTarget({ solicitacaoId, parcela });
+    setMotivoCancelarParcela('');
+  }
+
+  function confirmarCancelarParcela() {
+    if (!cancelarParcelaTarget) return;
+    cancelarParcelaMutation.mutate({
+      parcelaId: cancelarParcelaTarget.parcela.id,
+      motivo: motivoCancelarParcela.trim() || null,
+      solicitacaoId: cancelarParcelaTarget.solicitacaoId,
+    });
   }
 
   const criarParcelasMutation = useMutation({
@@ -1021,10 +1053,22 @@ export default function Pagamentos() {
                   </div>
                   {parcela.status === 'pago' ? (
                     <Badge>Paga</Badge>
+                  ) : parcela.status === 'cancelado' ? (
+                    <Badge variant="secondary">Cancelada</Badge>
                   ) : (
-                    <Button size="sm" onClick={() => openPagamentoParcela(dialogRow, parcela.id)}>
-                      Marcar como paga
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancelarParcela(dialogRow.id, parcela)}
+                        disabled={cancelarParcelaMutation.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={() => openPagamentoParcela(dialogRow, parcela.id)}>
+                        Marcar como paga
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -1201,6 +1245,29 @@ export default function Pagamentos() {
         message={successOverlay}
         onOpenChange={(open) => !open && setSuccessOverlay(null)}
       />
+
+      <ConfirmDeleteDialog
+        open={Boolean(cancelarParcelaTarget)}
+        onOpenChange={(open) => !open && setCancelarParcelaTarget(null)}
+        onConfirm={confirmarCancelarParcela}
+        isLoading={cancelarParcelaMutation.isPending}
+        title="Cancelar parcela"
+        description={
+          cancelarParcelaTarget
+            ? `A parcela ${cancelarParcelaTarget.parcela.numero} (${formatValor(cancelarParcelaTarget.parcela.valor)}) não será mais paga. Essa ação não pode ser desfeita.`
+            : ''
+        }
+        confirmLabel="Cancelar parcela"
+        loadingLabel="Cancelando..."
+        cancelLabel="Voltar"
+      >
+        <Textarea
+          placeholder="Motivo do cancelamento (opcional)"
+          value={motivoCancelarParcela}
+          onChange={(event) => setMotivoCancelarParcela(event.target.value)}
+          rows={3}
+        />
+      </ConfirmDeleteDialog>
     </div>
   );
 }

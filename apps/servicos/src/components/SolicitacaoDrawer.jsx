@@ -143,6 +143,7 @@ const EVENTO_META = {
     className: 'text-muted-foreground bg-muted',
   },
   parcela_paga: { label: 'Parcela paga', icon: Wallet, className: 'text-emerald-600 bg-emerald-500/20' },
+  parcela_cancelada: { label: 'Parcela cancelada', icon: X, className: 'text-destructive bg-destructive/20' },
   pago: { label: 'Marcada como paga', icon: Wallet, className: 'text-emerald-600 bg-emerald-500/20' },
   anexo_adicionado: { label: 'Anexo incluído', icon: Paperclip, className: 'text-muted-foreground bg-muted' },
   anexo_removido: { label: 'Anexo removido', icon: Trash2, className: 'text-destructive bg-destructive/20' },
@@ -162,6 +163,7 @@ const EVENTO_META_DEFAULT = { label: null, icon: Clock, className: 'text-muted-f
 const PARCELA_STATUS_LABEL = {
   pendente: 'Pendente',
   pago: 'Paga',
+  cancelado: 'Cancelada',
 };
 
 export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = null, parcelasSlot = null }) {
