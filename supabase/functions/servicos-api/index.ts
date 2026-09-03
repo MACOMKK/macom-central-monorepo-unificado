@@ -873,7 +873,11 @@ async function notifyAprovadorNovaSolicitacao(row: Record<string, unknown>, titu
 // solicitacao acabou de cair na fila de "Contas a pagar" -- ate aqui so o aprovador e o
 // solicitante recebiam aviso, o financeiro precisava checar a fila manualmente pra saber que
 // tinha algo novo pra pagar.
+// Solicitacao marcada como teste (eh_teste) e excecao: nao deve incomodar financeiro/contas a
+// pagar com algo que nao e real -- so quem tem nivel_acesso admin continua vendo (fica registrado
+// pra auditoria/depuracao, mas nao "polui" a fila de quem realmente paga).
 async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>, autorId: string) {
+  const ehTeste = row.eh_teste === true;
   const financeiros = await sql!.unsafe(
     `
       select distinct aus.colaborador_id
@@ -881,7 +885,7 @@ async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>
       join public.sistemas s on s.id = aus.sistema_id
       left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = aus.colaborador_id and pm.modulo = 'financeiro'
       where s.slug = $1 and s.ativo = true and aus.ativo = true
-        and (aus.nivel_acesso = 'admin' or pm.papel in ('financeiro', 'contas_a_pagar'));
+        and (aus.nivel_acesso = 'admin'${ehTeste ? '' : " or pm.papel in ('financeiro', 'contas_a_pagar')"});
     `,
     [SERVICOS_SYSTEM_SLUG],
   );
