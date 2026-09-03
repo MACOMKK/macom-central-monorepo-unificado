@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
+import { supabase } from '@macom/api-client/supabaseClient';
 import {
   Button,
   Label,
@@ -77,6 +78,29 @@ export default function Aprovacoes() {
   const rows = solicitacoesQuery.data || [];
   const loading = solicitacoesQuery.isLoading;
   const selected = rows.find((row) => row.id === selectedId) || null;
+
+  const realtimeInstanceId = useId();
+  // So usa o evento como gatilho pra refazer o fetch (que ja passa pela autorizacao da
+  // servicos-api) -- sem isso, uma solicitacao nova ou uma mudanca de status feita por outro
+  // colaborador so aparecia aqui depois de um F5.
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    const channel = supabase
+      .channel(`servicos-solicitacoes-aprovacoes:${realtimeInstanceId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'gestao_servicos', table: 'solicitacoes_pagamento' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, realtimeInstanceId]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const solAbertoRef = useRef(false);

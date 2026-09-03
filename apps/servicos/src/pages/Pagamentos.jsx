@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Banknote, Paperclip, Plus, RefreshCw, Trash2, Unlock, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
+import { supabase } from '@macom/api-client/supabaseClient';
 import {
   Badge,
   Button,
@@ -163,6 +164,33 @@ export default function Pagamentos() {
     enabled: Boolean(dialogRowId),
   });
   const parcelas = parcelasQuery.data || [];
+
+  const realtimeInstanceId = useId();
+  // So usa o evento como gatilho pra refazer o fetch (que ja passa pela autorizacao da
+  // servicos-api) -- sem isso, aprovacao/reprovacao/pagamento feitos por outro colaborador so
+  // apareciam aqui depois de um F5. Invalida tambem as parcelas do drawer aberto, pra refletir
+  // pagamento de parcela feito em outra sessao sem precisar fechar/reabrir.
+  useEffect(() => {
+    if (!supabase) return undefined;
+
+    const channel = supabase
+      .channel(`servicos-solicitacoes-pagamentos:${realtimeInstanceId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'gestao_servicos', table: 'solicitacoes_pagamento' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
+          if (dialogRowId) {
+            queryClient.invalidateQueries({ queryKey: ['servicos', 'parcelas', dialogRowId] });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [dialogRowId, queryClient, realtimeInstanceId]);
 
   useEffect(() => {
     if (!dialogRowId || !parcelasQuery.data) {
