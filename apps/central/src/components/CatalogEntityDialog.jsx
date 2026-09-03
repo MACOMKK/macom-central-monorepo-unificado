@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Spinner } from '@macom/ui';
 
 import { Button } from '@/components/ui/button';
@@ -105,13 +105,26 @@ export default function CatalogEntityDialog({
 }) {
   const [formState, setFormState] = useState(() => createInitialState(fields, record));
   const [validationMessage, setValidationMessage] = useState('');
+  const openedForRef = useRef(null);
 
   useEffect(() => {
-    if (open) {
-      setFormState(createInitialState(fields, record));
-      setValidationMessage('');
+    if (!open) {
+      openedForRef.current = null;
+      return;
     }
-  }, [fields, open, record]);
+
+    // So reinicializa o formulario quando o dialogo abre ou troca de registro. Reagir a `fields`
+    // (recriado sempre que os catalogos de origem - colaboradores, departamentos, etc. -
+    // atualizam via refetch do React Query, ex.: ao voltar de outra aba) apagava o que o usuario
+    // ja tinha digitado sem ele ter feito nada.
+    const recordKey = record?.id ?? null;
+    if (openedForRef.current === recordKey) return;
+
+    openedForRef.current = recordKey;
+    setFormState(createInitialState(fields, record));
+    setValidationMessage('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, record?.id]);
 
   const handleChange = (key, value) => {
     setValidationMessage('');
