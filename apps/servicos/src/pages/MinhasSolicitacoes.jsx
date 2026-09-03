@@ -207,12 +207,21 @@ export default function MinhasSolicitacoes() {
     if (!termo) return true;
     return normalize(buildSolicitacaoSearchText(row)).includes(termo);
   });
+  // Pendente/aprovado ficam primeiro (prioridade 0), ordenados por vencimento crescente;
+  // encerrados vao pro final, agrupados entre si na ordem pago -> reprovado -> cancelado, cada
+  // grupo tambem ordenado por vencimento crescente.
+  const STATUS_PRIORIDADE_FINAL = { pago: 1, reprovado: 2, cancelado: 3 };
   const sortedRows = filteredRows
     .map((row, index) => ({ row, index }))
     .sort((a, b) => {
-      const aPago = a.row.status === 'pago' ? 1 : 0;
-      const bPago = b.row.status === 'pago' ? 1 : 0;
-      if (aPago !== bPago) return aPago - bPago;
+      const aPrioridade = STATUS_PRIORIDADE_FINAL[a.row.status] || 0;
+      const bPrioridade = STATUS_PRIORIDADE_FINAL[b.row.status] || 0;
+      if (aPrioridade !== bPrioridade) return aPrioridade - bPrioridade;
+      const aVenc = toDateOnly(a.row.vencimento_efetivo);
+      const bVenc = toDateOnly(b.row.vencimento_efetivo);
+      if (aVenc && bVenc && aVenc !== bVenc) return aVenc < bVenc ? -1 : 1;
+      if (aVenc && !bVenc) return -1;
+      if (!aVenc && bVenc) return 1;
       return a.index - b.index;
     })
     .map(({ row }) => row);
