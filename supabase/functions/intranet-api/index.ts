@@ -1893,6 +1893,156 @@ async function createDocumentSignedUrl(document: Record<string, unknown>) {
   return data?.signedUrl || null;
 }
 
+const POSSESSION_TERMS_BUCKET = 'central-anexos';
+const POSSESSION_TERMS_SIGNED_URL_TTL_SECONDS = 5 * 60;
+
+// Blindagem: termos assinados como empresa antes do fix do cast ::jsonb em central-api podem ter
+// colaborador_anchor gravado com double-encoding (string JSON dentro da coluna jsonb, em vez do
+// objeto). Normaliza pra sempre devolver um objeto de verdade (ou null se estiver irrecuperavel).
+function normalizeAnchor(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object') return value as Record<string, unknown>;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// 2a via da assinatura do Termo de Posse: o colaborador assina, no browser da intranet, o mesmo
+// PDF que a empresa ja assinou no Central (Fase 1). O bucket central-anexos tem RLS restrita a
+// quem tem acesso ao app central (ver central_module_access), entao um colaborador comum nao
+// consegue ler/escrever la direto do proprio browser -- por isso a leitura (signed URL) e a
+// escrita final passam pelo client de storage com service role (createStorageAdminClient).
+async function listPossessionTermsForCollaborator(collaboratorId: string | null) {
+  const rows = await runSql<Record<string, unknown>>(
+    `
+      select id, ativo_nome, ativo_categoria, ativo_marca, ativo_modelo, ativo_numero_serie,
+             ativo_patrimonio, arquivo_path, colaborador_anchor, gerado_em
+      from gestao_ativos.termos_posse
+      where colaborador_id = $1
+        and status = 'assinado_empresa'
+        and colaborador_anchor is not null
+      order by gerado_em desc;
+    `,
+    [collaboratorId],
+  );
+
+  const storageClient = createStorageAdminClient();
+
+  return Promise.all(
+    rows.map(async (row) => {
+      const filePath = typeof row.arquivo_path === 'string' ? row.arquivo_path.trim() : '';
+      let downloadUrl: string | null = null;
+
+      if (storageClient && filePath) {
+        const { data, error } = await storageClient.storage
+          .from(POSSESSION_TERMS_BUCKET)
+          .createSignedUrl(filePath, POSSESSION_TERMS_SIGNED_URL_TTL_SECONDS);
+        if (error) {
+          console.error('Failed to create signed URL for termo de posse:', { filePath, message: error.message });
+        } else {
+          downloadUrl = data?.signedUrl || null;
+        }
+      }
+
+      return { ...row, colaborador_anchor: normalizeAnchor(row.colaborador_anchor), download_url: downloadUrl };
+    }),
+  );
+}
+
+async function signPossessionTermAsCollaborator(
+  collaboratorId: string | null,
+  { termoId, pdfBase64 }: { termoId: string; pdfBase64: string },
+) {
+  if (!termoId || !pdfBase64) {
+    const error = new Error('Termo e arquivo assinado sao obrigatorios.');
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const rows = await runSql<Record<string, unknown>>(
+    `select * from gestao_ativos.termos_posse where id = $1 and colaborador_id = $2 limit 1;`,
+    [termoId, collaboratorId],
+  );
+  const termo = rows[0];
+
+  if (!termo) {
+    const error = new Error('Termo de posse nao encontrado.');
+    (error as Error & { status?: number }).status = 404;
+    throw error;
+  }
+
+  const colaboradorAnchor = normalizeAnchor(termo.colaborador_anchor);
+  if (termo.status !== 'assinado_empresa' || !colaboradorAnchor) {
+    const error = new Error('Este termo nao esta pendente da sua assinatura.');
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const storageClient = createStorageAdminClient();
+  if (!storageClient) {
+    const error = new Error('Storage indisponivel.');
+    (error as Error & { status?: number }).status = 500;
+    throw error;
+  }
+
+  let pdfBytes: Uint8Array;
+  try {
+    pdfBytes = Uint8Array.from(atob(pdfBase64), (char) => char.charCodeAt(0));
+  } catch {
+    const error = new Error('Arquivo assinado invalido.');
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const fileName = `termo-assinado-${termoId}.pdf`;
+  const storagePath = `termos-posse/${termoId}/${Date.now()}-${fileName}`;
+  const { error: uploadError } = await storageClient.storage
+    .from(POSSESSION_TERMS_BUCKET)
+    .upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: false });
+
+  if (uploadError) {
+    console.error('Failed to upload signed termo de posse:', { storagePath, message: uploadError.message });
+    const error = new Error('Nao foi possivel salvar o termo assinado.');
+    (error as Error & { status?: number }).status = 500;
+    throw error;
+  }
+
+  await runSql(
+    `
+      insert into gestao_ativos.assinaturas_termo_posse (termo_id, colaborador_id, papel, posicao)
+      values ($1, $2, 'colaborador', $3::jsonb);
+    `,
+    [termoId, collaboratorId, JSON.stringify(colaboradorAnchor)],
+  );
+
+  const updatedRows = await runSql<Record<string, unknown>>(
+    `
+      update gestao_ativos.termos_posse
+      set arquivo_path = $2,
+          arquivo_nome = $3,
+          arquivo_tipo = 'application/pdf',
+          arquivo_tamanho = $4,
+          status = 'assinado',
+          assinado_em = now()
+      where id = $1
+      returning *;
+    `,
+    [termoId, storagePath, fileName, pdfBytes.byteLength],
+  );
+
+  const previousPath = typeof termo.arquivo_path === 'string' ? termo.arquivo_path.trim() : '';
+  if (previousPath && previousPath !== storagePath) {
+    await storageClient.storage.from(POSSESSION_TERMS_BUCKET).remove([previousPath]).catch(() => null);
+  }
+
+  return { row: updatedRows[0] || null };
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} excedeu o tempo limite de ${ms}ms.`)), ms);
@@ -4770,6 +4920,19 @@ Deno.serve(async (request) => {
         return json(await listAccessLogsIntranet(limit || 25, offset));
       }
       return json({ error: 'Acao de log de acesso invalida.' }, 400);
+    }
+
+    if (resource === 'possessionTerms') {
+      if (action === 'list') {
+        return json({ rows: await listPossessionTermsForCollaborator(context.collaboratorId) });
+      }
+      if (action === 'sign') {
+        return json(await signPossessionTermAsCollaborator(context.collaboratorId, {
+          termoId: String(body.termo_id || ''),
+          pdfBase64: String(body.pdf_base64 || ''),
+        }));
+      }
+      return json({ error: 'Acao de termo de posse invalida.' }, 400);
     }
 
     if (resource === 'employeeNotifications') {

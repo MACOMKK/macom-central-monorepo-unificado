@@ -379,6 +379,16 @@ export const appClient = {
     },
   },
 
+  possessionTerms: {
+    list() {
+      return intranetApi.possessionTerms.list();
+    },
+
+    sign(options) {
+      return intranetApi.possessionTerms.sign(options);
+    },
+  },
+
   entities: new Proxy(
     {},
     {

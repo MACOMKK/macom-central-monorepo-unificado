@@ -158,6 +158,9 @@ export const catalogApi = {
       return true;
     },
   },
+  assinaturas_termo_posse: {
+    ...buildCentralEntity('assinaturas_termo_posse'),
+  },
   email: {
     sendTermoGmail: (payload) => invokeSupabaseFunction('enviar-termo-gmail', payload),
   },

@@ -263,6 +263,21 @@ export const intranetApi = {
       };
     },
   },
+  possessionTerms: {
+    async list() {
+      const result = await invokeIntranet({ resource: 'possessionTerms', action: 'list' });
+      return result.rows || [];
+    },
+    async sign({ termoId, pdfBase64 }) {
+      const result = await invokeIntranet({
+        resource: 'possessionTerms',
+        action: 'sign',
+        termo_id: termoId,
+        pdf_base64: pdfBase64,
+      });
+      return result.row || null;
+    },
+  },
   entities: new Proxy(
     {},
     {

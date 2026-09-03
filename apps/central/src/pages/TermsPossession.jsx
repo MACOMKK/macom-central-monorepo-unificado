@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { jsPDF } from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
+import { embedSignatureImage, stampSignature } from '@macom/pdf-signature';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   CheckCircle2,
+  Circle,
   Clock3,
-  Download,
+  FileText,
   Mail,
   Monitor,
   Paperclip,
+  PenLine,
   Search,
   UserRound,
 } from 'lucide-react';
@@ -20,6 +24,7 @@ import { Card } from '@/components/ui/card';
 import FeedbackToast from '@/components/ui/feedback-toast';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/lib/AuthContext';
 import { catalogApi } from '@/lib/catalogApi';
 import { supabase } from '@/lib/supabaseClient';
 import { normalizeText, sanitizeFileName } from '@/lib/text';
@@ -144,6 +149,15 @@ const statusMeta = {
     avatarClassName: 'bg-[#bf1220]/10',
     avatarIconClassName: 'text-[#bf1220]',
   },
+  assinado_empresa: {
+    label: 'Assinado pela empresa',
+    className: 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300',
+    icon: PenLine,
+    cardClassName: 'border-sky-300 bg-card dark:border-sky-900',
+    asideClassName: 'border-border bg-sky-50 dark:bg-sky-950/20',
+    avatarClassName: 'bg-sky-100 dark:bg-sky-950/40',
+    avatarIconClassName: 'text-sky-600',
+  },
   assinado: {
     label: 'Termo Assinado',
     className: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300',
@@ -239,11 +253,15 @@ function getCardStatus(assets, latestTermsByAsset) {
     .map((asset) => latestTermsByAsset[asset.id] || null)
     .filter(Boolean);
 
-  if (!activeTerms.length) return 'sem_termo';
+  if (!activeTerms.length || activeTerms.length !== assets.length) {
+    return activeTerms.length ? 'pendente' : 'sem_termo';
+  }
 
-  return activeTerms.length === assets.length && activeTerms.every((term) => term.status === 'assinado')
-    ? 'assinado'
-    : 'pendente';
+  if (activeTerms.every((term) => term.status === 'assinado')) return 'assinado';
+  if (activeTerms.every((term) => term.status === 'assinado_empresa' || term.status === 'assinado')) {
+    return 'assinado_empresa';
+  }
+  return 'pendente';
 }
 
 function blobToBase64(blob) {
@@ -444,6 +462,34 @@ async function generateTermoPDF(employee, assets, options = {}) {
   doc.setTextColor(120, 120, 120);
   doc.text('MACOM Mitsubishi', rightX + sigWidth / 2, sigY + 9, { align: 'center' });
 
+  // Retangulo (fracao da pagina, 0..1) logo acima da linha "Departamento de TI", usado por
+  // stampSignature (@macom/pdf-signature) para carimbar a assinatura digital da empresa.
+  const empresaStampWidthMm = sigWidth * 0.8;
+  const empresaStampHeightMm = 12;
+  const empresaStampX = rightX + (sigWidth - empresaStampWidthMm) / 2;
+  const empresaStampTopY = sigY - empresaStampHeightMm - 2;
+  const empresaSignatureAnchor = {
+    pageIndex: 0,
+    xFrac: empresaStampX / pageWidth,
+    yFrac: empresaStampTopY / pageHeight,
+    widthFrac: empresaStampWidthMm / pageWidth,
+    heightFrac: empresaStampHeightMm / pageHeight,
+  };
+
+  // Espelho do anchor da empresa, do lado esquerdo (linha "Colaborador") -- usado depois pela
+  // intranet pra carimbar a assinatura do colaborador sobre o mesmo PDF ja assinado pela empresa.
+  const colaboradorStampWidthMm = sigWidth * 0.8;
+  const colaboradorStampHeightMm = 12;
+  const colaboradorStampX = marginX + (sigWidth - colaboradorStampWidthMm) / 2;
+  const colaboradorStampTopY = sigY - colaboradorStampHeightMm - 2;
+  const colaboradorSignatureAnchor = {
+    pageIndex: 0,
+    xFrac: colaboradorStampX / pageWidth,
+    yFrac: colaboradorStampTopY / pageHeight,
+    widthFrac: colaboradorStampWidthMm / pageWidth,
+    heightFrac: colaboradorStampHeightMm / pageHeight,
+  };
+
   const footerY = doc.internal.pageSize.getHeight();
   doc.setFillColor(230, 0, 18);
   doc.rect(0, footerY - 8, pageWidth, 8, 'F');
@@ -453,20 +499,43 @@ async function generateTermoPDF(employee, assets, options = {}) {
 
   const filename = `Termo_${sanitizeFileName(employee.full_name || 'colaborador', 'termo-posse')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 
+  if (options.returnArrayBuffer) {
+    const arrayBuffer = doc.output('arraybuffer');
+    return { arrayBuffer, filename, empresaSignatureAnchor, colaboradorSignatureAnchor };
+  }
+
   if (options.returnBlob) {
     const blob = doc.output('blob');
-    return { blob, filename };
+    return { blob, filename, empresaSignatureAnchor, colaboradorSignatureAnchor };
   }
 
   doc.save(filename);
-  return { filename };
+  return { filename, empresaSignatureAnchor, colaboradorSignatureAnchor };
 }
 
 export default function TermsPossession() {
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [feedback, setFeedback] = useState(null);
+  const [pendingActions, setPendingActions] = useState(/** @type {Record<string, Record<string, boolean>>} */ ({}));
+
+  /**
+   * @param {string} collaboratorId
+   * @param {string} action
+   * @param {boolean} value
+   */
+  const setActionPending = (collaboratorId, action, value) => {
+    setPendingActions((prev) => {
+      const current = prev[collaboratorId] || {};
+      if (Boolean(current[action]) === value) return prev;
+      return {
+        ...prev,
+        [collaboratorId]: { ...current, [action]: value },
+      };
+    });
+  };
 
   const collaboratorsQuery = useQuery({ queryKey: ['colaboradores'], queryFn: catalogApi.colaboradores.list });
   const assetsQuery = useQuery({ queryKey: ['ativos'], queryFn: catalogApi.ativos.list });
@@ -585,10 +654,7 @@ export default function TermsPossession() {
   const generatePdfMutation = useMutation({
     mutationFn: async ({ collaborator, assets: linkedAssets, latestTermsByAsset }) => {
       const ensuredTerms = await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
-      const { employee, normalizedAssets } = buildPdfPayload(collaborator, linkedAssets);
-
-      const result = await generateTermoPDF(employee, normalizedAssets);
-      return { collaborator, ensuredTerms, filename: result.filename };
+      return { collaborator, ensuredTerms };
     },
     onSuccess: ({ collaborator, ensuredTerms }) => {
       queryClient.setQueryData(['termos_posse'], (old = []) => (
@@ -597,13 +663,91 @@ export default function TermsPossession() {
       queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
       setFeedback({
         type: 'success',
-        message: `PDF gerado com sucesso para ${collaborator.nome || collaborator.email}.`,
+        message: `Termo gerado com sucesso para ${collaborator.nome || collaborator.email}.`,
       });
     },
     onError: (error) => {
       setFeedback({
         type: 'error',
-        message: error.message || 'Nao foi possivel gerar o PDF do termo.',
+        message: error.message || 'Nao foi possivel gerar o termo.',
+      });
+    },
+  });
+
+  const signAsCompanyMutation = useMutation({
+    mutationFn: async ({ collaborator, assets: linkedAssets, latestTermsByAsset }) => {
+      if (!profile?.assinatura_url) {
+        throw new Error('Cadastre sua assinatura no Perfil da intranet antes de assinar como empresa.');
+      }
+
+      const ensuredTerms = await ensureTermRows(collaborator, linkedAssets, latestTermsByAsset);
+      const pendingTerms = ensuredTerms.filter((term) => term && term.status === 'gerado');
+
+      if (!pendingTerms.length) {
+        throw new Error('Nenhum termo pendente de assinatura da empresa para este colaborador.');
+      }
+
+      const { employee, normalizedAssets } = buildPdfPayload(collaborator, linkedAssets);
+      const signedTerms = [];
+
+      for (const term of pendingTerms) {
+        const { arrayBuffer, empresaSignatureAnchor, colaboradorSignatureAnchor } = await generateTermoPDF(
+          employee,
+          normalizedAssets,
+          { returnArrayBuffer: true },
+        );
+
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const signatureImage = await embedSignatureImage(pdfDoc, profile.assinatura_url);
+        await stampSignature(pdfDoc, {
+          ...empresaSignatureAnchor,
+          signatureImage,
+          signerName: profile.nome,
+          signedAt: new Date().toISOString(),
+          empresaNome: 'MACOM',
+        });
+
+        const signedBytes = await pdfDoc.save();
+        const signedFile = new File([signedBytes], `termo-assinado-empresa-${term.id}.pdf`, {
+          type: 'application/pdf',
+        });
+        const filePayload = await uploadSignedTermFile(signedFile, term.id);
+
+        await catalogApi.assinaturas_termo_posse.create({
+          termo_id: term.id,
+          colaborador_id: profile.id,
+          papel: 'empresa',
+          posicao: empresaSignatureAnchor,
+        });
+
+        const updatedTerm = await catalogApi.termos_posse.update(term.id, {
+          ...filePayload,
+          colaborador_anchor: colaboradorSignatureAnchor,
+        });
+
+        if (term.arquivo_path && term.arquivo_path !== filePayload.arquivo_path) {
+          await supabase.storage.from(SIGNED_FILE_BUCKET).remove([term.arquivo_path]);
+        }
+
+        signedTerms.push(updatedTerm);
+      }
+
+      return { collaborator, signedTerms };
+    },
+    onSuccess: ({ collaborator, signedTerms }) => {
+      queryClient.setQueryData(['termos_posse'], (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, signedTerms) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
+      setFeedback({
+        type: 'success',
+        message: `Termo assinado pela empresa para ${collaborator.nome || collaborator.email}.`,
+      });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: error.message || 'Nao foi possivel assinar o termo como empresa.',
       });
     },
   });
@@ -825,6 +969,7 @@ export default function TermsPossession() {
             <SelectContent>
               <SelectItem value="all">Todos os colaboradores</SelectItem>
               <SelectItem value="pendente">Pendentes</SelectItem>
+              <SelectItem value="assinado_empresa">Assinado pela empresa</SelectItem>
               <SelectItem value="assinado">Assinados</SelectItem>
               <SelectItem value="sem_termo">Sem termo</SelectItem>
             </SelectContent>
@@ -846,9 +991,18 @@ export default function TermsPossession() {
             const departmentName = departmentById.get(collaborator.departamento_id) || 'Sem departamento';
             const statusInfo = statusMeta[status];
             const StatusIcon = statusInfo.icon;
-            const isGenerating = generatePdfMutation.isPending && generatePdfMutation.variables?.collaborator?.id === collaborator.id;
-            const isSigning = markSignedMutation.isPending && markSignedMutation.variables?.collaborator?.id === collaborator.id;
-            const isSending = sendEmailMutation.isPending && sendEmailMutation.variables?.collaborator?.id === collaborator.id;
+            const collaboratorPending = pendingActions[collaborator.id] || {};
+            const isGenerating = Boolean(collaboratorPending.generating);
+            const isSigning = Boolean(collaboratorPending.signing);
+            const isSending = Boolean(collaboratorPending.sending);
+            const isCompanySigning = Boolean(collaboratorPending.companySigning);
+            const hasPendingCompanySignature = termRows.some((term) => term.status === 'gerado');
+            const hasAssetsAwaitingTerm = linkedAssets.some((asset) => {
+              const term = latestTermsByAsset[asset.id];
+              return !term || ['cancelado', 'devolvido'].includes(term.status);
+            });
+            const companySigned = status === 'assinado_empresa' || status === 'assinado';
+            const collaboratorSigned = status === 'assinado';
 
             return (
               <Card
@@ -876,6 +1030,34 @@ export default function TermsPossession() {
                       {statusInfo.label}
                     </div>
 
+                    {hasAssetsAwaitingTerm && (
+                      <div className="mb-3 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                        <FileText className="h-3 w-3" />
+                        Equipamento sem termo gerado
+                      </div>
+                    )}
+
+                    {status !== 'sem_termo' && (
+                      <div className="mb-3 space-y-1 rounded-md border border-border bg-background/60 px-2.5 py-1.5">
+                        <div
+                          className={`flex items-center gap-1.5 text-[11px] font-medium ${
+                            companySigned ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {companySigned ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Empresa {companySigned ? 'assinou' : 'ainda nao assinou'}
+                        </div>
+                        <div
+                          className={`flex items-center gap-1.5 text-[11px] font-medium ${
+                            collaboratorSigned ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {collaboratorSigned ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                          Colaborador {collaboratorSigned ? 'assinou' : 'ainda nao assinou'}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-1 text-xs text-muted-foreground">
                       <p>CPF: {formatCpf(collaborator.cpf)}</p>
                       <p className="break-all">{collaborator.email || '-'}</p>
@@ -887,19 +1069,61 @@ export default function TermsPossession() {
                     <div className="mt-5 space-y-2">
                       <Button
                         className="h-8 w-full rounded-lg bg-[#d1131f] px-2.5 text-[11px] font-semibold hover:bg-[#b50f1a]"
-                        onClick={() => generatePdfMutation.mutate({ collaborator, assets: linkedAssets, latestTermsByAsset })}
-                        disabled={isGenerating || isSigning || isSending}
+                        onClick={async () => {
+                          setActionPending(collaborator.id, 'generating', true);
+                          try {
+                            await generatePdfMutation.mutateAsync({ collaborator, assets: linkedAssets, latestTermsByAsset });
+                          } catch {
+                            /* feedback already handled by mutation onError */
+                          } finally {
+                            setActionPending(collaborator.id, 'generating', false);
+                          }
+                        }}
+                        disabled={isGenerating || isSigning || isSending || isCompanySigning}
                       >
-                        <Download className="mr-1.5 h-3 w-3" />
-                        {isGenerating ? 'Gerando PDF...' : 'Gerar Termo PDF'}
+                        <FileText className="mr-1.5 h-3 w-3" />
+                        {isGenerating ? 'Gerando...' : 'Gerar Termo'}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 w-full rounded-lg border-sky-200 bg-sky-50 px-2.5 text-[11px] text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-300 dark:hover:bg-sky-950/50"
+                        onClick={async () => {
+                          setActionPending(collaborator.id, 'companySigning', true);
+                          try {
+                            await signAsCompanyMutation.mutateAsync({ collaborator, assets: linkedAssets, latestTermsByAsset });
+                          } catch {
+                            /* feedback already handled by mutation onError */
+                          } finally {
+                            setActionPending(collaborator.id, 'companySigning', false);
+                          }
+                        }}
+                        disabled={
+                          isGenerating || isSigning || isSending || isCompanySigning ||
+                          !hasPendingCompanySignature || !profile?.assinatura_url
+                        }
+                        title={!profile?.assinatura_url ? 'Cadastre sua assinatura no Perfil da intranet para assinar termos.' : undefined}
+                      >
+                        <PenLine className="mr-1.5 h-3 w-3" />
+                        {isCompanySigning ? 'Assinando...' : 'Assinar como Empresa'}
                       </Button>
 
                       <Button
                         type="button"
                         variant="outline"
                         className="h-8 w-full rounded-lg px-2.5 text-[11px]"
-                        onClick={() => sendEmailMutation.mutate({ collaborator, assets: linkedAssets, latestTermsByAsset })}
-                        disabled={!collaborator.email || isGenerating || isSigning || isSending}
+                        onClick={async () => {
+                          setActionPending(collaborator.id, 'sending', true);
+                          try {
+                            await sendEmailMutation.mutateAsync({ collaborator, assets: linkedAssets, latestTermsByAsset });
+                          } catch {
+                            /* feedback already handled by mutation onError */
+                          } finally {
+                            setActionPending(collaborator.id, 'sending', false);
+                          }
+                        }}
+                        disabled={!collaborator.email || isGenerating || isSigning || isSending || isCompanySigning}
                       >
                         <Mail className="mr-1.5 h-3 w-3" />
                         {isSending ? 'Enviando...' : 'Enviar por Email'}
@@ -909,8 +1133,17 @@ export default function TermsPossession() {
                         type="button"
                         variant="outline"
                         className="h-8 w-full rounded-lg border-emerald-200 bg-emerald-50 px-2.5 text-[11px] text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
-                        onClick={() => markSignedMutation.mutate({ collaborator, assets: linkedAssets, latestTermsByAsset })}
-                        disabled={isGenerating || isSigning || isSending || !termRows.length || status === 'assinado'}
+                        onClick={async () => {
+                          setActionPending(collaborator.id, 'signing', true);
+                          try {
+                            await markSignedMutation.mutateAsync({ collaborator, assets: linkedAssets, latestTermsByAsset });
+                          } catch {
+                            /* feedback already handled by mutation onError */
+                          } finally {
+                            setActionPending(collaborator.id, 'signing', false);
+                          }
+                        }}
+                        disabled={isGenerating || isSigning || isSending || isCompanySigning || !termRows.length || status === 'assinado'}
                       >
                         <CheckCircle2 className="mr-1.5 h-3 w-3" />
                         {isSigning ? 'Atualizando...' : 'Marcar como Assinado'}

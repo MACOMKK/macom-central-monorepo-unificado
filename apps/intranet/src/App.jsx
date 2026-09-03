@@ -1,5 +1,6 @@
 import { BrandLoader, Toaster } from '@macom/ui';
 import React, { lazy } from 'react';
+import { Toaster as SonnerToaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
@@ -23,6 +24,7 @@ const Feedback = lazy(() => import('./pages/Feedback'));
 const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'));
 const PlatformGuide = lazy(() => import('./pages/PlatformGuide'));
 const Profile = lazy(() => import('./pages/Profile'));
+const EquipmentTerms = lazy(() => import('./pages/EquipmentTerms'));
 const Settings = lazy(() => import('./pages/Settings'));
 
 const ProtectedShell = () => {
@@ -104,6 +106,7 @@ function App() {
                 <Route path="/permissoes" element={<Navigate to="/configuracoes" replace />} />
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="/perfil" element={<Profile />} />
+                <Route path="/termo-equipamento" element={<EquipmentTerms />} />
                 <Route path="/guia" element={<PlatformGuide />} />
                 <Route path="/feedback" element={<ModuleRoute module="feedback"><Feedback /></ModuleRoute>} />
                 <Route path="/conhecimento" element={<ModuleRoute module="conhecimento"><KnowledgeBase /></ModuleRoute>} />
@@ -113,6 +116,7 @@ function App() {
           </Routes>
         </Router>
         <Toaster />
+        <SonnerToaster richColors position="top-right" />
       </QueryClientProvider>
     </AuthProvider>
   )

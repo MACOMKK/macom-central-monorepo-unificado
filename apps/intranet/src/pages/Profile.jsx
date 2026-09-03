@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronDown, Mail, MapPin, PenLine, Phone, Save, UserRound } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, BadgeCheck, Building2, Camera, ChevronDown, FileSignature, Mail, MapPin, PenLine, Phone, Save, UserRound } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { FeedbackToast, Skeleton } from '@macom/ui';
 
 import { appClient } from '@/api/client';
@@ -737,6 +737,13 @@ export default function Profile() {
               <PenLine className="h-4 w-4" />
               {profile?.signature_url ? 'Alterar assinatura' : 'Desenhar assinatura'}
             </button>
+            <Link
+              to="/termo-equipamento"
+              className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[#E30613] transition-colors hover:bg-red-50"
+            >
+              <FileSignature className="h-4 w-4" />
+              Assinar termo de equipamento
+            </Link>
           </div>
         </aside>
 

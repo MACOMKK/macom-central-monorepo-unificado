@@ -130,7 +130,15 @@ const ENTITY_CONFIG = {
       'observacoes',
       'assinado_em',
       'devolvido_em',
+      'colaborador_anchor',
     ],
+  },
+  assinaturas_termo_posse: {
+    schema: 'gestao_ativos',
+    table: 'assinaturas_termo_posse',
+    orderBy: 'assinado_em',
+    orderDirection: 'desc',
+    allowedFields: ['termo_id', 'colaborador_id', 'papel', 'posicao', 'assinado_em'],
   },
   fila_emails: {
     schema: 'notificacoes',
@@ -265,6 +273,7 @@ const CENTRAL_ENTITY_MODULES: Partial<Record<keyof typeof ENTITY_CONFIG, string>
   permissoes_central: 'permissoes_central',
   sistemas: 'acessos_usuario_sistema',
   termos_posse: 'termos_posse',
+  assinaturas_termo_posse: 'termos_posse',
   unidades: 'unidades',
 };
 
@@ -2391,6 +2400,48 @@ Deno.serve(async (request) => {
       return json({ row: rows[0] || null });
     }
 
+    if (action === 'create' && entity === 'assinaturas_termo_posse') {
+      const sanitized = sanitizePayload(entity, payload || {});
+      const termoId = typeof sanitized.termo_id === 'string' ? sanitized.termo_id : null;
+      const papel = typeof sanitized.papel === 'string' ? sanitized.papel : null;
+      const posicao = sanitized.posicao;
+
+      // Fase 1: so a via "empresa" existe ainda (assinada pelo admin logado, com a assinatura
+      // pessoal dele em public.colaboradores.assinatura_url). A via "colaborador" fica para a
+      // proxima fase.
+      if (!termoId || papel !== 'empresa' || !posicao) {
+        return json({ error: 'Dados invalidos para assinatura do termo.' }, 400);
+      }
+
+      const termoRows = await sql.unsafe(
+        `select * from gestao_ativos.termos_posse where id = $1 limit 1;`,
+        [termoId],
+      );
+      const termo = termoRows[0];
+      if (!termo) {
+        return json({ error: 'Termo de posse nao encontrado.' }, 404);
+      }
+      if (termo.status !== 'gerado') {
+        return json({ error: 'Este termo ja foi assinado pela empresa.' }, 400);
+      }
+
+      const rows = await sql.unsafe(
+        `
+          insert into gestao_ativos.assinaturas_termo_posse (termo_id, colaborador_id, papel, posicao)
+          values ($1, $2, 'empresa', $3::jsonb)
+          returning *;
+        `,
+        [termoId, authenticatedCollaboratorId, JSON.stringify(posicao)],
+      );
+
+      await sql.unsafe(
+        `update gestao_ativos.termos_posse set status = 'assinado_empresa', assinado_em = now() where id = $1;`,
+        [termoId],
+      );
+
+      return json({ row: rows[0] || null });
+    }
+
     if (action === 'create') {
       const sanitized = sanitizePayload(entity, payload);
       const normalized =
@@ -2537,6 +2588,9 @@ Deno.serve(async (request) => {
       if (entity === 'colaboradores') {
         delete sanitized.id;
       }
+      if (entity === 'termos_posse' && sanitized.colaborador_anchor && typeof sanitized.colaborador_anchor === 'object') {
+        sanitized.colaborador_anchor = JSON.stringify(sanitized.colaborador_anchor);
+      }
       const normalized =
         entity === 'ativos'
           ? normalizeAtivosPayload(sanitized)
@@ -2616,6 +2670,17 @@ Deno.serve(async (request) => {
         }
       }
       const query = buildUpdateQuery(schema, table, id, normalized);
+      if (entity === 'termos_posse' && 'colaborador_anchor' in normalized) {
+        // sem o cast explicito, o parametro chega como texto (OID 25) e alguns pgbouncers/versoes
+        // do postgres nao aplicam o assignment cast text -> jsonb automaticamente, gravando o
+        // JSON.stringify de cima como uma STRING dentro da coluna jsonb (double-encoded) em vez do
+        // objeto de fato -- foi exatamente isso que quebrou o stampSignature no lado do colaborador
+        // (pageIndex undefined ao espalhar uma string char-a-char).
+        query.text = query.text.replace(
+          /"colaborador_anchor" = (\$\d+)/,
+          '"colaborador_anchor" = $1::jsonb',
+        );
+      }
       const rows = await sql.unsafe(query.text, query.values);
       if (entity === 'ativos') {
         await insertCentralAuditLog({

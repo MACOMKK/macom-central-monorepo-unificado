@@ -5,6 +5,7 @@ import QuickAccessGrid from '../components/dashboard/QuickAccessGrid';
 import RecentAnnouncements from '../components/dashboard/RecentAnnouncements';
 import UpcomingEvents from '../components/dashboard/UpcomingEvents';
 import BirthdaysPanel from '../components/dashboard/BirthdaysPanel';
+import PendingEquipmentTermAlert from '../components/dashboard/PendingEquipmentTermAlert';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -17,6 +18,8 @@ export default function Dashboard() {
 
       {/* Quick access */}
       <QuickAccessGrid />
+
+      {!isBackendDegraded && <PendingEquipmentTermAlert />}
 
       {isBackendDegraded ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
