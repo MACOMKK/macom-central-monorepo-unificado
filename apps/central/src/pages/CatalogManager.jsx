@@ -96,7 +96,7 @@ function formatPhone(phone) {
 }
 
 const ENTITY_DEPENDENCIES = {
-  ativos: ['ativos', 'colaboradores', 'unidades'],
+  ativos: ['ativos', 'colaboradores', 'unidades', 'ativos_historico_posse'],
   cargos: ['cargos', 'departamentos', 'colaboradores'],
   colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'empresas', 'unidades', 'sistemas', 'acessos_usuario_sistema', 'termos_posse'],
   contatos: ['contatos', 'unidades'],
@@ -142,6 +142,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const [assigningCorporateLine, setAssigningCorporateLine] = useState(null);
   const [viewingPosition, setViewingPosition] = useState(null);
   const [viewingCollaboratorLinks, setViewingCollaboratorLinks] = useState(null);
+  const [viewingAssetLinks, setViewingAssetLinks] = useState(null);
   const [importAssetsOpen, setImportAssetsOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importAssetsPreview, setImportAssetsPreview] = useState([]);
@@ -232,6 +233,11 @@ export default function CatalogManager({ lockedEntityKey }) {
     queryFn: catalogApi.termos_posse.list,
     enabled: requiresEntity('termos_posse'),
   });
+  const assetOwnershipHistoryQuery = useQuery({
+    queryKey: ['ativos_historico_posse'],
+    queryFn: catalogApi.ativos_historico_posse.list,
+    enabled: requiresEntity('ativos_historico_posse'),
+  });
   const systemsQuery = useQuery({
     queryKey: ['sistemas'],
     queryFn: systemAccessApi.systems.list,
@@ -254,6 +260,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const assets = assetsQuery.data || [];
   const infraRows = infraQuery.data || [];
   const terms = termsQuery.data || [];
+  const assetOwnershipHistory = assetOwnershipHistoryQuery.data || [];
   const systems = systemsQuery.data || [];
   const systemAccesses = systemAccessesQuery.data || [];
 
@@ -316,6 +323,41 @@ export default function CatalogManager({ lockedEntityKey }) {
       }, {}),
     [terms]
   );
+
+  const linkedOwnershipHistoryByAssetId = useMemo(() => {
+    const collaboratorsById = collaborators.reduce((acc, collaborator) => {
+      acc[collaborator.id] = collaborator;
+      return acc;
+    }, {});
+
+    return assetOwnershipHistory.reduce((acc, entry) => {
+      if (!entry.ativo_id) return acc;
+      if (!acc[entry.ativo_id]) acc[entry.ativo_id] = [];
+      acc[entry.ativo_id].push({
+        ...entry,
+        colaborador_anterior_nome: collaboratorsById[entry.colaborador_anterior_id]?.nome || null,
+        colaborador_novo_nome: collaboratorsById[entry.colaborador_novo_id]?.nome || null,
+      });
+      return acc;
+    }, {});
+  }, [assetOwnershipHistory, collaborators]);
+
+  const linkedTermsByAssetId = useMemo(() => {
+    const collaboratorsById = collaborators.reduce((acc, collaborator) => {
+      acc[collaborator.id] = collaborator;
+      return acc;
+    }, {});
+
+    return terms.reduce((acc, term) => {
+      if (!term.ativo_id) return acc;
+      if (!acc[term.ativo_id]) acc[term.ativo_id] = [];
+      acc[term.ativo_id].push({
+        ...term,
+        colaborador_nome: collaboratorsById[term.colaborador_id]?.nome || null,
+      });
+      return acc;
+    }, {});
+  }, [terms, collaborators]);
 
   const viewingPositionCollaborators = useMemo(() => {
     if (!viewingPosition?.id) return [];
@@ -463,6 +505,7 @@ export default function CatalogManager({ lockedEntityKey }) {
   const queryStatesByEntity = {
     acessos_usuario_sistema: systemAccessesQuery,
     ativos: assetsQuery,
+    ativos_historico_posse: assetOwnershipHistoryQuery,
     cargos: positionsQuery,
     colaboradores: collaboratorsQuery,
     contatos: contactsQuery,
@@ -1126,7 +1169,7 @@ export default function CatalogManager({ lockedEntityKey }) {
           onEdit={setEditingRecord}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
-          onRowClick={setViewingCollaboratorLinks}
+          onRowClick={lockedEntityKey === 'ativos' ? setViewingAssetLinks : setViewingCollaboratorLinks}
           onToggleAllRows={handleToggleAllBulkRows}
           onToggleRowSelection={handleToggleBulkSelection}
           page={currentPage}
@@ -1199,6 +1242,22 @@ export default function CatalogManager({ lockedEntityKey }) {
             }),
           open: assigningCorporateLine !== null,
           record: assigningCorporateLine,
+        }}
+        assetLinks={{
+          asset: viewingAssetLinks,
+          collaborator: viewingAssetLinks
+            ? collaborators.find((item) => item.id === viewingAssetLinks.usuario_id) || null
+            : null,
+          onOpenChange: (open) => {
+            if (!open) setViewingAssetLinks(null);
+          },
+          open: viewingAssetLinks !== null,
+          ownershipHistory: viewingAssetLinks ? linkedOwnershipHistoryByAssetId[viewingAssetLinks.id] || [] : [],
+          statusTone,
+          terms: viewingAssetLinks ? linkedTermsByAssetId[viewingAssetLinks.id] || [] : [],
+          unitName: viewingAssetLinks
+            ? units.find((item) => item.id === viewingAssetLinks.unidade_id)?.nome || 'Sem unidade'
+            : 'Sem unidade',
         }}
       />
 

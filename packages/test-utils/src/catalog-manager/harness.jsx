@@ -21,6 +21,7 @@ vi.mock('@/lib/catalogApi', () => ({
     empresas: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     contatos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     ativos: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+    ativos_historico_posse: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     infra_estrutura: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     linhas_corporativas: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
     termos_posse: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
@@ -473,6 +474,7 @@ export function resetCatalogManagerMocks() {
   catalogApi.linhas_corporativas.create.mockResolvedValue({ id: 'line-created' });
   catalogApi.linhas_corporativas.remove.mockResolvedValue(true);
   catalogApi.termos_posse.list.mockResolvedValue([]);
+  catalogApi.ativos_historico_posse.list.mockResolvedValue([]);
   catalogApi.ativos.remove.mockImplementation(deleteMutateMock);
   catalogApi.ativos.create.mockResolvedValue({ id: 'asset-created' });
   catalogApi.ativos.update.mockResolvedValue({ id: 'asset-updated' });

@@ -1,9 +1,11 @@
 import AssetAssignmentDialog from '@/pages/catalog-manager/components/AssetAssignmentDialog';
+import AssetLinksDialog from '@/pages/catalog-manager/components/AssetLinksDialog';
 import CollaboratorLinksDialog from '@/pages/catalog-manager/components/CollaboratorLinksDialog';
 import CorporateLineAssignmentDialog from '@/pages/catalog-manager/components/CorporateLineAssignmentDialog';
 
 export default function CatalogAuxDialogs({
   assetAssignment,
+  assetLinks,
   collaboratorLinks,
   corporateLineAssignment,
 }) {
@@ -40,6 +42,17 @@ export default function CatalogAuxDialogs({
         systems={collaboratorLinks.systems}
         terms={collaboratorLinks.terms}
         unitName={collaboratorLinks.unitName}
+      />
+
+      <AssetLinksDialog
+        asset={assetLinks.asset}
+        collaborator={assetLinks.collaborator}
+        onOpenChange={assetLinks.onOpenChange}
+        open={assetLinks.open}
+        ownershipHistory={assetLinks.ownershipHistory}
+        statusTone={assetLinks.statusTone}
+        terms={assetLinks.terms}
+        unitName={assetLinks.unitName}
       />
     </>
   );

@@ -45,6 +45,7 @@ export default function CatalogEntityTable({
   const menuType = MENU_TYPES_BY_ENTITY[entityKey];
   const isCenteredActions = Boolean(menuType);
   const isCollaborators = entityKey === 'colaboradores';
+  const isRowClickable = isCollaborators || entityKey === 'ativos';
   const showSelection = canManage && Boolean(SELECTION_LABELS_BY_ENTITY[entityKey]);
   const selectionLabel = SELECTION_LABELS_BY_ENTITY[entityKey];
   const colSpan = columns.length + (canManage ? 1 : 0) + (showSelection ? 1 : 0);
@@ -77,8 +78,8 @@ export default function CatalogEntityTable({
         rows.map((row) => (
           <TableRow
             key={row.id}
-            className={`transition-colors hover:bg-muted/30 ${isCollaborators ? 'cursor-pointer' : ''}`}
-            onClick={isCollaborators ? () => onRowClick?.(row) : undefined}
+            className={`transition-colors hover:bg-muted/30 ${isRowClickable ? 'cursor-pointer' : ''}`}
+            onClick={isRowClickable ? () => onRowClick?.(row) : undefined}
           >
             {showSelection ? (
               <TableCell onClick={(event) => event.stopPropagation()}>

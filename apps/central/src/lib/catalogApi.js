@@ -137,6 +137,9 @@ export const catalogApi = {
   ativos: {
     ...buildCentralEntity('ativos'),
   },
+  ativos_historico_posse: {
+    ...buildCentralEntity('ativos_historico_posse'),
+  },
   infra_estrutura: {
     ...buildCentralEntity('infra_estrutura'),
   },

@@ -14,6 +14,7 @@ import {
   Monitor,
   Paperclip,
   PenLine,
+  RotateCcw,
   Search,
   UserRound,
 } from 'lucide-react';
@@ -119,6 +120,23 @@ async function uploadSignedTermFile(file, termId) {
     arquivo_nome: preparedFile.name,
     arquivo_tipo: preparedFile.type || null,
     arquivo_tamanho: preparedFile.size || null,
+  };
+}
+
+async function uploadDevolucaoReceipt(blob, filename, termId) {
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  const storagePath = `${SIGNED_FILE_FOLDER}/${termId}/devolucao-${Date.now()}-${sanitizeFileName(filename, 'comprovante-devolucao')}`;
+  const { error } = await supabase.storage.from(SIGNED_FILE_BUCKET).upload(storagePath, file, { upsert: true });
+
+  if (error) {
+    throw new Error(error.message || 'Nao foi possivel salvar o comprovante de devolucao.');
+  }
+
+  return {
+    arquivo_devolucao_path: storagePath,
+    arquivo_devolucao_nome: filename,
+    arquivo_devolucao_tipo: file.type || null,
+    arquivo_devolucao_tamanho: file.size || null,
   };
 }
 
@@ -511,6 +529,143 @@ async function generateTermoPDF(employee, assets, options = {}) {
 
   doc.save(filename);
   return { filename, empresaSignatureAnchor, colaboradorSignatureAnchor };
+}
+
+async function generateDevolucaoPDF(employee, asset, registeredBy) {
+  const doc = new jsPDF({
+    unit: 'mm',
+    format: 'a4',
+  });
+  const marginX = 14;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - marginX * 2;
+  let y = 18;
+
+  doc.setFillColor(230, 0, 18);
+  doc.rect(0, 0, pageWidth, 12, 'F');
+
+  try {
+    const logo = await loadImage(LOGO_URL);
+    doc.addImage(logo, 'PNG', marginX, 15, 14, 14);
+  } catch {}
+
+  y = 23;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(230, 0, 18);
+  doc.text('MACOM', marginX + 18, y);
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(120, 120, 120);
+  doc.setFont('helvetica', 'normal');
+  doc.text('MITSUBISHI MOTORS | Gestao de Ativos TI', marginX + 18, y + 6);
+  const today = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text(`Belem/PA, ${today}`, pageWidth - marginX, 8, { align: 'right' });
+
+  y = 42;
+  doc.setFillColor(245, 245, 245);
+  doc.rect(marginX, y - 6, contentWidth, 14, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30, 30, 30);
+  doc.text('COMPROVANTE DE DEVOLUCAO DE EQUIPAMENTO', pageWidth / 2, y + 2, { align: 'center' });
+
+  y = 56;
+  doc.setFillColor(230, 0, 18);
+  doc.rect(marginX, y, 3, 10, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(30, 30, 30);
+  doc.text('DADOS DO COLABORADOR', marginX + 7, y + 7);
+
+  y += 14;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+
+  const employeeData = [
+    ['Nome:', employee.full_name || '-'],
+    ['CPF:', employee.cpf || '-'],
+    ['Email:', employee.email || '-'],
+    ['Departamento:', employee.department || '-'],
+    ['Cargo:', employee.role || '-'],
+  ];
+
+  employeeData.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, marginX + 5, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(value || '-'), marginX + 40, y);
+    y += 5.6;
+  });
+
+  y += 5;
+  doc.setFillColor(230, 0, 18);
+  doc.rect(marginX, y, 3, 10, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(30, 30, 30);
+  doc.text('EQUIPAMENTO DEVOLVIDO', marginX + 7, y + 7);
+  y += 14;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+
+  const assetData = [
+    ['Codigo:', asset.tag || '-'],
+    ['Equipamento:', `${categoryLabels[asset.category] || ''} ${asset.name || ''}`.trim() || '-'],
+    ['N Serie:', asset.serial_number || '-'],
+    ['Marca/Modelo:', `${asset.brand || ''} ${asset.model || ''}`.trim() || '-'],
+    ['Estado na devolucao:', conditionLabels[asset.condition] || '-'],
+  ];
+
+  assetData.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, marginX + 5, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(value || '-'), marginX + 45, y);
+    y += 5.6;
+  });
+
+  y += 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.2);
+  doc.setTextColor(60, 60, 60);
+  const declaration = doc.splitTextToSize(
+    `Fica registrado que o equipamento acima descrito foi devolvido pelo colaborador ${employee.full_name || '-'} ` +
+      `ao Departamento de TI da MACOM em ${format(new Date(), "dd/MM/yyyy 'as' HH:mm", { locale: ptBR })}, ` +
+      'encerrando o vinculo de responsabilidade do colaborador sobre este ativo.',
+    contentWidth - 10,
+  );
+  doc.text(declaration, marginX + 5, y);
+  y += declaration.length * 3.7 + 10;
+
+  const sigY = Math.min(y + 10, pageHeight - 24);
+  doc.setDrawColor(180, 180, 180);
+  doc.line(marginX, sigY, marginX + contentWidth, sigY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 30, 30);
+  doc.text(`Registrado por: ${registeredBy || 'Departamento de TI'}`, marginX, sigY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text('MACOM Mitsubishi - Gestao de Ativos TI', marginX, sigY + 10);
+
+  const footerY = doc.internal.pageSize.getHeight();
+  doc.setFillColor(230, 0, 18);
+  doc.rect(0, footerY - 8, pageWidth, 8, 'F');
+  doc.setFontSize(6);
+  doc.setTextColor(255, 255, 255);
+  doc.text('MACOM Mitsubishi Motors - Gestao de Ativos TI', pageWidth / 2, footerY - 3, { align: 'center' });
+
+  const filename = `Devolucao_${sanitizeFileName(employee.full_name || 'colaborador', 'devolucao')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+  const blob = doc.output('blob');
+  return { blob, filename };
 }
 
 export default function TermsPossession() {
@@ -938,6 +1093,38 @@ export default function TermsPossession() {
     },
   });
 
+  const registerReturnMutation = useMutation({
+    mutationFn: async ({ term, asset, collaborator }) => {
+      const now = new Date().toISOString();
+      const { employee, normalizedAssets } = buildPdfPayload(collaborator, [asset]);
+      const { blob, filename } = await generateDevolucaoPDF(employee, normalizedAssets[0], profile?.nome);
+      const filePayload = await uploadDevolucaoReceipt(blob, filename, term.id);
+
+      const updatedTerm = await catalogApi.termos_posse.update(term.id, {
+        status: 'devolvido',
+        devolvido_em: now,
+        ...filePayload,
+      });
+      await catalogApi.ativos.update(asset.id, { usuario_id: null });
+      return updatedTerm;
+    },
+    onSuccess: (updatedTerm) => {
+      queryClient.setQueryData(['termos_posse'], (old = []) => (
+        Array.isArray(old) ? upsertTerms(old, updatedTerm) : old
+      ));
+      queryClient.invalidateQueries({ queryKey: ['termos_posse'] });
+      queryClient.invalidateQueries({ queryKey: ['ativos'] });
+      queryClient.invalidateQueries({ queryKey: ['ativos_historico_posse'] });
+      setFeedback({ type: 'success', message: 'Devolucao registrada e equipamento desvinculado do colaborador.' });
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: error.message || 'Nao foi possivel registrar a devolucao.',
+      });
+    },
+  });
+
   const isLoading =
     collaboratorsQuery.isLoading ||
     assetsQuery.isLoading ||
@@ -1161,6 +1348,7 @@ export default function TermsPossession() {
                         const term = latestTermsByAsset[asset.id];
                         const inputId = `signed-file-${asset.id}`;
                         const isAttaching = attachSignedFileMutation.isPending && attachSignedFileMutation.variables?.term?.id === term?.id;
+                        const isReturning = registerReturnMutation.isPending && registerReturnMutation.variables?.asset?.id === asset.id;
 
                         return (
                           <div
@@ -1229,6 +1417,37 @@ export default function TermsPossession() {
                                 Gere o termo para poder anexar o comprovante assinado.
                               </p>
                             )}
+
+                            {term?.status === 'assinado' ? (
+                              <div className="pl-6">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 rounded-md border-amber-200 bg-amber-50 px-2 text-xs text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                                  onClick={() => registerReturnMutation.mutate({ term, asset, collaborator })}
+                                  disabled={isReturning}
+                                >
+                                  <RotateCcw className="mr-1.5 h-3 w-3" />
+                                  {isReturning ? 'Registrando...' : 'Registrar devolucao'}
+                                </Button>
+                              </div>
+                            ) : term?.status === 'devolvido' ? (
+                              <div className="flex items-center gap-2 pl-6">
+                                <p className="text-xs text-muted-foreground">
+                                  Devolvido em {formatDateTime(term.devolvido_em)}
+                                </p>
+                                {term.arquivo_devolucao_path ? (
+                                  <button
+                                    type="button"
+                                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                                    onClick={() => openSignedTermFile(term.arquivo_devolucao_path)}
+                                  >
+                                    Baixar comprovante
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}

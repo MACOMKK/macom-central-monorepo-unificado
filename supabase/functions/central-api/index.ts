@@ -127,6 +127,10 @@ const ENTITY_CONFIG = {
       'arquivo_nome',
       'arquivo_tipo',
       'arquivo_tamanho',
+      'arquivo_devolucao_path',
+      'arquivo_devolucao_nome',
+      'arquivo_devolucao_tipo',
+      'arquivo_devolucao_tamanho',
       'observacoes',
       'assinado_em',
       'devolvido_em',
@@ -233,6 +237,13 @@ const ENTITY_CONFIG = {
     orderBy: 'modulo',
     allowedFields: ['id', 'funcao', 'modulo', 'nivel_acesso'],
   },
+  ativos_historico_posse: {
+    schema: 'gestao_ativos',
+    table: 'ativos_historico_posse',
+    orderBy: 'alterado_em',
+    orderDirection: 'desc',
+    allowedFields: ['ativo_id', 'colaborador_anterior_id', 'colaborador_novo_id'],
+  },
 } as const;
 
 const CENTRAL_MODULES = [
@@ -275,12 +286,13 @@ const CENTRAL_ENTITY_MODULES: Partial<Record<keyof typeof ENTITY_CONFIG, string>
   termos_posse: 'termos_posse',
   assinaturas_termo_posse: 'termos_posse',
   unidades: 'unidades',
+  ativos_historico_posse: 'ativos',
 };
 
 const CENTRAL_MODULE_READ_ENTITIES: Record<string, Array<keyof typeof ENTITY_CONFIG>> = {
   dashboard: [],
   acessos_usuario_sistema: ['acessos_usuario_sistema', 'colaboradores', 'sistemas'],
-  ativos: ['ativos', 'colaboradores', 'unidades'],
+  ativos: ['ativos', 'colaboradores', 'unidades', 'ativos_historico_posse'],
   cargos: ['cargos', 'departamentos', 'colaboradores'],
   colaboradores: [
     'colaboradores',
@@ -2699,6 +2711,17 @@ Deno.serve(async (request) => {
             },
           }),
         });
+        if ('usuario_id' in normalized && (beforeRow?.usuario_id ?? null) !== (rows[0]?.usuario_id ?? null)) {
+          await sql.unsafe(
+            `
+              insert into gestao_ativos.ativos_historico_posse (
+                ativo_id, colaborador_anterior_id, colaborador_novo_id, alterado_por
+              )
+              values ($1, $2, $3, $4);
+            `,
+            [id, beforeRow?.usuario_id ?? null, rows[0]?.usuario_id ?? null, user.id ?? null],
+          );
+        }
       }
       if (entity === 'linhas_corporativas') {
         await insertCentralAuditLog({
