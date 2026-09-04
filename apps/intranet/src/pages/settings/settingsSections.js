@@ -1,6 +1,7 @@
-import { History, Network, UserCog, UserRoundCheck } from 'lucide-react';
+import { Cake, History, Network, UserCog, UserRoundCheck } from 'lucide-react';
 
 import AccessLogSection from './sections/AccessLogSection';
+import BirthdayTemplateSection from './sections/BirthdayTemplateSection';
 import ModulePermissionsSection from './sections/ModulePermissionsSection';
 import NetworkAccessSection from './sections/NetworkAccessSection';
 import ProfileRequestsSection from './sections/ProfileRequestsSection';
@@ -37,5 +38,13 @@ export const settingsSections = [
     description: 'Historico de logins realizados na intranet.',
     icon: History,
     component: AccessLogSection,
+  },
+  {
+    key: 'birthday-template',
+    group: 'Comunicacao',
+    label: 'Template de aniversario',
+    description: 'Conteudo do e-mail de aniversario (uso futuro).',
+    icon: Cake,
+    component: BirthdayTemplateSection,
   },
 ];

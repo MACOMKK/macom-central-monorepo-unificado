@@ -1912,6 +1912,115 @@ function normalizeAnchor(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+// Template editavel (RH) do corpo do e-mail de aniversario -- registro unico (sem multi-linha
+// ativa, ao contrario de gestao_intranet.avisos). Hoje esta tabela NAO e lida pela Edge Function
+// intranet-notifica-aniversariante (que continua usando montarCorpoEmail() fixo em codigo) -- isso
+// e proposital, a troca de fonte fica para uma etapa futura separada. Reaproveita o bucket "avisos"
+// (mesmo padrao de imagem que gestao_intranet.avisos) em vez de criar um bucket dedicado.
+async function getBirthdayTemplateImageSignedUrl(row: Record<string, unknown> | null) {
+  const imagePath = typeof row?.imagem_path === 'string' ? row.imagem_path.trim() : '';
+  if (!row || !imagePath) {
+    return typeof row?.imagem_url === 'string' ? row.imagem_url : null;
+  }
+
+  const storageClient = createStorageAdminClient();
+  if (!storageClient) {
+    return typeof row.imagem_url === 'string' ? row.imagem_url : null;
+  }
+
+  const { data, error } = await storageClient.storage
+    .from(ANNOUNCEMENT_IMAGES_STORAGE_BUCKET)
+    .createSignedUrl(imagePath, ANNOUNCEMENT_IMAGE_SIGNED_URL_TTL_SECONDS);
+
+  if (error) {
+    console.error('Failed to create signed birthday template image URL:', { imagePath, message: error.message });
+    return typeof row.imagem_url === 'string' ? row.imagem_url : null;
+  }
+
+  return data?.signedUrl || null;
+}
+
+function mapBirthdayTemplate(row: Record<string, unknown> | null, signedImageUrl: string | null) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    titulo: row.titulo,
+    corpo_texto: row.corpo_texto,
+    corpo_html: row.corpo_html || null,
+    imagem_url: signedImageUrl,
+    imagem_path: row.imagem_path || null,
+    imagem_nome: row.imagem_nome || null,
+    imagem_tipo: row.imagem_tipo || null,
+    imagem_tamanho: row.imagem_tamanho || null,
+    ativo: Boolean(row.ativo),
+    atualizado_em: row.atualizado_em,
+  };
+}
+
+async function fetchBirthdayTemplateRow() {
+  const rows = await runSql<Record<string, unknown>>(
+    `select * from gestao_intranet.template_aniversario order by criado_em desc limit 1;`,
+  );
+  return rows[0] || null;
+}
+
+async function getBirthdayTemplate() {
+  const row = await fetchBirthdayTemplateRow();
+  const signedImageUrl = await getBirthdayTemplateImageSignedUrl(row);
+  return mapBirthdayTemplate(row, signedImageUrl);
+}
+
+async function saveBirthdayTemplate(
+  authClient: ReturnType<typeof createClient>,
+  payload: Record<string, unknown>,
+  collaboratorId: string | null,
+) {
+  const titulo = typeof payload.titulo === 'string' ? payload.titulo.trim() : '';
+  const corpoTexto = typeof payload.corpo_texto === 'string' ? payload.corpo_texto.trim() : '';
+  if (!titulo || !corpoTexto) {
+    throw new Error('Titulo e corpo do texto sao obrigatorios.');
+  }
+
+  const corpoHtml = typeof payload.corpo_html === 'string' && payload.corpo_html.trim() ? payload.corpo_html : null;
+  const imagemUrl = typeof payload.imagem_url === 'string' && payload.imagem_url ? payload.imagem_url : null;
+  const imagemPath = typeof payload.imagem_path === 'string' && payload.imagem_path ? payload.imagem_path : null;
+  const imagemNome = typeof payload.imagem_nome === 'string' && payload.imagem_nome ? payload.imagem_nome : null;
+  const imagemTipo = typeof payload.imagem_tipo === 'string' && payload.imagem_tipo ? payload.imagem_tipo : null;
+  const imagemTamanho = typeof payload.imagem_tamanho === 'number' ? payload.imagem_tamanho : null;
+
+  const existing = await fetchBirthdayTemplateRow();
+
+  if (existing) {
+    const previousPath = typeof existing.imagem_path === 'string' ? existing.imagem_path : '';
+    if (previousPath && previousPath !== imagemPath) {
+      await deleteStorageFile(authClient, previousPath, ANNOUNCEMENT_IMAGES_STORAGE_BUCKET).catch((error) =>
+        console.error('Failed to delete previous birthday template image:', error),
+      );
+    }
+
+    await runSql(
+      `
+        update gestao_intranet.template_aniversario
+        set titulo = $1, corpo_texto = $2, corpo_html = $3, imagem_url = $4, imagem_path = $5,
+            imagem_nome = $6, imagem_tipo = $7, imagem_tamanho = $8, atualizado_por = $9
+        where id = $10;
+      `,
+      [titulo, corpoTexto, corpoHtml, imagemUrl, imagemPath, imagemNome, imagemTipo, imagemTamanho, collaboratorId, existing.id],
+    );
+  } else {
+    await runSql(
+      `
+        insert into gestao_intranet.template_aniversario
+          (titulo, corpo_texto, corpo_html, imagem_url, imagem_path, imagem_nome, imagem_tipo, imagem_tamanho, atualizado_por)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+      `,
+      [titulo, corpoTexto, corpoHtml, imagemUrl, imagemPath, imagemNome, imagemTipo, imagemTamanho, collaboratorId],
+    );
+  }
+
+  return getBirthdayTemplate();
+}
+
 // 2a via da assinatura do Termo de Posse: o colaborador assina, no browser da intranet, o mesmo
 // PDF que a empresa ja assinou no Central (Fase 1). O bucket central-anexos tem RLS restrita a
 // quem tem acesso ao app central (ver central_module_access), entao um colaborador comum nao
@@ -4933,6 +5042,17 @@ Deno.serve(async (request) => {
         }));
       }
       return json({ error: 'Acao de termo de posse invalida.' }, 400);
+    }
+
+    if (resource === 'birthdayTemplate') {
+      assertAdmin(context.user as Record<string, unknown>);
+      if (action === 'get') {
+        return json({ data: await getBirthdayTemplate() });
+      }
+      if (action === 'save') {
+        return json({ data: await saveBirthdayTemplate(authClient, payload as Record<string, unknown>, context.collaboratorId) });
+      }
+      return json({ error: 'Acao de template de aniversario invalida.' }, 400);
     }
 
     if (resource === 'employeeNotifications') {

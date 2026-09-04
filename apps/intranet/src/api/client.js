@@ -103,6 +103,26 @@ async function uploadAnnouncementImage(file) {
   };
 }
 
+async function uploadBirthdayTemplateImage(file) {
+  if (file?.type && !ALLOWED_ANNOUNCEMENT_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Formato de imagem não suportado. Use JPG, PNG ou WebP.');
+  }
+
+  const { publicUrl, filePath } = await uploadToBucket(
+    file,
+    ANNOUNCEMENT_IMAGE_STORAGE_BUCKET,
+    MAX_ANNOUNCEMENT_IMAGE_FILE_SIZE,
+    'aniversario',
+  );
+  return {
+    imagem_url: publicUrl,
+    imagem_path: filePath,
+    imagem_nome: file.name,
+    imagem_tipo: file.type || null,
+    imagem_tamanho: Number.isFinite(file.size) ? file.size : null,
+  };
+}
+
 async function uploadAvatar(file, collaboratorId) {
   assertSupabaseConfigured();
 
@@ -315,6 +335,7 @@ export const appClient = {
   storage: {
     uploadFile,
     uploadAnnouncementImage,
+    uploadBirthdayTemplateImage,
     uploadAvatar,
     deleteAvatar,
     uploadSignature,
@@ -386,6 +407,16 @@ export const appClient = {
 
     sign(options) {
       return intranetApi.possessionTerms.sign(options);
+    },
+  },
+
+  birthdayTemplate: {
+    get() {
+      return intranetApi.birthdayTemplate.get();
+    },
+
+    save(payload) {
+      return intranetApi.birthdayTemplate.save(payload);
     },
   },
 

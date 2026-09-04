@@ -263,6 +263,16 @@ export const intranetApi = {
       };
     },
   },
+  birthdayTemplate: {
+    async get() {
+      const result = await invokeIntranet({ resource: 'birthdayTemplate', action: 'get' });
+      return result.data || null;
+    },
+    async save(payload) {
+      const result = await invokeIntranet({ resource: 'birthdayTemplate', action: 'save', payload });
+      return result.data || null;
+    },
+  },
   possessionTerms: {
     async list() {
       const result = await invokeIntranet({ resource: 'possessionTerms', action: 'list' });
