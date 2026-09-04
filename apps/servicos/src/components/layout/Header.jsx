@@ -114,6 +114,8 @@ export default function Header({ onOpenMobileMenu }) {
           profile={profileQuery.data}
           loading={profileQuery.isLoading}
           error={profileQuery.error}
+          isOwnProfile
+          signatureSetupUrl="https://macom-intranet.vercel.app/perfil"
         />
       </div>
     </header>

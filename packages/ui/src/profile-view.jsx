@@ -1,6 +1,6 @@
 'use client';
 
-import { Briefcase, Building2, CheckCircle2, Mail, MapPin, Phone, XCircle } from 'lucide-react';
+import { Briefcase, Building2, CheckCircle2, Mail, MapPin, PenLine, Phone, XCircle } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from './avatar';
 import { Badge } from './badge';
@@ -23,7 +23,7 @@ function getInitials(name) {
 // Conteudo puro (sem fetch) do perfil de um colaborador, somente leitura -- os mesmos dados
 // sociais preenchidos hoje em Profile.jsx na intranet, pra reuso em qualquer app que ja tenha o
 // `profile` carregado (cada app decide como buscar).
-export function ProfileView({ profile, loading, error }) {
+export function ProfileView({ profile, loading, error, isOwnProfile = false, signatureSetupUrl }) {
   if (loading) {
     return (
       <div className="space-y-4">
@@ -102,6 +102,17 @@ export function ProfileView({ profile, loading, error }) {
             <XCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
           <span>{profile.has_signature ? 'Assinatura cadastrada' : 'Assinatura não cadastrada'}</span>
+          {!profile.has_signature && isOwnProfile && signatureSetupUrl ? (
+            <a
+              href={signatureSetupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Cadastrar
+            </a>
+          ) : null}
         </div>
       </div>
 
@@ -154,7 +165,7 @@ export function ProfileView({ profile, loading, error }) {
 }
 
 // Mesmo conteudo dentro de um Dialog -- uso como modal (ex.: ao clicar no nome de um colaborador).
-export function ProfileViewDialog({ open, onOpenChange, profile, loading, error }) {
+export function ProfileViewDialog({ open, onOpenChange, profile, loading, error, isOwnProfile = false, signatureSetupUrl }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
@@ -164,7 +175,13 @@ export function ProfileViewDialog({ open, onOpenChange, profile, loading, error 
             Perfil do colaborador
           </DialogTitle>
         </DialogHeader>
-        <ProfileView profile={profile} loading={loading} error={error} />
+        <ProfileView
+          profile={profile}
+          loading={loading}
+          error={error}
+          isOwnProfile={isOwnProfile}
+          signatureSetupUrl={signatureSetupUrl}
+        />
       </DialogContent>
     </Dialog>
   );
