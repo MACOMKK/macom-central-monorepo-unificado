@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Paperclip, Plus, Trash2, X } from 'lucide-react';
 
@@ -85,6 +85,7 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
   const initialFormRef = useRef(EMPTY_FORM);
   const [novoFornecedorOpen, setNovoFornecedorOpen] = useState(false);
   const [novoFornecedorForm, setNovoFornecedorForm] = useState(FORNECEDOR_FORM_VAZIO);
+  const [buscaFornecedor, setBuscaFornecedor] = useState('');
 
   useEffect(() => {
     setVisible(open);
@@ -192,6 +193,14 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
     aprovadores = [],
     colaboradores = [],
   } = catalogos || {};
+
+  const fornecedoresFiltrados = useMemo(() => {
+    const termo = buscaFornecedor.trim().toLowerCase();
+    if (!termo) return fornecedores;
+    return fornecedores.filter((item) =>
+      [item.nome, item.documento].filter(Boolean).some((campo) => campo.toLowerCase().includes(termo)),
+    );
+  }, [fornecedores, buscaFornecedor]);
 
   const unidadesDaEmpresa = form.empresaId
     ? unidades.filter((item) => item.empresa_id === form.empresaId)
@@ -610,16 +619,37 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
                 Fornecedor <span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
-                <Select value={form.fornecedorId} onValueChange={setField('fornecedorId')} disabled={catalogosLoading}>
+                <Select
+                  value={form.fornecedorId}
+                  onValueChange={setField('fornecedorId')}
+                  onOpenChange={(nextOpen) => {
+                    if (!nextOpen) setBuscaFornecedor('');
+                  }}
+                  disabled={catalogosLoading}
+                >
                   <SelectTrigger id="fornecedor" className="flex-1">
                     <SelectValue placeholder={catalogosLoading ? 'Carregando...' : 'Selecione o fornecedor'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {fornecedores.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.nome}
-                      </SelectItem>
-                    ))}
+                    <div className="sticky top-0 z-10 -mx-1 -mt-1 mb-1 bg-popover p-1 pb-1.5">
+                      <Input
+                        autoFocus
+                        placeholder="Buscar fornecedor..."
+                        value={buscaFornecedor}
+                        onChange={(event) => setBuscaFornecedor(event.target.value)}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className="h-8"
+                      />
+                    </div>
+                    {fornecedoresFiltrados.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhum fornecedor encontrado</div>
+                    ) : (
+                      fornecedoresFiltrados.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.nome}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 <Button
