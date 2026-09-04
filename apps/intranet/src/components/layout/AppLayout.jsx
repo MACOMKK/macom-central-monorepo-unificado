@@ -16,13 +16,13 @@ const ContentLoader = () => (
 );
 
 export default function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   useIntranetRealtime();
 
   useEffect(() => {
     const saved = window.localStorage.getItem('intranet:sidebar-collapsed');
-    setCollapsed(saved === 'true');
+    setCollapsed(saved === null ? true : saved === 'true');
   }, []);
 
   const handleToggleSidebar = () => {

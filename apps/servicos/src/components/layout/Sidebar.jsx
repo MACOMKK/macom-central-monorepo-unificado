@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Lock, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 
-import { Button, ThemeToggleButton } from '@macom/ui';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  ThemeToggleButton,
+} from '@macom/ui';
 import { useAuth } from '@/lib/AuthContext';
 import { appVersion } from '@/lib/buildInfo';
 import { servicosModules } from '@/lib/navigation';
@@ -44,13 +51,15 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
         title={collapsed ? mod.label : undefined}
         aria-label={collapsed ? mod.label : undefined}
         className={({ isActive }) =>
-          `flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+          `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+            collapsed ? 'justify-center' : 'justify-between'
+          } ${
             mod.comingSoon
               ? 'opacity-40 text-muted-foreground hover:bg-accent hover:opacity-60'
               : isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-          } ${collapsed ? 'justify-center' : ''}`
+          }`
         }
       >
         <span className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
@@ -64,24 +73,43 @@ function ModuleNavItem({ mod, user, collapsed, onNavigate }) {
 
   if (collapsed) {
     return (
-      <NavLink
-        to={mod.path}
-        onClick={onNavigate}
-        title={mod.label}
-        aria-label={mod.label}
-        className={({ isActive }) =>
-          `flex items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-            isActive || childActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-          }`
-        }
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-      </NavLink>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            title={mod.label}
+            aria-label={mod.label}
+            className={`flex w-full items-center justify-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+              childActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" sideOffset={12} className="min-w-[200px]">
+          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{mod.label}</div>
+          {visibleChildren.map((child) => {
+            const ChildIcon = child.icon;
+            return (
+              <DropdownMenuItem key={child.key} asChild>
+                <NavLink
+                  to={child.path}
+                  onClick={onNavigate}
+                  className={({ isActive }) => `flex items-center gap-2 ${isActive ? 'font-semibold text-foreground' : ''}`}
+                >
+                  <ChildIcon className="h-4 w-4 shrink-0" />
+                  {child.label}
+                </NavLink>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className={`flex flex-col gap-1 ${open ? 'mb-2' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

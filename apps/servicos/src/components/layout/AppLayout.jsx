@@ -9,13 +9,13 @@ import Sidebar from '@/components/layout/Sidebar';
 import SupportButton from '@/components/layout/SupportButton';
 
 export default function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState('light');
 
   useEffect(() => {
     const saved = window.localStorage.getItem('servicos:sidebar-collapsed');
-    setCollapsed(saved === 'true');
+    setCollapsed(saved === null ? true : saved === 'true');
   }, []);
 
   useEffect(() => {

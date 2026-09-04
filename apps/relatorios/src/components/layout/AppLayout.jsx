@@ -29,13 +29,13 @@ function PageContentFallback() {
 
 export default function AppLayout() {
   const { user } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMd, setIsMd] = useState(() => window.innerWidth >= 768);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('relatorios:sidebar-collapsed');
-    setCollapsed(saved === 'true');
+    setCollapsed(saved === null ? true : saved === 'true');
   }, []);
 
   useEffect(() => {
