@@ -3,8 +3,8 @@ import { Headset } from 'lucide-react';
 
 // Numeros de contato dos responsaveis pelo suporte do sistema Servicos (WhatsApp).
 const SUPPORT_CONTACTS = [
-  { nome: 'Suporte 1', telefone: '5591983927903' },
-  { nome: 'Suporte 2', telefone: '5591989566353' },
+  { nome: 'Suporte I', telefone: '5591983927903' },
+  { nome: 'Suporte II', telefone: '5591989566353' },
 ];
 
 function buildWhatsAppLink(telefone) {
