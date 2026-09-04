@@ -995,7 +995,11 @@ export default function NovaSolicitacaoDrawer({ open, onOpenChange, solicitacao 
           if (!nextOpen) setNovoFornecedorForm(FORNECEDOR_FORM_VAZIO);
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent
+          className="max-w-2xl"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Cadastrar novo fornecedor</DialogTitle>
           </DialogHeader>

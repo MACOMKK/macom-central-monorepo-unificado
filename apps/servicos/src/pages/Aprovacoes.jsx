@@ -474,6 +474,7 @@ export default function Aprovacoes() {
                       aria-label="Aprovar"
                       disabled={decisaoMutation.isPending}
                       onClick={() => handleDecision(row.id, 'aprovado')}
+                      className="bg-emerald-600 text-white hover:bg-emerald-600/90"
                     >
                       <Check className="h-4 w-4" />
                     </Button>
