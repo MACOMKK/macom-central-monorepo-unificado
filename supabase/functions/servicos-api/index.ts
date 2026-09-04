@@ -757,11 +757,14 @@ async function insertNotificacao(
 
   // Deixa visivel, na propria timeline da solicitacao, quem foi avisado e quando -- sem isso o
   // unico registro fica em gestao_servicos.notificacoes, sem vinculo visual com a solicitacao.
-  if (referenciaTipo === 'solicitacao_pagamento' && referenciaId) {
+  // papelLabel nulo indica que o colaborador so foi avisado por ser admin do sistema (sem papel
+  // funcional na solicitacao, ex. financeiro/aprovador/solicitante) -- nesse caso a notificacao
+  // in-app acontece normalmente, mas nao polui o historico com alguem que nao e responsavel por
+  // aquela solicitacao.
+  if (referenciaTipo === 'solicitacao_pagamento' && referenciaId && papelLabel) {
     const destinatario = await sql!.unsafe(`select nome from public.colaboradores where id = $1 limit 1;`, [colaboradorId]);
     const nome = destinatario[0]?.nome || 'Colaborador';
-    const observacao = papelLabel ? `Notificado: ${nome} (${papelLabel})` : `Notificado: ${nome}`;
-    await insertHistorico(referenciaId, 'notificacao_enviada', criadoPor, observacao);
+    await insertHistorico(referenciaId, 'notificacao_enviada', criadoPor, `Notificado: ${nome} (${papelLabel})`);
   }
 }
 
@@ -880,7 +883,7 @@ async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>
   const ehTeste = row.eh_teste === true;
   const financeiros = await sql!.unsafe(
     `
-      select distinct aus.colaborador_id
+      select distinct aus.colaborador_id, pm.papel
       from public.acessos_usuario_sistema aus
       join public.sistemas s on s.id = aus.sistema_id
       left join ${SERVICOS_SCHEMA}.permissoes_modulo pm on pm.colaborador_id = aus.colaborador_id and pm.modulo = 'financeiro'
@@ -893,8 +896,13 @@ async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>
 
   const valorFormatado = Number(row.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   await Promise.all(
-    financeiros.map((item: { colaborador_id: string }) =>
-      insertNotificacao(
+    financeiros.map((item: { colaborador_id: string; papel: string | null }) => {
+      // Papel nulo = colaborador so entrou nessa lista por ser admin do sistema, sem papel
+      // funcional (financeiro/contas_a_pagar) no modulo -- nesse caso passamos papelLabel nulo
+      // pra insertNotificacao, que continua avisando in-app mas nao registra no historico da
+      // solicitacao (ver comentario em insertNotificacao).
+      const papelLabel = item.papel === 'contas_a_pagar' ? 'contas a pagar' : item.papel === 'financeiro' ? 'financeiro' : null;
+      return insertNotificacao(
         item.colaborador_id,
         'solicitacao_aprovada_financeiro',
         'Solicitação aguardando pagamento',
@@ -903,9 +911,9 @@ async function notifyFinanceirosSolicitacaoAprovada(row: Record<string, unknown>
         'solicitacao_pagamento',
         String(row.id),
         autorId,
-        'financeiro',
-      ),
-    ),
+        papelLabel,
+      );
+    }),
   );
 }
 
