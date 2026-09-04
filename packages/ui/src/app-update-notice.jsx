@@ -24,7 +24,7 @@ export function AppUpdateNoticeDialog({ notice, onAccept, accepting = false }) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{notice.titulo}</AlertDialogTitle>
-          <AlertDialogDescription className="whitespace-pre-wrap">{notice.mensagem}</AlertDialogDescription>
+          <AlertDialogDescription className="whitespace-pre-wrap text-left">{notice.mensagem}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
           <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground sm:justify-start">
