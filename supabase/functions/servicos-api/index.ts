@@ -5,6 +5,7 @@ import { sendPushToColaborador } from '../_shared/push.ts';
 import { proximaDataUtil } from '../_shared/diasUteis.ts';
 import { CLEAR_MUST_CHANGE_PASSWORD_SQL, mapMustChangePassword } from '../_shared/auth.ts';
 import { enqueueEmail } from '../_shared/email.ts';
+import { obterAvisoAtivo, aceitarAviso, criarOuAtualizarAviso, listarAvisos } from '../_shared/avisos.ts';
 import {
   criarFornecedorBodySchema,
   atualizarFornecedorBodySchema,
@@ -995,6 +996,66 @@ Deno.serve(async (request) => {
     }
 
     ensureHasAccess(access);
+
+    if (action === 'obter_aviso_ativo') {
+      const { aviso, aceite } = await obterAvisoAtivo(sql, {
+        sistemaSlug: 'servicos',
+        colaboradorId: String(collaborator!.id),
+      });
+      return json({ aviso, aceite });
+    }
+
+    if (action === 'aceitar_aviso') {
+      const avisoId = String(body.aviso_id || '');
+      if (!avisoId) {
+        return json({ error: 'aviso_id e obrigatorio.' }, 400);
+      }
+      const aceite = await aceitarAviso(sql, { avisoId, colaboradorId: String(collaborator!.id) });
+      return json({ aceite });
+    }
+
+    if (action === 'get_aviso_admin') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem gerenciar o aviso do sistema.'), { status: 403 });
+      }
+      // Diferente de obter_aviso_ativo (so ativo=true): traz o aviso mais recente independente
+      // do status, pra o admin poder reativar/editar um aviso que ele mesmo desativou.
+      const rows = await sql`
+        select * from public.avisos where sistema_slug = 'servicos' order by atualizado_em desc limit 1;
+      `;
+      return json({ aviso: rows[0] || null });
+    }
+
+    if (action === 'listar_avisos') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem gerenciar o aviso do sistema.'), { status: 403 });
+      }
+      const avisos = await listarAvisos(sql, { sistemaSlug: 'servicos' });
+      return json({ avisos });
+    }
+
+    if (action === 'salvar_aviso') {
+      if (getAccessLevel(access) !== 'admin') {
+        throw Object.assign(new Error('Apenas administradores podem gerenciar o aviso do sistema.'), { status: 403 });
+      }
+      const titulo = String(body.titulo || '').trim();
+      const mensagem = String(body.mensagem || '').trim();
+      if (!titulo || !mensagem) {
+        return json({ error: 'Titulo e mensagem sao obrigatorios.' }, 400);
+      }
+      const aviso = await criarOuAtualizarAviso(sql, {
+        id: body.id ? String(body.id) : null,
+        sistemaSlug: 'servicos',
+        titulo,
+        mensagem,
+        obrigatorio: body.obrigatorio !== false,
+        ativo: body.ativo !== false,
+        modoTeste: body.modo_teste === true,
+        criadoPor: String(collaborator!.id),
+        forcarInativarAnterior: body.forcar_inativar_anterior === true,
+      });
+      return json({ aviso });
+    }
 
     if (action === 'get_configuracao_modulo') {
       const rows = await sql.unsafe(

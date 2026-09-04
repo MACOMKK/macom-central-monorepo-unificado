@@ -136,6 +136,37 @@ export const financeiroApi = {
       return result.row || null;
     },
   },
+  avisos: {
+    async getAtivo() {
+      const result = await invokeServicos({ action: 'obter_aviso_ativo' });
+      return { aviso: result.aviso || null, aceite: result.aceite || null };
+    },
+    async aceitar(avisoId) {
+      const result = await invokeServicos({ action: 'aceitar_aviso', aviso_id: avisoId });
+      return result.aceite || null;
+    },
+    async getAdmin() {
+      const result = await invokeServicos({ action: 'get_aviso_admin' });
+      return result.aviso || null;
+    },
+    async listar() {
+      const result = await invokeServicos({ action: 'listar_avisos' });
+      return result.avisos || [];
+    },
+    async salvar({ id, titulo, mensagem, obrigatorio, ativo, modoTeste, forcarInativarAnterior }) {
+      const result = await invokeServicos({
+        action: 'salvar_aviso',
+        id: id || null,
+        titulo,
+        mensagem,
+        obrigatorio,
+        ativo,
+        modo_teste: Boolean(modoTeste),
+        forcar_inativar_anterior: Boolean(forcarInativarAnterior),
+      });
+      return result.aviso || null;
+    },
+  },
   configuracaoModulo: {
     async get() {
       const result = await invokeServicos({ action: 'get_configuracao_modulo' });

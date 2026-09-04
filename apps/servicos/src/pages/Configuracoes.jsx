@@ -5,6 +5,14 @@ import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
   Button,
   Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
   Switch,
   Table,
   TableBody,
@@ -16,6 +24,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  Textarea,
   Spinner,
   useToast,
 } from '@macom/ui';
@@ -231,7 +240,7 @@ function FinanceiroTab() {
           Carregando...
         </div>
       ) : (
-        <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
           <div>
             <p className="font-medium">Restringir visibilidade de solicitações em dinheiro</p>
             <p className="text-sm text-muted-foreground">
@@ -250,7 +259,7 @@ function FinanceiroTab() {
       )}
 
       {!configQuery.isLoading && (
-        <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
           <div>
             <p className="font-medium">Suprimento de caixa sem aprovador</p>
             <p className="text-sm text-muted-foreground">
@@ -267,7 +276,7 @@ function FinanceiroTab() {
       )}
 
       {!configQuery.isLoading && suprimentoCaixaSemAprovador && (
-        <div className="ml-4 flex items-start justify-between gap-4 rounded-lg border border-dashed border-border p-4">
+        <div className="ml-4 flex items-start justify-between gap-4 rounded-lg border border-dashed border-border bg-card p-4">
           <div>
             <p className="font-medium">Aprovar automaticamente</p>
             <p className="text-sm text-muted-foreground">
@@ -285,7 +294,7 @@ function FinanceiroTab() {
       )}
 
       {!configQuery.isLoading && (
-        <div className="rounded-lg border border-border p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <p className="font-medium">Departamentos autorizados a abrir suprimento de caixa</p>
           <p className="text-sm text-muted-foreground">
             Quando um ou mais departamentos forem selecionados, só colaboradores desses setores
@@ -330,6 +339,241 @@ function FinanceiroTab() {
   );
 }
 
+function avisoParaRascunho(aviso) {
+  return {
+    id: aviso?.id || null,
+    titulo: aviso?.titulo || '',
+    mensagem: aviso?.mensagem || '',
+    obrigatorio: aviso?.obrigatorio ?? true,
+    ativo: aviso?.ativo ?? false,
+    modoTeste: aviso?.modo_teste ?? false,
+  };
+}
+
+function formatarDataHora(valor) {
+  if (!valor) return '-';
+  return new Date(valor).toLocaleString('pt-BR');
+}
+
+function HistoricoAvisos({ onEditar, editandoId }) {
+  const historicoQuery = useQuery({
+    queryKey: ['servicos', 'avisos-historico'],
+    queryFn: () => financeiroApi.avisos.listar(),
+  });
+
+  if (historicoQuery.isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Spinner size="sm" />
+        Carregando histórico...
+      </div>
+    );
+  }
+
+  const avisos = historicoQuery.data || [];
+  if (avisos.length === 0) {
+    return <p className="text-sm text-muted-foreground">Nenhum aviso criado ainda.</p>;
+  }
+
+  return (
+    <div className="divide-y divide-border rounded-lg border border-border bg-card">
+      {avisos.map((aviso) => (
+        <div
+          key={aviso.id}
+          className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2 ${
+            editandoId === aviso.id ? 'bg-primary/5' : ''
+          }`}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-medium">{aviso.titulo}</p>
+            <span className="shrink-0 text-xs text-muted-foreground">v{aviso.versao}</span>
+            {aviso.ativo && (
+              <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                Ativo
+              </span>
+            )}
+            {aviso.modo_teste && (
+              <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                Teste
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+            <span>{formatarDataHora(aviso.criado_em)}</span>
+            <span>
+              {aviso.total_aceites}/{aviso.total_usuarios_atingidos} confirmaram
+            </span>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onEditar(aviso)}>
+              {editandoId === aviso.id ? 'Editando' : 'Editar'}
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AvisoFormDialog({ open, onOpenChange, rascunho, setRascunho, onSalvar, salvando }) {
+  function setCampo(campo, valor) {
+    setRascunho((atual) => ({ ...atual, [campo]: valor }));
+  }
+
+  const podeSalvar = Boolean(rascunho?.titulo?.trim()) && Boolean(rascunho?.mensagem?.trim());
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{rascunho?.id ? 'Editar aviso' : 'Criar novo aviso'}</DialogTitle>
+          <DialogDescription>
+            Exibido em tela cheia para os colaboradores até clicarem em &quot;Li e estou ciente&quot;.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="aviso-titulo">Título</Label>
+            <Input
+              id="aviso-titulo"
+              value={rascunho?.titulo || ''}
+              onChange={(event) => setCampo('titulo', event.target.value)}
+              disabled={salvando}
+              maxLength={120}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="aviso-mensagem">Mensagem</Label>
+            <Textarea
+              id="aviso-mensagem"
+              rows={4}
+              value={rascunho?.mensagem || ''}
+              onChange={(event) => setCampo('mensagem', event.target.value)}
+              disabled={salvando}
+            />
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span className="text-sm">
+                Aceite obrigatório
+                <span className="block text-xs text-muted-foreground">Bloqueia a tela até aceitar</span>
+              </span>
+              <Switch
+                checked={rascunho?.obrigatorio ?? true}
+                onCheckedChange={(checked) => setCampo('obrigatorio', checked)}
+                disabled={salvando}
+              />
+            </label>
+
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span className="text-sm">
+                Ativo
+                <span className="block text-xs text-muted-foreground">Passa a ser exibido aos colaboradores</span>
+              </span>
+              <Switch
+                checked={rascunho?.ativo ?? false}
+                onCheckedChange={(checked) => setCampo('ativo', checked)}
+                disabled={salvando}
+              />
+            </label>
+
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span className="text-sm">
+                Modo teste
+                <span className="block text-xs text-muted-foreground">Só você vê o bloqueio, ninguém mais</span>
+              </span>
+              <Switch
+                checked={rascunho?.modoTeste ?? false}
+                onCheckedChange={(checked) => setCampo('modoTeste', checked)}
+                disabled={salvando}
+              />
+            </label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" onClick={onSalvar} disabled={!podeSalvar || salvando}>
+            {salvando ? 'Salvando...' : 'Salvar aviso'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AvisoTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [rascunho, setRascunho] = useState(null);
+  const [conflito, setConflito] = useState(null);
+
+  const salvarMutation = useMutation({
+    mutationFn: (forcarInativarAnterior) => financeiroApi.avisos.salvar({ ...rascunho, forcarInativarAnterior }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'aviso-ativo'] });
+      queryClient.invalidateQueries({ queryKey: ['servicos', 'avisos-historico'] });
+      toast({ title: 'Aviso salvo' });
+      setDialogOpen(false);
+      setConflito(null);
+    },
+    onError: (error) => {
+      if (error.status === 409) {
+        setConflito(error.message);
+        return;
+      }
+      toast({ title: 'Não foi possível salvar', description: error.message });
+    },
+  });
+
+  function handleCriarNovo() {
+    setRascunho(avisoParaRascunho(null));
+    setDialogOpen(true);
+  }
+
+  function handleEditar(aviso) {
+    setRascunho(avisoParaRascunho(aviso));
+    setDialogOpen(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Aviso de atualização</h2>
+          <p className="text-sm text-muted-foreground">Aviso bloqueante até o colaborador confirmar a leitura.</p>
+        </div>
+        <Button type="button" onClick={handleCriarNovo}>
+          Criar novo aviso
+        </Button>
+      </div>
+
+      <HistoricoAvisos onEditar={handleEditar} editandoId={dialogOpen ? rascunho?.id : null} />
+
+      <AvisoFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        rascunho={rascunho}
+        setRascunho={setRascunho}
+        onSalvar={() => salvarMutation.mutate(false)}
+        salvando={salvarMutation.isPending}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(conflito)}
+        onOpenChange={(open) => !open && setConflito(null)}
+        onConfirm={() => salvarMutation.mutate(true)}
+        isLoading={salvarMutation.isPending}
+        title="Já existe um aviso ativo"
+        description={`${conflito || ''} Inativar o anterior e ativar este agora?`}
+        confirmLabel="Inativar e ativar este"
+        cancelLabel="Cancelar"
+      />
+    </div>
+  );
+}
+
 export default function Configuracoes() {
   const [tab, setTab] = useState('notificacoes');
 
@@ -338,6 +582,7 @@ export default function Configuracoes() {
       { value: 'notificacoes', label: 'Notificações' },
       { value: 'permissoes', label: 'Permissões' },
       { value: 'financeiro', label: 'Financeiro' },
+      { value: 'aviso', label: 'Aviso' },
     ],
     [],
   );
@@ -368,6 +613,10 @@ export default function Configuracoes() {
 
         <TabsContent value="financeiro" className="mt-4">
           <FinanceiroTab />
+        </TabsContent>
+
+        <TabsContent value="aviso" className="mt-4">
+          <AvisoTab />
         </TabsContent>
       </Tabs>
     </div>

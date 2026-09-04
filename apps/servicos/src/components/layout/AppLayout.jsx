@@ -1,17 +1,56 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { applyTheme, getInitialTheme } from '@macom/ui';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AppUpdateNoticeDialog, applyTheme, getInitialTheme } from '@macom/ui';
 
+import { financeiroApi } from '@macom/api-client/financeiroApi';
 import BottomNav from '@/components/layout/BottomNav';
 import Header from '@/components/layout/Header';
 import InstallPromptBanner from '@/components/layout/InstallPromptBanner';
 import Sidebar from '@/components/layout/Sidebar';
 import SupportButton from '@/components/layout/SupportButton';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState('light');
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.system_access_level === 'admin';
+
+  const avisoQuery = useQuery({
+    // Habilitado tambem para admin: em modo_teste, o backend so devolve o aviso pro proprio
+    // criador (ver obterAvisoAtivo em _shared/avisos.ts) -- e assim que o admin consegue ver o
+    // proprio aviso em teste antes de disparar pra todo mundo.
+    queryKey: ['servicos', 'aviso-ativo', user?.id],
+    queryFn: financeiroApi.avisos.getAtivo,
+    enabled: Boolean(user?.id),
+  });
+
+  const aceitarAvisoMutation = useMutation({
+    mutationFn: (avisoId) => financeiroApi.avisos.aceitar(avisoId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['servicos', 'aviso-ativo', user?.id] }),
+  });
+
+  const aviso = avisoQuery.data?.aviso || null;
+  const versaoAceita = avisoQuery.data?.aceite?.versao_aceita ?? 0;
+  // Admin fora de modo_teste nunca e bloqueado (o backend so retorna o aviso pra ele quando ele
+  // mesmo o criou em modo teste, entao aqui basta checar obrigatorio/versao normalmente).
+  const precisaAceitarAviso = Boolean(aviso) && aviso.obrigatorio !== false && versaoAceita < aviso.versao
+    && !(isAdmin && !aviso.modo_teste);
+
+  // Fecha o modal na hora do clique, sem esperar a resposta do servidor -- o aceite acontece em
+  // segundo plano (com invalidacao da query se der certo). Guarda por `id + versao` pra o dialogo
+  // voltar a aparecer se, por algum motivo (ex.: erro de rede), a mutation nao completar e o
+  // usuario navegar de novo antes da query refletir o aceite.
+  const [dispensado, setDispensado] = useState(null);
+  const dispensadoAtual = aviso && dispensado?.id === aviso.id && dispensado?.versao === aviso.versao;
+
+  function handleAceitarAviso() {
+    setDispensado({ id: aviso.id, versao: aviso.versao });
+    aceitarAvisoMutation.mutate(aviso.id);
+  }
 
   useEffect(() => {
     const saved = window.localStorage.getItem('servicos:sidebar-collapsed');
@@ -66,6 +105,12 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <AppUpdateNoticeDialog
+        notice={precisaAceitarAviso && !dispensadoAtual ? aviso : null}
+        onAccept={handleAceitarAviso}
+        accepting={false}
+      />
     </div>
   );
 }
