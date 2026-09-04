@@ -91,11 +91,14 @@ export default function Aprovacoes() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'gestao_servicos', table: 'solicitacoes_pagamento' },
-        () => {
+        (payload) => {
+          console.log('[realtime][aprovacoes] evento recebido', payload);
           queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[realtime][aprovacoes] status do canal', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

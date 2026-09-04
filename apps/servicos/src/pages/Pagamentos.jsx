@@ -178,14 +178,17 @@ export default function Pagamentos() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'gestao_servicos', table: 'solicitacoes_pagamento' },
-        () => {
+        (payload) => {
+          console.log('[realtime][pagamentos] evento recebido', payload);
           queryClient.invalidateQueries({ queryKey: ['servicos', 'solicitacoes'] });
           if (dialogRowId) {
             queryClient.invalidateQueries({ queryKey: ['servicos', 'parcelas', dialogRowId] });
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[realtime][pagamentos] status do canal', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
