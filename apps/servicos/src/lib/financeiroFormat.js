@@ -216,6 +216,14 @@ export function getVencimentoInfo(dataVencimento) {
   return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
 }
 
+// Distingue Macom Motos das demais empresas (hoje so Macom Mitsubishi) pra decidir o icone de
+// moto/carro nas listagens -- nao existe coluna "tipo" em public.empresas, so nome/slug, entao a
+// deteccao e por substring no nome (funciona pra empresa nova de carro sem precisar de migration,
+// so quebra se um dia entrar uma 3a empresa que tambem seja de motos com nome sem "moto").
+export function getEmpresaTipoVeiculo(empresaNome) {
+  return /moto/i.test(empresaNome || '') ? 'moto' : 'carro';
+}
+
 export function formatDataHora(data) {
   if (!data) return '-';
   return new Date(data).toLocaleString('pt-BR');

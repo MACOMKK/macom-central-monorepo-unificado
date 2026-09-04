@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Banknote, Paperclip, Plus, RefreshCw, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, Banknote, Bike, Car, Paperclip, Plus, RefreshCw, Trash2, Unlock, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { supabase } from '@macom/api-client/supabaseClient';
@@ -52,6 +52,7 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
+  getEmpresaTipoVeiculo,
   getVencimentoInfo,
   isBloqueadaPorPendencia,
   isParcialmentePago,
@@ -873,6 +874,11 @@ export default function Pagamentos() {
                         ) : (
                           <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
                         ))}
+                      {getEmpresaTipoVeiculo(row.empresa_nome) === 'moto' ? (
+                        <Bike className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Motos" />
+                      ) : (
+                        <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Mitsubishi" />
+                      )}
                       <span className="truncate">{row.titulo || '-'}</span>
                     </div>
                   </TableCell>
