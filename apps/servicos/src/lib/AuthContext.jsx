@@ -37,6 +37,11 @@ function normalizeServicosUser(authUser, authPayload = {}) {
     isAprovador: role === 'aprovador' || role === 'financeiro',
     isFinanceiro: role === 'financeiro',
     isPagador: role === 'contas_a_pagar' || role === 'financeiro',
+    // Reprovar uma solicitacao JA APROVADA (tela Pagamentos) -- financeiro sempre pode; contas a
+    // pagar so quando a flag restringir_reprovacao_contas_a_pagar estiver desativada (backend
+    // calcula em `me`, ver servicos-api/index.ts). Nao tem relacao com reprovar pendente
+    // (Aprovacoes), que continua so isAprovador/isFinanceiro.
+    canReprovarAprovada: Boolean(authPayload.pode_reprovar_aprovada),
     active: collaborator?.status !== 'inativo' && access?.ativo === true,
     system_access_id: access?.id || null,
     system_access_level: access?.nivel_acesso || null,

@@ -919,7 +919,7 @@ export default function Pagamentos() {
                     <div className="flex justify-end gap-2">
                       {row.status === 'aprovado' && (
                         <>
-                          {user?.isFinanceiro && (
+                          {user?.canReprovarAprovada && (
                             <Button
                               variant="destructive"
                               size="icon"
@@ -1010,7 +1010,7 @@ export default function Pagamentos() {
                 actions={
                   row.status === 'aprovado' ? (
                     <>
-                      {user?.isFinanceiro && (
+                      {user?.canReprovarAprovada && (
                         <Button
                           variant="destructive"
                           size="icon"

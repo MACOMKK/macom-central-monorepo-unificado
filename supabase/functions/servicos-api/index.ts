@@ -286,6 +286,26 @@ async function getSuprimentoCaixaDepartamentosPermitidos(): Promise<string[]> {
   return value;
 }
 
+// Flag configuravel que restringe reprovar uma solicitacao JA APROVADA (fluxo de /pagamentos)
+// ao papel financeiro. Quando desativada, contas_a_pagar tambem pode reprovar esse caso
+// especifico -- reprovar uma solicitacao ainda pendente nao e afetado por esta flag (ver
+// set_status). Fail-safe true (mais restritivo) se a linha de config nao existir.
+let restringeReprovacaoContasAPagarCache: { expiresAt: number; value: boolean } | null = null;
+
+async function getRestringeReprovacaoContasAPagar(): Promise<boolean> {
+  if (restringeReprovacaoContasAPagarCache && restringeReprovacaoContasAPagarCache.expiresAt > Date.now()) {
+    return restringeReprovacaoContasAPagarCache.value;
+  }
+  if (!sql) return true;
+  const rows = await sql.unsafe(
+    `select restringir_reprovacao_contas_a_pagar from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+    ['financeiro'],
+  );
+  const value = rows[0] ? Boolean(rows[0].restringir_reprovacao_contas_a_pagar) : true;
+  restringeReprovacaoContasAPagarCache = { expiresAt: Date.now() + CONFIG_MODULO_TTL_MS, value };
+  return value;
+}
+
 // Usado tanto na criacao da solicitacao (solicitante propondo parcelamento) quanto em
 // criar_parcelas (financeiro/contas_a_pagar revisando o plano depois de aprovado) — a soma
 // precisa bater com o valor total da solicitacao pra evitar plano de pagamento inconsistente.
@@ -982,7 +1002,15 @@ Deno.serve(async (request) => {
 
     if (action === 'me') {
       ensureHasAccess(access);
-      return json({ row: collaborator, access, role: moduleRole, must_change_password: mapMustChangePassword(collaborator) });
+      const restringeReprovacaoAprovada = await getRestringeReprovacaoContasAPagar();
+      const podeReprovarAprovada = restringeReprovacaoAprovada ? isFinanceiro(moduleRole) : isPagador(moduleRole);
+      return json({
+        row: collaborator,
+        access,
+        role: moduleRole,
+        must_change_password: mapMustChangePassword(collaborator),
+        pode_reprovar_aprovada: podeReprovarAprovada,
+      });
     }
 
     if (action === 'clear_password_change_required') {
@@ -1059,7 +1087,7 @@ Deno.serve(async (request) => {
 
     if (action === 'get_configuracao_modulo') {
       const rows = await sql.unsafe(
-        `select modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        `select modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, restringir_reprovacao_contas_a_pagar, atualizado_em from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
         ['financeiro'],
       );
       return json({
@@ -1069,6 +1097,7 @@ Deno.serve(async (request) => {
           suprimento_caixa_sem_aprovador: false,
           suprimento_caixa_auto_aprovar: false,
           suprimento_caixa_departamentos_permitidos: [],
+          restringir_reprovacao_contas_a_pagar: true,
         },
       });
     }
@@ -1087,7 +1116,7 @@ Deno.serve(async (request) => {
       // Atualizacao parcial: so mexe nas colunas cujo campo veio no body, preserva o resto da
       // linha (evita que atualizar um flag reset o outro pro default).
       const existingRows = await sql.unsafe(
-        `select restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
+        `select restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, restringir_reprovacao_contas_a_pagar from ${SERVICOS_SCHEMA}.configuracoes_modulo where modulo = $1 limit 1;`,
         ['financeiro'],
       );
       const existing = existingRows[0] || {
@@ -1095,6 +1124,7 @@ Deno.serve(async (request) => {
         suprimento_caixa_sem_aprovador: false,
         suprimento_caixa_auto_aprovar: false,
         suprimento_caixa_departamentos_permitidos: [],
+        restringir_reprovacao_contas_a_pagar: true,
       };
       const restringir =
         parsedConfig.data.restringir_visibilidade_pagamento_dinheiro ?? Boolean(existing.restringir_visibilidade_pagamento_dinheiro);
@@ -1106,27 +1136,39 @@ Deno.serve(async (request) => {
         parsedConfig.data.suprimento_caixa_departamentos_permitidos ??
         (existing.suprimento_caixa_departamentos_permitidos as string[] | null) ??
         [];
+      const restringirReprovacaoContasAPagar =
+        parsedConfig.data.restringir_reprovacao_contas_a_pagar ?? Boolean(existing.restringir_reprovacao_contas_a_pagar);
 
       const rows = await sql.unsafe(
         `
-          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_por, atualizado_em)
-          values ($1, $2, $3, $4, $5::uuid[], $6, now())
+          insert into ${SERVICOS_SCHEMA}.configuracoes_modulo (modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, restringir_reprovacao_contas_a_pagar, atualizado_por, atualizado_em)
+          values ($1, $2, $3, $4, $5::uuid[], $6, $7, now())
           on conflict (modulo) do update
             set restringir_visibilidade_pagamento_dinheiro = excluded.restringir_visibilidade_pagamento_dinheiro,
               suprimento_caixa_sem_aprovador = excluded.suprimento_caixa_sem_aprovador,
               suprimento_caixa_auto_aprovar = excluded.suprimento_caixa_auto_aprovar,
               suprimento_caixa_departamentos_permitidos = excluded.suprimento_caixa_departamentos_permitidos,
+              restringir_reprovacao_contas_a_pagar = excluded.restringir_reprovacao_contas_a_pagar,
               atualizado_por = excluded.atualizado_por,
               atualizado_em = now()
-          returning modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, atualizado_em;
+          returning modulo, restringir_visibilidade_pagamento_dinheiro, suprimento_caixa_sem_aprovador, suprimento_caixa_auto_aprovar, suprimento_caixa_departamentos_permitidos, restringir_reprovacao_contas_a_pagar, atualizado_em;
         `,
-        ['financeiro', restringir, suprimentoCaixaSemAprovador, suprimentoCaixaAutoAprovar, suprimentoCaixaDepartamentosPermitidos, collaborator!.id],
+        [
+          'financeiro',
+          restringir,
+          suprimentoCaixaSemAprovador,
+          suprimentoCaixaAutoAprovar,
+          suprimentoCaixaDepartamentosPermitidos,
+          restringirReprovacaoContasAPagar,
+          collaborator!.id,
+        ],
       );
       // Invalida os caches em memoria pra a mudanca valer imediatamente nesta instancia da function.
       restringeVisibilidadeDinheiroCache = null;
       suprimentoCaixaSemAprovadorCache = null;
       suprimentoCaixaAutoAprovarCache = null;
       suprimentoCaixaDepartamentosPermitidosCache = null;
+      restringeReprovacaoContasAPagarCache = null;
       return json({ row: rows[0] });
     }
 
@@ -1753,6 +1795,14 @@ Deno.serve(async (request) => {
       if (numero !== null && !Number.isInteger(numero)) {
         throw Object.assign(new Error('Numero da solicitacao invalido.'), { status: 400 });
       }
+      const solicitanteId = typeof filtros.solicitante_id === 'string' && filtros.solicitante_id ? filtros.solicitante_id : null;
+      // "Diretor(a)" no dashboard mapeia pro aprovador designado da solicitacao -- o modulo nao
+      // tem hierarquia de diretoria propria, so um aprovador unico por solicitacao (ver
+      // aprovador_destino_id/CLAUDE.md do app).
+      const aprovadorDestinoId =
+        typeof filtros.aprovador_destino_id === 'string' && filtros.aprovador_destino_id ? filtros.aprovador_destino_id : null;
+      const departamentoId = typeof filtros.departamento_id === 'string' && filtros.departamento_id ? filtros.departamento_id : null;
+      const unidadeId = typeof filtros.unidade_id === 'string' && filtros.unidade_id ? filtros.unidade_id : null;
 
       // "Pago" cobre a vista e parcelado: a vista nunca cria linhas em parcelas_pagamento, entao
       // valor_pago (soma das parcelas quitadas) fica 0 mesmo com status = 'pago' -- nesse caso o
@@ -1761,12 +1811,22 @@ Deno.serve(async (request) => {
         with base as (
           select
             sp.*,
+            c.nome as solicitante_nome,
+            ac.nome as aprovador_destino_nome,
+            e.nome as empresa_nome,
+            u.nome as unidade_nome,
+            d.nome as departamento_nome,
             coalesce(pp.valor_pago, 0) as valor_pago,
             coalesce(
               case when pp.parcelas_total > 0 then pp.vencimento_parcela end,
               sp.data_vencimento
             ) as vencimento_efetivo
           from ${SERVICOS_SCHEMA}.solicitacoes_pagamento sp
+          join public.colaboradores c on c.id = sp.solicitante_id
+          left join public.colaboradores ac on ac.id = sp.aprovador_destino_id
+          left join public.empresas e on e.id = sp.empresa_id
+          left join public.unidades u on u.id = sp.unidade_id
+          left join public.departamentos d on d.id = sp.departamento_id
           left join lateral (
             select
               coalesce(sum(valor) filter (where status = 'pago'), 0) as valor_pago,
@@ -1781,9 +1841,13 @@ Deno.serve(async (request) => {
           where sp.criado_em >= $1 and sp.criado_em <= $2
             and ($3::uuid is null or sp.empresa_id = $3)
             and ($4::bigint is null or sp.numero = $4)
+            and ($5::uuid is null or sp.solicitante_id = $5)
+            and ($6::uuid is null or sp.aprovador_destino_id = $6)
+            and ($7::uuid is null or sp.departamento_id = $7)
+            and ($8::uuid is null or sp.unidade_id = $8)
         )
       `;
-      const values = [de, ate, empresaId, numero];
+      const values = [de, ate, empresaId, numero, solicitanteId, aprovadorDestinoId, departamentoId, unidadeId];
 
       const resumoRows = await sql.unsafe(
         `
@@ -1791,12 +1855,15 @@ Deno.serve(async (request) => {
           select
             count(*) as total_quantidade,
             coalesce(sum(valor), 0) as total_valor,
-            coalesce(sum(case when status = 'pago' then valor else valor_pago end), 0) as total_pago,
+            count(*) filter (where status = 'pendente') as total_pendentes,
+            coalesce(sum(valor) filter (where status = 'pendente'), 0) as total_pendentes_valor,
+            count(*) filter (where status = 'aprovado') as total_aprovadas,
             coalesce(sum(valor - (case when status = 'pago' then valor else valor_pago end))
               filter (where status = 'aprovado'), 0) as total_em_aberto,
+            count(*) filter (where status = 'pago') as total_pagas,
+            coalesce(sum(case when status = 'pago' then valor else valor_pago end), 0) as total_pago,
             count(*) filter (where status = 'aprovado' and vencimento_efetivo < current_date) as total_atrasadas,
             coalesce(sum(valor) filter (where status = 'aprovado' and vencimento_efetivo < current_date), 0) as valor_atrasadas,
-            count(*) filter (where status = 'pendente') as total_pendentes,
             count(*) filter (where status = 'reprovado') as total_reprovadas,
             count(*) filter (where status = 'cancelado') as total_canceladas
           from base;
@@ -1827,6 +1894,78 @@ Deno.serve(async (request) => {
         values,
       );
 
+      // Rankings do dashboard "Monitoramento de Requisicoes Financeiras": todas as solicitacoes
+      // do periodo (independente de status), agrupadas por setor/unidade -- espelha a regra do
+      // "Total de Solicitacoes" (conta tudo, inclusive canceladas/reprovadas).
+      const porSetorRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select coalesce(departamento_nome, 'Sem setor') as setor, count(*) as quantidade, coalesce(sum(valor), 0) as valor
+          from base
+          group by 1
+          order by quantidade desc, valor desc
+          limit 20;
+        `,
+        values,
+      );
+
+      const porUnidadeRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select coalesce(unidade_nome, 'Sem unidade') as unidade, count(*) as quantidade, coalesce(sum(valor), 0) as valor
+          from base
+          group by 1
+          order by quantidade desc, valor desc
+          limit 20;
+        `,
+        values,
+      );
+
+      // Pendencias por diretor(a): so solicitacoes ainda pendentes de analise (status = 'pendente'),
+      // agrupadas pelo aprovador designado -- ver nota sobre "diretor(a)" acima.
+      const porDiretorRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select coalesce(aprovador_destino_nome, 'Sem aprovador') as diretor, count(*) as quantidade, coalesce(sum(valor), 0) as valor
+          from base
+          where status = 'pendente'
+          group by 1
+          order by valor desc
+          limit 20;
+        `,
+        values,
+      );
+
+      // Pendencias de pagamento por setor: aprovadas pela diretoria, ainda nao pagas.
+      const pendenciaPagamentoPorSetorRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select coalesce(departamento_nome, 'Sem setor') as setor, count(*) as quantidade, coalesce(sum(valor - valor_pago), 0) as valor
+          from base
+          where status = 'aprovado'
+          group by 1
+          order by valor desc
+          limit 20;
+        `,
+        values,
+      );
+
+      // Proximos vencimentos: fila operacional das solicitacoes aprovadas aguardando pagamento,
+      // ordenada da mais proxima/vencida pra mais distante.
+      const proximosVencimentosRows = await sql.unsafe(
+        `
+          ${baseCte}
+          select
+            numero, titulo, solicitante_nome, departamento_nome, unidade_nome,
+            vencimento_efetivo, aprovador_destino_nome, status, valor
+          from base
+          where status = 'aprovado' and vencimento_efetivo is not null
+          order by vencimento_efetivo asc
+          limit 50;
+        `,
+        values,
+      );
+
       // Evolucao mensal: agrupa por mes de criacao (mesmo campo usado no filtro de periodo,
       // nao data de pagamento) -- limita aos ultimos 12 meses com dado no periodo filtrado pra
       // nao devolver uma serie enorme quando o filtro de data fica aberto.
@@ -1850,6 +1989,11 @@ Deno.serve(async (request) => {
         resumo: resumoRows[0] || null,
         porCategoria: porCategoriaRows,
         porStatus: porStatusRows,
+        porSetor: porSetorRows,
+        porUnidade: porUnidadeRows,
+        porDiretor: porDiretorRows,
+        pendenciaPagamentoPorSetor: pendenciaPagamentoPorSetorRows,
+        proximosVencimentos: proximosVencimentosRows,
         porMes: porMesRows,
       });
     }
@@ -2376,7 +2520,9 @@ Deno.serve(async (request) => {
           moduleRole === 'aprovador' && String(existing.aprovador_destino_id || '') === String(collaborator!.id);
 
         if (reprovandoAprovada) {
-          if (!isFinanceiro(moduleRole) && !isAprovadorDestino) {
+          const restringeReprovacaoAprovada = await getRestringeReprovacaoContasAPagar();
+          const podeReprovarAprovada = restringeReprovacaoAprovada ? isFinanceiro(moduleRole) : isPagador(moduleRole);
+          if (!podeReprovarAprovada && !isAprovadorDestino) {
             throw Object.assign(
               new Error('Apenas o aprovador designado ou o financeiro pode reprovar uma solicitacao ja aprovada.'),
               { status: 403 },

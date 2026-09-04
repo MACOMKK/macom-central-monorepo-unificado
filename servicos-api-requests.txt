@@ -1,0 +1,10 @@
+161. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+164. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+165. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+166. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+167. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+168. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+169. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+170. [POST] https://jbqacvlpgqhpvncjhoom.supabase.co/functions/v1/servicos-api => [200] 
+
+Note: 162 static requests not shown, run with "static" option to see them.

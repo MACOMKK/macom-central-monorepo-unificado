@@ -61,6 +61,7 @@ export const financeiroApi = {
         access: result.access || null,
         role: result.role || null,
         mustChangePassword: Boolean(result.must_change_password),
+        pode_reprovar_aprovada: Boolean(result.pode_reprovar_aprovada),
       };
     },
     async clearPasswordChangeRequired() {
@@ -199,6 +200,11 @@ export const financeiroApi = {
         resumo: result.resumo || null,
         porCategoria: toNumberRows(result.porCategoria, ['valor', 'quantidade']),
         porStatus: toNumberRows(result.porStatus, ['valor', 'quantidade']),
+        porSetor: toNumberRows(result.porSetor, ['valor', 'quantidade']),
+        porUnidade: toNumberRows(result.porUnidade, ['valor', 'quantidade']),
+        porDiretor: toNumberRows(result.porDiretor, ['valor', 'quantidade']),
+        pendenciaPagamentoPorSetor: toNumberRows(result.pendenciaPagamentoPorSetor, ['valor', 'quantidade']),
+        proximosVencimentos: toNumberRows(result.proximosVencimentos, ['valor']),
         porMes: toNumberRows(result.porMes, ['valor_solicitado', 'valor_pago']),
       };
     },

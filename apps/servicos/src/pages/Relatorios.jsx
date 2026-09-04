@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Ban,
+  Building2,
+  CalendarClock,
   Clock,
   Hourglass,
   PieChart as PieChartIcon,
@@ -11,6 +13,7 @@ import {
   SearchX,
   Tag,
   TrendingUp,
+  UserSquare2,
   Wallet,
   XCircle,
 } from 'lucide-react';
@@ -32,6 +35,7 @@ import {
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
+  Badge,
   Button,
   Input,
   Select,
@@ -40,11 +44,18 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from '@macom/ui';
-import { useEmpresas } from '@/hooks/useCatalogos';
-import { formatValor, STATUS_LABEL } from '@/lib/financeiroFormat';
+import { useCatalogosSolicitacao } from '@/hooks/useCatalogos';
+import { formatValor, formatDataVencimento, getVencimentoInfo, STATUS_LABEL } from '@/lib/financeiroFormat';
 
-const EMPRESA_FILTRO_TODAS = 'todas';
+const FILTRO_TODOS = 'todos';
+const VENCIMENTOS_POR_PAGINA = 6;
 
 const VIZ_BLUE = '#2a78d6';
 
@@ -148,7 +159,9 @@ function ValorTooltip({ active, payload, label, nameFor }) {
   );
 }
 
-function CategoriaBarChart({ data }) {
+// Generico o suficiente pra qualquer ranking "nome x valor" em barras horizontais (categoria,
+// pendencia de pagamento por setor etc.) -- so muda o dataKey do eixo Y.
+function HorizontalValorBarChart({ data, dataKey }) {
   const altura = Math.max(180, data.length * 38);
   return (
     <ResponsiveContainer width="100%" height={altura}>
@@ -163,7 +176,7 @@ function CategoriaBarChart({ data }) {
         />
         <YAxis
           type="category"
-          dataKey="categoria"
+          dataKey={dataKey}
           width={110}
           tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
           axisLine={{ stroke: 'hsl(var(--border))' }}
@@ -171,8 +184,8 @@ function CategoriaBarChart({ data }) {
         />
         <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ValorTooltip />} />
         <Bar dataKey="valor" fill={VIZ_BLUE} radius={[0, 4, 4, 0]} barSize={18}>
-          {/* So a categoria com maior valor (primeira linha, ja vem ordenada desc do backend)
-              ganha rotulo direto -- rotular todas vira ruido; o resto fica no eixo/tooltip. */}
+          {/* So a linha com maior valor (primeira, ja vem ordenada desc do backend) ganha
+              rotulo direto -- rotular todas vira ruido; o resto fica no eixo/tooltip. */}
           <LabelList
             dataKey="valor"
             content={({ x, y, width, height, index, value }) => {
@@ -194,6 +207,41 @@ function CategoriaBarChart({ data }) {
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+// Bloco de ranking simples (posicao, nome, quantidade, valor) usado pras 3 colunas de
+// "Rankings" do dashboard -- Requisicoes por Setor / por Unidade / Pendencias por Diretor(a).
+function RankingCard({ title, icon, rows, nameKey }) {
+  return (
+    <ChartCard title={title} icon={icon}>
+      {rows.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">Sem dados no período.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">#</TableHead>
+                <TableHead>{title}</TableHead>
+                <TableHead className="text-right">Qtd.</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, index) => (
+                <TableRow key={row[nameKey]}>
+                  <TableCell className="text-xs text-muted-foreground">{index + 1}º</TableCell>
+                  <TableCell className="max-w-[160px] truncate text-sm">{row[nameKey]}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">{row.quantidade}</TableCell>
+                  <TableCell className="text-right text-sm font-medium tabular-nums">{formatValor(row.valor)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </ChartCard>
   );
 }
 
@@ -274,73 +322,175 @@ function EvolucaoMensalChart({ data }) {
 }
 
 export default function Relatorios() {
-  const { data: empresas = [] } = useEmpresas();
+  const { data: catalogos } = useCatalogosSolicitacao();
+  const empresas = catalogos?.empresas || [];
+  const unidades = catalogos?.unidades || [];
+  const departamentos = catalogos?.departamentos || [];
+  const aprovadores = catalogos?.aprovadores || [];
+  const colaboradores = catalogos?.colaboradores || [];
+
   const [dataDe, setDataDe] = useState('');
   const [dataAte, setDataAte] = useState('');
-  const [empresaFiltro, setEmpresaFiltro] = useState(EMPRESA_FILTRO_TODAS);
+  const [empresaFiltro, setEmpresaFiltro] = useState(FILTRO_TODOS);
+  const [unidadeFiltro, setUnidadeFiltro] = useState(FILTRO_TODOS);
+  const [setorFiltro, setSetorFiltro] = useState(FILTRO_TODOS);
+  const [solicitanteFiltro, setSolicitanteFiltro] = useState(FILTRO_TODOS);
+  const [diretorFiltro, setDiretorFiltro] = useState(FILTRO_TODOS);
+  const [paginaVencimentos, setPaginaVencimentos] = useState(0);
 
-  const temFiltroAtivo = Boolean(dataDe || dataAte || empresaFiltro !== EMPRESA_FILTRO_TODAS);
+  const temFiltroAtivo = Boolean(
+    dataDe ||
+      dataAte ||
+      empresaFiltro !== FILTRO_TODOS ||
+      unidadeFiltro !== FILTRO_TODOS ||
+      setorFiltro !== FILTRO_TODOS ||
+      solicitanteFiltro !== FILTRO_TODOS ||
+      diretorFiltro !== FILTRO_TODOS,
+  );
 
   const limparFiltros = () => {
     setDataDe('');
     setDataAte('');
-    setEmpresaFiltro(EMPRESA_FILTRO_TODAS);
+    setEmpresaFiltro(FILTRO_TODOS);
+    setUnidadeFiltro(FILTRO_TODOS);
+    setSetorFiltro(FILTRO_TODOS);
+    setSolicitanteFiltro(FILTRO_TODOS);
+    setDiretorFiltro(FILTRO_TODOS);
+    setPaginaVencimentos(0);
   };
 
   const filtros = {
     de: dataDe || undefined,
     ate: dataAte || undefined,
-    empresa_id: empresaFiltro !== EMPRESA_FILTRO_TODAS ? empresaFiltro : undefined,
+    empresa_id: empresaFiltro !== FILTRO_TODOS ? empresaFiltro : undefined,
+    unidade_id: unidadeFiltro !== FILTRO_TODOS ? unidadeFiltro : undefined,
+    departamento_id: setorFiltro !== FILTRO_TODOS ? setorFiltro : undefined,
+    solicitante_id: solicitanteFiltro !== FILTRO_TODOS ? solicitanteFiltro : undefined,
+    aprovador_destino_id: diretorFiltro !== FILTRO_TODOS ? diretorFiltro : undefined,
   };
 
   const relatorioQuery = useQuery({
-    queryKey: ['servicos', 'relatorios', 'financeiro', dataDe, dataAte, empresaFiltro],
+    queryKey: [
+      'servicos',
+      'relatorios',
+      'financeiro',
+      dataDe,
+      dataAte,
+      empresaFiltro,
+      unidadeFiltro,
+      setorFiltro,
+      solicitanteFiltro,
+      diretorFiltro,
+    ],
     queryFn: () => financeiroApi.relatorios.financeiro(filtros),
   });
 
   const resumo = relatorioQuery.data?.resumo;
   const porCategoria = relatorioQuery.data?.porCategoria || [];
   const porStatus = relatorioQuery.data?.porStatus || [];
+  const porSetor = relatorioQuery.data?.porSetor || [];
+  const porUnidade = relatorioQuery.data?.porUnidade || [];
+  const porDiretor = relatorioQuery.data?.porDiretor || [];
+  const pendenciaPagamentoPorSetor = relatorioQuery.data?.pendenciaPagamentoPorSetor || [];
+  const proximosVencimentos = relatorioQuery.data?.proximosVencimentos || [];
   const porMes = relatorioQuery.data?.porMes || [];
   const loading = relatorioQuery.isLoading;
+
+  const totalPaginasVencimentos = Math.max(1, Math.ceil(proximosVencimentos.length / VENCIMENTOS_POR_PAGINA));
+  const vencimentosPagina = useMemo(() => {
+    const inicio = paginaVencimentos * VENCIMENTOS_POR_PAGINA;
+    return proximosVencimentos.slice(inicio, inicio + VENCIMENTOS_POR_PAGINA);
+  }, [proximosVencimentos, paginaVencimentos]);
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold">Relatórios</h2>
+        <h2 className="text-xl font-bold">Monitoramento de Requisições Financeiras</h2>
         <p className="text-sm text-muted-foreground">
-          Resumo das solicitações de pagamento por período. O período considera a data em que a
-          solicitação foi criada.
+          Visão geral das solicitações de pagamento por período. O período considera a data em que
+          a solicitação foi criada.
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
-                value={dataDe}
-                onChange={(event) => setDataDe(event.target.value)}
-                aria-label="Período de"
-              />
-              <span className="text-xs text-muted-foreground">até</span>
-              <Input
-                type="date"
-                value={dataAte}
-                onChange={(event) => setDataAte(event.target.value)}
-                aria-label="Período até"
-              />
-            </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2">
+            <Input type="date" value={dataDe} onChange={(event) => setDataDe(event.target.value)} aria-label="Período de" />
+            <span className="text-xs text-muted-foreground">até</span>
+            <Input type="date" value={dataAte} onChange={(event) => setDataAte(event.target.value)} aria-label="Período até" />
           </div>
 
-          <div className="w-56">
-            <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
+          <div className="w-48">
+            <Select value={solicitanteFiltro} onValueChange={setSolicitanteFiltro}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Solicitante" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={EMPRESA_FILTRO_TODAS}>Todas empresas</SelectItem>
+                <SelectItem value={FILTRO_TODOS}>Todos solicitantes</SelectItem>
+                {colaboradores.map((colaborador) => (
+                  <SelectItem key={colaborador.id} value={colaborador.id}>
+                    {colaborador.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-48">
+            <Select value={diretorFiltro} onValueChange={setDiretorFiltro}>
+              <SelectTrigger>
+                <SelectValue placeholder="Diretoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FILTRO_TODOS}>Todas diretorias</SelectItem>
+                {aprovadores.map((aprovador) => (
+                  <SelectItem key={aprovador.id} value={aprovador.id}>
+                    {aprovador.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-44">
+            <Select value={setorFiltro} onValueChange={setSetorFiltro}>
+              <SelectTrigger>
+                <SelectValue placeholder="Setor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FILTRO_TODOS}>Todos setores</SelectItem>
+                {departamentos.map((departamento) => (
+                  <SelectItem key={departamento.id} value={departamento.id}>
+                    {departamento.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-44">
+            <Select value={unidadeFiltro} onValueChange={setUnidadeFiltro}>
+              <SelectTrigger>
+                <SelectValue placeholder="Unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FILTRO_TODOS}>Todas unidades</SelectItem>
+                {unidades.map((unidade) => (
+                  <SelectItem key={unidade.id} value={unidade.id}>
+                    {unidade.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-48">
+            <Select value={empresaFiltro} onValueChange={setEmpresaFiltro}>
+              <SelectTrigger>
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FILTRO_TODOS}>Todas empresas</SelectItem>
                 {empresas.map((empresa) => (
                   <SelectItem key={empresa.id} value={empresa.id}>
                     {empresa.nome}
@@ -372,19 +522,39 @@ export default function Relatorios() {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Indicadores principais -- espelham os 4 cards do dashboard de referencia. */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <HeroStat
               icon={Receipt}
-              label="Total solicitado"
-              value={formatValor(resumo.total_valor)}
-              hint={`${resumo.total_quantidade} solicitação(ões) no período`}
+              label="Total de solicitações"
+              value={resumo.total_quantidade}
+              hint={`Valor total ${formatValor(resumo.total_valor)}`}
               tone="neutral"
             />
-            <HeroStat icon={Wallet} label="Total pago" value={formatValor(resumo.total_pago)} tone="emerald" />
+            <HeroStat
+              icon={Hourglass}
+              label="Pendências de análise da diretoria"
+              value={resumo.total_pendentes}
+              hint={`Valor total ${formatValor(resumo.total_pendentes_valor)}`}
+              tone="amber"
+            />
+            <HeroStat
+              icon={Clock}
+              label="Pendências de pagamento"
+              value={resumo.total_aprovadas}
+              hint={`Valor total ${formatValor(resumo.total_em_aberto)}`}
+              tone="blue"
+            />
+            <HeroStat
+              icon={Wallet}
+              label="Total pago"
+              value={formatValor(resumo.total_pago)}
+              hint={`${resumo.total_pagas} solicitação(ões) pagas no período`}
+              tone="emerald"
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <KpiTile icon={Clock} label="Em aberto" value={formatValor(resumo.total_em_aberto)} hint="Aprovadas, ainda não quitadas" tone="blue" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <KpiTile
               icon={AlertTriangle}
               label="Atrasadas"
@@ -392,21 +562,115 @@ export default function Relatorios() {
               hint={`${resumo.total_atrasadas} solicitação(ões)`}
               tone="red"
             />
-            <KpiTile icon={Hourglass} label="Pendentes" value={resumo.total_pendentes} hint="Aguardando aprovação" tone="amber" />
             <KpiTile icon={XCircle} label="Reprovadas" value={resumo.total_reprovadas} tone="slate" />
             <KpiTile icon={Ban} label="Canceladas" value={resumo.total_canceladas} tone="slate" />
           </div>
 
-          {porMes.length > 0 && (
-            <ChartCard title="Evolução mensal" subtitle="Solicitado x pago, por mês de criação" icon={TrendingUp}>
-              <EvolucaoMensalChart data={porMes} />
+          {/* Rankings -- Requisicoes por Setor / por Unidade / Pendencias por Diretor(a). */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <RankingCard title="Requisições por Setor" icon={Building2} rows={porSetor} nameKey="setor" />
+            <RankingCard title="Requisições por Unidade" icon={Building2} rows={porUnidade} nameKey="unidade" />
+            <RankingCard title="Pendências por Diretor(a)" icon={UserSquare2} rows={porDiretor} nameKey="diretor" />
+          </div>
+
+          {/* Analises -- pendencias de pagamento por setor + evolucao mensal solicitado x pago. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard title="Pendências de Pagamento por Setor" subtitle="Aprovadas, ainda não pagas" icon={Clock}>
+              {pendenciaPagamentoPorSetor.length > 0 ? (
+                <HorizontalValorBarChart data={pendenciaPagamentoPorSetor} dataKey="setor" />
+              ) : (
+                <p className="py-6 text-center text-xs text-muted-foreground">Sem pendências de pagamento no período.</p>
+              )}
             </ChartCard>
-          )}
+
+            <ChartCard title="Evolução Mensal" subtitle="Solicitado x pago, por mês de criação" icon={TrendingUp}>
+              {porMes.length > 0 ? (
+                <EvolucaoMensalChart data={porMes} />
+              ) : (
+                <p className="py-6 text-center text-xs text-muted-foreground">Sem dados no período.</p>
+              )}
+            </ChartCard>
+          </div>
+
+          {/* Tabela analitica -- proximos vencimentos das solicitacoes aprovadas aguardando pagamento. */}
+          <ChartCard title="Requisições Pendentes — Próximos Vencimentos" icon={CalendarClock}>
+            {proximosVencimentos.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma pendência de pagamento no período.</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Solicitação</TableHead>
+                        <TableHead>Solicitante</TableHead>
+                        <TableHead>Setor</TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Diretor(a)</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {vencimentosPagina.map((linha) => {
+                        const vencimentoInfo = getVencimentoInfo(linha.vencimento_efetivo);
+                        return (
+                          <TableRow key={linha.numero}>
+                            <TableCell className="max-w-[200px] truncate text-sm">
+                              #{linha.numero} — {linha.titulo}
+                            </TableCell>
+                            <TableCell className="text-sm">{linha.solicitante_nome}</TableCell>
+                            <TableCell className="text-sm">{linha.departamento_nome || '-'}</TableCell>
+                            <TableCell className="text-sm">{linha.unidade_nome || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={vencimentoInfo.variant}>{formatDataVencimento(linha.vencimento_efetivo)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{linha.aprovador_destino_nome || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="info">Aguardando pagamento</Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-medium tabular-nums">{formatValor(linha.valor)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {totalPaginasVencimentos > 1 && (
+                  <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+                    <span>
+                      {paginaVencimentos * VENCIMENTOS_POR_PAGINA + 1}-
+                      {Math.min((paginaVencimentos + 1) * VENCIMENTOS_POR_PAGINA, proximosVencimentos.length)} de{' '}
+                      {proximosVencimentos.length}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={paginaVencimentos === 0}
+                      onClick={() => setPaginaVencimentos((atual) => Math.max(0, atual - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={paginaVencimentos >= totalPaginasVencimentos - 1}
+                      onClick={() => setPaginaVencimentos((atual) => Math.min(totalPaginasVencimentos - 1, atual + 1))}
+                    >
+                      Próxima
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </ChartCard>
 
           <div className="grid gap-4 lg:grid-cols-2">
             {porCategoria.length > 0 && (
               <ChartCard title="Por categoria" subtitle="Valor solicitado, exclui reprovadas e canceladas" icon={Tag}>
-                <CategoriaBarChart data={porCategoria} />
+                <HorizontalValorBarChart data={porCategoria} dataKey="categoria" />
               </ChartCard>
             )}
 

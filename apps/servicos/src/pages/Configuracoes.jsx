@@ -171,6 +171,7 @@ function configParaRascunho(config) {
     suprimento_caixa_sem_aprovador: config?.suprimento_caixa_sem_aprovador ?? false,
     suprimento_caixa_auto_aprovar: config?.suprimento_caixa_auto_aprovar ?? false,
     suprimento_caixa_departamentos_permitidos: config?.suprimento_caixa_departamentos_permitidos || [],
+    restringir_reprovacao_contas_a_pagar: config?.restringir_reprovacao_contas_a_pagar ?? true,
   };
 }
 
@@ -219,6 +220,7 @@ function FinanceiroTab() {
   const suprimentoCaixaSemAprovador = rascunho?.suprimento_caixa_sem_aprovador ?? false;
   const suprimentoCaixaAutoAprovar = rascunho?.suprimento_caixa_auto_aprovar ?? false;
   const suprimentoCaixaDepartamentosPermitidos = rascunho?.suprimento_caixa_departamentos_permitidos || [];
+  const restringirReprovacaoContasAPagar = rascunho?.restringir_reprovacao_contas_a_pagar ?? true;
 
   function toggleDepartamentoPermitido(departamentoId, checked) {
     const proximaLista = checked
@@ -253,6 +255,25 @@ function FinanceiroTab() {
           <Switch
             checked={restringir}
             onCheckedChange={(checked) => setCampo('restringir_visibilidade_pagamento_dinheiro', checked)}
+            disabled={salvarMutation.isPending}
+          />
+        </div>
+      )}
+
+      {!configQuery.isLoading && (
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-4">
+          <div>
+            <p className="font-medium">Restringir reprovação após aprovação ao financeiro</p>
+            <p className="text-sm text-muted-foreground">
+              Quando ativo, só o financeiro pode reprovar uma solicitação já aprovada (tela
+              Pagamentos). Quando desativado, o papel &quot;contas a pagar&quot; também pode
+              reprovar uma solicitação já aprovada — não afeta a reprovação de solicitações ainda
+              pendentes, que continua exclusiva do aprovador designado e do financeiro.
+            </p>
+          </div>
+          <Switch
+            checked={restringirReprovacaoContasAPagar}
+            onCheckedChange={(checked) => setCampo('restringir_reprovacao_contas_a_pagar', checked)}
             disabled={salvarMutation.isPending}
           />
         </div>
