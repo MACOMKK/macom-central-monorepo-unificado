@@ -455,7 +455,7 @@ async function generateTermoPDF(employee, assets, options = {}) {
     y += lines.length * 3.7 + 2.2;
   });
 
-  y += 10;
+  y += 22;
   const sigY = Math.min(y, pageHeight - 24);
   doc.setDrawColor(180, 180, 180);
   const sigWidth = (contentWidth - 20) / 2;
@@ -485,7 +485,7 @@ async function generateTermoPDF(employee, assets, options = {}) {
   const empresaStampWidthMm = sigWidth * 0.8;
   const empresaStampHeightMm = 12;
   const empresaStampX = rightX + (sigWidth - empresaStampWidthMm) / 2;
-  const empresaStampTopY = sigY - empresaStampHeightMm - 2;
+  const empresaStampTopY = sigY - empresaStampHeightMm - 9;
   const empresaSignatureAnchor = {
     pageIndex: 0,
     xFrac: empresaStampX / pageWidth,
@@ -499,7 +499,7 @@ async function generateTermoPDF(employee, assets, options = {}) {
   const colaboradorStampWidthMm = sigWidth * 0.8;
   const colaboradorStampHeightMm = 12;
   const colaboradorStampX = marginX + (sigWidth - colaboradorStampWidthMm) / 2;
-  const colaboradorStampTopY = sigY - colaboradorStampHeightMm - 2;
+  const colaboradorStampTopY = sigY - colaboradorStampHeightMm - 9;
   const colaboradorSignatureAnchor = {
     pageIndex: 0,
     xFrac: colaboradorStampX / pageWidth,
