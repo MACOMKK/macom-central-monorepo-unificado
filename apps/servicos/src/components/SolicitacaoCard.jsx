@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowRight, Bike, Car, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
 import { Badge } from '@macom/ui';
-import { formatDataVencimento, formatValor, getEmpresaTipoVeiculo } from '@/lib/financeiroFormat';
+import { formatDataVencimento, formatValor, truncarTitulo } from '@/lib/financeiroFormat';
 
 // Card usado como fallback de <Table> em telas estreitas (md:hidden) nas listagens de
 // solicitacoes (MinhasSolicitacoes, Aprovacoes, Pagamentos) -- mesmo `row` da tabela, so muda a
@@ -44,13 +44,8 @@ export default function SolicitacaoCard({
       )}
       <div className="space-y-2 p-4">
       <div className="flex items-start justify-between gap-2">
-        <p className="flex items-center gap-1.5 text-sm font-medium leading-snug">
-          {getEmpresaTipoVeiculo(row.empresa_nome) === 'moto' ? (
-            <Bike className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Motos" />
-          ) : (
-            <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Mitsubishi" />
-          )}
-          <span className="truncate">{row.titulo || '-'}</span>
+        <p className="text-sm font-medium leading-snug" title={row.titulo || '-'}>
+          {truncarTitulo(row.titulo)}
         </p>
         <p className="shrink-0 text-sm font-semibold">{formatValor(row.valor)}</p>
       </div>

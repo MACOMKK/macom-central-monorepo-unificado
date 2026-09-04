@@ -1,3 +1,12 @@
+// Limita o titulo exibido nas colunas das tabelas de listagem (Minhas Solicitacoes, Aprovacoes,
+// Contas a Pagar) pra nao estourar a largura da coluna com titulos muito longos -- o `truncate`
+// via CSS ja corta visualmente, mas sem limite de caracteres o texto completo ainda fica no DOM
+// e pode vazar em telas largas/zoom; cortar a string garante o limite em qualquer cenario.
+export function truncarTitulo(titulo, max = 40) {
+  const texto = titulo || '-';
+  return texto.length > max ? `${texto.slice(0, max).trimEnd()}...` : texto;
+}
+
 export const STATUS_VARIANT = {
   pendente: 'warning',
   aprovado: 'success',
@@ -214,14 +223,6 @@ export function getVencimentoInfo(dataVencimento) {
   if (dia === hoje) return { key: 'vence_hoje', label: 'Vence hoje', variant: 'warning' };
   if (dia === amanha) return { key: 'vence_amanha', label: 'Vence amanhã', variant: 'info' };
   return { key: 'no_prazo', label: 'No prazo', variant: 'success' };
-}
-
-// Distingue Macom Motos das demais empresas (hoje so Macom Mitsubishi) pra decidir o icone de
-// moto/carro nas listagens -- nao existe coluna "tipo" em public.empresas, so nome/slug, entao a
-// deteccao e por substring no nome (funciona pra empresa nova de carro sem precisar de migration,
-// so quebra se um dia entrar uma 3a empresa que tambem seja de motos com nome sem "moto").
-export function getEmpresaTipoVeiculo(empresaNome) {
-  return /moto/i.test(empresaNome || '') ? 'moto' : 'carro';
 }
 
 export function formatDataHora(data) {

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, Car, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import { supabase } from '@macom/api-client/supabaseClient';
@@ -40,8 +40,8 @@ import {
   buildSolicitacaoSearchText,
   formatDataVencimento,
   FORMA_PAGAMENTO_LABEL,
-  getEmpresaTipoVeiculo,
   toLocalDateOnly,
+  truncarTitulo,
 } from '@/lib/financeiroFormat';
 
 const CATEGORIA_FILTRO_TODAS = 'todas';
@@ -432,15 +432,8 @@ export default function Aprovacoes() {
               <TableBody>
                 {pageItems.map((row) => (
                   <TableRow key={row.id} className="cursor-pointer" onClick={() => setSelectedId(row.id)}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-1.5">
-                        {getEmpresaTipoVeiculo(row.empresa_nome) === 'moto' ? (
-                          <Bike className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Motos" />
-                        ) : (
-                          <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Mitsubishi" />
-                        )}
-                        <span className="truncate">{row.titulo || '-'}</span>
-                      </div>
+                    <TableCell className="max-w-xs truncate font-medium" title={row.titulo || '-'}>
+                      {truncarTitulo(row.titulo)}
                     </TableCell>
                     <TableCell>{row.solicitante_nome}</TableCell>
                     <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>

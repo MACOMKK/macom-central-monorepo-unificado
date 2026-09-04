@@ -4,10 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Banknote,
   Bell,
-  Bike,
   Building2,
   Calendar,
-  Car,
   Check,
   Clock,
   Copy,
@@ -76,7 +74,6 @@ import {
   ANEXO_CATEGORIA_LABEL,
   ANEXO_CATEGORIA_OPCOES,
   FORMA_PAGAMENTO_LABEL,
-  getEmpresaTipoVeiculo,
   isBloqueadaPorPendencia,
   STATUS_LABEL,
   STATUS_VARIANT,
@@ -609,16 +606,8 @@ export default function SolicitacaoDrawer({ solicitacao, onOpenChange, footer = 
     <Sheet open={Boolean(solicitacao)} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle className="flex items-center justify-between gap-2 pr-6">
-            <span className="flex min-w-0 items-center gap-1.5">
-              {solicitacao &&
-                (getEmpresaTipoVeiculo(solicitacao.empresa_nome) === 'moto' ? (
-                  <Bike className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Motos" />
-                ) : (
-                  <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Mitsubishi" />
-                ))}
-              <span className="truncate">{solicitacao?.titulo || solicitacao?.fornecedor}</span>
-            </span>
+          <SheetTitle className="flex items-start justify-between gap-2 pr-6">
+            <span className="min-w-0">{solicitacao?.titulo || solicitacao?.fornecedor}</span>
             <span className="flex shrink-0 items-center gap-2">
               <WhatsAppShareButton solicitacao={solicitacao} />
               {solicitacao && (

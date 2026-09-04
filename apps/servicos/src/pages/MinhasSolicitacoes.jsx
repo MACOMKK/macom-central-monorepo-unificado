@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bike, Car, Pencil, Plus, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 
 import { financeiroApi } from '@macom/api-client/financeiroApi';
 import {
@@ -35,12 +35,12 @@ import {
   formatDataVencimento,
   formatValor,
   FORMA_PAGAMENTO_LABEL,
-  getEmpresaTipoVeiculo,
   isBloqueadaPorPendencia,
   isParcialmentePago,
   STATUS_LABEL,
   STATUS_VARIANT,
   toDateOnly,
+  truncarTitulo,
 } from '@/lib/financeiroFormat';
 import SolicitacaoDrawer from '@/components/SolicitacaoDrawer';
 import SolicitacaoCard from '@/components/SolicitacaoCard';
@@ -587,12 +587,9 @@ export default function MinhasSolicitacoes() {
                           ) : (
                             <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-label="Pendência" />
                           ))}
-                        {getEmpresaTipoVeiculo(row.empresa_nome) === 'moto' ? (
-                          <Bike className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Motos" />
-                        ) : (
-                          <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Macom Mitsubishi" />
-                        )}
-                        <span className="truncate">{row.titulo || '-'}</span>
+                        <span className="truncate" title={row.titulo || '-'}>
+                          {truncarTitulo(row.titulo)}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>{formatDataVencimento(row.vencimento_efetivo)}</TableCell>
