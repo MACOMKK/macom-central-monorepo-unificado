@@ -36,7 +36,9 @@ export default function CatalogAuxDialogs({
         lines={collaboratorLinks.lines}
         onOpenChange={collaboratorLinks.onOpenChange}
         open={collaboratorLinks.open}
+        statusTone={collaboratorLinks.statusTone}
         systems={collaboratorLinks.systems}
+        terms={collaboratorLinks.terms}
         unitName={collaboratorLinks.unitName}
       />
     </>

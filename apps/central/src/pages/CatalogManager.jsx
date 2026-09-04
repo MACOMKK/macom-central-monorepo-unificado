@@ -72,7 +72,8 @@ import { CENTRAL_PERMISSION_LEVELS } from '@/lib/centralPermissions';
 
 function formatDate(dateString) {
   if (!dateString) return '-';
-  const date = new Date(`${dateString}T00:00:00`);
+  const datePart = String(dateString).slice(0, 10);
+  const date = new Date(`${datePart}T00:00:00`);
   return Number.isNaN(date.getTime()) ? dateString : date.toLocaleDateString('pt-BR');
 }
 
@@ -97,7 +98,7 @@ function formatPhone(phone) {
 const ENTITY_DEPENDENCIES = {
   ativos: ['ativos', 'colaboradores', 'unidades'],
   cargos: ['cargos', 'departamentos', 'colaboradores'],
-  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'empresas', 'unidades', 'sistemas', 'acessos_usuario_sistema'],
+  colaboradores: ['colaboradores', 'ativos', 'linhas_corporativas', 'departamentos', 'cargos', 'empresas', 'unidades', 'sistemas', 'acessos_usuario_sistema', 'termos_posse'],
   contatos: ['contatos', 'unidades'],
   departamentos: ['departamentos', 'ativos', 'colaboradores'],
   empresas: ['empresas', 'colaboradores', 'unidades'],
@@ -304,6 +305,18 @@ export default function CatalogManager({ lockedEntityKey }) {
       return acc;
     }, {});
   }, [systemAccesses, systems]);
+  const linkedTermsByCollaboratorId = useMemo(
+    () =>
+      terms.reduce((acc, term) => {
+        if (term.colaborador_id) {
+          if (!acc[term.colaborador_id]) acc[term.colaborador_id] = [];
+          acc[term.colaborador_id].push(term);
+        }
+        return acc;
+      }, {}),
+    [terms]
+  );
+
   const viewingPositionCollaborators = useMemo(() => {
     if (!viewingPosition?.id) return [];
     return collaborators
@@ -1163,7 +1176,9 @@ export default function CatalogManager({ lockedEntityKey }) {
             if (!open) setViewingCollaboratorLinks(null);
           },
           open: viewingCollaboratorLinks !== null,
+          statusTone,
           systems: viewingCollaboratorLinks ? linkedSystemsByCollaboratorId[viewingCollaboratorLinks.id] || [] : [],
+          terms: viewingCollaboratorLinks ? linkedTermsByCollaboratorId[viewingCollaboratorLinks.id] || [] : [],
           unitName: viewingCollaboratorLinks
             ? units.find((item) => item.id === viewingCollaboratorLinks.unidade_id)?.nome || 'Sem unidade'
             : 'Sem unidade',
